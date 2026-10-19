@@ -296,7 +296,12 @@ private fun ConsultationRow(c: Consultation, mode: RowMode, onClick: () -> Unit)
             Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     KindBadge(c.kind)
-                    if (c.awaitingPayment()) StatusBadge("Awaiting Payment", Lex.colors.warning) else StatusPill(c.status)
+                    when {
+                        c.awaitingPayment() -> StatusBadge("Awaiting Payment", Lex.colors.warning)
+                        // The portal's own words for a funnel that waits on the client.
+                        c.funnelNeedsYou() && c.funnelLabel != null -> StatusBadge(title(c.funnelLabel), Lex.colors.warning)
+                        else -> StatusPill(c.status)
+                    }
                 }
                 Text(
                     c.displayTitle(),

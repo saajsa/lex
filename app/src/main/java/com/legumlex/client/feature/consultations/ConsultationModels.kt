@@ -127,7 +127,14 @@ data class Consultation(
     val feeInvoiceId: String? = null,
     /** Shared advocate messages not yet read. */
     val unreadCount: Int = 0,
+    /** The portal board's reading of a funnel (Funnel_client_view): label + action. */
+    val funnelLabel: String? = null,
+    val funnelAction: String? = null,
+    val funnelDetail: String? = null,
 )
+
+/** Funnel actions that wait on the client, as the portal's board counts them. */
+fun Consultation.funnelNeedsYou(): Boolean = funnelAction in setOf("reupload", "answer", "pay", "check_email")
 
 /** True iff the client is allowed to withdraw this consultation themselves. */
 fun Consultation.canWithdraw(): Boolean =
@@ -159,6 +166,7 @@ fun Consultation.needsAction(): Boolean {
             ConsultationStatus.COMPLETED,
         )) return false
     return when {
+        funnelNeedsYou() -> true
         hasUnreadReplies -> true
         kind == ConsultationKind.DOC_REQUEST && pendingDocCount > 0 -> true
         kind == ConsultationKind.DIGITAL_OFFICE && scheduledDate != null -> {
@@ -219,6 +227,7 @@ fun Consultation.displayTitle(): String =
 
 // Short "what to do next" hint for the Needs-action card subline.
 fun Consultation.nextActionLabel(): String? = when {
+    funnelNeedsYou() && funnelDetail != null           -> funnelDetail
     hasUnreadReplies                                   -> "New message from your advocate"
     kind == ConsultationKind.DOC_REQUEST && pendingDocCount > 0 ->
         "$pendingDocCount document${if (pendingDocCount == 1) "" else "s"} left to upload"

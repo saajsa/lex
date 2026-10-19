@@ -1,5 +1,9 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.ahc.theme.LlDimen
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -136,7 +140,9 @@ fun DetailAHC(
         },
         containerColor = LlColor.Paper,
     ) { inner ->
-        AhcDetailBody(
+        if (consultation.funnelAction == "reupload") {
+            UnreadableBody(consultation, onUploadAgreement, onMessageAdvocate, Modifier.fillMaxSize().padding(inner))
+        } else AhcDetailBody(
             state = state,
             actions = actions,
             modifier = Modifier
@@ -300,6 +306,7 @@ private fun AhcWarmHeader(
                         escalated -> EscalatedRail(consultation, onOpenLinkedConsultation)
                         loading   -> LoadingRail()
                         awaitingPay -> AwaitingPaymentRail()
+                        consultation.funnelAction == "reupload" -> UnreadableRail(consultation.funnelLabel ?: "We Could Not Read It")
                         else      -> PendingRail(remaining = remaining, overdueMin = overdueMin)
                     }
                 }
@@ -389,6 +396,46 @@ private fun ReleasedRail(ahcData: AhcAnalysis?) {
 }
 
 /** Unpaid: the fee's invoice is paid on the website before the review begins. */
+private fun titled(s: String) = s.split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.titlecase() } }
+
+@Composable
+private fun UnreadableRail(label: String) {
+    RailRow {
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            StateChip(label = titled(label), soft = LlColor.AmberSoft, text = LlColor.Amber, icon = Icons.Filled.HourglassTop)
+            Text("The review waits for another copy", style = LlText.label.copy(fontSize = 11.5.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/**
+ * The agreement could not be read (the funnel's unusable / failed step): no
+ * clock runs, nothing is "almost there". The portal's own words, and the way
+ * to send another copy.
+ */
+@Composable
+private fun UnreadableBody(consultation: Consultation, onUpload: () -> Unit, onMessage: () -> Unit, modifier: Modifier) {
+    Column(modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(14.dp)).padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(Icons.Outlined.Description, null, tint = LlColor.Amber, modifier = Modifier.size(34.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(titled(consultation.funnelLabel ?: "We could not read it"), style = LlText.emptyTitle, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(6.dp))
+            Text(consultation.funnelDetail ?: "Please upload another copy and we will take a look.", style = LlText.body, textAlign = TextAlign.Center)
+        }
+        androidx.compose.material3.Button(onClick = onUpload, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Text("Send Another Copy")
+        }
+        androidx.compose.material3.TextButton(onClick = onMessage, modifier = Modifier.fillMaxWidth()) {
+            Text("Message Your Advocate")
+        }
+    }
+}
+
 @Composable
 private fun AwaitingPaymentRail() {
     RailRow {
