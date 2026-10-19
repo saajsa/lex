@@ -237,6 +237,7 @@ internal fun parseChamber(data: Map<String, Any?>?): ChamberState? {
             sessionStartedAt = (a["session_started_at"] as? String)?.let { parseLocalDateTime(it) },
             queueCount   = a["queue_count"].toIntSafe(),
             etaMinutes   = a["eta_minutes"].toIntSafe(),
+            avatarLarge  = (a["avatar_large"] as? String)?.takeIf { it.isNotBlank() },
         )
     }
     val advs = advocates("advocates")
@@ -259,6 +260,22 @@ internal fun parseChamber(data: Map<String, Any?>?): ChamberState? {
             ActiveDoSession(it["id"].toIntSafe(), (it["status"] as? String).orEmpty(), it["consultation_id"].toIntSafe().takeIf { c -> c > 0 })
         },
         roster           = if (data.containsKey("roster")) advocates("roster") else advs,
+        sitting          = (data["sitting"] as? Map<*, *>)?.let { h ->
+            Sitting(
+                days = (h["days"] as? List<*>)?.map { it.toIntSafe() }?.filter { it in 1..7 }?.takeIf { it.isNotEmpty() } ?: Sitting().days,
+                from = h["from"].toIntSafe(),
+                to   = h["to"].toIntSafe().takeIf { it > 0 } ?: Sitting().to,
+                tz   = (h["tz"] as? String)?.takeIf { it.isNotBlank() } ?: Sitting().tz,
+            )
+        } ?: Sitting(),
+        register         = (data["register"] as? Map<*, *>)?.let { r ->
+            ChamberRegister(
+                held     = r["held"]?.toIntSafe(),
+                since    = r["since"] as? String,
+                replyMin = r["reply_min"]?.toIntSafe(),
+                duration = r["duration"].toIntSafe().takeIf { it > 0 } ?: 30,
+            )
+        } ?: ChamberRegister(),
     )
 }
 

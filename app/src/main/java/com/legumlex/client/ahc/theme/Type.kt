@@ -33,6 +33,24 @@ val Inter = FontFamily(
 /** Reference numbers, case numbers, codes. */
 val Mono = FontFamily.Monospace
 
+/**
+ * The Legum Lex chamber page's serif: Fraunces at its softest and largest
+ * optical size (site.tw.css: 'SOFT' 100, 'opsz' 144, weight 400). Headlines
+ * and figures in the Digital Office only, never body text. No italic in the
+ * file: "Adv." asks for italic and Compose slants this one.
+ */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val Fraunces = FontFamily(
+    Font(
+        R.font.fraunces, FontWeight.Normal,
+        variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
+            androidx.compose.ui.text.font.FontVariation.weight(400),
+            androidx.compose.ui.text.font.FontVariation.Setting("opsz", 144f),
+            androidx.compose.ui.text.font.FontVariation.Setting("SOFT", 100f),
+        ),
+    ),
+)
+
 private val tightLineHeight = LineHeightStyle(
     alignment = LineHeightStyle.Alignment.Center,
     trim = LineHeightStyle.Trim.None,

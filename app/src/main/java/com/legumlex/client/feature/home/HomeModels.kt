@@ -133,6 +133,8 @@ data class ChamberAdvocate(
      * Zero when the advocate is free and the queue is empty.
      */
     val etaMinutes: Int,
+    /** The full-size photo, for the Digital Office's call panel. */
+    val avatarLarge: String? = null,
 )
 
 data class ChamberState(
@@ -153,7 +155,21 @@ data class ChamberState(
     val activeSession: ActiveDoSession? = null,
     /** Everyone at their desk; `advocates` is Home's first three. */
     val roster: List<ChamberAdvocate> = advocates,
+    /** The chamber's hours, as the Legum Lex page's sitting clock reads them. */
+    val sitting: Sitting = Sitting(),
+    /** From the chamber's register: figures only, null until there are enough. */
+    val register: ChamberRegister = ChamberRegister(),
 )
+
+/** Sitting days (ISO, Monday 1) and hours in minutes after midnight, in [tz]. */
+data class Sitting(
+    val days: List<Int> = listOf(1, 2, 3, 4, 5, 6),
+    val from: Int = 15 * 60 + 30,
+    val to: Int = 21 * 60,
+    val tz: String = "Asia/Kolkata",
+)
+
+data class ChamberRegister(val held: Int? = null, val since: String? = null, val replyMin: Int? = null, val duration: Int = 30)
 
 /** A Digital Office session already in flight — it outranks the roster. */
 data class ActiveDoSession(val id: Int, val status: String, val consultationId: Int?)
