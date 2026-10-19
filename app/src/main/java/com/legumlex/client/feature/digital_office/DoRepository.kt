@@ -1,7 +1,6 @@
 package com.legumlex.client.feature.digital_office
 
 import com.legumlex.client.data.api.ApiService
-import com.legumlex.client.feature.payment.RazorpayOptions
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -14,8 +13,7 @@ import java.time.format.DateTimeParseException
 class DoRepository(private val api: ApiService) {
 
     /**
-     * Returns the new session_id and, for the paid path, the Razorpay
-     * checkout config so the screen can launch the SDK directly.
+     * Returns the new session_id; the fee, if any, is paid after the advocate accepts (feeInvoice).
      *
      * If the server gates the call with `code=advocate_busy, action=join_waitroom`
      * (cabin occupied, caller doesn't hold a prompted row) the failure carries
@@ -42,36 +40,20 @@ class DoRepository(private val api: ApiService) {
         // through Int to guarantee a clean integer string.
         val sessionId = data["session_id"]?.asIntString() ?: error("No session_id")
         val free      = (data["free"]?.toString()?.toBooleanStrictOrNull()) == true
-        val options   = if (!free) parseRazorpayOptions(data) else null
-        StartResult(sessionId = sessionId, free = free, razorpay = options)
+        StartResult(sessionId = sessionId, free = free)
     }
 
     /**
-     * Verify a Razorpay payment. Under the approval-gate flow (server
-     * migration 106) this is the FINAL step — on success the server mints
-     * the Meet link and flips the session to `in_progress`, so the response
-     * carries `meet_link` + `consultation_id` directly. The screen navigates
-     * straight to the meeting from here; no separate `submitIntake` follow-up.
+     * The accepted session's fee as an invoice, paid on its public page on
+     * the website (the app takes no payments). Paying it starts the session;
+     * the Waiting poll sees in_progress. Returns the page's address.
      */
-    suspend fun verifyPayment(
-        sessionId: String,
-        orderId: String,
-        paymentId: String,
-        signature: String,
-    ): Result<IntakeResult> = runCatching {
-        val response = api.verifyDoPayment(sessionId, orderId, paymentId, signature)
-        if ((response["status"]?.toString()?.toBooleanStrictOrNull()) != true) {
-            error(response["message"]?.toString() ?: "Payment verification failed")
-        }
+    suspend fun feeInvoice(sessionId: String): Result<String> = runCatching {
+        val response = api.doFeeInvoice(sessionId)
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?>
-            ?: error("No data in verifyPayment response")
-        IntakeResult(
-            sessionId      = data["session_id"]?.asIntString() ?: sessionId,
-            consultationId = data["consultation_id"]?.asIntString()?.takeIf { it.isNotBlank() && it != "0" },
-            meetLink       = data["meet_link"]?.toString()?.takeIf { it.isNotBlank() },
-            briefSummary   = null,
-        )
+            ?: error(response["message"]?.toString() ?: "The invoice could not be opened.")
+        (data["pay_url"] as? String)?.takeIf { it.isNotBlank() } ?: error("The invoice could not be opened.")
     }
 
     /**
@@ -186,8 +168,6 @@ private fun Any?.asIntOrNull(): Int? {
 data class StartResult(
     val sessionId: String,
     val free: Boolean,
-    /** Non-null on the paid path — the screen launches Razorpay with these. */
-    val razorpay: RazorpayOptions? = null,
 )
 
 /**
@@ -222,29 +202,6 @@ private fun Any?.asIntString(): String? {
     return s
 }
 
-@Suppress("UNCHECKED_CAST")
-private fun parseRazorpayOptions(data: Map<String, Any?>): RazorpayOptions? {
-    val orderId = data["order_id"]?.toString()?.takeIf { it.isNotBlank() } ?: return null
-    val keyId   = data["key_id"]?.toString()?.takeIf { it.isNotBlank() } ?: return null
-    // JSON numbers arrive as Double via the converter (300 -> 300.0), so
-    // "300.0".toIntOrNull() is null. Parse via Number/Double, not toInt.
-    val amount  = (data["amount_paise"] as? Number)?.toInt()
-        ?: data["amount_paise"]?.toString()?.toDoubleOrNull()?.toInt()
-        ?: return null
-    val prefill = data["prefill"] as? Map<String, Any?>
-    return RazorpayOptions(
-        keyId          = keyId,
-        orderId        = orderId,
-        amountPaise    = amount,
-        currency       = (data["currency"] as? String) ?: "INR",
-        name           = (data["office_name"] as? String)?.takeIf { it.isNotBlank() } ?: "Legum Lex",
-        description    = (data["description"] as? String)?.takeIf { it.isNotBlank() }
-                            ?: "Digital Office session fee",
-        prefillEmail   = (prefill?.get("email")   as? String)?.takeIf { it.isNotBlank() },
-        prefillContact = (prefill?.get("contact") as? String)?.takeIf { it.isNotBlank() },
-    )
-}
-
 data class IntakeResult(
     val sessionId: String,
     val consultationId: String?,
@@ -256,7 +213,6 @@ private fun parseSession(m: Map<String, Any?>): DoSession {
     @Suppress("UNCHECKED_CAST")
     val adv = m["advocate"] as? Map<String, Any?>
     @Suppress("UNCHECKED_CAST")
-    val rp  = m["razorpay"] as? Map<String, Any?>
     return DoSession(
         id             = m["id"]?.asIntString() ?: "",
         status         = DoSessionStatus.from(m["status"] as? String),
@@ -270,7 +226,6 @@ private fun parseSession(m: Map<String, Any?>): DoSession {
         consultationId = m["consultation_id"]?.asIntString()?.takeIf { it.isNotBlank() && it != "0" && it != "null" },
         approvedAt     = (m["approved_at"] as? String)?.takeIf { it.isNotBlank() },
         declinedAt     = (m["declined_at"] as? String)?.takeIf { it.isNotBlank() },
-        razorpay       = rp?.let { parseRazorpayOptions(it) },
         advocate       = adv?.let {
             DoAdvocate(
                 staffId   = it["staff_id"].asIntOrZero(),

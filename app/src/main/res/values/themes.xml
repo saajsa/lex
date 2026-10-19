@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Compose handles theming. This XML theme is the splash/launch theme
-         AND the parent for any AppCompat-based Activity our deps launch.
-         Razorpay's CheckoutActivity in particular inflates AppCompat views;
-         when the host app theme isn't AppCompat-derived, the inflation
-         silently fails and the SDK shows "couldn't reach the server" — so
-         we use Theme.AppCompat as parent rather than the framework theme. -->
+         AND the parent for any AppCompat-based Activity our deps launch
+         (such an Activity fails to inflate under a framework theme), so
+         Theme.AppCompat is the parent rather than the framework theme. -->
     <style name="Theme.LegumLex" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:statusBarColor">#FFFFFFFF</item>
         <item name="android:navigationBarColor">#FFFFFFFF</item>

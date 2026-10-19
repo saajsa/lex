@@ -50,8 +50,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.legumlex.client.feature.payment.LocalRazorpayResults
-import com.legumlex.client.feature.payment.openRazorpayCheckout
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.components.LegumSecondaryButton
 import com.legumlex.client.ui.theme.*
@@ -85,7 +83,6 @@ fun DoIntakeScreen(
     val waitroomVm = sharedDoWaitroomViewModel()
     val state by vm.state.collectAsState()
     val snack = remember { SnackbarHostState() }
-    val razorpayResults = LocalRazorpayResults.current
 
     LaunchedEffect(vm) {
         vm.events.collect { ev ->
@@ -99,13 +96,9 @@ fun DoIntakeScreen(
                     // client lands on Home with the session live.
                     ev.consultationId?.let(onSubmitted) ?: onBack()
                 }
-                is DoIntakeEvent.LaunchCheckout -> {
-                    // Razorpay's SDK requires an Activity reference (it discovers
-                    // PaymentResultWithDataListener via reflection on the caller).
-                    // The host MainActivity republishes the outcome via
-                    // razorpayResults; the LaunchedEffect below picks it up.
-                    val activity = context as? android.app.Activity
-                    if (activity != null) openRazorpayCheckout(activity, ev.options)
+                is DoIntakeEvent.OpenUrl -> runCatching {
+                    // The fee is an invoice, paid on its page on the website.
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(ev.url)))
                 }
                 is DoIntakeEvent.OfferJoinQueue -> {
                     // Cabin is occupied — surface a snackbar with a Join action.
@@ -125,11 +118,6 @@ fun DoIntakeScreen(
                 }
             }
         }
-    }
-    // Razorpay outcome is forwarded once back to the VM, which decides
-    // whether to verify-then-intake or surface a failure snackbar.
-    LaunchedEffect(vm) {
-        razorpayResults.collect { result -> vm.handlePaymentResult(result) }
     }
 
     Scaffold(
@@ -152,6 +140,7 @@ fun DoIntakeScreen(
                 inner    = inner,
                 state    = s,
                 onCancel = vm::cancelWhileWaiting,
+                onOpenInvoice = vm::openInvoice,
             )
             is DoIntakeUiState.Declined  -> DeclinedContent(inner, s, onBack = onBack)
             is DoIntakeUiState.Cancelled -> CancelledContent(inner, s, onBack = onBack)
@@ -166,7 +155,11 @@ private fun WaitingContent(
     inner: PaddingValues,
     state: DoIntakeUiState.Waiting,
     onCancel: () -> Unit,
+    onOpenInvoice: () -> Unit,
 ) {
+    // Accepted: the fee's invoice is the next step (paid on the website).
+    val paying = state.payUrl != null || state.openingInvoice
+    val fee = com.legumlex.client.feature.finance.formatMoney(state.sessionFee, if (state.currency == "INR") "₹" else state.currency + " ").removeSuffix(".00")
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -188,7 +181,7 @@ private fun WaitingContent(
             WaitingRings(
                 initial    = state.advocate.firstName.firstOrNull()?.toString()?.uppercase() ?: "A",
                 avatarUrl  = state.advocate.avatarUrl,
-                ringColor  = if (state.verifyingPayment) LexAmber else LexVerdant,
+                ringColor  = if (paying) LexAmber else LexVerdant,
             )
 
             Spacer(Modifier.height(20.dp))
@@ -197,22 +190,21 @@ private fun WaitingContent(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(if (state.verifyingPayment) LexAmber else LexVerdant),
+                        .background(if (paying) LexAmber else LexVerdant),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text       = if (state.verifyingPayment) "CONFIRMING PAYMENT" else "IN THE QUEUE",
+                    text       = if (paying) "ACCEPTED · FEE DUE" else "IN THE QUEUE",
                     fontFamily = Inter,
                     fontSize   = 10.sp,
                     letterSpacing = 1.5.sp,
-                    color      = if (state.verifyingPayment) LexAmber else LexVerdant,
+                    color      = if (paying) LexAmber else LexVerdant,
                 )
             }
 
             Spacer(Modifier.height(10.dp))
             Text(
-                text       = if (state.verifyingPayment) "Confirming your payment…"
-                             else "You're next in line",
+                text       = if (paying) "Pay the Fee to Begin" else "You're next in line",
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 26.sp,
@@ -223,8 +215,9 @@ private fun WaitingContent(
             )
             Spacer(Modifier.height(9.dp))
             Text(
-                text       = if (state.verifyingPayment)
-                    "Hang on while we set up your meeting room."
+                text       = if (paying)
+                    "Adv. ${state.advocate.name} has accepted. The fee of $fee is an invoice from the firm, " +
+                    "open in your browser. Pay it within three minutes and your consultation starts here."
                 else
                     "Adv. ${state.advocate.name} is reviewing your brief. They have 2 minutes to " +
                     "respond — we'll update this screen the moment they do.",
@@ -236,7 +229,7 @@ private fun WaitingContent(
                 modifier   = Modifier.widthIn(max = 280.dp),
             )
 
-            if (state.briefSummary != null && !state.verifyingPayment) {
+            if (state.briefSummary != null && !paying) {
                 Spacer(Modifier.height(22.dp))
                 Surface(
                     color    = Color.White,
@@ -268,9 +261,26 @@ private fun WaitingContent(
 
         // Bottom action — Cancel (text-only outline, never primary)
         Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
+            if (paying) {
+                Button(
+                    onClick  = onOpenInvoice,
+                    enabled  = state.payUrl != null,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape    = RoundedCornerShape(8.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = LexInk, contentColor = LexPaper),
+                ) {
+                    Text(
+                        text       = if (state.payUrl == null) "Opening the Invoice…" else "Open the Invoice · $fee",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 13.sp,
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             OutlinedButton(
                 onClick  = onCancel,
-                enabled  = !state.cancelling && !state.verifyingPayment,
+                enabled  = !state.cancelling,
                 modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(8.dp),
                 border   = BorderStroke(1.dp, LexBorderStrong),

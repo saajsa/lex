@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,8 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.legumlex.client.feature.payment.LocalRazorpayResults
-import com.legumlex.client.feature.payment.RazorpayResult
 import com.legumlex.client.ui.navigation.AppHeader
 import com.legumlex.client.ui.navigation.Route
 import com.legumlex.client.ui.navigation.LegumBottomBar
@@ -31,30 +28,18 @@ import com.legumlex.client.ui.navigation.showAppFooter
 import com.legumlex.client.ui.navigation.showAppHeader
 import com.legumlex.client.ui.navigation.showHeaderBack
 import com.legumlex.client.ui.theme.LegumLexTheme
-import com.razorpay.PaymentData
-import com.razorpay.PaymentResultWithDataListener
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 /**
- * The host Activity is also the Razorpay payment-result receiver. Razorpay's
- * Checkout SDK discovers the listener interface via reflection on the calling
- * Activity, so the implementation must live here. The result is forwarded onto
- * a hot SharedFlow which any composable can collect via [LocalRazorpayResults].
+ * The host Activity. The app takes no payments: fees and invoices are paid on
+ * the website, on the invoice's own page.
  */
-class MainActivity :
-    ComponentActivity(),
-    PaymentResultWithDataListener {
+class MainActivity : ComponentActivity() {
 
     // singleTask activity — onNewIntent fires for notification taps while
     // the app is alive. We hoist the latest intent into Compose state so the
     // NavController can re-process its deepLink when it arrives.
     private var latestIntent by mutableStateOf<Intent?>(null)
-
-    private val _razorpay = MutableSharedFlow<RazorpayResult>(extraBufferCapacity = 1)
-    val razorpayResults: SharedFlow<RazorpayResult> = _razorpay.asSharedFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -63,9 +48,7 @@ class MainActivity :
         latestIntent = intent
         setContent {
             LegumLexTheme {
-                CompositionLocalProvider(LocalRazorpayResults provides razorpayResults) {
-                    AppShell(latestIntent)
-                }
+                AppShell(latestIntent)
             }
         }
     }
@@ -76,47 +59,6 @@ class MainActivity :
         latestIntent = intent
     }
 
-    // ── Razorpay PaymentResultWithDataListener ────────────────────────────────
-
-    override fun onPaymentSuccess(razorpayPaymentId: String?, paymentData: PaymentData?) {
-        // The SDK guarantees these on a captured payment, but be defensive —
-        // a malformed callback should surface as a failure rather than crash.
-        val paymentId = razorpayPaymentId
-        val orderId   = paymentData?.orderId
-        val signature = paymentData?.signature
-        lifecycleScope.launch {
-            if (paymentId == null || orderId == null || signature == null) {
-                _razorpay.emit(
-                    RazorpayResult.Failed(
-                        code = -1,
-                        message = "Payment confirmation was incomplete.",
-                    )
-                )
-            } else {
-                _razorpay.emit(
-                    RazorpayResult.Success(
-                        paymentId = paymentId,
-                        orderId   = orderId,
-                        signature = signature,
-                    )
-                )
-            }
-        }
-    }
-
-    override fun onPaymentError(code: Int, response: String?, paymentData: PaymentData?) {
-        // code 2 = payment cancelled by the user; everything else is a genuine
-        // failure (network / TLS / invalid options / unknown).
-        lifecycleScope.launch {
-            _razorpay.emit(
-                RazorpayResult.Failed(
-                    code    = code,
-                    message = if (code == 2) "Payment cancelled."
-                              else "Payment couldn't be completed. Please try again.",
-                )
-            )
-        }
-    }
 }
 
 @Composable

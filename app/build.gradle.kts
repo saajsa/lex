@@ -123,17 +123,6 @@ android {
     }
 }
 
-// Razorpay's checkout POM requests `com.razorpay:standard-core:latest.integration`.
-// Resolving that dynamic version forces a maven-metadata.xml HEAD on Maven Central,
-// which Cloudflare answers with 403 (treated as a hard error) — breaking the build
-// whenever the dynamic-version cache expires. Pinning a concrete published version
-// skips version-listing entirely, so the exact POM/JAR resolves via a normal GET.
-configurations.all {
-    resolutionStrategy {
-        force("com.razorpay:standard-core:1.7.14")
-    }
-}
-
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
@@ -179,11 +168,6 @@ dependencies {
     // ML Kit document scanner (PDF + JPEG output) — used by the doc-request
     // fulfilment flow to let clients scan documents directly from camera.
     implementation(libs.mlkit.document.scanner)
-
-    // Razorpay Checkout SDK — used to pay for Digital Office sessions.
-    // The SDK opens its own WebView for the payment UI; the host activity
-    // implements PaymentResultWithDataListener to receive the result.
-    implementation(libs.razorpay.checkout)
 
     // Firebase Messaging + Pusher Beams. Beams uses FCM under the hood; we
     // subscribe to `contact-{id}` interests after login and the server fires

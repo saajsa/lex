@@ -43,12 +43,6 @@ data class DoSession(
     val appointmentId: String?,
     val consultationId: String?,
     val advocate: DoAdvocate?,
-    /**
-     * When status == APPROVED_AWAITING_PAYMENT and session has a fee, the
-     * server includes a ready-to-use Razorpay checkout block. The polling
-     * VM fires the SDK with this the moment it sees the new state.
-     */
-    val razorpay: com.legumlex.client.feature.payment.RazorpayOptions? = null,
     /** When advocate has accepted (free or paid). Null otherwise. */
     val approvedAt: String? = null,
     val declinedAt: String? = null,

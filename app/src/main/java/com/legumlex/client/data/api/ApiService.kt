@@ -346,8 +346,8 @@ interface ApiService {
 
     /**
      * Start a DO session for the given advocate. Returns session_id + a `free`
-     * flag for the free-fee path. Paid sessions return 501 until Razorpay-SDK
-     * is wired on Android.
+     * flag. A paid session's fee is an invoice once the advocate accepts
+     * (doFeeInvoice), paid on the website.
      */
     @FormUrlEncoded
     @POST("digital_office/sessions")
@@ -368,20 +368,9 @@ interface ApiService {
         @Field("intake_text") intakeText: String,
     ): Map<String, Any?>
 
-    /**
-     * Verify a Razorpay payment for a Digital Office session. Server checks
-     * the signature cryptographically, confirms Razorpay captured the
-     * payment, re-runs advocate-availability gates, and flips the session
-     * to awaiting_intake so the next step (/intake) can proceed.
-     */
-    @FormUrlEncoded
-    @POST("digital_office/sessions/{id}/pay")
-    suspend fun verifyDoPayment(
-        @Path("id") sessionId: String,
-        @Field("razorpay_order_id")     orderId:   String,
-        @Field("razorpay_payment_id")   paymentId: String,
-        @Field("razorpay_signature")    signature: String,
-    ): Map<String, Any?>
+    /** The accepted session's fee as an invoice: {invoice_id, pay_url} — paid on the website. */
+    @POST("digital_office/sessions/{id}/invoice")
+    suspend fun doFeeInvoice(@Path("id") sessionId: String): Map<String, Any?>
 
     /** Current state of a DO session — useful for resuming after a backgrounded intake. */
     @GET("digital_office/sessions/{id}")
