@@ -32,6 +32,11 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.RateReview
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -52,13 +57,16 @@ import com.legumlex.client.ui.theme.Lex
  *  workspace entrances (swiped, not stacked), and the consultations' four figures.
  * ========================================================================== */
 
-/** "MONDAY, 19 OCTOBER 2026" over "Good afternoon, Saaj", and the two actions. */
+/**
+ * "MONDAY, 19 OCTOBER 2026" over "Good afternoon, Saaj", and Consult: the
+ * Legum Lex desk, as the site's masthead button opens it (with its "AI" tag).
+ * Having an agreement read is one of the desk's services, as on the site.
+ */
 @Composable
 internal fun HomeHeader(
     dateLabel: String,
     greeting: String,
-    onCheckAgreement: () -> Unit,
-    onAskAdvocate: () -> Unit,
+    onConsult: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Eyebrow(dateLabel)
@@ -66,10 +74,17 @@ internal fun HomeHeader(
         Text(greeting, style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(14.dp))
-        // Stacked: side by side, at half a phone's width, each label wraps.
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            LegumPrimaryButton(text = "Ask Your Advocate", onClick = onAskAdvocate, leadingIcon = Icons.Outlined.Forum)
-            LegumSecondaryButton(text = "Check An Agreement", onClick = onCheckAgreement, leadingIcon = Icons.Outlined.RateReview)
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.medium).background(Lex.colors.primary)
+                .clickable(onClick = onConsult).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(Icons.Outlined.Forum, null, tint = Lex.colors.primaryForeground, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Consult", style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp), color = Lex.colors.primaryForeground)
+            Spacer(Modifier.width(8.dp))
+            Text("AI", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color(0xFF1B1406),
+                modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Color(0xFFF3C25E)).padding(horizontal = 6.dp, vertical = 2.dp))
         }
     }
 }

@@ -32,9 +32,8 @@ import com.legumlex.client.feature.consultations.ConsultationDetailScreen
 import com.legumlex.client.feature.consultations.detail.AhcDocumentViewerScreen
 import com.legumlex.client.feature.consultations.detail.DocFileViewerScreen
 import com.legumlex.client.feature.digital_office.VideoLobbyScreen
-import com.legumlex.client.feature.consultations.ConsultationKind
 import com.legumlex.client.feature.consultations.ConsultationsScreen
-import com.legumlex.client.feature.consultations.NewConsultationScreen
+import com.legumlex.client.feature.desk.DeskScreen
 import com.legumlex.client.feature.consultations.detail.ConversationThreadScreen
 import com.legumlex.client.feature.digital_office.DoIntakeScreen
 import com.legumlex.client.feature.digital_office.DoLandingScreen
@@ -247,24 +246,22 @@ fun LegumNavGraph(navController: NavHostController) {
                     type = NavType.StringType; nullable = true; defaultValue = null
                 },
             ),
-        ) { backStackEntry ->
-            val presetRaw = backStackEntry.arguments?.getString(Route.NewConsultation.ARG)
-            val presetKind = presetRaw?.let { ConsultationKind.from(it).takeIf { k -> k != ConsultationKind.GENERAL || it == "general" } }
-            NewConsultationScreen(
-                onBack    = { navController.popBackStack() },
-                onSuccess = { newId ->
+        ) {
+            // Consult: the Legum Lex desk, as a client signed in to the portal
+            // meets it (feature/desk). It replaced the three-step request form;
+            // every way in to a new consultation arrives here.
+            DeskScreen(
+                onClose = { navController.popBackStack() },
+                onOpenMatters = {
                     navController.popBackStack()
-                    navController.navigate(Route.ConsultationDetail.build(newId))
+                    navController.navigateTab(Route.Consultations.path)
                 },
-                // The Agreement Health Checkup tile in the type picker
-                // short-circuits the generic wizard and hands off to the
-                // dedicated AHC funnel (upload → confirm → review).
-                onLaunchAgreementHealthCheckup = {
-                    navController.navigate(Route.AhcFunnel.path) {
-                        popUpTo(Route.NewConsultation.path) { inclusive = true }
-                    }
+                onOpenConsultation = { id ->
+                    navController.popBackStack()
+                    navController.navigate(Route.ConsultationDetail.build(id.toString()))
                 },
-                presetKind = presetKind,
+                // "Have an agreement read": the app's Agreement Check.
+                onAgreement = { navController.navigate(Route.AhcFunnel.path) },
             )
         }
         composable(Route.DigitalOffice.path) {

@@ -14,6 +14,7 @@ import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Streaming
+import retrofit2.http.Url
 
 // Endpoint stubs for the customers_api module. Response payloads are intentionally
 // loose at this stage (Map<String, Any?>) — model classes get added screen-by-screen
@@ -605,4 +606,26 @@ interface ApiService {
         @Field("os_version") osVersion: String? = null,
         @Field("app_version") appVersion: String? = null,
     ): Map<String, Any?>
+
+    // --- The Legum Lex desk (Consult), as a portal client meets it ---
+
+    /** {data:{is_active, base_price, document_types[], max_file_size, max_files, max_total_size, min_chars, max_chars, entity_types[], phone_required, countries[{code,name,dial}], firm, context{...}}} */
+    @GET("desk")
+    suspend fun desk(): Map<String, Any?>
+
+    /** The desk's reading of a question (cases_desk_read): {data:{verdict, follow_up, area, urgency, urgency_reason, place, intent, related, documents[], reading}} */
+    @FormUrlEncoded
+    @POST("desk/check")
+    suspend fun deskCheck(@Field("text") text: String): Map<String, Any?>
+
+    /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, attachments[] */
+    @Multipart
+    @POST("desk/enquiry")
+    suspend fun deskEnquiry(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    /** The Legum Lex site's public notice tracker (cases/landing/ajax_track), by its own URL. */
+    @FormUrlEncoded
+    @Headers("X-Skip-Auth: 1")
+    @POST
+    suspend fun trackNotice(@Url url: String, @Field("reference") reference: String): Map<String, Any?>
 }

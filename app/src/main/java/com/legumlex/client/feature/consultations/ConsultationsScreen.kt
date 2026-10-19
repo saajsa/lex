@@ -406,6 +406,7 @@ private fun NextActionLine(c: Consultation, mode: RowMode) {
 private fun KindBadge(kind: ConsultationKind) {
     val (palette, icon, label) = when (kind) {
         ConsultationKind.GENERAL -> Triple(Lex.colors.neutral, Icons.Outlined.Forum, "General")
+        ConsultationKind.LEGAL_ENQUIRY -> Triple(Lex.colors.neutral, Icons.Outlined.Forum, "Legal Enquiry")
         ConsultationKind.AHC -> Triple(Lex.colors.neutral, Icons.Outlined.Description, "Agreement Check")
         ConsultationKind.LEGAL_NOTICE -> Triple(Lex.colors.neutral, Icons.Outlined.Gavel, "Legal Notice")
         ConsultationKind.DOC_REQUEST -> Triple(Lex.colors.neutral, Icons.Outlined.FolderOpen, "Documents")

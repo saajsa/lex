@@ -246,6 +246,8 @@ private val immersiveBases = setOf(
     // back/share controls and a Walk-in CTA bar — the light app header would
     // clash with the hero, so it keeps its own chrome.
     Route.DoLanding.path.substringBefore("?"),          // digital_office/landing
+    // Consult: the Legum Lex desk keeps its own dark head, as the site's drawer does.
+    Route.NewConsultation.path.substringBefore("?"),   // consultations/new
 )
 
 /**
@@ -256,7 +258,6 @@ private val immersiveBases = setOf(
 private val wizardBases = setOf(
     Route.AhcFunnel.path,                               // healthchecks/funnel
     Route.Vault.path,                                   // multi-step document wizard
-    Route.NewConsultation.path.substringBefore("?"),   // consultations/new
     Route.NewNotice.path.substringBefore("?"),         // notices/new
     Route.DoIntake.path.substringBefore("?"),          // digital_office/intake
 )

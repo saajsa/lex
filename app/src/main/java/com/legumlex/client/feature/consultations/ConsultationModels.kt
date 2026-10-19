@@ -17,6 +17,8 @@ import java.time.temporal.ChronoUnit
 // -----------------------------------------------------------------------------
 enum class ConsultationKind(val apiValue: String, val label: String) {
     GENERAL        ("general",          "General inquiry"),
+    // From the Legum Lex desk (Consult); the portal's pill says "Legal Enquiry".
+    LEGAL_ENQUIRY  ("legal_enquiry",    "Legal Enquiry"),
     AHC            ("agreement_review", "Agreement Check"),
     LEGAL_NOTICE   ("legal_notice",     "Legal Notice"),
     DOC_REQUEST    ("document_request", "Documents requested"),
@@ -25,6 +27,7 @@ enum class ConsultationKind(val apiValue: String, val label: String) {
     companion object {
         fun from(raw: String?): ConsultationKind = when (raw?.lowercase()?.trim()) {
             "agreement_review" -> AHC
+            "legal_enquiry"    -> LEGAL_ENQUIRY
             "legal_notice"     -> LEGAL_NOTICE
             "document_request" -> DOC_REQUEST
             "digital_office"   -> DIGITAL_OFFICE

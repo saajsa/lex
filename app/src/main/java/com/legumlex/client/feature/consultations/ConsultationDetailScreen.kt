@@ -165,6 +165,7 @@ fun ConsultationDetailScreen(
                     // any other consultation; a dedicated detail panel can
                     // replace this when the Notice surface gets specialised UI.
                     ConsultationKind.GENERAL,
+                    ConsultationKind.LEGAL_ENQUIRY,
                     ConsultationKind.LEGAL_NOTICE   -> DetailGeneral(
                         vm           = vm,
                         consultation = c,

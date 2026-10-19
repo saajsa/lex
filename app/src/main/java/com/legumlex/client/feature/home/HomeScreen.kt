@@ -320,8 +320,7 @@ private fun HomeContent(
             HomeHeader(
                 dateLabel        = todayDateLabel(),
                 greeting         = "${greetingForNow()}, ${data.firstName.ifBlank { "there" }}",
-                onCheckAgreement = onStartAgreementHealthCheckup,
-                onAskAdvocate    = onAskNew,
+                onConsult        = onAskNew,
             )
 
             Column(

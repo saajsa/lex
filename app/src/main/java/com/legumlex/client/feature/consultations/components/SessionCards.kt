@@ -59,6 +59,7 @@ fun SessionCard(
         Column(modifier = Modifier.padding(14.dp)) {
             when (c.kind) {
                 ConsultationKind.GENERAL,
+                ConsultationKind.LEGAL_ENQUIRY,
                 ConsultationKind.LEGAL_NOTICE   -> CardGeneralBody(c)
                 ConsultationKind.AHC            -> CardAHCBody(c)
                 ConsultationKind.DOC_REQUEST    -> CardDocReqBody(c)

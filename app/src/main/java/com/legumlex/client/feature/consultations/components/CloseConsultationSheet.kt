@@ -267,7 +267,7 @@ private fun sheetCopyFor(consultation: Consultation, linkage: ConsultationLinkag
             body         = "Your advocate will be notified. If a notice has already been drafted, it will stay in your vault.",
             confirmLabel = "CLOSE",
         )
-        ConsultationKind.GENERAL -> SheetCopy(
+        ConsultationKind.GENERAL, ConsultationKind.LEGAL_ENQUIRY -> SheetCopy(
             title        = "Close this consultation?",
             body         = "Your advocate will be notified you've marked this complete. The conversation stays in your history.",
             confirmLabel = "CLOSE",
