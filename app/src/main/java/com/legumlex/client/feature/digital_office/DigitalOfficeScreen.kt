@@ -747,7 +747,8 @@ private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit
                 Text("Google Meet", style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium), color = Color.White)
             }
             // "You", top right, 3:4: the client's own camera once they turn it on.
-            Box(
+            // Not while the chamber is shut, as on the Legum Lex page.
+            if (a != null) Box(
                 Modifier.align(Alignment.TopEnd).padding(10.dp).width(84.dp).aspectRatio(0.75f)
                     .clip(RoundedCornerShape(10.dp)).background(MeetIdle).border(1.5.dp, Color.White, RoundedCornerShape(10.dp))
                     .clickable(enabled = !me.camOn, onClick = me.toggleCam),
