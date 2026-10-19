@@ -1,5 +1,11 @@
 package com.legumlex.client.feature.notices
 
+import androidx.compose.runtime.setValue
+
+import androidx.compose.runtime.mutableStateOf
+
+import androidx.compose.runtime.remember
+
 import com.legumlex.client.ahc.theme.Mono
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +63,7 @@ fun NoticeDetailScreen(
     onOpen: (String) -> Unit,
     onRespond: (String, String?) -> Unit,
     onOpenDocument: (String, String, String?) -> Unit,
+    onOpenCase: (String) -> Unit = {},
 ) {
     val vm: NoticeDetailViewModel = viewModel()
     LaunchedEffect(noticeId) { vm.start(noticeId) }
@@ -70,10 +77,12 @@ fun NoticeDetailScreen(
             is NoticeDetailUiState.Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator(color = LlColor.InkMuted, strokeWidth = 2.dp)
             }
-            is NoticeDetailUiState.Error -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                Text(s.message, fontFamily = Inter, fontSize = 13.sp, color = LlColor.InkMuted)
-            }
-            is NoticeDetailUiState.Ready -> Body(s.notice, approving, vm::approve, onMessageAdvocate, onOpen, onRespond, onOpenDocument)
+            is NoticeDetailUiState.Error -> com.legumlex.client.ui.components.LexEmpty(
+                "The Notice Could Not Be Opened", s.message,
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                action = { androidx.compose.material3.TextButton(onClick = { vm.start(noticeId) }) { Text("Try Again", color = LlColor.Ink) } },
+            )
+            is NoticeDetailUiState.Ready -> Body(s.notice, approving, vm::approve, onMessageAdvocate, onOpen, onRespond, onOpenDocument, onOpenCase)
         }
     }
 }
@@ -87,6 +96,7 @@ private fun Body(
     onOpen: (String) -> Unit,
     onRespond: (String, String?) -> Unit,
     onOpenDocument: (String, String, String?) -> Unit,
+    onOpenCase: (String) -> Unit,
 ) {
     val sum = n.summary
     val c = dirColors(sum.direction)
@@ -268,20 +278,22 @@ private fun Body(
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
                         Text("No response by ${sum.responseDueDate.format(SHORT)}?", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
-                        Text("Convert this notice into a case and we'll proceed.", fontFamily = Inter, fontSize = 11.sp, color = LlColor.Violet.copy(alpha = 0.8f))
+                        Text("Your advocate will take the next step with you. Write to them on this notice.", fontFamily = Inter, fontSize = 11.sp, color = LlColor.Violet.copy(alpha = 0.8f))
                     }
                 }
             }
             if (n.convertedToCase) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VioletSoft).padding(13.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VioletSoft)
+                        .clickable(enabled = !n.caseId.isNullOrBlank()) { n.caseId?.let(onOpenCase) }.padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
                     }
                     Spacer(Modifier.width(11.dp))
-                    Text("This notice became a case", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
+                    Text("This Notice Became A Case", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet, modifier = Modifier.weight(1f))
+                    if (!n.caseId.isNullOrBlank()) Icon(painterResource(R.drawable.ic_ms_chevron_right), "Open the case", tint = LlColor.Violet, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -309,7 +321,17 @@ private fun Footer(
         when {
             // approval gate
             sum.needsApproval -> {
-                PrimaryBtn("Approve & send", painterResource(R.drawable.ic_ms_check_circle), LlColor.Slate, loading = approving, onClick = onApprove)
+                var confirm by remember { mutableStateOf(false) }
+                PrimaryBtn("Approve & Send", painterResource(R.drawable.ic_ms_check_circle), LlColor.Slate, loading = approving, onClick = { confirm = true })
+                if (confirm) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { confirm = false },
+                        title = { Text("Send This Notice?") },
+                        text = { Text("Approving sends the notice to ${sum.counterparty.ifBlank { "the other party" }} as drafted. Once it is dispatched it cannot be recalled.") },
+                        confirmButton = { androidx.compose.material3.TextButton(onClick = { confirm = false; onApprove() }) { Text("Approve & Send") } },
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirm = false }) { Text("Not Yet") } },
+                    )
+                }
                 n.consultationId?.let { cid -> GhostBtn("Request changes") { onMessageAdvocate(cid) } }
             }
             // inbound awaiting a reply
@@ -503,7 +525,6 @@ private fun DraftSheet() {
         Modifier.width(150.dp).height(194.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).padding(16.dp),
     ) {
         Text("LEGAL NOTICE", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LlColor.Ink)
-        Text("Legum Lex", fontFamily = Inter, fontSize = 5.5.sp, color = LlColor.InkFaint)
         Spacer(Modifier.height(10.dp))
         listOf(0.96f, 0.86f, 0.74f, 1f, 0.96f, 0.86f, 0.96f, 0.52f).forEach {
             Box(Modifier.fillMaxWidth(it).height(4.dp).clip(RoundedCornerShape(2.dp)).background(LlColor.Paper2))

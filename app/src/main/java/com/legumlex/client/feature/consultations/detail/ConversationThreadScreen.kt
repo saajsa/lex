@@ -57,7 +57,11 @@ fun ConversationThreadScreen(consultationId: String, onBack: () -> Unit) {
         factory = viewModelFactory {
             initializer { ConsultationDetailViewModel(app = app, consultationId = consultationId) }
         },
-    )
+    )    // Attach: the same upload the consultation's own composer makes.
+    val attachPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) vm.uploadAttachment(uri) }
+
     val state by vm.state.collectAsState()
     val isSending by vm.isSending.collectAsState()
     var composing by rememberSaveable { mutableStateOf("") }
@@ -84,6 +88,7 @@ fun ConversationThreadScreen(consultationId: String, onBack: () -> Unit) {
     Scaffold(
         bottomBar = {
             ThreadComposer(
+                onAttach = { attachPicker.launch(arrayOf("*/*")) },
                 value = composing,
                 onChange = { composing = it },
                 onSend = {
@@ -276,6 +281,7 @@ private fun ThreadComposer(
     onChange: (String) -> Unit,
     onSend: () -> Unit,
     isSending: Boolean,
+    onAttach: () -> Unit = {},
 ) {
     val spacing = LocalSpacing.current
     Surface(color = MaterialTheme.colorScheme.background) {
@@ -288,7 +294,7 @@ private fun ThreadComposer(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = { /* attach later */ },
+                    onClick = onAttach,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)

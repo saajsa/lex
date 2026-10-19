@@ -48,6 +48,10 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
     /** A note after a change that succeeded ("Your number is verified."). */
     private val _note = MutableStateFlow<String?>(null)
     val note: StateFlow<String?> = _note.asStateFlow()
+    /** Whether [note] reports a failure, so it is drawn as one. */
+    private val _noteIsError = MutableStateFlow(false)
+    val noteIsError: StateFlow<Boolean> = _noteIsError.asStateFlow()
+    private fun fail(msg: String?) { _note.value = msg ?: "Something went wrong. Please try again."; _noteIsError.value = true }
 
     private var watch: Job? = null
 
@@ -102,7 +106,7 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { m ->
                     closeVerify()
                     updateMobile(m)
-                    _note.value = "Your number is verified. Codes and case updates now come to it."
+                    _noteIsError.value = false; _note.value = "Your number is verified. Codes and case updates now come to it."
                 }
                 .onFailure { e ->
                     val restart = (e as? StepException)?.error.let { it != null && it != "wrong" }
@@ -133,15 +137,15 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setUpdates(on: Boolean) {
         viewModelScope.launch {
-            repo.setUpdates(on).onSuccess { updateMobile(it) }.onFailure { _note.value = it.message }
+            repo.setUpdates(on).onSuccess { updateMobile(it) }.onFailure { fail(it.message) }
         }
     }
 
     fun removeNumber() {
         viewModelScope.launch {
             repo.remove()
-                .onSuccess { updateMobile(it); _note.value = "Your number is removed. Sign-in by mobile and case updates on WhatsApp stop." }
-                .onFailure { _note.value = it.message }
+                .onSuccess { updateMobile(it); _noteIsError.value = false; _note.value = "Your number is removed. Sign-in by mobile and case updates on WhatsApp stop." }
+                .onFailure { fail(it.message) }
         }
     }
 

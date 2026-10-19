@@ -2,4 +2,6 @@
 <paths>
     <!-- Cache subdir where downloaded documents land before being opened by a viewer. -->
     <cache-path name="docs" path="docs/" />
+    <!-- The Agreement Check's cached source document (AhcDocumentViewerScreen). -->
+    <cache-path name="ahc" path="ahc/" />
 </paths>

@@ -176,7 +176,8 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
         if (m.verified) StatusBadge("Verified", Lex.colors.success) else StatusBadge("Not Verified", Lex.colors.neutral)
     }) {
         note?.let {
-            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) { Notice(null, it, Lex.colors.success) }
+            val isError by vm.noteIsError.collectAsState()
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) { Notice(null, it, if (isError) Lex.colors.danger else Lex.colors.success) }
         }
         if (!v.open) {
             if (m.verified) {

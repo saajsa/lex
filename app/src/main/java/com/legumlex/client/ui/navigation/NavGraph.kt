@@ -182,6 +182,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpenDocument = { ownerNoticeId, fileId, name ->
                     navController.navigate(Route.NoticeDocViewer.build(ownerNoticeId, fileId, name))
                 },
+                onOpenCase = { id -> navController.navigate(Route.CaseDetail.build(id)) },
             )
         }
         composable(
@@ -455,10 +456,24 @@ fun LegumNavGraph(navController: NavHostController) {
             arguments = listOf(navArgument(Route.AhcDocumentViewer.ARG) { type = NavType.StringType }),
         ) { entry ->
             val cid = entry.arguments?.getString(Route.AhcDocumentViewer.ARG).orEmpty()
+            val ctx = androidx.compose.ui.platform.LocalContext.current
             AhcDocumentViewerScreen(
                 consultationId    = cid,
                 onBack            = { navController.popBackStack() },
-                onDownloadToPhone = { /* hands off to detail screen's existing download flow */ },
+                // The cached document, handed to the phone: open it, save it, or share it.
+                onDownloadToPhone = {
+                    val f = java.io.File(ctx.cacheDir, "ahc/ahc_$cid.pdf")
+                    if (f.exists()) {
+                        val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".fileprovider", f)
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "application/pdf"; putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        ctx.startActivity(android.content.Intent.createChooser(send, "Save or share the agreement"))
+                    } else {
+                        android.widget.Toast.makeText(ctx, "The agreement is still loading.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
             )
         }
 
