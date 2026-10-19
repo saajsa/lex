@@ -41,6 +41,8 @@ private fun parseInvoice(m: Map<String, Any?>): Invoice {
         status          = InvoiceStatus.derive(m["status"]?.toString(), dueDate),
         hash            = m["hash"] as? String ?: "",
         projectName     = (m["project_name"] as? String)?.takeIf { it.isNotBlank() },
+        issuerName      = (m["issuer_name"] as? String).orEmpty()
+            .ifBlank { ((m["issuer"] as? Map<*, *>)?.get("name") as? String).orEmpty() },
     )
 }
 
@@ -83,14 +85,31 @@ private fun parseDetail(m: Map<String, Any?>): InvoiceDetail {
         payments   = payments,
         issuer     = (m["issuer"] as? Map<*, *>)?.let { i ->
             Issuer(
-                name    = (i["name"] as? String).orEmpty(),
-                legal   = (i["legal"] as? String).orEmpty(),
-                address = (i["address"] as? String).orEmpty(),
-                gstin   = (i["gstin"] as? String).orEmpty(),
-                email   = (i["email"] as? String).orEmpty(),
-                logoUrl = (i["logo_url"] as? String)?.takeIf { it.isNotBlank() },
+                name      = (i["name"] as? String).orEmpty(),
+                legal     = (i["legal"] as? String).orEmpty(),
+                address   = (i["address"] as? String).orEmpty(),
+                gstin     = (i["gstin"] as? String).orEmpty(),
+                pan       = (i["pan"] as? String).orEmpty(),
+                email     = (i["email"] as? String).orEmpty(),
+                logoUrl   = (i["logo_url"] as? String)?.takeIf { it.isNotBlank() },
+                fromLines = (i["from_lines"] as? List<*>).orEmpty().mapNotNull { (it as? String)?.takeIf { l -> l.isNotBlank() } },
+                legacy    = i["legacy"] == true,
             )
         }?.takeIf { it.name.isNotBlank() },
+        billedTo   = (m["billed_to"] as? Map<*, *>)?.let { b ->
+            fun f(k: String) = (b[k] as? String).orEmpty().trim()
+            BilledTo(f("name"), f("entity"), f("gstin"), f("pan"), f("cin"), f("address"), f("attn"), f("email"), f("phone"))
+        }?.takeIf { it.name.isNotBlank() },
+        verify     = (m["verify"] as? Map<*, *>)?.let { v ->
+            val code = (v["code"] as? String).orEmpty()
+            Verify(
+                code  = code,
+                url   = (v["url"] as? String).orEmpty(),
+                qrPng = (v["qr_png"] as? String)?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.DEFAULT) }.getOrNull() },
+            ).takeIf { code.isNotBlank() }
+        },
+        footerWebsite = ((m["footer"] as? Map<*, *>)?.get("website") as? String).orEmpty(),
+        footerEmail   = ((m["footer"] as? Map<*, *>)?.get("email") as? String).orEmpty(),
     )
 }
 

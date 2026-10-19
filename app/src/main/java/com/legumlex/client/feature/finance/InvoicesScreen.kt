@@ -258,6 +258,11 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
         Column(Modifier.weight(1f).padding(vertical = 13.dp)) {
             Text(inv.number, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            inv.issuerName.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = LlColor.InkMuted,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             inv.projectName?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(3.dp))
                 Text(it, fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted,

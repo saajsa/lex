@@ -46,6 +46,8 @@ data class Invoice(
     val status: InvoiceStatus,
     val hash: String,              // for payment URL
     val projectName: String?,
+    /** The business that issued it (Nyay & Co. or Legum Lex), as its letterhead names it. */
+    val issuerName: String = "",
 )
 
 data class InvoiceDetail(
@@ -60,9 +62,41 @@ data class InvoiceDetail(
     val payments: List<Payment>,
     /** Who issued it, as the invoice prints it (cases_document_supplier). */
     val issuer: Issuer? = null,
+    /** The client, as the web invoice's Billed To prints it. */
+    val billedTo: BilledTo? = null,
+    /** The footer's Document ID and its "scan to verify" QR. */
+    val verify: Verify? = null,
+    /** The footer's left column: the site and the issuer's billing address. */
+    val footerWebsite: String = "",
+    val footerEmail: String = "",
 )
 
-data class Issuer(val name: String, val legal: String, val address: String, val gstin: String, val email: String, val logoUrl: String?)
+/**
+ * The business that issued an invoice — Nyay & Co. or Legum Lex — or, for an
+ * invoice issued before there were two, the frozen record ([legacy]).
+ * [fromLines] are the web's From block, line for line. [logoUrl] is the
+ * business's own logo; without one its [name] is the wordmark, and a legacy
+ * invoice carries the platform's mark (as the web does).
+ */
+data class Issuer(
+    val name: String,
+    val legal: String,
+    val address: String,
+    val gstin: String,
+    val pan: String,
+    val email: String,
+    val logoUrl: String?,
+    val fromLines: List<String>,
+    val legacy: Boolean,
+)
+
+data class BilledTo(
+    val name: String, val entity: String, val gstin: String, val pan: String, val cin: String,
+    val address: String, val attn: String, val email: String, val phone: String,
+)
+
+/** The Document ID (HMAC of id, total and date, keyed by the invoice) and its QR (PNG bytes). */
+class Verify(val code: String, val url: String, val qrPng: ByteArray?)
 
 data class InvoiceItem(
     val description: String,

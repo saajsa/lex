@@ -39,6 +39,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
@@ -182,13 +183,14 @@ private fun Sheet(
         ) {
             Column {
                 Letterhead(inv, detail.issuer)
+                Parties(detail)
                 StatusPill(inv)
                 if (!inv.projectName.isNullOrBlank()) MatterBlock(inv)
                 BalanceHero(detail)
                 ActionStack(state)
                 AmountSummary(detail)
                 ExpandableBreakdown(detail)
-                FirmFooter(detail.issuer)
+                DocFooter(detail)
             }
         }
     }
@@ -208,24 +210,13 @@ private fun Letterhead(inv: Invoice, issuer: Issuer?) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
             ) {
-                // The issuer as the invoice prints it: its logo and name, or
-                // nothing invented while it is unknown.
-                Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
-                    issuer?.logoUrl?.let { url ->
-                        coil.compose.AsyncImage(model = url, contentDescription = null,
-                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)))
-                        Spacer(Modifier.width(11.dp))
-                    }
-                    Column {
-                        Text(issuer?.name ?: "Invoice", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
-                        issuer?.gstin?.takeIf { it.isNotBlank() }?.let {
-                            Text("GSTIN $it", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
-                        }
-                    }
-                }
+                // The issuer as the invoice prints it (invoicehtml_desktop): the
+                // business's own logo; without one its name as the wordmark;
+                // a historical invoice, or an issuer not known, the platform's
+                // mark. Nyay & Co. and Legum Lex each read as themselves.
+                Box(Modifier.weight(1f, fill = false).padding(end = 12.dp)) { IssuerMark(issuer) }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("TAX INVOICE", fontFamily = Inter, fontWeight = FontWeight.Bold,
+                    Text("INVOICE", fontFamily = Inter, fontWeight = FontWeight.Bold,
                         fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.Claret)
                     Spacer(Modifier.height(4.dp))
                     Text(inv.number, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
@@ -617,23 +608,124 @@ private fun PaymentItem(p: Payment, symbol: String) {
 // 8 · Footer -----------------------------------------------------------------
 
 @Composable
-private fun FirmFooter(issuer: Issuer?) {
-    if (issuer == null) return
+private fun IssuerMark(issuer: Issuer?) {
+    when {
+        issuer == null || issuer.legacy ->
+            com.legumlex.client.ui.brand.LegumMark(size = 40.dp)
+        issuer.logoUrl != null ->
+            // Uploaded logos are drawn for white paper; on the dark sheet they
+            // sit on a white plate so a dark logo stays visible.
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (com.legumlex.client.ui.theme.Lex.colors.isDark) Color.White else Color.Transparent)
+                    .padding(if (com.legumlex.client.ui.theme.Lex.colors.isDark) 6.dp else 0.dp),
+            ) {
+                coil.compose.AsyncImage(
+                    model = issuer.logoUrl, contentDescription = issuer.name,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.height(44.dp).widthIn(max = 180.dp),
+                )
+            }
+        else -> Text(issuer.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp, lineHeight = 24.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
+    }
+}
+
+// 1b · From / Billed To — as the web invoice's third row -----------------------
+
+@Composable
+private fun Parties(detail: InvoiceDetail) {
+    val issuer = detail.issuer
+    val to = detail.billedTo
+    if (issuer == null && to == null) return
+    Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        issuer?.let { i ->
+            val lines = i.fromLines.ifEmpty { listOf(i.name) }
+            PartyBlock("FROM") {
+                Text(lines.first(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = LlColor.Ink)
+                lines.drop(1).forEach {
+                    Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted)
+                }
+            }
+        }
+        to?.let { b ->
+            PartyBlock("BILLED TO") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(b.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = LlColor.Ink)
+                    if (b.entity.isNotBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(b.entity.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 8.5.sp,
+                            letterSpacing = 0.1.em, color = LlColor.InkFaint,
+                            modifier = Modifier.border(BorderStroke(LlDimen.HairlineWidth, LlColor.Border), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                }
+                val ids = listOfNotNull(
+                    b.gstin.takeIf { it.isNotBlank() }?.let { "GSTIN $it" },
+                    b.pan.takeIf { it.isNotBlank() }?.let { "PAN $it" },
+                    b.cin.takeIf { it.isNotBlank() }?.let { "CIN $it" },
+                )
+                if (ids.isNotEmpty()) Text(ids.joinToString("  ·  "), fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                if (b.address.isNotBlank()) Text(b.address, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted)
+                if (b.attn.isNotBlank()) Text("Attn. ${b.attn}", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = LlColor.Ink)
+                val reach = listOf(b.email, b.phone).filter { it.isNotBlank() }
+                if (reach.isNotEmpty()) Text(reach.joinToString("  ·  "), fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PartyBlock(label: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
+        Spacer(Modifier.height(2.dp))
+        content()
+    }
+}
+
+// 9 · Footer — where it came from, and how to check it is genuine --------------
+
+@Composable
+private fun DocFooter(detail: InvoiceDetail) {
+    val v = detail.verify
     Spacer(Modifier.height(18.dp))
     Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
-    Column(
-        Modifier.fillMaxWidth().background(LlColor.Paper1).padding(horizontal = 18.dp, vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(issuer.legal.ifBlank { issuer.name }, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
-        if (issuer.address.isNotBlank()) {
-            Spacer(Modifier.height(7.dp))
-            Text(issuer.address, fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 15.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center)
+    val mono = androidx.compose.ui.text.font.FontFamily.Monospace
+    Column(Modifier.fillMaxWidth().background(LlColor.Paper1).padding(horizontal = 18.dp, vertical = 18.dp)) {
+        if (v != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val bmp = remember(v.qrPng) {
+                    v.qrPng?.let { runCatching { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
+                }
+                if (bmp != null) {
+                    // Always dark on white, as printed: a scanner needs the contrast.
+                    Box(Modifier.size(92.dp).clip(RoundedCornerShape(6.dp)).background(Color.White).padding(5.dp)) {
+                        androidx.compose.foundation.Image(
+                            bitmap = bmp, contentDescription = "Verification code for ${detail.invoice.number}",
+                            filterQuality = androidx.compose.ui.graphics.FilterQuality.None,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("DOCUMENT ID", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
+                    Spacer(Modifier.height(4.dp))
+                    Text(v.code, fontFamily = mono, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = LlColor.Ink)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Scan to verify this invoice on the firm's site.", fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 14.sp, color = LlColor.InkFaint)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
+            Spacer(Modifier.height(12.dp))
         }
-        if (issuer.email.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text(issuer.email, fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = LlColor.Ink)
-        }
+        Text(
+            listOf(detail.footerWebsite, detail.footerEmail, detail.invoice.number).filter { it.isNotBlank() }.joinToString("  ·  "),
+            fontFamily = mono, fontSize = 10.sp, lineHeight = 15.sp, color = LlColor.InkFaint,
+        )
     }
 }
 
