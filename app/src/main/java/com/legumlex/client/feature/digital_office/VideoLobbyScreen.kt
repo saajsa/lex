@@ -7,10 +7,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -39,13 +35,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -583,24 +577,9 @@ private fun CameraToggle(on: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun CameraMirror(modifier: Modifier) {
-    val owner = LocalLifecycleOwner.current
     Box(modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, LobbyC.Line, RoundedCornerShape(12.dp)).background(LobbyC.Raised)) {
-        AndroidView(
-            factory = { c ->
-                val pv = PreviewView(c).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
-                val future = ProcessCameraProvider.getInstance(c)
-                future.addListener({
-                    runCatching {
-                        val provider = future.get()
-                        val preview = Preview.Builder().build().also { it.setSurfaceProvider(pv.surfaceProvider) }
-                        provider.unbindAll()
-                        provider.bindToLifecycle(owner, CameraSelector.DEFAULT_FRONT_CAMERA, preview)
-                    }
-                }, ContextCompat.getMainExecutor(c))
-                pv
-            },
-            modifier = Modifier.matchParentSize(),
-        )
+        // SelfView's camera: bound while shown, let go when the toggle turns it off.
+        CameraSelf(Modifier.matchParentSize())
         Row(
             Modifier.align(Alignment.BottomStart).padding(12.dp).clip(RoundedCornerShape(6.dp))
                 .background(Color(0xA8120F0D)).padding(horizontal = 9.dp, vertical = 5.dp),
