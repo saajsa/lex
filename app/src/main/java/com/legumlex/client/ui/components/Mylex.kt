@@ -191,11 +191,14 @@ private fun tileLook(ws: Workspace): TileLook {
     return when (ws) {
         // Black and white: near-black (true black in dark mode), white mark,
         // and the card takes the dark palette for its text and button.
-        Workspace.Litigation -> if (dark) TileLook(Color(0xFF000000), Color(0xFF3F3F46), Color(0xFFFAFAFA), true)
+        // On the layered dark page the tiles keep Mylex's order — Litigation a
+        // step darker than the page, Projects and Registry tinted — in muted
+        // violet and teal rather than the portal's saturated 950s.
+        Workspace.Litigation -> if (dark) TileLook(Color(0xFF0C0C0E), Color(0xFF3A3A41), Color(0xFFE8E8EB), true)
                                 else TileLook(Color(0xFF09090B), Color(0xFF27272A), Color(0xFFFAFAFA), true)
-        Workspace.Projects   -> if (dark) TileLook(Color(0xFF2E1065), Color(0xFF5B21B6), Color(0xFFDDD6FE), dark)
+        Workspace.Projects   -> if (dark) TileLook(Color(0xFF221D33), Color(0xFF3B3157), Color(0xFFC4B5FD), dark)
                                 else TileLook(Color(0xFFF5F3FF), Color(0xFFDDD6FE), Color(0xFF6D28D9), dark)
-        Workspace.Registry   -> if (dark) TileLook(Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF5EEAD4), dark)
+        Workspace.Registry   -> if (dark) TileLook(Color(0xFF16272A), Color(0xFF1F4247), Color(0xFF5EEAD4), dark)
                                 else TileLook(Color(0xFFF0FDFA), Color(0xFF99F6E4), Color(0xFF0F766E), dark)
     }
 }

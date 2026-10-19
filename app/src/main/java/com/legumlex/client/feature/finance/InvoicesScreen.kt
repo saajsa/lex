@@ -168,7 +168,7 @@ private fun Ready(state: InvoicesUiState.Ready, onOpenInvoice: (String) -> Unit)
 @Composable
 private fun BalanceCard(outstanding: Double, paid: Double, billed: Double, sym: String, nothingOverdue: Boolean) {
     androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.theme.LocalLexColors provides com.legumlex.client.ui.theme.DarkLexColors) {
-        LexCard(container = androidx.compose.ui.graphics.Color(0xFF09090B), borderColor = Lex.colors.border) {
+        LexCard(container = androidx.compose.ui.graphics.Color(0xFF0C0C0E), borderColor = Lex.colors.input) {
             Column(Modifier.padding(16.dp)) {
                 Eyebrow("Outstanding Balance")
                 Spacer(Modifier.height(6.dp))
