@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.home
 
+import com.legumlex.client.ui.theme.InverseText
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
 import com.legumlex.client.ui.theme.TertiaryText
@@ -42,7 +43,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Bedtime
-import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -363,11 +363,8 @@ private fun HomeContent(
                     onOpenCase = onOpenCase,
                 )
 
-                // 3. Chamber
-                data.chamber?.let { ch ->
-                    if (ch.isOpen) ChamberOpenBlock(ch, onWalkIn = onWalkInDigitalOffice, onOpenLanding = onOpenChamberLanding)
-                    else ChamberClosedBlock(ch, onOpenLanding = onOpenChamberLanding)
-                }
+                // The chamber lives on its own tab now (Digital Office); Home
+                // keeps only the live-session banner above, which is urgent.
             }
         }
     }
@@ -1374,11 +1371,13 @@ private fun formatEventDate(date: LocalDate): String {
 // so they can still reach the full list via the dedicated Chamber tab.
 
 @Composable
-private fun ChamberOpenBlock(chamber: ChamberState, onWalkIn: () -> Unit, onOpenLanding: (Int?) -> Unit) {
+internal fun ChamberOpenBlock(chamber: ChamberState, onWalkIn: () -> Unit, onOpenLanding: (Int?) -> Unit, showHeading: Boolean = true) {
     val hero = chamber.advocates.firstOrNull { !it.isBusy } ?: chamber.advocates.firstOrNull()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        ChamberSectionHeading(label = "Talk to your advocate", meta = "DIGITAL OFFICE")
-        Spacer(Modifier.height(10.dp))
+        if (showHeading) {
+            ChamberSectionHeading(label = "Talk to your advocate", meta = "DIGITAL OFFICE")
+            Spacer(Modifier.height(10.dp))
+        }
         ChamberHeroCard(
             onOpenLanding   = { onOpenLanding(hero?.staffId) },
             statusPillText  = "Open now",
@@ -1404,12 +1403,14 @@ private fun ChamberOpenBlock(chamber: ChamberState, onWalkIn: () -> Unit, onOpen
 }
 
 @Composable
-private fun ChamberClosedBlock(chamber: ChamberState, onOpenLanding: (Int?) -> Unit) {
+internal fun ChamberClosedBlock(chamber: ChamberState, onOpenLanding: (Int?) -> Unit, showHeading: Boolean = true, onAskInstead: () -> Unit = {}) {
     val hero = chamber.advocates.firstOrNull()
     val opensHint = chamber.hours.ifBlank { "9:00 AM IST" }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        ChamberSectionHeading(label = "Talk to your advocate", meta = "DIGITAL OFFICE")
-        Spacer(Modifier.height(10.dp))
+        if (showHeading) {
+            ChamberSectionHeading(label = "Talk to your advocate", meta = "DIGITAL OFFICE")
+            Spacer(Modifier.height(10.dp))
+        }
         ChamberHeroCard(
             onOpenLanding   = { onOpenLanding(hero?.staffId) },
             statusPillText  = "Closed now",
@@ -1420,12 +1421,15 @@ private fun ChamberClosedBlock(chamber: ChamberState, onOpenLanding: (Int?) -> U
             availability    = "Opens $opensHint",
             availColor      = InkMuted,
             availIcon       = Icons.Outlined.Bedtime,
-            reassure        = "Walk-in only — drop by during chamber hours.",
-            primaryLabel    = "Notify me when we open",
-            primaryIsClaret = false,
-            primaryLeading  = Icons.Outlined.NotificationsActive,
-            primaryTrailing = null,
-            onPrimary       = {},
+            // "Notify me" used to sit here, wired to nothing. Closed, the
+            // useful thing is the written route: a consultation, answered
+            // when the advocate is back.
+            reassure        = "Walk-in only — drop by during chamber hours, or write to your advocate now and they will answer.",
+            primaryLabel    = "Ask your advocate instead",
+            primaryIsClaret = true,
+            primaryLeading  = null,
+            primaryTrailing = Icons.AutoMirrored.Outlined.ArrowForward,
+            onPrimary       = onAskInstead,
             extraAdvocates  = 0,
             closed          = true,
         )
@@ -1532,7 +1536,7 @@ private fun ChamberHeroCard(
                         Text(
                             text = buildAnnotatedString {
                                 withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = PrimaryText)) {
-                                    append("Adv. ${advocate.name}")
+                                    append(if (advocate.name.startsWith("Adv")) advocate.name else "Adv. ${advocate.name}")
                                 }
                                 append(" · your advocate")
                             },
@@ -1582,13 +1586,13 @@ private fun ChamberHeroCard(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (primaryIsClaret) Claret else AccentInk)
-                    .clickable(enabled = !closed || !primaryIsClaret, onClick = onPrimary)
+                    .clickable(onClick = onPrimary)
                     .padding(vertical = 16.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment     = Alignment.CenterVertically,
             ) {
                 if (primaryLeading != null) {
-                    Icon(primaryLeading, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(primaryLeading, null, tint = InverseText, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
@@ -1597,11 +1601,11 @@ private fun ChamberHeroCard(
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 13.sp,
                     letterSpacing = 0.5.sp,
-                    color      = Color.White,
+                    color      = InverseText,
                 )
                 if (primaryTrailing != null) {
                     Spacer(Modifier.width(8.dp))
-                    Icon(primaryTrailing, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(primaryTrailing, null, tint = InverseText, modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -1621,31 +1625,26 @@ private fun ChamberHeroCard(
 
 @Composable
 private fun ChamberHeroPortrait(advocate: ChamberAdvocate?, closed: Boolean) {
-    val initials = run {
-        if (advocate == null) return@run "?"
-        val f = advocate.firstName.firstOrNull()?.toString().orEmpty()
-        val l = advocate.lastName.firstOrNull()?.toString().orEmpty()
-        (f + l).uppercase().ifBlank { "AD" }
-    }
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
             .size(width = 88.dp, height = 106.dp)
-            .border(3.dp, Color.White, shape)
+            .border(1.dp, BorderColor, shape)
             .clip(shape)
-            .background(if (closed) LlColor.SlateMid else SlateSolid),
+            .background(if (advocate == null) Lex.colors.muted else if (closed) LlColor.SlateMid else SlateSolid),
         contentAlignment = Alignment.Center,
     ) {
-        if (!advocate?.avatarUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = advocate?.avatarUrl,
-                contentDescription = null,
+        when {
+            // Nobody at their desk: the office itself, not a question mark.
+            advocate == null -> com.legumlex.client.ui.brand.LegumMark(size = 40.dp, fillColor = Lex.colors.mutedForeground)
+            !advocate.avatarUrl.isNullOrBlank() -> AsyncImage(
+                model = advocate.avatarUrl,
+                contentDescription = advocate.name,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clip(shape),
             )
-        } else {
-            Text(
-                text       = initials,
+            else -> Text(
+                text       = (advocate.firstName.take(1) + advocate.lastName.take(1)).uppercase().ifBlank { "AD" },
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 30.sp,

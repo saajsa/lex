@@ -144,7 +144,19 @@ data class ChamberState(
     val location: String,
     val sessionCapMinutes: Int,
     val advocates: List<ChamberAdvocate>,
+    // The office as Mylex's office page has it (dashboard/chamber).
+    val officeName: String = "",
+    val hasAccess: Boolean = true,
+    val onboardingFee: Double = 0.0,
+    val clientSessionFee: Double = 0.0,
+    val durationMinutes: Int = 30,
+    val activeSession: ActiveDoSession? = null,
+    /** Everyone at their desk; `advocates` is Home's first three. */
+    val roster: List<ChamberAdvocate> = advocates,
 )
+
+/** A Digital Office session already in flight — it outranks the roster. */
+data class ActiveDoSession(val id: Int, val status: String, val consultationId: Int?)
 
 /** How much the client has in each workspace, and the consultations' figures (dashboard/workspaces). */
 data class Workspaces(

@@ -51,6 +51,7 @@ fun AppHeader(
     onNotifications: () -> Unit = {},
     unreadCount: Int = 0,
     initials: String? = null,
+    avatarUrl: String? = null,
     onProfile: () -> Unit = {},
 ) {
     Surface(color = Lex.colors.background, tonalElevation = 0.dp, shadowElevation = 0.dp) {
@@ -107,6 +108,14 @@ fun AppHeader(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(initials, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground)
+                        // Their photo over the initials, when they have one.
+                        if (avatarUrl != null) {
+                            coil.compose.AsyncImage(
+                                model = avatarUrl, contentDescription = "Your profile",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.size(36.dp).clip(CircleShape),
+                            )
+                        }
                     }
                 }
             }

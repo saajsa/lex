@@ -1,15 +1,13 @@
 package com.legumlex.client.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.Inventory2
-import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Inventory2
-import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.legumlex.client.R
@@ -27,6 +25,7 @@ sealed class Route(val path: String) {
     data object Consultations : Route("consultations")
     data object More          : Route("more")
     data object Registry      : Route("registry")
+    data object DigitalOffice : Route("office")
 
     // Account
     data object Profile       : Route("profile")
@@ -200,10 +199,13 @@ sealed class Route(val path: String) {
 // The five top-level tabs — the only routes that never show a back arrow.
 val mainShellRoutes = setOf(
     Route.Home.path,
+    Route.Consultations.path,
+    Route.DigitalOffice.path,
+    Route.More.path,
+    // Workspaces, entered from Home's tiles: roots too, so no back arrow.
     Route.Matters.path,
     Route.Projects.path,
     Route.Registry.path,
-    Route.More.path,
 )
 
 // ── App-wide chrome (header + footer) visibility ─────────────────────────────
@@ -299,13 +301,12 @@ data class BottomTab(
     val iconActive: ImageVector,
 )
 
-// Mylex's workspaces: Home, then Litigation, Projects and Registry, then the
-// rest (documents, invoices, consultations, profile) under More. The icons are
-// the portal's: a court building, stacked layers, an archive box.
+// Four tabs. The workspaces (Litigation, Projects, Registry) are entered from
+// Home's tiles and from More, not repeated here; the Digital Office has a tab
+// of its own because it is the firm's own room, not a list.
 val bottomTabs = listOf(
-    BottomTab(Route.Home,     R.string.nav_home,       Icons.Outlined.GridView,        Icons.Rounded.GridView),
-    BottomTab(Route.Matters,  R.string.nav_matters,    Icons.Outlined.AccountBalance,  Icons.Rounded.AccountBalance),
-    BottomTab(Route.Projects, R.string.nav_projects,   Icons.Outlined.Layers,          Icons.Rounded.Layers),
-    BottomTab(Route.Registry, R.string.nav_registry,   Icons.Outlined.Inventory2,      Icons.Rounded.Inventory2),
-    BottomTab(Route.More,     R.string.nav_more,       Icons.Outlined.MoreHoriz,       Icons.Rounded.MoreHoriz),
+    BottomTab(Route.Home,          R.string.nav_home,          Icons.Outlined.GridView,  Icons.Rounded.GridView),
+    BottomTab(Route.Consultations, R.string.nav_consultations, Icons.Outlined.Forum,     Icons.Rounded.Forum),
+    BottomTab(Route.DigitalOffice, R.string.nav_office,        Icons.Outlined.Videocam,  Icons.Rounded.Videocam),
+    BottomTab(Route.More,          R.string.nav_more,          Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
 )

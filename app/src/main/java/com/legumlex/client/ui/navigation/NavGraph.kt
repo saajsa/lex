@@ -120,10 +120,10 @@ fun LegumNavGraph(navController: NavHostController) {
         // --- Main shell (bottom-nav tabs) ---
         composable(Route.Home.path) {
             HomeScreen(
-                onOpenLitigation   = { navController.navigateTab(Route.Matters.path) },
-                onOpenProjects     = { navController.navigateTab(Route.Projects.path) },
-                onOpenRegistry     = { navController.navigateTab(Route.Registry.path) },
-                onOpenConsultations = { navController.navigate(Route.Consultations.path) },
+                onOpenLitigation   = { navController.navigate(Route.Matters.path) },
+                onOpenProjects     = { navController.navigate(Route.Projects.path) },
+                onOpenRegistry     = { navController.navigate(Route.Registry.path) },
+                onOpenConsultations = { navController.navigateTab(Route.Consultations.path) },
                 onOpenCalendar     = { navController.navigate(Route.Calendar.path) },
                 onOpenInvoice      = { id -> navController.navigate(Route.InvoiceDetail.build(id)) },
                 onOpenContract     = { _  -> navController.navigate(Route.Vault.path) },
@@ -267,6 +267,14 @@ fun LegumNavGraph(navController: NavHostController) {
                 presetKind = presetKind,
             )
         }
+        composable(Route.DigitalOffice.path) {
+            com.legumlex.client.feature.digital_office.DigitalOfficeScreen(
+                onWalkIn           = { id -> navController.navigate(Route.DoIntake.build(id)) },
+                onOpenLanding      = { id -> navController.navigate(Route.DoLanding.build(id)) },
+                onOpenConsultation = { id -> navController.navigate(Route.ConsultationDetail.build(id)) },
+                onAskAdvocate      = { navController.navigate(Route.NewConsultation.build()) },
+            )
+        }
         composable(Route.Registry.path) {
             com.legumlex.client.feature.registry.RegistryScreen(
                 onOpenAgreement = { id -> navController.navigate(Route.RegistryAgreement.build(id)) },
@@ -295,6 +303,9 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpenNotices  = { navController.navigate(Route.Notices.path) },
                 onOpenCalendar = { navController.navigate(Route.Calendar.path) },
                 onOpenProfile  = { navController.navigate(Route.Profile.path) },
+                onOpenLitigation = { navController.navigate(Route.Matters.path) },
+                onOpenProjects = { navController.navigate(Route.Projects.path) },
+                onOpenRegistry = { navController.navigate(Route.Registry.path) },
                 onOpenNotifications = { navController.navigate(Route.Notifications.path) },
                 onSignOut      = {
                     scope.launch {

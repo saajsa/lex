@@ -183,6 +183,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     onNotifications = { navController.navigate(Route.Notifications.path) },
                     unreadCount = unreadCount,
                     initials = profile?.initials,
+                    avatarUrl = profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                 )
             }

@@ -2,6 +2,8 @@ package com.legumlex.client.feature.profile
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,6 +103,22 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
         )
 
         LexCard(title = "Your Profile") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Photo", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground, modifier = Modifier.weight(1f))
+                Box(
+                    Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Lex.colors.muted)
+                        .border(1.dp, Lex.colors.border, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(p.initials, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+                    p.avatarUrl?.let {
+                        coil.compose.AsyncImage(model = it, contentDescription = "Your photo",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape))
+                    }
+                }
+            }
+            HorizontalDivider(color = Lex.colors.border)
             KeyValueRow("Full Name", p.name.ifBlank { "Not Recorded" }, trailing = { Locked() })
             HorizontalDivider(color = Lex.colors.border)
             KeyValueRow("Email Address", p.email ?: "Not Recorded", trailing = {

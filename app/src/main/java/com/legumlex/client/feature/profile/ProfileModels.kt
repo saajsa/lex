@@ -3,6 +3,7 @@ package com.legumlex.client.feature.profile
 /** The contact's profile (customers_api `profile`), as the Mylex profile shows it. */
 data class Profile(
     val name: String,
+    val avatarUrl: String?,       // their own photo; null shows initials
     val email: String?,
     val emailVerified: Boolean,
     val phone: String?,
@@ -35,6 +36,7 @@ internal fun parseProfile(d: Map<String, Any?>): Profile {
     fun s(k: String) = (d[k] as? String)?.takeIf { it.isNotBlank() }
     return Profile(
         name            = s("name").orEmpty(),
+        avatarUrl       = s("avatar_url"),
         email           = s("email"),
         emailVerified   = d["email_verified"] == true,
         phone           = s("phone"),

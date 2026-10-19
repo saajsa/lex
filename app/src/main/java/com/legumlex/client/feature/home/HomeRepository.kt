@@ -223,8 +223,7 @@ private fun parseNextEvent(data: Map<String, Any?>?): NextEvent? {
 internal fun parseChamber(data: Map<String, Any?>?): ChamberState? {
     if (data == null) return null
     @Suppress("UNCHECKED_CAST")
-    val rawAdvs = (data["advocates"] as? List<Map<String, Any?>>) ?: emptyList()
-    val advs = rawAdvs.mapNotNull { a ->
+    fun advocates(key: String) = ((data[key] as? List<Map<String, Any?>>) ?: emptyList()).mapNotNull { a ->
         ChamberAdvocate(
             staffId      = a["staff_id"].toIntSafe(),
             name         = (a["name"] as? String) ?: return@mapNotNull null,
@@ -232,7 +231,7 @@ internal fun parseChamber(data: Map<String, Any?>?): ChamberState? {
             lastName     = (a["lastname"] as? String).orEmpty(),
             barCouncilId = a["bar_council_id"] as? String,
             designation  = a["designation"] as? String,
-            avatarUrl    = a["avatar_url"] as? String,
+            avatarUrl    = (a["avatar_url"] as? String)?.takeIf { it.isNotBlank() },
             lastSeen     = (a["last_seen"] as? String)?.let { parseLocalDateTime(it) },
             isBusy       = a["is_busy"] as? Boolean ?: false,
             sessionStartedAt = (a["session_started_at"] as? String)?.let { parseLocalDateTime(it) },
@@ -240,6 +239,8 @@ internal fun parseChamber(data: Map<String, Any?>?): ChamberState? {
             etaMinutes   = a["eta_minutes"].toIntSafe(),
         )
     }
+    val advs = advocates("advocates")
+    val active = data["active_session"] as? Map<*, *>
     return ChamberState(
         isOpen           = data["is_open"] as? Boolean ?: false,
         onlineCount      = data["online_count"].toIntSafe(),
@@ -249,6 +250,15 @@ internal fun parseChamber(data: Map<String, Any?>?): ChamberState? {
         location         = (data["location"] as? String).orEmpty(),
         sessionCapMinutes= data["session_cap_minutes"].toIntSafe().takeIf { it > 0 } ?: 45,
         advocates        = advs,
+        officeName       = (data["office_name"] as? String).orEmpty(),
+        hasAccess        = data["has_access"] as? Boolean ?: true,
+        onboardingFee    = data["onboarding_fee"].toDoubleSafe(),
+        clientSessionFee = data["client_session_fee"].toDoubleSafe(),
+        durationMinutes  = data["duration_minutes"].toIntSafe().takeIf { it > 0 } ?: 30,
+        activeSession    = active?.let {
+            ActiveDoSession(it["id"].toIntSafe(), (it["status"] as? String).orEmpty(), it["consultation_id"].toIntSafe().takeIf { c -> c > 0 })
+        },
+        roster           = if (data.containsKey("roster")) advocates("roster") else advs,
     )
 }
 

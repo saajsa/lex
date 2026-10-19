@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Forum
@@ -62,6 +65,9 @@ fun MoreScreen(
     onOpenCalendar: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    onOpenLitigation: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
+    onOpenRegistry: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -74,14 +80,19 @@ fun MoreScreen(
         PageHeader(eyebrow = "More", title = "Everything Else")
         Spacer(Modifier.height(4.dp))
 
+        Group("Your Work With Us") {
+            MenuRow(Icons.Outlined.AccountBalance, "Litigation", "Your matters before a court — hearings, orders and notices", onOpenLitigation)
+            Divider()
+            MenuRow(Icons.Outlined.Layers, "Projects", "Work we run for you, and its tasks", onOpenProjects)
+            Divider()
+            MenuRow(Icons.Outlined.Inventory2, "Registry", "Your agreements and their deadlines", onOpenRegistry)
+        }
         Group("Your File") {
             MenuRow(Icons.Outlined.Description, "Documents", "Papers shared with you, and what you have uploaded", onOpenVault)
             Divider()
             MenuRow(Icons.Outlined.ReceiptLong, "Invoices", "Your balance, what is due and what you have paid", onOpenInvoices)
         }
-        Group("Consultations") {
-            MenuRow(Icons.Outlined.Forum, "Consultations", "Every session you have raised with us", onOpenConsultations)
-            Divider()
+        Group("Ask") {
             MenuRow(Icons.Outlined.QuestionAnswer, "Ask Your Advocate", "Start a new consultation", onAskAdvocate)
         }
         Group("Litigation") {

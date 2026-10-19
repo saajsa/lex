@@ -1,5 +1,19 @@
 package com.legumlex.client.feature.consultations
 
+import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
+import com.legumlex.client.ui.theme.Lex
+import com.legumlex.client.ui.components.Eyebrow
+import com.legumlex.client.ui.components.SegmentedToggle
+import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.StatusBadge
+import com.legumlex.client.ui.components.StatusChip
+import com.legumlex.client.ui.components.StatCard
+import com.legumlex.client.ui.components.PageHeader
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -154,39 +168,27 @@ private fun ConsultationsReady(
     onOpen: (String) -> Unit,
     onStartNew: () -> Unit,
 ) {
-    // Brand-new client — no filter bar, just a warm invitation.
-    if (sections.isEmpty) {
-        LazyColumn(Modifier.fillMaxSize()) {
-            item("intro") { PageIntro(filter, sections, showCount = false) }
-            item("first-run") { FirstRunEmpty(onStartNew) }
-        }
-        return
-    }
-
     val bands = remember(sections, filter) { bandsFor(sections, filter) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        modifier = Modifier.fillMaxSize().background(Lex.colors.background),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item("intro") { PageIntro(filter, sections, showCount = filter == ConsultationFilter.ALL || filter == ConsultationFilter.ACTIVE) }
-
-        item("filters") {
-            FilterBar(sections = sections, selected = filter, onSelect = onFilter)
+        item("intro") { PageIntro(sections, onStartNew) }
+        // Brand-new client: no figures or filters, just a warm invitation.
+        if (sections.isEmpty) {
+            item("first-run") { FirstRunEmpty(onStartNew) }
+            return@LazyColumn
         }
+        item("filters") { FilterBar(sections = sections, selected = filter, onSelect = onFilter) }
 
         if (bands.isEmpty()) {
             item("empty") { FilteredEmpty(filter, onFilter) }
         } else {
             bands.forEachIndexed { bi, band ->
-                item("head-${band.name}") {
-                    SectionHeader(band.name, band.items.size, band.await, first = bi == 0)
-                }
-                items(band.items, key = { it.id }) { c ->
-                    Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, bottom = 10.dp)) {
-                        ConsultationRow(c, rowMode(c, band)) { onOpen(c.id) }
-                    }
-                }
+                item("head-${band.name}") { SectionHeader(band.name, band.items.size, band.await, first = bi == 0) }
+                items(band.items, key = { it.id }) { c -> ConsultationRow(c, rowMode(c, band)) { onOpen(c.id) } }
             }
             if (filter == ConsultationFilter.AWAITING_YOU) {
                 item("caught-up") { AllCaughtUpNote() }
@@ -199,40 +201,34 @@ private fun ConsultationsReady(
 // Page intro (scrolls away)
 // =============================================================================
 
+/** Mylex's consultations header: the title with Ask, then the four figures. */
 @Composable
-private fun PageIntro(filter: ConsultationFilter, sections: SmartSections, showCount: Boolean) {
-    val activeCount = sections.needsAction.size + sections.active.size + sections.scheduled.size
-    val sub = when (filter) {
-        ConsultationFilter.AWAITING_YOU ->
-            if (sections.needsAction.isEmpty()) "Your advocate has the ball on everything."
-            else "${sections.needsAction.size} thing${if (sections.needsAction.size == 1) "" else "s"} need you. Your advocate has the rest."
-        ConsultationFilter.DONE, ConsultationFilter.CONVERTED -> "Matters you've closed out with your chamber."
-        else -> "Everything you've raised with your chamber, in one place."
-    }
-    Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-        Text("MY CONSULTATIONS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
-        Spacer(Modifier.height(9.dp))
-        Text("Consultations", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-            fontSize = 28.sp, letterSpacing = (-0.025).em, lineHeight = 30.sp, color = LlColor.Ink)
-        Spacer(Modifier.height(8.dp))
-        Text(sub, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted,
-            modifier = Modifier.widthIn(max = 330.dp))
-        if (showCount) {
-            Spacer(Modifier.height(11.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CountFrag(activeCount, "active")
-                Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
-                CountFrag(sections.total, "total")
+private fun PageIntro(sections: SmartSections, onStartNew: () -> Unit) {
+    val active = sections.needsAction.size + sections.active.size + sections.scheduled.size
+    val done = sections.converted.size + sections.closed.size
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PageHeader(eyebrow = "Your Work With Us", title = "Consultations", actions = {
+            Surface(onClick = onStartNew, shape = MaterialTheme.shapes.medium, color = Lex.colors.primary) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Forum, null, tint = Lex.colors.primaryForeground, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Ask", style = MaterialTheme.typography.labelLarge, color = Lex.colors.primaryForeground)
+                }
+            }
+        })
+        if (!sections.isEmpty) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatCard("Consultations", "${sections.total}", "Every session you have raised with us", Modifier.weight(1f).fillMaxHeight())
+                StatCard("Awaiting You", "${sections.needsAction.size}", "Sessions waiting on something from you",
+                    Modifier.weight(1f).fillMaxHeight(),
+                    valueColor = if (sections.needsAction.isNotEmpty()) Lex.colors.danger.solid else Lex.colors.foreground,
+                    chip = { if (sections.needsAction.isEmpty()) StatusChip("Nothing Owed", Lex.colors.success) })
+            }
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatCard("Active", "$active", "Sessions still with the firm", Modifier.weight(1f).fillMaxHeight())
+                StatCard("Done", "$done", "Sessions closed after an answer", Modifier.weight(1f).fillMaxHeight())
             }
         }
-    }
-}
-
-@Composable
-private fun CountFrag(n: Int, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$n ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
-        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
     }
 }
 
@@ -246,69 +242,14 @@ private fun FilterBar(
     selected: ConsultationFilter,
     onSelect: (ConsultationFilter) -> Unit,
 ) {
-    val counts = mapOf(
-        ConsultationFilter.ALL to sections.total,
-        ConsultationFilter.ACTIVE to (sections.needsAction.size + sections.active.size + sections.scheduled.size),
-        ConsultationFilter.AWAITING_YOU to sections.needsAction.size,
-        ConsultationFilter.DONE to (sections.converted.size + sections.closed.size),
-    )
-    Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            visibleFilters.forEach { f ->
-                FilterChip(
-                    label = f.label,
-                    count = counts[f] ?: 0,
-                    selected = selected == f,
-                    claret = f == ConsultationFilter.AWAITING_YOU,
-                    onClick = { onSelect(f) },
-                )
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        SegmentedToggle(
+            options = visibleFilters.map { f -> f to title(f.label) },
+            selected = selected, onSelect = onSelect,
+        )
     }
 }
 
-@Composable
-private fun FilterChip(label: String, count: Int, selected: Boolean, claret: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) LlColor.Ink else LlColor.Paper)
-            .border(LlDimen.HairlineWidth, if (selected) LlColor.Ink else LlColor.Border, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-            color = if (selected) LlColor.Paper else LlColor.InkMuted)
-        if (count > 0) {
-            val badgeBg = when {
-                selected -> LlColor.Paper.copy(alpha = 0.2f)
-                claret -> LlColor.Claret
-                else -> LlColor.Paper2
-            }
-            val badgeFg = when {
-                selected -> LlColor.Paper
-                claret -> Color.White
-                else -> LlColor.InkMuted
-            }
-            Box(
-                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(8.dp))
-                    .background(badgeBg).padding(horizontal = 5.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = badgeFg)
-            }
-        }
-    }
-}
 
 // =============================================================================
 // Section header
@@ -316,22 +257,10 @@ private fun FilterChip(label: String, count: Int, selected: Boolean, claret: Boo
 
 @Composable
 private fun SectionHeader(name: String, count: Int, await: Boolean, first: Boolean) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = if (first) 16.dp else 18.dp, bottom = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.15.em,
-            color = if (await) LlColor.Claret else LlColor.InkFaint)
-        Box(
-            Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp))
-                .background(if (await) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp,
-                color = if (await) ClaretMidFix else LlColor.InkMuted)
-        }
-        Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
+    Row(Modifier.fillMaxWidth().padding(top = if (first) 4.dp else 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Eyebrow(name, color = if (await) Lex.colors.danger.solid else Lex.colors.mutedForeground)
+        Spacer(Modifier.width(8.dp))
+        StatusBadge("$count", if (await) Lex.colors.danger else Lex.colors.neutral)
     }
 }
 
@@ -341,74 +270,61 @@ private fun SectionHeader(name: String, count: Int, await: Boolean, first: Boole
 
 @Composable
 private fun ConsultationRow(c: Consultation, mode: RowMode, onClick: () -> Unit) {
-    val band = when (mode) {
-        RowMode.AWAIT -> LlColor.Claret
-        RowMode.LIVE -> LlColor.Verdant
+    val stripe = when (mode) {
+        RowMode.AWAIT -> Lex.colors.danger.solid
+        RowMode.LIVE -> Lex.colors.success.solid
         else -> null
     }
     val done = mode == RowMode.DONE
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(LlShape.Card)
-            .background(if (done) LlColor.Paper1 else LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card)
-            .clickable(onClick = onClick),
-    ) {
-        if (band != null) {
-            Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(LlDimen.HeroStripeWidth).background(band))
-        }
-        Column(Modifier.padding(start = if (band != null) 18.dp else 15.dp, end = 15.dp, top = 13.dp, bottom = 13.dp)) {
-            // top: kind badge + status pill
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                KindBadge(c.kind)
-                StatusPill(c.status)
-            }
-            // title
-            Text(
-                c.displayTitle(),
-                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                fontSize = 15.5.sp, letterSpacing = (-0.012).em, lineHeight = 20.sp,
-                color = if (done) LlColor.InkMuted else LlColor.Ink,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-            // subline
-            Subline(c)
-            // per-kind glance
-            Glance(c, mode)
-            // next-action line (await / live)
-            if (mode == RowMode.AWAIT || mode == RowMode.LIVE) {
-                NextActionLine(c, mode)
+    LexCard(onClick = onClick) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            if (stripe != null) Box(Modifier.width(4.dp).fillMaxHeight().background(stripe))
+            Column(Modifier.padding(16.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    KindBadge(c.kind)
+                    StatusPill(c.status)
+                }
+                Text(
+                    c.displayTitle(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (done) Lex.colors.mutedForeground else Lex.colors.foreground,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+                Subline(c)
+                Glance(c, mode)
+                if (mode == RowMode.AWAIT || mode == RowMode.LIVE) NextActionLine(c, mode)
             }
         }
     }
 }
 
+/** The advocate — their photo, or initials — and how long ago it moved. */
 @Composable
 private fun Subline(c: Consultation) {
     val adv = c.assignedTo?.takeIf { it.isNotBlank() }
     val age = relativeAge(c.lastUpdatedAt ?: c.createdAt)
     if (adv == null && age == null && !c.isUrgent && !c.hasUnreadReplies) return
     Row(
-        Modifier.fillMaxWidth().padding(top = 7.dp),
+        Modifier.fillMaxWidth().padding(top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (c.hasUnreadReplies) PulseDot(ClaretMidFix, 8.dp)
-        if (adv != null) Text(adv, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1)
-        if (adv != null && age != null) Text("·", fontFamily = Inter, fontSize = 10.sp, color = LlColor.BorderStrong)
-        if (age != null) Text(age, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1)
-        if (c.isUrgent) {
-            Row(
-                Modifier.clip(RoundedCornerShape(6.dp)).background(ClaretSoftFix).padding(horizontal = 7.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Icon(Icons.Outlined.Schedule, null, tint = ClaretMidFix, modifier = Modifier.size(11.dp))
-                Text("NEEDS RESPONSE", fontFamily = Inter, fontWeight = FontWeight.Bold,
-                    fontSize = 9.sp, letterSpacing = 0.05.em, color = ClaretMidFix)
+        if (adv != null) {
+            Box(Modifier.size(24.dp).clip(CircleShape).background(Lex.colors.muted), contentAlignment = Alignment.Center) {
+                Text(adv.split(' ').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase(),
+                    style = MaterialTheme.typography.labelSmall, color = Lex.colors.foreground)
+                c.assignedToAvatarUrl?.let {
+                    AsyncImage(model = it, contentDescription = adv, contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(24.dp).clip(CircleShape))
+                }
             }
+            Text(adv, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, maxLines = 1)
         }
+        if (adv != null && age != null) Text("·", style = MaterialTheme.typography.bodySmall, color = Lex.colors.faint)
+        if (age != null) Text(age, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1)
+        if (c.hasUnreadReplies) StatusBadge("New Reply", Lex.colors.danger)
+        else if (c.isUrgent) StatusBadge("Needs Response", Lex.colors.danger)
     }
 }
 
@@ -488,42 +404,18 @@ private fun NextActionLine(c: Consultation, mode: RowMode) {
 
 @Composable
 private fun KindBadge(kind: ConsultationKind) {
-    data class Style(val bg: Color, val fg: Color, val icon: ImageVector, val label: String)
-    val s = when (kind) {
-        ConsultationKind.GENERAL -> Style(LlColor.Paper2, LlColor.InkMuted, Icons.Outlined.Forum, "General")
-        ConsultationKind.AHC -> Style(ClaretSoftFix, LlColor.Claret, Icons.Outlined.Description, "Agreement Check")
-        ConsultationKind.LEGAL_NOTICE -> Style(LlColor.SlateSoft, LlColor.SlateMid, Icons.Outlined.Gavel, "Legal Notice")
-        ConsultationKind.DOC_REQUEST -> Style(LlColor.VioletSoft, LlColor.Violet, Icons.Outlined.FolderOpen, "Documents")
-        ConsultationKind.DIGITAL_OFFICE -> Style(LlColor.VerdantSoft, LlColor.Verdant, Icons.Outlined.Videocam, "Video Session")
+    val (palette, icon, label) = when (kind) {
+        ConsultationKind.GENERAL -> Triple(Lex.colors.neutral, Icons.Outlined.Forum, "General")
+        ConsultationKind.AHC -> Triple(Lex.colors.neutral, Icons.Outlined.Description, "Agreement Check")
+        ConsultationKind.LEGAL_NOTICE -> Triple(Lex.colors.neutral, Icons.Outlined.Gavel, "Legal Notice")
+        ConsultationKind.DOC_REQUEST -> Triple(Lex.colors.neutral, Icons.Outlined.FolderOpen, "Documents")
+        ConsultationKind.DIGITAL_OFFICE -> Triple(Lex.colors.neutral, Icons.Outlined.Videocam, "Video Session")
     }
-    Row(
-        Modifier.clip(RoundedCornerShape(6.dp)).background(s.bg).padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Icon(s.icon, null, tint = s.fg, modifier = Modifier.size(12.dp))
-        Text(s.label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold,
-            fontSize = 9.sp, letterSpacing = 0.06.em, color = s.fg)
-    }
+    StatusChip(label, palette, icon)
 }
 
 @Composable
-private fun StatusPill(status: ConsultationStatus) {
-    val (bg, fg) = when (status) {
-        ConsultationStatus.PENDING_REVIEW, ConsultationStatus.AWAITING_DOCS -> LlColor.AmberSoft to LlColor.Amber
-        ConsultationStatus.ACKNOWLEDGED, ConsultationStatus.IN_PROGRESS, ConsultationStatus.SCHEDULED -> LlColor.SlateSoft to LlColor.SlateMid
-        ConsultationStatus.LIVE_NOW, ConsultationStatus.COMPLETED, ConsultationStatus.CONVERTED -> LlColor.VerdantSoft to LlColor.Verdant
-        ConsultationStatus.CLOSED, ConsultationStatus.CANCELLED -> LlColor.Paper2 to LlColor.InkMuted
-        ConsultationStatus.DECLINED -> ClaretSoftFix to ClaretMidFix
-    }
-    val live = status == ConsultationStatus.LIVE_NOW
-    Row(
-        Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        if (live) PulseDot(fg, 6.dp) else Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(fg))
-        Text(status.label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
-    }
-}
+private fun StatusPill(status: ConsultationStatus) = StatusBadge(title(status.label), status.palette)
 
 @Composable
 private fun PulseDot(color: Color, size: androidx.compose.ui.unit.Dp) {
@@ -743,3 +635,5 @@ private fun advShort(name: String?): String {
     val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return "Your advocate"
     return if (n.startsWith("adv", ignoreCase = true)) n else "Adv. ${n.split(" ").last()}"
 }
+
+private fun title(s: String) = s.split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.titlecase() } }
