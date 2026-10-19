@@ -191,8 +191,15 @@ private fun parseDetail(m: Map<String, Any?>): ProjectDetail {
     fun b(k: String) = jBool(settingsMap[k])
     fun i(map: Map<String, Any?>, k: String) = jInt(map[k]) ?: 0
 
+    // The detail endpoint carries its task numbers under counts, not on the
+    // row as the list does; without this the progress said "No tasks yet"
+    // beside an Open Tasks tile of 3.
+    val withCounts = summary.copy(
+        tasksTotal = jInt(countsMap["tasks_total"]) ?: summary.tasksTotal,
+        tasksOpen  = jInt(countsMap["tasks_open"]) ?: summary.tasksOpen,
+    )
     return ProjectDetail(
-        summary         = summary,
+        summary         = withCounts,
         description     = (m["description"] as? String)?.takeIf { it.isNotBlank() },
         projectCreated  = parseDate(m["project_created"] as? String),
         dateFinished    = parseDateTime(m["date_finished"] as? String),

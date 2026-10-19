@@ -283,7 +283,7 @@ private fun Head(onClose: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(D.Live))
                 Spacer(Modifier.width(6.dp))
-                Text("counsel desk · online", style = TextStyle(fontFamily = Mono, fontSize = 11.5.sp, color = D.Muted))
+                Text("counsel desk · taking enquiries", style = TextStyle(fontFamily = Mono, fontSize = 11.5.sp, color = D.Muted))
             }
         }
         Box(Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onClose), contentAlignment = Alignment.Center) {

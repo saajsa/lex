@@ -88,7 +88,7 @@ fun NoticesScreen(
 
         // Content heading — kicker + title, as the other list screens (PageHeader).
         com.legumlex.client.ui.components.PageHeader(
-            eyebrow = "Litigation", title = "Legal Notices",
+            eyebrow = "Your File", title = "Legal Notices",
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp),
             actions = {
                 if (!noAccess) Row(
@@ -302,7 +302,9 @@ private fun GBand(band: NoticeBand, roots: List<NoticeSummary>) {
     val total = roots.sumOf { 1 + it.children.size }
     val countText = when (band) {
         NoticeBand.NEEDS_YOU -> "$total Awaiting You"
-        NoticeBand.IN_PROGRESS -> "$total Active"
+        // A thread in progress can carry a closed reply: count only the open ones,
+        // as the Active filter does.
+        NoticeBand.IN_PROGRESS -> "${roots.sumOf { r -> (listOf(r) + r.children).count { !it.isClosed } }} Active"
         NoticeBand.CLOSED -> "$total"
     }
     Row(

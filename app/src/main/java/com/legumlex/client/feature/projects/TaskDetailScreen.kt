@@ -208,7 +208,8 @@ private fun KeyFacts(task: TaskDetail) {
         Fact(Modifier.weight(1f), Icons.Outlined.Group, "Assigned") {
             val who = task.assignees.firstOrNull()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft), contentAlignment = Alignment.Center) {
+                // No avatar when the firm keeps the team private: a "?" read as broken.
+                if (who != null) Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft), contentAlignment = Alignment.Center) {
                     Text(initialsOf(who), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LlColor.Slate)
                 }
                 Text(who ?: "Your chamber", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -295,7 +296,7 @@ private fun Conversation(task: TaskDetail, canComment: Boolean) {
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.width(26.dp).height(1.dp).background(LlColor.Paper2))
-            Text("Comments Are Shared With Your Chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
+            Text("Comments are shared with your chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.02.em, color = LlColor.InkFaint)
             Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
         }
     }
@@ -311,7 +312,7 @@ private fun Message(c: TaskComment) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(c.authorName?.takeIf { it.isNotBlank() } ?: if (you) "You" else "Staff", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = LlColor.Ink)
-                Text(if (you) "YOU" else "ADVOCATE", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.06.em, color = if (you) ClaretMidFix else LlColor.SlateMid,
+                Text(if (you) "YOU" else "CHAMBER", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.06.em, color = if (you) ClaretMidFix else LlColor.SlateMid,
                     modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (you) ClaretSoftFix else LlColor.SlateSoft).padding(horizontal = 6.dp, vertical = 1.dp))
                 Spacer(Modifier.weight(1f))
                 c.dateAdded?.let { Text(it.toLocalDate().format(dayFmt), fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint) }
@@ -386,7 +387,7 @@ private fun StatusPill(label: String, tone: Pair<Color, Color>) {
 private fun PriorityTag(label: String, tone: Pair<Color, Color>) {
     Row(Modifier.clip(RoundedCornerShape(6.dp)).background(tone.first).padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(Modifier.size(5.dp).clip(RoundedCornerShape(50)).background(tone.second))
-        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.08.em, color = tone.second)
+        Text(label.lowercase().replaceFirstChar { it.uppercase() }, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = tone.second)
     }
 }
 

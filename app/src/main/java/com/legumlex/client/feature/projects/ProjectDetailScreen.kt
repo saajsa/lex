@@ -244,7 +244,7 @@ private fun AtAGlance(detail: ProjectDetail, discussionCount: Int, today: LocalD
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                            Text(if (passed) "DEADLINE PASSED" else "NEAREST DEADLINE", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.13.em, color = accentMid)
+                            Text(if (passed) "MILESTONE PASSED" else "NEXT MILESTONE", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.13.em, color = accentMid)
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(ms.name, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -375,7 +375,7 @@ private fun TaskRow(t: TaskSummary, onClick: () -> Unit) {
                 priorityTag(t.priority)?.let { (label, tone) ->
                     Row(Modifier.clip(RoundedCornerShape(6.dp)).background(tone.first).padding(horizontal = 7.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box(Modifier.size(5.dp).clip(RoundedCornerShape(50)).background(tone.second))
-                        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.08.em, color = tone.second)
+                        Text(label.lowercase().replaceFirstChar { it.uppercase() }, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = tone.second)
                     }
                 }
             }
@@ -411,7 +411,8 @@ private fun MoreRows(detail: ProjectDetail, s: ProjectDetailUiState.Ready, onOpe
                 s.files.firstOrNull()?.let { "Latest · ${it.originalFileName ?: it.fileName}" } ?: "No files yet", onOpenFiles)
         }
         if (settings.viewDiscussions) {
-            DrillRow(Icons.Outlined.Forum, "Discussions", s.discussions.size, s.discussions.isNotEmpty(),
+            // Nothing records what the client has read here: no "unread" accent.
+            DrillRow(Icons.Outlined.Forum, "Discussions", s.discussions.size, false,
                 s.discussions.firstOrNull()?.let { "Latest · ${it.subject}" + (it.authorName?.let { a -> " · $a" } ?: "") } ?: "No discussions yet", onOpenDiscussions)
         }
         if (settings.viewActivityLog) {

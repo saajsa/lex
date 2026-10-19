@@ -135,8 +135,9 @@ private fun Ready(state: InvoicesUiState.Ready, onOpenInvoice: (String) -> Unit)
         item("figures") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Outstanding Balance", formatMoney(state.outstandingTotal, sym),
-                        "Unpaid invoices on your account: ${state.outstandingCount}", Modifier.weight(1f).fillMaxHeight())
+                    // The balance itself is the card below; here, how many invoices it is.
+                    StatCard("Unpaid Invoices", "${state.outstandingCount}",
+                        "Invoices with money still owed on them", Modifier.weight(1f).fillMaxHeight())
                     StatCard("Overdue", formatMoney(overdue.sumOf { it.leftToPay }, sym), "Past the date they were due to be settled",
                         Modifier.weight(1f).fillMaxHeight(),
                         valueColor = if (overdue.isNotEmpty()) Lex.colors.danger.solid else Lex.colors.foreground,
@@ -273,7 +274,7 @@ private fun rowHint(inv: Invoice): String? {
             }
         }
         InvoiceStatus.PARTIAL -> "${formatMoney(inv.leftToPay, inv.currencySymbol)} left"
-        InvoiceStatus.PAID    -> "settled"
+        InvoiceStatus.PAID    -> null   // the Paid chip says it
         else                  -> null
     }
 }
@@ -327,7 +328,7 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
                 formatMoney(amount, inv.currencySymbol),
                 fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                 color = if (paid) LlColor.InkFaint else LlColor.Ink,
-                textDecoration = if (paid) TextDecoration.LineThrough else null,
+                textDecoration = null,   // a paid amount is not void: no strikethrough
             )
             Spacer(Modifier.height(7.dp))
             StatusBadge(inv.status.label, inv.status.palette)

@@ -370,7 +370,9 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
             Spacer(Modifier.width(10.dp))
             // meta — unread dot + time
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                if (!read) Box(Modifier.size(8.dp).clip(CircleShape).background(LlColor.Claret))
+                // The dot means unread. A waiting item is never "unread" (the
+                // header can say None Unread beside it); its stripe says it waits.
+                if (!read && n.type != NotifType.ATTENTION) Box(Modifier.size(8.dp).clip(CircleShape).background(LlColor.Claret))
                 Text(n.timeLabel, fontFamily = Inter, fontSize = 10.5.sp, color = if (read) LlColor.InkFaint else LlColor.InkMuted)
             }
         }

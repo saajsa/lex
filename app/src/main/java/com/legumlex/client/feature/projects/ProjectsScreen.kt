@@ -212,10 +212,13 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
         Column(Modifier.background(Lex.colors.muted.copy(alpha = 0.5f))) {
             Row(Modifier.height(IntrinsicSize.Min)) {
                 PFact("Next Milestone",
-                    p.nextMilestone?.let { m -> listOfNotNull(m.name, m.dueDate?.let { pdate(it) }).joinToString(" · ") } ?: "No Milestone Set",
+                    p.nextMilestone?.let { m ->
+                        val passed = m.dueDate?.isBefore(java.time.LocalDate.now()) == true
+                        listOfNotNull(m.name, m.dueDate?.let { (if (passed) "Passed " else "") + pdate(it) }).joinToString(" · ")
+                    } ?: "No Milestone Set",
                     Modifier.weight(1f))
                 Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
-                PFact("Tasks", if (p.tasksTotal == 0) "No Tasks Yet" else "${p.tasksDone()} Of ${p.tasksTotal} Done", Modifier.weight(1f))
+                PFact("Tasks", if (p.tasksTotal == 0) "No Tasks Yet" else "${p.tasksDone()} of ${p.tasksTotal} done", Modifier.weight(1f))
             }
             HorizontalDivider(color = Lex.colors.border)
             Row(Modifier.height(IntrinsicSize.Min)) {

@@ -114,7 +114,7 @@ private fun RegistryBody(d: RegistryOverview, stale: String?, onRetry: () -> Uni
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard("Overdue", "${d.overdue}", "Deadlines already past their date",
                 Modifier.weight(1f).fillMaxHeight(), valueColor = if (d.overdue > 0) Lex.colors.danger.solid else Lex.colors.foreground)
-            StatCard("Due In 30 Days", "${d.soon}", "Obligations falling due this month", Modifier.weight(1f).fillMaxHeight())
+            StatCard("Due In 30 Days", "${d.soon}", "Obligations falling due in the next 30 days", Modifier.weight(1f).fillMaxHeight())
         }
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard("Notice Window Closing", "${d.notice30}", "Agreements needing notice within 30 days", Modifier.weight(1f).fillMaxHeight())
@@ -222,7 +222,14 @@ private fun DeadlineRow(o: Deadline, showAgreement: Boolean, onClick: (() -> Uni
         Column(horizontalAlignment = Alignment.End) {
             Text(o.due.long(), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
             Text(
-                when (o.status) { "done" -> "Done"; "waived" -> "Waived"; else -> dueNote(o.daysToDue) },
+                when {
+                    o.status == "done" -> "Done"
+                    o.status == "waived" -> "Waived"
+                    // An agreement that has ended is not "overdue": it ended.
+                    o.kindLabel.equals("Expiry", ignoreCase = true) && (o.daysToDue ?: 0) < 0 ->
+                        "Ended ${-(o.daysToDue ?: 0)} ${if (o.daysToDue == -1) "Day" else "Days"} Ago"
+                    else -> dueNote(o.daysToDue)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = if (overdue) Lex.colors.danger.softText else Lex.colors.mutedForeground,
             )
