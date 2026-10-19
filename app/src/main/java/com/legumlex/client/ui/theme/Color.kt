@@ -61,6 +61,10 @@ data class LexColors(
     val blue: StatusPalette,
     val danger: StatusPalette,
     val neutral: StatusPalette,
+    /** Header and bottom bar: a step deeper than the page, solid (no grain). */
+    val chrome: Color = background,
+    /** The hairline where the chrome meets the page. */
+    val chromeRule: Color = border,
 )
 
 /* Warm greys, after the owner's reference (Oct 2026): a pale grey page with
@@ -90,6 +94,8 @@ val LightLexColors = LexColors(
     blue    = StatusPalette(Color(0xFF5E5E5C), Color(0xFFD5D5D2), Color(0xFF383838)),
     danger  = StatusPalette(Color(0xFFA9483F), Color(0xFFE6D3D0), Color(0xFF86352D)),
     neutral = StatusPalette(Color(0xFF777775), Color(0xFFD5D5D2), Color(0xFF383838)),
+    chrome     = Color(0xFFD6D6D3),
+    chromeRule = Color(0xFFBDBDBA),
 )
 
 val DarkLexColors = LexColors(
@@ -113,6 +119,8 @@ val DarkLexColors = LexColors(
     blue    = StatusPalette(Color(0xFFB2B2B0), Color(0xFF4B4B4B), Color(0xFFE4E4E2)),
     danger  = StatusPalette(Color(0xFFD27268), Color(0xFF574341), Color(0xFFE59C93)),
     neutral = StatusPalette(Color(0xFF9E9E9C), Color(0xFF4B4B4B), Color(0xFFE4E4E2)),
+    chrome     = Color(0xFF2F2F2F),
+    chromeRule = Color(0xFF262626),
 )
 
 val LocalLexColors = staticCompositionLocalOf { LightLexColors }

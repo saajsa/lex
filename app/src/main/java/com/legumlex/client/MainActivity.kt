@@ -139,8 +139,6 @@ private fun AppShell(deepLinkIntent: Intent?) {
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     Scaffold(
-        // The reference's paper grain, over every screen and both themes.
-        modifier = Modifier.grain(),
         topBar = {
             if (showAppHeader(currentRoute)) {
                 AppHeader(
@@ -161,7 +159,9 @@ private fun AppShell(deepLinkIntent: Intent?) {
         },
         bottomBar = { if (showAppFooter(currentRoute)) LegumBottomBar(navController) },
     ) { innerPadding ->
-        Box(Modifier.padding(innerPadding)) {
+        // The paper grain is the page's alone: the header and bottom bar are
+        // solid chrome, so the three read as frame and paper.
+        Box(Modifier.padding(innerPadding).grain()) {
             LegumNavGraph(navController)
         }
     }

@@ -58,7 +58,8 @@ fun AppHeader(
     avatarUrl: String? = null,
     onProfile: () -> Unit = {},
 ) {
-    Surface(color = Lex.colors.background, tonalElevation = 0.dp, shadowElevation = 0.dp) {
+    // Chrome: a solid step deeper than the page, with a hairline where they meet.
+    Surface(color = Lex.colors.chrome, tonalElevation = 0.dp, shadowElevation = 0.dp) {
         Column(Modifier.fillMaxWidth().statusBarsPadding()) {
             Row(
                 Modifier.fillMaxWidth().height(56.dp).padding(start = if (showBack) 4.dp else 16.dp, end = 8.dp),
@@ -96,7 +97,7 @@ fun AppHeader(
                                 .defaultMinSize(minWidth = 17.dp, minHeight = 17.dp)
                                 .clip(CircleShape)
                                 .background(Lex.colors.danger.solid)
-                                .border(2.dp, Lex.colors.background, CircleShape)
+                                .border(2.dp, Lex.colors.chrome, CircleShape)
                                 .padding(horizontal = 4.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -132,7 +133,7 @@ fun AppHeader(
                     }
                 }
             }
-            HorizontalDivider(color = Lex.colors.border, thickness = 1.dp)
+            HorizontalDivider(color = Lex.colors.chromeRule, thickness = 1.dp)
         }
     }
 }
@@ -145,7 +146,7 @@ private fun CountBadge(count: Int, bg: androidx.compose.ui.graphics.Color, fg: a
             .defaultMinSize(minWidth = 17.dp, minHeight = 17.dp)
             .clip(CircleShape)
             .background(bg)
-            .border(2.dp, Lex.colors.background, CircleShape)
+            .border(2.dp, Lex.colors.chrome, CircleShape)
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {

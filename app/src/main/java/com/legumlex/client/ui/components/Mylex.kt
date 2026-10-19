@@ -84,7 +84,10 @@ fun PageHeader(
         Column(Modifier.weight(1f)) {
             Eyebrow(eyebrow)
             Spacer(Modifier.height(4.dp))
-            Text(title, style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
+            // The page's own heading, in the reference's heavy condensed capitals,
+            // so the body reads apart from the brand header above it.
+            Text(title.uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold,
+                fontSize = 30.sp, lineHeight = 32.sp, letterSpacing = 0.3.sp, color = Lex.colors.foreground)
         }
         actions?.let { Row(verticalAlignment = Alignment.CenterVertically, content = it) }
     }

@@ -7,6 +7,12 @@ import androidx.compose.ui.unit.sp
 import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ahc.theme.Mono
 
+
+/** Page titles, after the owner's reference: heavy, condensed, in capitals. */
+val Display = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(com.legumlex.client.R.font.barlow_condensed_bold, FontWeight.Bold),
+)
+
 // Mylex's type, on a phone: Inter throughout, weights doing the work. Page
 // titles are Medium (the portal's "Cases", "Good afternoon"), card titles and
 // buttons SemiBold/Medium, body Regular; eyebrows are small, Medium, tracked
