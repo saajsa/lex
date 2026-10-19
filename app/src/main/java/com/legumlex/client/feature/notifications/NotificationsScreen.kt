@@ -315,7 +315,8 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
                 Icon(iconFor(n.type), null, tint = c.tileTint, modifier = Modifier.size(21.dp))
             }
             Spacer(Modifier.width(12.dp))
-            // body
+            // body — an announcement from the firm is read here in full; it has nowhere to open.
+            val notice = n.link.isBlank() && n.type == NotifType.GENERAL
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(
@@ -324,11 +325,11 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.5.sp,
                         color = if (read) LlColor.InkMuted else LlColor.Ink,
-                        maxLines = 1,
+                        maxLines = if (notice) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!notice) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             n.cta.uppercase(),
                             fontFamily = Inter,
@@ -351,7 +352,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
                         fontFamily = Inter,
                         fontSize = 11.5.sp,
                         color = if (read) LlColor.InkFaint else LlColor.InkMuted,
-                        maxLines = 1,
+                        maxLines = if (notice) 8 else 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

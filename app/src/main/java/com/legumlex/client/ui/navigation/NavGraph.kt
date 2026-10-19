@@ -204,6 +204,8 @@ fun LegumNavGraph(navController: NavHostController) {
             com.legumlex.client.feature.notifications.NotificationsScreen(
                 onBack = { navController.popBackStack() },
                 onOpen = { n ->
+                    // A firm announcement is read where it stands (tapping marks it read).
+                    if (n.link.isBlank() && n.type == com.legumlex.client.feature.notifications.NotifType.GENERAL) return@NotificationsScreen
                     // Deep-link by type to the most relevant destination. Exact
                     // record IDs aren't carried on the notification, so we land
                     // on the list/tab the alert belongs to.
