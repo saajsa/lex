@@ -1,0 +1,13 @@
+<!-- Legum Lex CLIENT app — LJ monogram in ink (#18181B) on the snow tile.
+     Polarity is the wayfinder: client is snow, staff is ink. Do not invert.
+     Paths are the canonical 60-unit design, scaled 1.2× and centred in the
+     108-unit adaptive-icon viewport (occupies the 72×72 safe area). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#18181B"
+        android:pathData="M27.6,27.6 H37.2 V80.4 H27.6 Z M27.6,70.8 H54 V80.4 H27.6 Z M61.2,27.6 H80.4 V37.2 H61.2 Z M70.8,27.6 H80.4 V66 H70.8 Z M80.4,61.2 L80.4,70.8 Q80.4,80.4 70.8,80.4 L61.2,80.4 L61.2,70.8 L68.4,70.8 Q70.8,70.8 70.8,68.4 L70.8,61.2 Z" />
+</vector>

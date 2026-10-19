@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.jks
+*.keystore
+keystore.properties
+
+# Build output and signed releases never go to git
+/app/build
+/app/release
+.kotlin
+# Firebase config (per-project credentials)
+google-services.json

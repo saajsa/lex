@@ -1,0 +1,45 @@
+package com.legumlex.client.data.api
+
+import android.content.Context
+import com.legumlex.client.BuildConfig
+import com.legumlex.client.data.auth.TokenStore
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
+
+object ApiClient {
+    @Volatile private var service: ApiService? = null
+
+    fun get(context: Context): ApiService = service ?: synchronized(this) {
+        service ?: build(context.applicationContext).also { service = it }
+    }
+
+    private fun build(appContext: Context): ApiService {
+        val moshi = Moshi.Builder()
+            .add(KotlinJsonAdapterFactory())
+            .build()
+
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
+                    else HttpLoggingInterceptor.Level.NONE
+        }
+
+        val http = OkHttpClient.Builder()
+            .addInterceptor(AuthInterceptor(TokenStore(appContext)))
+            .addInterceptor(logging)
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL)
+            .client(http)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(ApiService::class.java)
+    }
+}

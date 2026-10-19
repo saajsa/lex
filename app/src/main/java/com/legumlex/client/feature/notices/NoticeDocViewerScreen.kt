@@ -1,0 +1,241 @@
+package com.legumlex.client.feature.notices
+
+import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.legumlex.client.data.api.ApiClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/**
+ * Inline viewer for a legal-notice document — streams the PDF/image from the
+ * customers_api and renders it in-app via the platform PdfRenderer, so the client
+ * reads it without leaving the app. Mirrors [com.legumlex.client.feature.cases.CaseDocViewerScreen].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NoticeDocViewerScreen(
+    noticeId: String,
+    fileId: String,
+    fileName: String?,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    val app = remember(context) { context.applicationContext as Application }
+    val vm: NoticeDocViewerViewModel = viewModel(
+        key = "noticedoc-$noticeId-$fileId",
+        factory = viewModelFactory { initializer { NoticeDocViewerViewModel(app, noticeId, fileId) } },
+    )
+    val state by vm.state.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(fileName?.takeIf { it.isNotBlank() } ?: "Document", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1)
+                        val pages = (state as? NoticeDocViewerUiState.Ready)?.pages?.size
+                        if (pages != null && pages > 1) Text("$pages pages", style = MaterialTheme.typography.labelSmall, color = Color(0xFFA8A29E))
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = Color.White) }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1C1917)),
+            )
+        },
+        containerColor = Color(0xFF1C1917),
+    ) { inner ->
+        when (val s = state) {
+            NoticeDocViewerUiState.Loading -> Loading(inner)
+            is NoticeDocViewerUiState.Error -> ErrorView(inner, s.message, vm::load)
+            is NoticeDocViewerUiState.Ready -> Pages(inner, s.pages)
+        }
+    }
+}
+
+@Composable
+private fun Loading(inner: PaddingValues) {
+    Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+            Spacer(Modifier.height(16.dp))
+            Text("Loading document…", color = Color(0xFFA8A29E), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun ErrorView(inner: PaddingValues, msg: String, onRetry: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(inner).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(Icons.Outlined.ErrorOutline, null, tint = Color(0xFFA8A29E), modifier = Modifier.size(36.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(msg, color = Color(0xFFD4D4D8), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(16.dp))
+        OutlinedButton(onClick = onRetry, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("Retry") }
+    }
+}
+
+@Composable
+private fun Pages(inner: PaddingValues, pages: List<Bitmap>) {
+    var scale by remember { mutableStateOf(1f) }
+    var panX by remember { mutableStateOf(0f) }
+    var panY by remember { mutableStateOf(0f) }
+    val listState = rememberLazyListState()
+    Box(
+        Modifier.fillMaxSize().padding(inner).background(Color(0xFF1C1917))
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    val ns = (scale * zoom).coerceIn(1f, 4f)
+                    if (ns == 1f) { panX = 0f; panY = 0f } else { panX += pan.x; panY += pan.y }
+                    scale = ns
+                }
+            }
+            .graphicsLayer(scaleX = scale, scaleY = scale, translationX = panX, translationY = panY),
+    ) {
+        LazyColumn(
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 8.dp),
+            userScrollEnabled = scale == 1f,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(pages) { bmp ->
+                Image(bmp.asImageBitmap(), null, contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(Color.White))
+            }
+        }
+    }
+}
+
+class NoticeDocViewerViewModel(
+    app: Application,
+    private val noticeId: String,
+    private val fileId: String,
+) : AndroidViewModel(app) {
+
+    private val repo = NoticesRepository(ApiClient.get(app))
+    private val _state = MutableStateFlow<NoticeDocViewerUiState>(NoticeDocViewerUiState.Loading)
+    val state: StateFlow<NoticeDocViewerUiState> = _state.asStateFlow()
+
+    init { load() }
+
+    fun load() {
+        viewModelScope.launch {
+            _state.value = NoticeDocViewerUiState.Loading
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val ctx = getApplication<Application>()
+                    val dir = File(ctx.cacheDir, "noticedoc").apply { mkdirs() }
+                    val file = File(dir, "${noticeId}_$fileId.bin")
+                    if (!file.exists() || file.length() == 0L) {
+                        repo.downloadDocument(noticeId, fileId).byteStream().use { input -> file.outputStream().use { input.copyTo(it) } }
+                    }
+                    if (isPdf(file)) renderPdf(file) else listOfNotNull(decodeImage(file))
+                }
+            }
+                .onSuccess { pages ->
+                    _state.value = if (pages.isEmpty()) NoticeDocViewerUiState.Error("This file can’t be previewed here.")
+                    else NoticeDocViewerUiState.Ready(pages)
+                }
+                .onFailure { e -> _state.value = NoticeDocViewerUiState.Error(friendly(e)) }
+        }
+    }
+
+    private fun isPdf(file: File): Boolean = runCatching {
+        file.inputStream().use { input ->
+            val header = ByteArray(4)
+            input.read(header) == 4 && String(header) == "%PDF"
+        }
+    }.getOrDefault(false)
+
+    private fun decodeImage(file: File): Bitmap? = runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val target = (getApplication<Application>().resources.displayMetrics.widthPixels * 2).coerceAtMost(3000)
+        var sample = 1
+        while (bounds.outWidth / sample > target) sample *= 2
+        BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
+    }.getOrNull()
+
+    private fun renderPdf(file: File): List<Bitmap> {
+        val pages = mutableListOf<Bitmap>()
+        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+            PdfRenderer(pfd).use { renderer ->
+                val dm = getApplication<Application>().resources.displayMetrics
+                val targetWidth = (dm.widthPixels * 2).coerceAtMost(3000)
+                for (i in 0 until renderer.pageCount) {
+                    renderer.openPage(i).use { page ->
+                        val ratio = page.height.toFloat() / page.width.toFloat()
+                        val width = targetWidth
+                        val height = (width * ratio).toInt().coerceAtLeast(1)
+                        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.WHITE) }
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        pages += bitmap
+                    }
+                }
+            }
+        }
+        return pages
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        (state.value as? NoticeDocViewerUiState.Ready)?.pages?.forEach { if (!it.isRecycled) it.recycle() }
+    }
+
+    private fun friendly(e: Throwable): String = when (e) {
+        is retrofit2.HttpException -> when (e.code()) {
+            401, 403 -> "Your session expired. Sign in again."
+            404 -> "This document is no longer available."
+            in 500..599 -> "Server error. Try again in a moment."
+            else -> "Couldn’t reach the server (HTTP ${e.code()})."
+        }
+        else -> e.message?.takeIf { it.isNotBlank() } ?: "Couldn’t open the document."
+    }
+}
+
+sealed interface NoticeDocViewerUiState {
+    data object Loading : NoticeDocViewerUiState
+    data class Ready(val pages: List<Bitmap>) : NoticeDocViewerUiState
+    data class Error(val message: String) : NoticeDocViewerUiState
+}

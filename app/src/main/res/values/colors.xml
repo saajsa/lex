@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Source of truth lives in Compose Color.kt. These mirror it for XML-only use. -->
+    <color name="ink">#18181B</color>
+    <color name="snow">#FAFAFA</color>
+    <color name="paper">#FFFFFF</color>
+    <color name="mist">#F4F4F5</color>
+    <color name="icon_bg">#F5F4F0</color>
+</resources>

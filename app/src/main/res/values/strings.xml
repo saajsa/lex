@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Legum Lex</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_matters">Case Matters</string>
+    <string name="nav_hearings">Hearings</string>
+    <string name="nav_consultations">Sessions</string>
+    <string name="nav_vault">Vault</string>
+    <string name="nav_projects">Projects</string>
+    <string name="nav_more">More</string>
+
+    <!-- Google Fonts certificate array (referenced by Type.kt) -->
+    <string-array name="com_google_android_gms_fonts_certs">
+        <item>@array/com_google_android_gms_fonts_certs_dev</item>
+        <item>@array/com_google_android_gms_fonts_certs_prod</item>
+    </string-array>
+    <string-array name="com_google_android_gms_fonts_certs_dev">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFuGx90071MA0GCSqGSIb3DQEBBAUAMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UEChMHQW5kcm9pZDEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDEiMCAGCSqGSIb3DQEJARYTYW5kcm9pZEBhbmRyb2lkLmNvbTAeFw0wODA0MTUyMzM2NTZaFw0zNTA5MDEyMzM2NTZaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UEChMHQW5kcm9pZDEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDEiMCAGCSqGSIb3DQEJARYTYW5kcm9pZEBhbmRyb2lkLmNvbTCCASAwDQYJKoZIhvcNAQEBBQADggENADCCAQgCggEBANbOLggKv+IxTdGNs8/TGFy0PTP6DHThvbbR24kT9ixcOd9W+EaBPWW+wPPKQmsHxajtWjmQwWfna8mZuSeJS48LIgAZlKkpoyLcfUq0Nv/n2hwPjuxICowMDIDhVTQfXuLuxwfBKE7iuvm/4kGEcRDdvUUiP3KvuS4Tsm/wDDQDvSE3kS2dwhMQS4xVeYV4PiSGhuYowmTw0+UlBClbJBfWpgyq3LrhB1puUtAAtVF8FsndtxXiyVfivOyP+wsHB7gE7T59WfL7VKZdg2VdNFvm6zbu8mABxxOorAEzeKn+yzu4tF/IpvJZcWtTAVtkjQRpL+f7sNNF/N4OPYJyQCgKAlIBVAKjqkXVQjpb0c4uTYbZ0sBhMECwm7g0lW6FaR2y9aZAVA==
+        </item>
+    </string-array>
+    <string-array name="com_google_android_gms_fonts_certs_prod">
+        <item>
+            MIIEQzCCAyugAwIBAgIJAMLgh0ZkSjCNMA0GCSqGSIb3DQEBBAUAMHQxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKEwtHb29nbGUgSW5jLjEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDAeFw0wODA4MjEyMzEzMzRaFw0zNjAxMDcyMzEzMzRaMHQxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKEwtHb29nbGUgSW5jLjEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDCCASAwDQYJKoZIhvcNAQEBBQADggENADCCAQgCggEBAKtWLgDYO6IIrgqWbxJOKdoR8qtW0I9Y4sypEwPpt1TTcvZApxsdyxMJZ2JORland2qSGT2y5b+3JKkedxiLDmpHpDsz2WCbdxgxRczfey5YZnTJ4VZbH0xqWVW/8lGmPav5xVwnIiJS6HXk+BVKZF+JcWjAsZ24QPF74hj3OQhi+5/HMjcdT4Wmck/4HCp4ABRzVAa9j0eIhX2VsR21yJjUTSqHC58OK4hAlqcfXxF8VlSmEcoBQH4N4DJ4xCo3+RuiKsJ73Z4DA88GBnZQwYr6PUuvNyTBSeT8Q8eXJRQrYIVoMhgU2zhVcMVqVRJV0M5gB2t5GZWICn0X9MQjN0iaCpHCxIaVwIA8nxC8WUUKaaqOCa/o7CGAk5kvz4qFyKuQB1J6Q+EYY2WUTQc8KQ3UrK6jXjf80mfJC1aV5R9Z+E4o7XK4hI0vKpv2QyL+BPLn4eqUKQYwOJBP38C8/u4P8LSyZNbDPONqGZWiQ
+        </item>
+    </string-array>
+</resources>

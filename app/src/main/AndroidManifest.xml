@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+    <!-- Hearing reminders. SCHEDULE_EXACT_ALARM is normal on API ≤31 and
+         requires user grant on API 32+; we fall back to inexact alarms when
+         not granted (acceptable for "morning of" / "evening before"). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <application
+        android:name=".LegumLexApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.LegumLex">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.LegumLex.Starting">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Deep-link target for hearing-reminder notifications. The
+                 NavGraph matches "legumlex://hearing/{hearingId}" via the
+                 composable's navDeepLink — see Routes.HearingDetail. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="legumlex" android:host="hearing" />
+            </intent-filter>
+            <!-- Push-notification deep links. Built by ClientFcmService from
+                 the data payload's `route` + `*_id` fields. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="legumlex" android:host="consultation" />
+            </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="legumlex" android:host="invoice" />
+            </intent-filter>
+        </activity>
+
+        <!-- Tell FCM which channel + icon to use for any payload that doesn't
+             specify them (Beams-published pushes always do, but be defensive). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="legum_lex_default" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+
+        <!-- Remove Beams' bundled empty FCM service so OUR ClientFcmService
+             receives every payload. Without this, both services compete and
+             FCM hands the payload to whichever wins the dispatcher race. -->
+        <service
+            android:name="com.pusher.pushnotifications.fcm.EmptyMessagingService"
+            tools:node="remove" />
+
+        <!-- Our FCM/Beams service. Posts the notification (auto-display is
+             flaky in foreground / killed state) and forwards the data
+             payload as a content URI for the NavController to deep-link. -->
+        <service
+            android:name=".push.ClientFcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Hearing-reminder broadcast receiver. Fires when an AlarmManager
+             alarm reaches its target time; posts a system notification that
+             deep-links back to the hearing detail. Not exported — only the
+             app's own scheduled alarms can trigger it. -->
+        <receiver
+            android:name=".feature.reminders.HearingReminderReceiver"
+            android:exported="false" />
+
+        <!-- Serves downloaded documents to external viewer apps via a content:// URI. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

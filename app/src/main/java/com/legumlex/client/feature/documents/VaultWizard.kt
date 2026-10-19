@@ -1,0 +1,235 @@
+package com.legumlex.client.feature.documents
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.legumlex.client.data.api.ApiClient
+import com.legumlex.client.feature.cases.CasesRepository
+import com.legumlex.client.feature.consultations.ConsultationsRepository
+import com.legumlex.client.feature.hearings.HearingsRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.File
+import java.time.format.DateTimeFormatter
+
+// -----------------------------------------------------------------------------
+// Vault wizard: a guided narrowing flow rather than a big list.
+//
+// The client picks an intent on Welcome ("a case file", "a hearing document",
+// "shared with me", etc.). For intents that have multiple parent entities
+// (cases, hearings, consultations) a Picker step lists those entities so the
+// client narrows further. Then a Results step fetches and shows the matching
+// documents on demand.
+//
+// Back navigation pops one step at a time; Back from Welcome exits Vault.
+// -----------------------------------------------------------------------------
+
+enum class VaultIntent(val title: String, val sub: String) {
+    CASE_FILE        ("A case file",           "Anything filed for one of your matters"),
+    HEARING_DOC      ("A hearing document",    "Orders, exhibits, or notes from a specific hearing"),
+    LEGAL_NOTICE_DOC ("A legal notice",        "Notices sent or received on your behalf"),
+    SESSION_DOC      ("A consultation document","Files attached to a session with your advocate"),
+    AGREEMENT_DOC    ("An agreement",          "Contract drafts and signed agreements"),
+    SHARED_WITH_ME   ("Shared with me",        "Documents your advocate shared directly"),
+    SEARCH_BY_NAME   ("Search by name",        "If you remember the file name or a keyword");
+}
+
+data class PickerItem(val id: String, val title: String, val sub: String?)
+
+sealed interface VaultContext {
+    val title: String
+
+    data class ForCase(val caseId: String, override val title: String) : VaultContext
+    data class ForHearing(val hearingId: String, override val title: String) : VaultContext
+    data class ForConsultation(val consultationId: String, override val title: String) : VaultContext
+    data object Notices       : VaultContext { override val title = "Legal notices" }
+    data object Agreements    : VaultContext { override val title = "Agreements" }
+    data object SharedWithMe  : VaultContext { override val title = "Shared with you" }
+    data class Search(val query: String) : VaultContext {
+        override val title = "Results for \"$query\""
+    }
+}
+
+sealed interface VaultStep {
+    data object Welcome : VaultStep
+
+    data class PickerLoading(val intent: VaultIntent) : VaultStep
+    data class PickerError(val intent: VaultIntent, val message: String) : VaultStep
+    data class Picker(val intent: VaultIntent, val items: List<PickerItem>) : VaultStep
+
+    data class SearchInput(val query: String = "") : VaultStep
+
+    data class ResultsLoading(val context: VaultContext) : VaultStep
+    data class Results(val context: VaultContext, val documents: List<Document>) : VaultStep
+    data class ResultsError(val context: VaultContext, val message: String) : VaultStep
+}
+
+sealed interface DownloadEvent {
+    data class Ready(val file: File, val doc: Document) : DownloadEvent
+    data class Failed(val message: String, val doc: Document) : DownloadEvent
+}
+
+class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
+    private val docsRepo          = DocumentsRepository(ApiClient.get(app), app)
+    private val casesRepo         = CasesRepository(ApiClient.get(app))
+    private val hearingsRepo      = HearingsRepository(ApiClient.get(app))
+    private val consultationsRepo = ConsultationsRepository(ApiClient.get(app))
+
+    private val _stack = MutableStateFlow<List<VaultStep>>(listOf(VaultStep.Welcome))
+
+    // Expose only the top of the wizard stack; the stack itself is an
+    // implementation detail used for back navigation history.
+    val step: StateFlow<VaultStep> = _stack
+        .map { it.last() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, VaultStep.Welcome)
+
+    private val _downloading = MutableStateFlow<Set<String>>(emptySet())
+    val downloading: StateFlow<Set<String>> = _downloading.asStateFlow()
+
+    private val _events = MutableSharedFlow<DownloadEvent>()
+    val events: SharedFlow<DownloadEvent> = _events.asSharedFlow()
+
+    /** Returns true when back was handled, false when wizard is at root (caller should exit). */
+    fun back(): Boolean {
+        val cur = _stack.value
+        if (cur.size <= 1) return false
+        _stack.value = cur.dropLast(1)
+        return true
+    }
+
+    fun goHome() {
+        _stack.value = listOf(VaultStep.Welcome)
+    }
+
+    fun chooseIntent(intent: VaultIntent) {
+        when (intent) {
+            VaultIntent.CASE_FILE        -> openPicker(intent)
+            VaultIntent.HEARING_DOC      -> openPicker(intent)
+            VaultIntent.SESSION_DOC      -> openPicker(intent)
+            VaultIntent.LEGAL_NOTICE_DOC -> loadResults(VaultContext.Notices)
+            VaultIntent.AGREEMENT_DOC    -> loadResults(VaultContext.Agreements)
+            VaultIntent.SHARED_WITH_ME   -> loadResults(VaultContext.SharedWithMe)
+            VaultIntent.SEARCH_BY_NAME   -> push(VaultStep.SearchInput())
+        }
+    }
+
+    fun choosePickerItem(intent: VaultIntent, item: PickerItem) {
+        val ctx: VaultContext = when (intent) {
+            VaultIntent.CASE_FILE   -> VaultContext.ForCase(item.id, item.title)
+            VaultIntent.HEARING_DOC -> VaultContext.ForHearing(item.id, item.title)
+            VaultIntent.SESSION_DOC -> VaultContext.ForConsultation(item.id, item.title)
+            else                    -> return
+        }
+        loadResults(ctx)
+    }
+
+    fun submitSearch(query: String) {
+        val q = query.trim()
+        if (q.isBlank()) return
+        loadResults(VaultContext.Search(q))
+    }
+
+    fun retryPicker(intent: VaultIntent) = openPicker(intent)
+    fun retryResults(context: VaultContext) = loadResults(context)
+
+    fun openDocument(doc: Document) {
+        if (_downloading.value.contains(doc.id)) return
+        viewModelScope.launch {
+            _downloading.update { it + doc.id }
+            val result = docsRepo.download(doc)
+            _downloading.update { it - doc.id }
+            result.onSuccess { file ->
+                _events.emit(DownloadEvent.Ready(file = file, doc = doc))
+            }.onFailure { e ->
+                val msg = (e as? HttpException)?.let { httpMessage(it) }
+                    ?: e.message ?: "Couldn't download. Check your connection."
+                _events.emit(DownloadEvent.Failed(message = msg, doc = doc))
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- internals
+
+    private fun openPicker(intent: VaultIntent) {
+        push(VaultStep.PickerLoading(intent))
+        viewModelScope.launch {
+            val itemsResult = when (intent) {
+                VaultIntent.CASE_FILE -> casesRepo.list().map { cs ->
+                    cs.map { PickerItem(it.id, it.title.ifBlank { "Untitled case" },
+                        listOfNotNull(it.number.takeIf { n -> n.isNotBlank() }?.let { n -> "#$n" }, it.courtName)
+                            .joinToString(" · ").ifBlank { null }) }
+                }
+                VaultIntent.HEARING_DOC -> hearingsRepo.list().map { hs ->
+                    hs.map {
+                        val date = it.date?.format(DateTimeFormatter.ofPattern("EEE, d MMM"))
+                        PickerItem(it.id,
+                            title = listOfNotNull(date, it.caseTitle.takeIf { t -> t.isNotBlank() }).joinToString(" · ").ifBlank { "Hearing #${it.id}" },
+                            sub   = listOfNotNull(it.courtName, it.status.label).joinToString(" · ").ifBlank { null })
+                    }
+                }
+                VaultIntent.SESSION_DOC -> consultationsRepo.list().map { cs ->
+                    cs.map {
+                        PickerItem(it.id,
+                            title = it.tag?.takeIf { t -> t.isNotBlank() }
+                                ?: it.note?.lineSequence()?.firstOrNull()?.take(60)
+                                ?: "Untitled session",
+                            sub   = it.createdAt?.format(DateTimeFormatter.ofPattern("d MMM yyyy"))
+                        )
+                    }
+                }
+                else -> return@launch
+            }
+            replaceTop(itemsResult.fold(
+                onSuccess = { items -> VaultStep.Picker(intent, items) },
+                onFailure = { e -> VaultStep.PickerError(intent, e.toFriendly()) },
+            ))
+        }
+    }
+
+    private fun loadResults(context: VaultContext) {
+        push(VaultStep.ResultsLoading(context))
+        viewModelScope.launch {
+            val result = when (context) {
+                is VaultContext.ForCase         -> docsRepo.list(category = DocCategory.ALL, query = null, caseId = context.caseId)
+                is VaultContext.ForHearing      -> docsRepo.listForRel("hearing", context.hearingId)
+                is VaultContext.ForConsultation -> docsRepo.listForRel("consultation", context.consultationId)
+                VaultContext.Notices            -> docsRepo.list(category = DocCategory.LEGAL_NOTICE)
+                VaultContext.Agreements         -> docsRepo.list(category = DocCategory.AGREEMENT)
+                VaultContext.SharedWithMe       -> docsRepo.list(category = DocCategory.SHARED)
+                is VaultContext.Search          -> docsRepo.list(query = context.query)
+            }
+            replaceTop(result.fold(
+                onSuccess = { docs -> VaultStep.Results(context, docs) },
+                onFailure = { e -> VaultStep.ResultsError(context, e.toFriendly()) },
+            ))
+        }
+    }
+
+    private fun push(step: VaultStep) {
+        _stack.value = _stack.value + step
+    }
+
+    private fun replaceTop(step: VaultStep) {
+        _stack.value = _stack.value.dropLast(1) + step
+    }
+
+    private fun httpMessage(e: HttpException): String = when (e.code()) {
+        401, 403   -> "Your session expired. Sign in again."
+        404        -> "Not available on the server."
+        in 500..599 -> "Server error. Try again in a moment."
+        else        -> "Couldn't reach the server (HTTP ${e.code()})."
+    }
+
+    private fun Throwable.toFriendly(): String =
+        (this as? HttpException)?.let { httpMessage(it) } ?: this.message ?: "Couldn't reach the server."
+}
