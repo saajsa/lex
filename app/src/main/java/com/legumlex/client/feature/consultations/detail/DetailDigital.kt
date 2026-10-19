@@ -91,7 +91,7 @@ fun DetailDigital(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.padding(spacing.s4)) {
-                        EyebrowText("Brief shared with advocate", color = TertiaryText)
+                        EyebrowText("What You Told Us", color = TertiaryText)
                         Spacer(Modifier.height(spacing.s2))
                         Text(consultation.note, style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
                     }

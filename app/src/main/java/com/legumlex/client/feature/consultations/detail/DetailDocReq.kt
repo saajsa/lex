@@ -143,11 +143,13 @@ fun DetailDocReq(
             }
 
             // ── advocate note ───────────────────────────────────────────────
-            val advNote = consultation.advocateNote?.takeIf { it.isNotBlank() }
-                ?: consultation.note?.takeIf { it.isNotBlank() }
+            // The request's instructions (the portal's "Notes & Instructions"),
+            // or what the advocate wrote for the client.
+            val fromAdvocate = consultation.advocateNote?.takeIf { it.isNotBlank() }
+            val advNote = fromAdvocate ?: consultation.note?.takeIf { it.isNotBlank() }
             if (advNote != null) {
                 Column(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = LlDimen.SectionGap)) {
-                    SectionHead("Note from your advocate")
+                    SectionHead(if (fromAdvocate != null) "Advocate's Notes" else "Notes & Instructions")
                     Spacer(Modifier.height(9.dp))
                     DCard { AdvocateNote(consultation, advNote) }
                 }

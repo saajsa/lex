@@ -253,7 +253,12 @@ private fun parse(m: Map<String, Any?>): Consultation {
     return Consultation(
         id               = m["id"]?.toString() ?: "",
         tag              = (m["tag"]  as? String)?.takeIf { it.isNotBlank() },
-        note             = (m["note"] as? String)?.takeIf { it.isNotBlank() },
+        // The consultation's text as the client may read it (the portal's rule,
+        // applied by the server): their own enquiry, their brief to the Digital
+        // Office, or the note where the portal shows one. Never the intake note
+        // written for the advocate.
+        note             = listOf(m["enquiry_text"], m["brief"], m["note"])
+            .firstNotNullOfOrNull { (it as? String)?.takeIf { s -> s.isNotBlank() } },
         phase            = phase,
         kind             = kind,
         status           = status,

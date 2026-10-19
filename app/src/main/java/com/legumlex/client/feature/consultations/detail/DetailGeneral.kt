@@ -264,7 +264,8 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
     data class Spec(val band: Color, val icon: ImageVector, val title: String, val hint: String?)
 
     val adv = advName(c.assignedTo)
-    val reason = c.advocateNote?.takeIf { it.isNotBlank() } ?: c.note?.takeIf { it.isNotBlank() }
+    // Only what the advocate wrote for the client; never the consultation's own text.
+    val reason = c.advocateNote?.takeIf { it.isNotBlank() }
     val spec = when (phase) {
         GenPhase.AWAITING -> Spec(
             LlColor.AmberMid, Icons.Outlined.HourglassTop, "Awaiting your advocate",
@@ -281,7 +282,7 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
         )
         GenPhase.DECLINED -> Spec(
             LlColor.Claret, Icons.Outlined.Block, "Declined",
-            reason ?: "Your advocate was unable to take this enquiry on.",
+            reason ?: "The firm could not take it on.",
         )
     }
 
