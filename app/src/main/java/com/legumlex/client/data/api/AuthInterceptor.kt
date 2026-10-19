@@ -1,5 +1,6 @@
 package com.legumlex.client.data.api
 
+import com.legumlex.client.data.auth.SessionEvents
 import com.legumlex.client.data.auth.TokenStore
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -9,6 +10,10 @@ import okhttp3.Response
 // The customers_api Authorization_token library (after the prefix-stripping
 // patch in tokenIsExist/token) normalizes both "Bearer <jwt>" and raw JWTs,
 // so this is the safer, more standard form.
+//
+// A 401 on a request that carried the sign-in means that sign-in is over:
+// SessionEvents takes the app back to the sign-in screen. Only while the
+// token sent is still the stored one, so a burst of 401s ends it once.
 class AuthInterceptor(private val tokens: TokenStore) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val req = chain.request()
@@ -18,6 +23,10 @@ class AuthInterceptor(private val tokens: TokenStore) : Interceptor {
         val jwt = runBlocking { tokens.read() }
         val rebuilt = if (jwt.isNullOrBlank()) req
         else req.newBuilder().header("Authorization", "Bearer $jwt").build()
-        return chain.proceed(rebuilt)
+        val res = chain.proceed(rebuilt)
+        if (res.code == 401 && !jwt.isNullOrBlank() && runBlocking { tokens.read() } == jwt) {
+            SessionEvents.end()
+        }
+        return res
     }
 }

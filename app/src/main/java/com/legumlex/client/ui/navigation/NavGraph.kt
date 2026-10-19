@@ -15,6 +15,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
+import com.legumlex.client.data.api.ApiClient
+import com.legumlex.client.data.auth.AuthRepository
 import com.legumlex.client.data.auth.TokenStore
 import kotlinx.coroutines.launch
 import com.legumlex.client.feature.auth.LoginScreen
@@ -75,10 +77,18 @@ fun LegumNavGraph(navController: NavHostController) {
     ) {
         // --- Auth flow ---
         composable(Route.Splash.path) {
+            // A stored sign-in opens the app where it was; the server's first
+            // refusal of it (AppShell, SessionEvents) returns to sign-in.
+            val context = LocalContext.current
+            val tokens  = remember(context) { TokenStore(context.applicationContext) }
+            val scope   = rememberCoroutineScope()
             SplashScreen(
                 onTimeout = {
-                    navController.navigate(Route.Welcome.path) {
-                        popUpTo(Route.Splash.path) { inclusive = true }
+                    scope.launch {
+                        val signedIn = !tokens.read().isNullOrBlank()
+                        navController.navigate(if (signedIn) Route.Home.path else Route.Welcome.path) {
+                            popUpTo(Route.Splash.path) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -253,14 +263,16 @@ fun LegumNavGraph(navController: NavHostController) {
         }
         composable(Route.More.path) {
             val context = LocalContext.current
-            val tokens  = remember(context) { TokenStore(context.applicationContext) }
+            val auth    = remember(context) {
+                AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext))
+            }
             val scope   = rememberCoroutineScope()
             MoreScreen(
                 onOpenVault    = { navController.navigate(Route.Vault.path) },
                 onOpenInvoices = { navController.navigate(Route.Invoices.path) },
                 onSignOut      = {
                     scope.launch {
-                        tokens.clear()
+                        auth.signOut()
                         navController.navigate(Route.Login.path) {
                             popUpTo(0) { inclusive = true }
                             launchSingleTop = true

@@ -138,6 +138,26 @@ private fun AppShell(deepLinkIntent: Intent?) {
         }
     }
 
+    // The server ended the sign-in (expired, or revoked): forget it here and
+    // return to sign-in, unless already in the sign-in flow.
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    LaunchedEffect(Unit) {
+        val auth = com.legumlex.client.data.auth.AuthRepository(
+            com.legumlex.client.data.api.ApiClient.get(appContext),
+            com.legumlex.client.data.auth.TokenStore(appContext),
+        )
+        com.legumlex.client.data.auth.SessionEvents.ended.collect {
+            auth.forget()
+            val here = navController.currentDestination?.route
+            if (here !in setOf(Route.Splash.path, Route.Welcome.path, Route.Login.path, Route.Register.path)) {
+                navController.navigate(Route.Login.path) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
+
     // App-wide unread badge — refresh the shared count when the route changes
     // (covers launch, and re-sync after the Notifications screen edits it).
     val context = androidx.compose.ui.platform.LocalContext.current

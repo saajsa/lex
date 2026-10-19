@@ -255,6 +255,8 @@ private val wizardBases = setOf(
 private val headerHiddenBases = setOf(
     Route.Splash.path,
     Route.Welcome.path,
+    Route.Login.path,           // nothing to notify of before sign-in
+    Route.Register.path,
     Route.Notifications.path,   // draws its own header (back · title · mark all read)
 ) + immersiveBases
 

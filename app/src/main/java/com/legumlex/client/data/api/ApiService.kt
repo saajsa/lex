@@ -47,6 +47,32 @@ interface ApiService {
     @GET("logout")
     suspend fun logout(): Map<String, Any?>
 
+    // Sign-in by a code on WhatsApp (or SMS) to the contact's verified mobile:
+    // request → { ref, to, message, resend_after }, or 403 error=unverified;
+    // status → { state, can_sms, resend_in }; verify → the same body as login.
+    @FormUrlEncoded
+    @Headers("X-Skip-Auth: 1")
+    @POST("authentication/otp/request")
+    suspend fun otpRequest(@Field("number") number: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @Headers("X-Skip-Auth: 1")
+    @POST("authentication/otp/status")
+    suspend fun otpStatus(@Field("ref") ref: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @Headers("X-Skip-Auth: 1")
+    @POST("authentication/otp/sms")
+    suspend fun otpSms(@Field("ref") ref: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @Headers("X-Skip-Auth: 1")
+    @POST("authentication/otp/verify")
+    suspend fun otpVerify(
+        @Field("ref") ref: String,
+        @Field("code") code: String,
+    ): Map<String, Any?>
+
     // --- Dashboard ---
 
     @GET("dashboard/stats")

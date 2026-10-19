@@ -2,9 +2,12 @@ package com.legumlex.client.data.auth
 
 import com.legumlex.client.data.api.ApiService
 import com.legumlex.client.push.PushSetup
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 import retrofit2.HttpException
 
-// Wraps the customers_api Google sign-in endpoint + JWT persistence.
+// The customers_api sign-in endpoints (Google, email + password, a code to
+// the verified mobile) + JWT persistence.
 //
 // The Credential Manager → Google ID token call happens in the LoginScreen
 // (it needs an Activity context). This repo only handles the
@@ -21,12 +24,53 @@ class AuthRepository(
             api.login(email = email.trim(), password = password)
         }
 
+    /** Sends a sign-in code to the mobile number; WhatsApp first. */
+    suspend fun requestCode(number: String): Result<CodeSent> = runStep {
+        val r = api.otpRequest(number.trim())
+        CodeSent(
+            ref         = r["ref"] as? String ?: error("Server returned no reference"),
+            to          = r["to"] as? String ?: "",
+            message     = r["message"] as? String ?: "",
+            resendAfter = (r["resend_after"] as? Number)?.toInt() ?: 60,
+        )
+    }
+
+    suspend fun codeStatus(ref: String): Result<CodeStatus> = runStep {
+        val r = api.otpStatus(ref)
+        CodeStatus(
+            state    = r["state"] as? String ?: "expired",
+            canSms   = r["can_sms"] == true,
+            resendIn = (r["resend_in"] as? Number)?.toInt() ?: 0,
+        )
+    }
+
+    /** "Send by SMS instead": the same code, by SMS. Returns the server's note. */
+    suspend fun codeBySms(ref: String): Result<String> = runStep {
+        api.otpSms(ref)["message"] as? String ?: "The code is on its way by SMS."
+    }
+
+    suspend fun signInWithCode(ref: String, code: String): Result<LoginResult> =
+        runAuth { api.otpVerify(ref, code) }
+
+    /** Signs out here and on the server (which revokes the token). */
     suspend fun signOut() {
+        // Best effort: offline, the token still goes from this device.
+        withTimeoutOrNull(5_000) { runCatching { api.logout() } }
+        forget()
+    }
+
+    /** Forgets the sign-in on this device only (the server already refused it). */
+    suspend fun forget() {
         // Drop Beams interests before clearing local credentials so an
         // already-queued push doesn't fire after sign-out. Idempotent.
         PushSetup.clear()
         tokens.clear()
     }
+
+    // The OTP steps' error mapping: the server's message, and its error code
+    // (e.g. "unverified" when the number may not sign in).
+    private suspend fun <T> runStep(call: suspend () -> T): Result<T> =
+        runCatching { call() }.recoverCatching { throw it.toSignInException() }
 
     // Single happy-path + error-mapping pipeline shared by both sign-in flows.
     // `typedEmail` is a fallback for the email/password endpoint which (unlike
@@ -58,26 +102,21 @@ class AuthRepository(
             name    = data["name"]    as? String ?: "",
             picture = data["picture"] as? String,
         )
-    }.recoverCatching { e ->
-        // Surface HTTP errors with the server's message when available so the UI
-        // can show something useful (e.g. "Invalid username or password") instead
-        // of a generic "request failed".
-        when (e) {
-            is HttpException -> {
-                val body = e.response()?.errorBody()?.string().orEmpty()
-                val msg  = parseServerMessage(body) ?: "Sign-in failed (HTTP ${e.code()})"
-                throw SignInException(msg, code = e.code(), cause = e)
-            }
-            else -> throw SignInException(e.message ?: "Network error", cause = e)
-        }
-    }
+    }.recoverCatching { throw it.toSignInException() }
 
-    private fun parseServerMessage(body: String): String? {
-        // Tiny manual parse — avoids pulling Moshi for one field.
-        val key = "\"message\":\""
-        val start = body.indexOf(key).takeIf { it >= 0 }?.plus(key.length) ?: return null
-        val end = body.indexOf('"', start).takeIf { it > start } ?: return null
-        return body.substring(start, end)
+    // Surface HTTP errors with the server's message when available so the UI
+    // can show something useful (e.g. "Invalid username or password") instead
+    // of a generic "request failed".
+    private fun Throwable.toSignInException(): SignInException = when (this) {
+        is SignInException -> this
+        is HttpException -> {
+            val body = runCatching { JSONObject(response()?.errorBody()?.string().orEmpty()) }.getOrNull()
+            val msg  = body?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: "Sign-in failed (HTTP ${code()})"
+            SignInException(msg, code = code(), error = body?.optString("error")?.takeIf { it.isNotBlank() }, cause = this)
+        }
+        is java.io.IOException -> SignInException("Network error. Please try again.", cause = this)
+        else -> SignInException(message ?: "Network error", cause = this)
     }
 }
 
@@ -87,8 +126,22 @@ data class LoginResult(
     val picture: String?,
 )
 
+data class CodeSent(
+    val ref: String,
+    val to: String,
+    val message: String,
+    val resendAfter: Int,
+)
+
+data class CodeStatus(
+    val state: String,
+    val canSms: Boolean,
+    val resendIn: Int,
+)
+
 class SignInException(
     message: String,
     val code: Int? = null,
+    val error: String? = null,
     cause: Throwable? = null,
 ) : Exception(message, cause)
