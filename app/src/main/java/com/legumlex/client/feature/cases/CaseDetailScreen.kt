@@ -521,11 +521,13 @@ private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -
         }
         if (detail.upcomingHearings.isNotEmpty()) {
             Slabel("Upcoming", count = detail.upcomingHearings.size, accent = true, first = finalOrders.isEmpty())
-            detail.upcomingHearings.forEach { HearingCard(it, ordersFor(it), detail, past = false, onOpenOrderDocument, onOpenHearing) }
+            val up = detail.upcomingHearings
+            up.forEachIndexed { i, h -> HearingTimelineRow(h, up.getOrNull(i + 1), ordersFor(h), detail, past = false, onOpenOrderDocument, onOpenHearing) }
         }
         if (detail.pastHearings.isNotEmpty()) {
             Slabel("Past Hearings", count = detail.pastHearings.size, first = detail.upcomingHearings.isEmpty() && finalOrders.isEmpty())
-            detail.pastHearings.forEach { HearingCard(it, ordersFor(it), detail, past = true, onOpenOrderDocument, onOpenHearing) }
+            val past = detail.pastHearings
+            past.forEachIndexed { i, h -> HearingTimelineRow(h, past.getOrNull(i + 1), ordersFor(h), detail, past = true, onOpenOrderDocument, onOpenHearing) }
         }
         // Any order not tied to a listed hearing still surfaces here.
         if (orphanOrders.isNotEmpty()) {
@@ -540,35 +542,36 @@ private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -
     }
 }
 
+/** A hearing on the timeline: the date as a block, the time on the rail, the gap to the next. */
 @Composable
-private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDetail, past: Boolean, onOpenOrderDocument: (CaseOrder) -> Unit, onOpenHearing: (String) -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().padding(top = 10.dp).clip(LlShape.Card)
-            .background(if (past) LlColor.Paper1 else LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card)
-            .clickable(enabled = h.id.isNotBlank()) { onOpenHearing(h.id) }
-            .padding(horizontal = 15.dp, vertical = 13.dp),
+private fun HearingTimelineRow(h: HearingRow, next: HearingRow?, orders: List<CaseOrder>, detail: CaseDetail, past: Boolean, onOpenOrderDocument: (CaseOrder) -> Unit, onOpenHearing: (String) -> Unit) {
+    val listed = past && h.status.equals("Scheduled", ignoreCase = true)
+    val label = if (listed) "Listed" else h.status.trim().lowercase().replaceFirstChar { it.uppercase() }
+    val tone = when (label.lowercase()) {
+        "completed" -> com.legumlex.client.ui.theme.Lex.colors.success.solid
+        "adjourned", "postponed" -> com.legumlex.client.ui.theme.Lex.colors.warning.solid
+        "scheduled" -> com.legumlex.client.ui.theme.Lex.colors.blue.solid
+        else -> com.legumlex.client.ui.theme.Lex.colors.neutral.solid
+    }
+    com.legumlex.client.ui.components.TimelineEntry(
+        rail = h.time?.format(timeFmt)?.lowercase() ?: "—",
+        railSub = h.date?.format(java.time.format.DateTimeFormatter.ofPattern("EEE")),
+        gapToNext = com.legumlex.client.ui.components.gapLabel(h.date, next?.date),
+        isLast = next == null,
+        leading = { com.legumlex.client.ui.components.DateBlock(h.date, muted = past) },
+        title = h.purpose?.takeIf { it.isNotBlank() } ?: "Hearing",
+        // The court is in the case header; every card repeating it was noise.
+        subtitle = null,
+        status = label to tone,
+        meta = if (h.adjournmentReason == null) h.nextDate?.let { "Next Date · ${it.format(dayYearFmt)}" } else null,
+        metaIcon = Icons.Outlined.Event,
+        muted = past,
+        onClick = { if (h.id.isNotBlank()) onOpenHearing(h.id) },
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(h.date?.format(if (past) dowYearFmt else dowFmt) ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.01).em, color = if (past) LlColor.InkMuted else LlColor.Ink)
-                h.time?.let { Text(it.format(timeFmt), fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkFaint) }
-            }
-            // A past date still marked Scheduled has no outcome on file: it was
-            // listed, not "scheduled" (the case history says the same).
-            val listed = past && h.status.equals("Scheduled", ignoreCase = true)
-            StatusPill(if (listed) "Listed" else h.status, hearingTonePill(if (listed) "Listed" else h.status))
-        }
-        h.purpose?.let {
-            Spacer(Modifier.height(9.dp))
-            Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
-        }
-        // Hearing notes / what happened — sits above the order(s).
         h.description?.let {
             Spacer(Modifier.height(7.dp))
             Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
         }
-        // Attendance and the advocate's instructions, as written (upcoming only).
         if (!past) {
             attendanceLabel(h.clientAttendance)?.let {
                 Spacer(Modifier.height(8.dp))
@@ -583,10 +586,6 @@ private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDeta
                 }
             }
         }
-        if (h.adjournmentReason == null) h.nextDate?.let { nd ->
-            Spacer(Modifier.height(7.dp))
-            Text("Next Date · ${nd.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted)
-        }
         h.adjournmentReason?.let {
             Spacer(Modifier.height(10.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.AmberSoft).border(LlDimen.HairlineWidth, AmberBorderFix, RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 9.dp)) {
@@ -594,7 +593,6 @@ private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDeta
                 h.nextDate?.let { nd -> Spacer(Modifier.height(4.dp)); Text("Next Date → ${nd.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.sp, color = LlColor.AmberMid) }
             }
         }
-        // Order(s) passed at this hearing — summary + verbatim toggle at the bottom.
         orders.forEach { o -> HearingOrderBlock(o, detail, onOpenOrderDocument) }
     }
 }

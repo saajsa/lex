@@ -1,5 +1,8 @@
 package com.legumlex.client.feature.consultations
 
+import androidx.compose.material.icons.outlined.Schedule
+import com.legumlex.client.ui.components.gapLabel
+import com.legumlex.client.ui.components.TimelineEntry
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import com.legumlex.client.ui.theme.Lex
@@ -202,7 +205,12 @@ private fun ConsultationsReady(
         } else {
             bands.forEachIndexed { bi, band ->
                 item("head-${band.name}") { SectionHeader(band.name, band.items.size, band.await, first = bi == 0) }
-                items(band.items, key = { it.id }) { c -> ConsultationRow(c, rowMode(c, band)) { onOpen(c.id) } }
+                // A timeline: each card on its date, the gap to the next on the rail.
+                val rows = band.items
+                items(rows.size, key = { rows[it].id }) { i ->
+                    val c = rows[i]
+                    ConsultationTimelineRow(c, rowMode(c, band), next = rows.getOrNull(i + 1)) { onOpen(c.id) }
+                }
             }
             if (filter == ConsultationFilter.AWAITING_YOU) {
                 item("caught-up") { AllCaughtUpNote() }
@@ -282,38 +290,76 @@ private fun SectionHeader(name: String, count: Int, await: Boolean, first: Boole
 // Row card
 // =============================================================================
 
+private val railDay = java.time.format.DateTimeFormatter.ofPattern("d MMM")
+private val railTime = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
+
+// When it sits on the rail: a video session at its time; anything else when it
+// was raised, which is the order the list is in.
+private fun Consultation.when_(): LocalDateTime? =
+    (if (kind == ConsultationKind.DIGITAL_OFFICE) scheduledAt() else null) ?: createdAt ?: lastUpdatedAt
+
+/** A consultation on the timeline: the advocate's photo, title, status, next step. */
 @Composable
-private fun ConsultationRow(c: Consultation, mode: RowMode, onClick: () -> Unit) {
-    val stripe = when (mode) {
-        RowMode.AWAIT -> Lex.colors.danger.solid
-        RowMode.LIVE -> Lex.colors.success.solid
-        else -> null
-    }
+private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consultation?, onClick: () -> Unit) {
+    val at = c.when_()
     val done = mode == RowMode.DONE
-    LexCard(onClick = onClick) {
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            if (stripe != null) Box(Modifier.width(4.dp).fillMaxHeight().background(stripe))
-            Column(Modifier.padding(16.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    KindBadge(c.kind)
-                    when {
-                        c.awaitingPayment() -> StatusBadge("Awaiting Payment", Lex.colors.warning)
-                        // The portal's own words for a funnel that waits on the client.
-                        c.funnelNeedsYou() && c.funnelLabel != null -> StatusBadge(title(c.funnelLabel), Lex.colors.warning)
-                        else -> StatusPill(c.status)
-                    }
-                }
-                Text(
-                    c.displayTitle(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (done) Lex.colors.mutedForeground else Lex.colors.foreground,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-                Subline(c)
-                Glance(c, mode)
-                if (mode == RowMode.AWAIT || mode == RowMode.LIVE) NextActionLine(c, mode)
-            }
+    val (statusLabel, statusColor) = when {
+        c.awaitingPayment() -> "Awaiting Payment" to Lex.colors.warning.solid
+        c.funnelNeedsYou() && c.funnelLabel != null -> title(c.funnelLabel) to Lex.colors.warning.solid
+        else -> title(c.status.label) to c.status.palette.solid
+    }
+    val kind = when (c.kind) {
+        ConsultationKind.GENERAL -> "General"
+        ConsultationKind.LEGAL_ENQUIRY -> "Legal Enquiry"
+        ConsultationKind.AHC -> "Agreement Check"
+        ConsultationKind.LEGAL_NOTICE -> "Legal Notice"
+        ConsultationKind.DOC_REQUEST -> "Documents"
+        ConsultationKind.DIGITAL_OFFICE -> "Video Session"
+    }
+    val adv = c.assignedTo?.takeIf { it.isNotBlank() }
+    val meta = when {
+        mode == RowMode.LIVE -> "Your session is live — tap to join"
+        mode == RowMode.AWAIT -> c.nextActionLabel() ?: "Open to continue"
+        c.kind == ConsultationKind.DIGITAL_OFFICE && c.scheduledAt() != null -> scheduledGlance(c)
+        else -> relativeAge(c.lastUpdatedAt ?: c.createdAt)?.replaceFirstChar { it.uppercase() }
+    }
+    TimelineEntry(
+        rail = at?.format(railDay) ?: "—",
+        railSub = at?.format(railTime)?.lowercase(),
+        gapToNext = gapLabel(at?.toLocalDate(), next?.when_()?.toLocalDate()),
+        isLast = next == null,
+        leading = { AdvocateTile(adv, c.assignedToAvatarUrl) },
+        title = c.displayTitle(),
+        subtitle = listOfNotNull(kind, adv).joinToString(" · "),
+        status = statusLabel to statusColor,
+        meta = meta,
+        metaIcon = when {
+            mode == RowMode.LIVE -> Icons.Outlined.Videocam
+            mode == RowMode.AWAIT && c.hasUnreadReplies -> Icons.Outlined.MarkChatUnread
+            mode == RowMode.AWAIT -> Icons.Outlined.ChevronRight
+            else -> Icons.Outlined.Schedule
+        },
+        muted = done,
+        stripe = when (mode) { RowMode.AWAIT -> Lex.colors.danger.solid; RowMode.LIVE -> Lex.colors.success.solid; else -> null },
+        onClick = onClick,
+        extra = { if (c.kind == ConsultationKind.AHC || c.kind == ConsultationKind.DOC_REQUEST) Glance(c, mode) },
+    )
+}
+
+/** The advocate's photo in a rounded tile, or their initials. */
+@Composable
+private fun AdvocateTile(name: String?, photo: String?) {
+    Box(
+        Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Lex.colors.muted)
+            .border(1.dp, Lex.colors.border, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (name != null) Text(name.split(' ').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase(),
+            style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+        else Icon(Icons.Outlined.Forum, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(22.dp))
+        photo?.let {
+            AsyncImage(model = it, contentDescription = name, contentScale = ContentScale.Crop,
+                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)))
         }
     }
 }
