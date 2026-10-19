@@ -1,6 +1,23 @@
 package com.legumlex.client.feature.home
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -32,7 +49,7 @@ import com.legumlex.client.ui.theme.Lex
 /* ============================================================================
  *  The top of Home, as Mylex's home has it (mylex/views/client/index.php):
  *  the date and the greeting with the two ways to start something, the three
- *  workspace entrances, and the consultations' four figures.
+ *  workspace entrances (swiped, not stacked), and the consultations' four figures.
  * ========================================================================== */
 
 /** "MONDAY, 19 OCTOBER 2026" over "Good afternoon, Saaj", and the two actions. */
@@ -57,7 +74,11 @@ internal fun HomeHeader(
     }
 }
 
-/** The three entrances: Litigation (dark), Projects (violet), Registry (teal). */
+/**
+ * The three entrances: Litigation (dark), Projects (violet), Registry (teal),
+ * swiped through one at a time rather than stacked, with the next card's edge
+ * showing so it is plain there is more, and dots under them.
+ */
 @Composable
 internal fun WorkspaceEntrances(
     ws: Workspaces,
@@ -65,24 +86,44 @@ internal fun WorkspaceEntrances(
     onProjects: () -> Unit,
     onRegistry: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        WorkspaceTile(
-            Workspace.Litigation, "Litigation",
-            "Your matters before a court — hearings, orders and notices.",
-            onEnter = if ("litigation" in ws.offered) onLitigation else null,
-        )
-        WorkspaceTile(
-            Workspace.Projects, "Projects",
-            "Work we run for you, and its tasks.",
-            onEnter = if ("projects" in ws.offered) onProjects else null,
-        )
-        WorkspaceTile(
-            Workspace.Registry, "Registry",
-            "Your agreements and their deadlines.",
-            onEnter = if ("registry" in ws.offered) onRegistry else null,
-        )
+    val tiles = listOf(
+        Entrance(Workspace.Litigation, "Litigation", "Your matter, your cases with us",
+            "Your matters before a court — hearings, orders and notices.", if ("litigation" in ws.offered) onLitigation else null),
+        Entrance(Workspace.Projects, "Projects", "Your work with us",
+            "Work we run for you, and its tasks.", if ("projects" in ws.offered) onProjects else null),
+        Entrance(Workspace.Registry, "Registry", "Your agreements with us",
+            "Your agreements and their deadlines.", if ("registry" in ws.offered) onRegistry else null),
+    )
+    val pager = rememberPagerState { tiles.size }
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pager,
+            contentPadding = PaddingValues(start = 16.dp, end = 40.dp),
+            pageSpacing = 10.dp,
+            verticalAlignment = Alignment.Top,
+        ) { i ->
+            val t = tiles[i]
+            WorkspaceTile(t.workspace, t.title, t.description, onEnter = t.onEnter, eyebrow = t.eyebrow,
+                modifier = Modifier.heightIn(min = 158.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            tiles.forEachIndexed { i, t ->
+                val on = pager.currentPage == i
+                val w by animateDpAsState(if (on) 18.dp else 6.dp, label = "dot")
+                Box(
+                    Modifier.padding(horizontal = 3.dp).size(width = w, height = 6.dp).clip(RoundedCornerShape(50))
+                        .background(if (on) Lex.colors.foreground else Lex.colors.input)
+                        .clickable { scope.launch { pager.animateScrollToPage(i) } }
+                        .semantics { contentDescription = t.title },
+                )
+            }
+        }
     }
 }
+
+private data class Entrance(val workspace: Workspace, val title: String, val eyebrow: String, val description: String, val onEnter: (() -> Unit)?)
 
 /** Consultations · Awaiting An Answer · Resolved · Written Reports. */
 @Composable

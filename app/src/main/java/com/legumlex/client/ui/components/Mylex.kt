@@ -216,6 +216,7 @@ fun WorkspaceTile(
     onEnter: (() -> Unit)?,
     modifier: Modifier = Modifier,
     emptyNote: String = "Nothing here yet.",
+    eyebrow: String = "Your Work With Us",
 ) {
     val look = tileLook(workspace)
     val offered = onEnter != null
@@ -233,7 +234,7 @@ fun WorkspaceTile(
             Box(Modifier.width(72.dp).height(3.dp).background(if (offered) look.gate else look.gate.copy(alpha = 0.45f)))
             Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Eyebrow("Your Work With Us")
+                    Eyebrow(eyebrow)
                     Spacer(Modifier.height(6.dp))
                     Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground)
                     Spacer(Modifier.height(4.dp))
