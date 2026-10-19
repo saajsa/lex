@@ -3,6 +3,8 @@ package com.legumlex.client.feature.desk
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -191,39 +193,48 @@ fun DeskScreen(
 
     val typing = WindowInsets.isImeVisible
     var services by remember { mutableStateOf(false) }
-    // The drawer must not hand focus back to the question box as it leaves,
+    // Opening or closing the curtain must not hand focus to the question box,
     // or the keyboard springs up under the client's thumb.
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val showServices: (Boolean) -> Unit = { focusManager.clearFocus(force = true); services = it }
     androidx.activity.compose.BackHandler(enabled = services) { showServices(false) }
-    Box(Modifier.fillMaxSize().background(D.Page)) {
-    Column(Modifier.fillMaxSize().imePadding()) {
+    // The keyboard put away is the box let go: it returns to rest.
+    var hadKeyboard by remember { mutableStateOf(false) }
+    LaunchedEffect(typing) {
+        if (typing) hadKeyboard = true else if (hadKeyboard) { hadKeyboard = false; focusManager.clearFocus() }
+    }
+    Column(Modifier.fillMaxSize().background(D.Page).imePadding()) {
         Head(onClose)
         if (!ui.opened) {
-            // The intro scrolls; the composer stays docked above the keyboard,
-            // as the drawer docks it, and the services step aside while typing.
-            // Takes only the room it needs, so the composer follows the steps
-            // rather than sinking to the bottom of an empty page.
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            // The services hang from the header like a curtain: pulled down,
+            // they push the desk down beneath them.
+            Curtain(
+                open = services && !typing,
+                firm = ui.terms.firm,
+                onToggle = { showServices(it) },
+                onReview = { showServices(false); onAgreement() },
+                onTrack = { showServices(false); tracking = true },
+            )
+            // The intro at the top, the middle left empty, the composer at the
+            // foot, as a chat is laid out.
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Intro()
-                Spacer(Modifier.height(18.dp))
-                Process()
-                Spacer(Modifier.height(22.dp))
+                if (!typing) {
+                    Spacer(Modifier.height(18.dp))
+                    Process()
+                }
+                Spacer(Modifier.height(16.dp))
             }
             Box(Modifier.padding(horizontal = 14.dp)) {
                 if (ui.termsLoaded && !ui.terms.isActive) {
                     Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
                         style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
                 } else {
-                    QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
+                    QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile,
+                        onFocus = { if (it && services) services = false }) { vm.submitQuestion(draft.text) }
                 }
             }
-            if (ui.termsLoaded) Disclaimer(ui.terms, compact = typing)
-            // The services wait below a handle: swipe it up (or tap) to reveal them.
-            if (!typing) {
-                Spacer(Modifier.weight(1f, fill = true))
-                ServicesHandle { showServices(true) }
-            }
+            if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         } else {
             Conversation(ui, vm::change, Modifier.weight(1f))
             Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -240,14 +251,6 @@ fun DeskScreen(
             }
             if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         }
-    }
-    ServicesDrawer(
-        open = services && !ui.opened,
-        firm = ui.terms.firm,
-        onClose = { showServices(false) },
-        onReview = { showServices(false); onAgreement() },
-        onTrack = { showServices(false); tracking = true },
-    )
     }
 
     if (tracking) TrackSheet(onDismiss = { tracking = false })
@@ -367,70 +370,71 @@ private fun Disclaimer(t: DeskTerms, compact: Boolean = false) {
     )
 }
 
-/** The services' handle at the foot of the desk: swipe up, or tap, to reveal them. */
+/**
+ * The services, hung from the header's rule like a curtain: a curved tab to
+ * pull down (or tap), the panel dropping open and pushing the desk down under
+ * it; pull up, tap the tab or go back to draw it again.
+ */
 @Composable
-private fun ServicesHandle(onOpen: () -> Unit) {
+private fun Curtain(open: Boolean, firm: String, onToggle: (Boolean) -> Unit, onReview: () -> Unit, onTrack: () -> Unit) {
     var pulled by remember { mutableStateOf(0f) }
-    Column(
-        Modifier.fillMaxWidth()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { pulled = 0f },
-                    onVerticalDrag = { _, dy -> pulled += dy; if (pulled < -24.dp.toPx()) { pulled = 0f; onOpen() } },
-                )
+    val drag = Modifier.pointerInput(open) {
+        detectVerticalDragGestures(
+            onDragStart = { pulled = 0f },
+            onVerticalDrag = { _, dy ->
+                pulled += dy
+                if (!open && pulled > 24.dp.toPx()) { pulled = 0f; onToggle(true) }
+                if (open && pulled < -24.dp.toPx()) { pulled = 0f; onToggle(false) }
+            },
+        )
+    }
+    Column(Modifier.fillMaxWidth().then(drag)) {
+        androidx.compose.animation.AnimatedVisibility(
+            open,
+            enter = androidx.compose.animation.expandVertically(tween(280), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(tween(200)),
+            exit = androidx.compose.animation.shrinkVertically(tween(240), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(tween(160)),
+        ) {
+            Column(Modifier.fillMaxWidth().background(D.Raise)) {
+                Kicker("services", Modifier.padding(start = 18.dp, top = 12.dp, bottom = 4.dp))
+                Service(Icons.Outlined.Description, "Review", "An advocate reads your agreement for risk, before you sign it.", onReview)
+                Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(D.Line))
+                Service(Icons.Outlined.LocalShipping, "Track", "Follow a legal notice sent for you, from its postal reference.", onTrack)
+                Box(Modifier.fillMaxWidth().height(1.dp).background(D.Line))
+                Text("Legum Lex is not a law firm. What you write here goes to the advocates of " + firm.ifBlank { "the firm" } + if (firm.endsWith(".")) "" else ".",
+                    style = body(11.5f, D.Ink.copy(alpha = 0.58f)), modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp))
             }
-            .clickable(onClick = onOpen)
-            .padding(top = 8.dp, bottom = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(D.Line2))
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.KeyboardArrowUp, null, tint = D.Muted, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("Services", style = TextStyle(fontFamily = Mono, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = D.Muted))
+        }
+        // The curtain's hem: a soft swag hanging from the rule, the tab in it.
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier.width(196.dp).height(34.dp)
+                    .clip(CurtainHem)
+                    .background(D.Raise)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                    ) { onToggle(!open) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                    Text("Services", style = TextStyle(fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (open) D.Gold else D.Muted))
+                    Spacer(Modifier.width(4.dp))
+                    Icon(if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown, null,
+                        tint = if (open) D.Gold else D.Muted, modifier = Modifier.size(16.dp))
+                }
+            }
         }
     }
 }
 
-/** The services, revealed from the foot: swipe down, tap outside or go back to close. */
-@Composable
-private fun BoxScope.ServicesDrawer(open: Boolean, firm: String, onClose: () -> Unit, onReview: () -> Unit, onTrack: () -> Unit) {
-    androidx.compose.animation.AnimatedVisibility(open, enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut()) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(
-            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onClose))
-    }
-    androidx.compose.animation.AnimatedVisibility(
-        open,
-        enter = androidx.compose.animation.slideInVertically(tween(260)) { it },
-        exit = androidx.compose.animation.slideOutVertically(tween(220)) { it },
-        modifier = Modifier.align(Alignment.BottomCenter),
-    ) {
-        var pulled by remember { mutableStateOf(0f) }
-        Column(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
-                .background(D.Raise)
-                .border(1.dp, D.Line2, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { pulled = 0f },
-                        onVerticalDrag = { _, dy -> pulled += dy; if (pulled > 32.dp.toPx()) { pulled = 0f; onClose() } },
-                    )
-                }
-                .navigationBarsPadding(),
-        ) {
-            Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(D.Line2))
-            }
-            Kicker("services", Modifier.padding(start = 18.dp, top = 14.dp, bottom = 6.dp))
-            Service(Icons.Outlined.Description, "Review", "An advocate reads your agreement for risk, before you sign it.", onReview)
-            Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(D.Line))
-            Service(Icons.Outlined.LocalShipping, "Track", "Follow a legal notice sent for you, from its postal reference.", onTrack)
-            Spacer(Modifier.height(6.dp))
-            Foot(firm)
-        }
-    }
+/** A curtain's swag: flat along the rule, curving down to a rounded hem and back. */
+private val CurtainHem = androidx.compose.foundation.shape.GenericShape { size, _ ->
+    val w = size.width; val h = size.height
+    moveTo(0f, 0f)
+    cubicTo(w * 0.16f, 0f, w * 0.18f, h, w * 0.34f, h)
+    lineTo(w * 0.66f, h)
+    cubicTo(w * 0.82f, h, w * 0.84f, 0f, w, 0f)
+    close()
 }
 
 /** One service: a single-word name and two lines on what it does. */
@@ -678,14 +682,23 @@ private fun WaitLine(label: String) {
 
 /** The composer: what has happened, with a paperclip where files are taken. */
 @Composable
-private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Unit, focus: FocusRequester, ui: DeskUi, attach: (() -> Unit)?, onRemove: (Int) -> Unit, onSend: () -> Unit) {
+private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Unit, focus: FocusRequester, ui: DeskUi, attach: (() -> Unit)?, onRemove: (Int) -> Unit,
+                         onFocus: (Boolean) -> Unit = {}, onSend: () -> Unit) {
+    // Answers to focus: the box lifts, its rule brightens and it opens up for
+    // writing; at rest it sits quieter and lower.
+    var focused by remember { mutableStateOf(false) }
+    val rule by androidx.compose.animation.core.animateFloatAsState(if (focused) 1f else 0.45f, tween(180), label = "rule")
+    val ruleW by androidx.compose.animation.core.animateDpAsState(if (focused) 2.dp else 1.dp, tween(180), label = "ruleW")
+    val room by androidx.compose.animation.core.animateDpAsState(if (focused) 96.dp else 44.dp, tween(220), label = "room")
     val text = value.text
     // The examples type themselves into the empty box, letter by letter, and
     // erase for the next; they stop the moment the client writes.
+    // Focused, it rests on a whole example and leaves the cursor to the field.
     var shown by remember { mutableStateOf("") }
-    LaunchedEffect(text.isEmpty()) {
+    var ex by remember { mutableIntStateOf(0) }
+    LaunchedEffect(text.isEmpty(), focused) {
         if (text.isNotEmpty()) return@LaunchedEffect
-        var ex = 0
+        if (focused) { shown = EXAMPLES[ex]; return@LaunchedEffect }
         while (true) {
             val line = EXAMPLES[ex]
             for (i in 1..line.length) { shown = line.take(i); delay(if (line[i - 1] == ' ') 90 else 55) }
@@ -698,19 +711,21 @@ private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Uni
     Column {
         FileChips(ui.files, onRemove)
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (focused) D.Mark else D.Raise)
+                .border(ruleW, D.Gold.copy(alpha = rule), RoundedCornerShape(18.dp))
                 .padding(start = 16.dp, end = 10.dp, top = 14.dp, bottom = 10.dp),
         ) {
-            Box(Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+            Box(Modifier.fillMaxWidth().heightIn(min = room)) {
                 if (text.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(shown, style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
-                    Box(Modifier.padding(start = 1.dp).width(2.dp).height(18.dp).background(D.Gold.copy(alpha = 0.7f)))
+                    Text(shown, style = body(15.5f, D.Ink.copy(alpha = if (focused) 0.32f else 0.42f)))
+                    if (!focused) Box(Modifier.padding(start = 1.dp).width(2.dp).height(18.dp).background(D.Gold.copy(alpha = 0.7f)))
                 }
                 BasicTextField(
                     value, { if (it.text.length <= ui.terms.maxChars) onValue(it) },
                     textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 168.dp).focusRequester(focus),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 168.dp).focusRequester(focus)
+                        .onFocusChanged { if (it.isFocused != focused) { focused = it.isFocused; onFocus(it.isFocused) } },
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
