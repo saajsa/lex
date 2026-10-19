@@ -90,6 +90,20 @@ fun ConsultationsScreen(
     val state by vm.state.collectAsState()
     val isRefreshing by vm.isRefreshing.collectAsState()
 
+    // Back on the list (from a detail, a payment in the browser): refresh
+    // quietly so unread marks and statuses are current.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, vm) {
+        var first = true
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (first) first = false else vm.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
     var filter by rememberSaveable { mutableStateOf(ConsultationFilter.ALL) }
 
     Scaffold(
@@ -136,17 +150,17 @@ private fun bandsFor(sections: SmartSections, filter: ConsultationFilter): List<
     val done = sections.converted + sections.closed
     val all = when (filter) {
         ConsultationFilter.ALL -> listOf(
-            Band("Awaiting you", true, sections.needsAction),
+            Band("Awaiting You", true, sections.needsAction),
             Band("Active", false, sections.active),
             Band("Scheduled", false, sections.scheduled),
             Band("Done", false, done),
         )
         ConsultationFilter.ACTIVE -> listOf(
-            Band("Awaiting you", true, sections.needsAction),
+            Band("Awaiting You", true, sections.needsAction),
             Band("Active", false, sections.active),
             Band("Scheduled", false, sections.scheduled),
         )
-        ConsultationFilter.AWAITING_YOU -> listOf(Band("Awaiting you", true, sections.needsAction))
+        ConsultationFilter.AWAITING_YOU -> listOf(Band("Awaiting You", true, sections.needsAction))
         ConsultationFilter.DONE, ConsultationFilter.CONVERTED -> listOf(Band("Done", false, done))
     }
     return all.filter { it.items.isNotEmpty() }
@@ -282,7 +296,7 @@ private fun ConsultationRow(c: Consultation, mode: RowMode, onClick: () -> Unit)
             Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     KindBadge(c.kind)
-                    StatusPill(c.status)
+                    if (c.awaitingPayment()) StatusBadge("Awaiting Payment", Lex.colors.warning) else StatusPill(c.status)
                 }
                 Text(
                     c.displayTitle(),
@@ -324,7 +338,7 @@ private fun Subline(c: Consultation) {
         if (adv != null && age != null) Text("·", style = MaterialTheme.typography.bodySmall, color = Lex.colors.faint)
         if (age != null) Text(age, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1)
         if (c.hasUnreadReplies) StatusBadge("New Reply", Lex.colors.danger)
-        else if (c.isUrgent) StatusBadge("Needs Response", Lex.colors.danger)
+        else if (c.isUrgent) StatusBadge("Marked Urgent", Lex.colors.danger)
     }
 }
 
@@ -466,7 +480,7 @@ private fun FilteredEmpty(filter: ConsultationFilter, onFilter: (ConsultationFil
         ) { Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(18.dp))
         Text(
-            if (filter == ConsultationFilter.AWAITING_YOU) "Nothing needs your attention" else "Nothing in this view",
+            if (filter == ConsultationFilter.AWAITING_YOU) "Nothing Needs Your Attention" else "Nothing In This View",
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
         )
@@ -634,7 +648,7 @@ private fun scheduledGlance(c: Consultation): String {
 
 private fun advShort(name: String?): String {
     val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return "Your advocate"
-    return if (n.startsWith("adv", ignoreCase = true)) n else "Adv. ${n.split(" ").last()}"
+    return n   // as recorded, as the portal shows it
 }
 
 private fun title(s: String) = s.split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.titlecase() } }

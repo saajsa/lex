@@ -89,7 +89,7 @@ fun TaskDetailScreen(taskId: String, canComment: Boolean = true, onBack: () -> U
             when (val s = state) {
                 is TaskDetailUiState.Loading -> TaskSkeleton()
                 is TaskDetailUiState.Error -> TaskError(s.message, vm::load)
-                is TaskDetailUiState.Ready -> TaskReady(s.task, canComment, posting, onPost = vm::postComment, onBack = onBack)
+                is TaskDetailUiState.Ready -> TaskReady(s.task, vm.canComment(s.task), posting, onPost = vm::postComment, onBack = onBack)
             }
         }
     }
@@ -106,14 +106,15 @@ private fun TaskReady(task: TaskDetail, canComment: Boolean, posting: Boolean, o
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
                 Masthead(task, today, complete, onBack)
                 if (complete) CompletedBanner(task)
-                if (awaiting) NeedsYou()
+                if (awaiting) NeedsYou(canComment)
                 KeyFacts(task)
                 Checklist(task)
                 task.description?.let {
                     Slabel("Description")
                     Card { Text(stripHtml(it) ?: it, fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 22.sp, color = LlColor.Ink, modifier = Modifier.padding(14.dp)) }
                 }
-                Conversation(task)
+                // Comments the firm hides are not shown at all, not shown as "none".
+                if (task.canViewComments != false) Conversation(task, canComment)
                 Spacer(Modifier.height(8.dp))
             }
         }
@@ -164,13 +165,13 @@ private fun CompletedBanner(task: TaskDetail) {
         Column {
             Text("COMPLETED" + (task.dateFinished?.let { " · ${it.toLocalDate().format(dayYearFmt)}" } ?: ""), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.14.em, color = LlColor.VerdantMid)
             Spacer(Modifier.height(4.dp))
-            Text("This task is done", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, color = LlColor.Verdant)
+            Text("This Task Is Done", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, color = LlColor.Verdant)
         }
     }
 }
 
 @Composable
-private fun NeedsYou() {
+private fun NeedsYou(canComment: Boolean) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp).clip(RoundedCornerShape(12.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(12.dp)),
         horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -186,8 +187,9 @@ private fun NeedsYou() {
                     Text("NEEDS YOU", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.14.em, color = ClaretMidFix)
                 }
                 Spacer(Modifier.height(5.dp))
-                Text("Your input is needed", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.012).em, color = LlColor.Claret, lineHeight = 19.sp)
-                Text("Your chamber is waiting on your reply to move this task forward — add a comment below.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 6.dp))
+                Text("Your Input Is Needed", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.012).em, color = LlColor.Claret, lineHeight = 19.sp)
+                Text(if (canComment) "Your advocate is waiting on your reply to move this task forward. Add a comment below."
+                     else "Your advocate is waiting on your reply to move this task forward.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }
@@ -206,8 +208,8 @@ private fun KeyFacts(task: TaskDetail) {
         Fact(Modifier.weight(1f), Icons.Outlined.Group, "Assigned") {
             val who = task.assignees.firstOrNull()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Slate), contentAlignment = Alignment.Center) {
-                    Text(initialsOf(who), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = Color.White)
+                Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft), contentAlignment = Alignment.Center) {
+                    Text(initialsOf(who), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LlColor.Slate)
                 }
                 Text(who ?: "Your chamber", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -278,10 +280,12 @@ private fun Checklist(task: TaskDetail) {
 // =============================================================================
 
 @Composable
-private fun Conversation(task: TaskDetail) {
+private fun Conversation(task: TaskDetail, canComment: Boolean) {
     Slabel("Conversation", count = task.comments.size.takeIf { it > 0 })
     if (task.comments.isEmpty()) {
-        EmptySection(Icons.Outlined.Forum, "No comments yet", "Have a question about this task, or something to add for your chamber? Start the conversation below.")
+        EmptySection(Icons.Outlined.Forum, "No Comments Yet",
+            if (canComment) "Have a question about this task, or something to add for your chamber? Start the conversation below."
+            else "Comments from your chamber on this task will appear here.")
         return
     }
     Column(Modifier.padding(horizontal = 16.dp)) {
@@ -291,7 +295,7 @@ private fun Conversation(task: TaskDetail) {
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.width(26.dp).height(1.dp).background(LlColor.Paper2))
-            Text("Comments are shared with your chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
+            Text("Comments Are Shared With Your Chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
             Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
         }
     }
@@ -301,8 +305,8 @@ private fun Conversation(task: TaskDetail) {
 private fun Message(c: TaskComment) {
     val you = c.authorType == "contact"
     Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(if (you) LlColor.Claret else LlColor.Slate), contentAlignment = Alignment.Center) {
-            Text(initialsOf(c.authorName, you), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(if (you) LlColor.ClaretSoft else LlColor.SlateSoft), contentAlignment = Alignment.Center) {
+            Text(initialsOf(c.authorName, you), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = if (you) LlColor.Claret else LlColor.Slate)
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -343,7 +347,7 @@ private fun ClosedBar() {
         Row(Modifier.fillMaxWidth().background(LlColor.Paper1).padding(vertical = 14.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Lock, null, tint = LlColor.InkFaint, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(7.dp))
-            Text("This task is complete — conversation closed", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+            Text("This Task Is Complete — Comments Are Closed", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
         }
     }
 }

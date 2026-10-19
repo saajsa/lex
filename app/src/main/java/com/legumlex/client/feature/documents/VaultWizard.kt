@@ -7,6 +7,7 @@ import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.feature.cases.CasesRepository
 import com.legumlex.client.feature.consultations.ConsultationsRepository
 import com.legumlex.client.feature.hearings.HearingsRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -34,14 +35,15 @@ import java.time.format.DateTimeFormatter
 // Back navigation pops one step at a time; Back from Welcome exits Vault.
 // -----------------------------------------------------------------------------
 
-enum class VaultIntent(val title: String, val sub: String) {
-    CASE_FILE        ("A case file",           "Anything filed for one of your matters"),
-    HEARING_DOC      ("A hearing document",    "Orders, exhibits, or notes from a specific hearing"),
-    LEGAL_NOTICE_DOC ("A legal notice",        "Notices sent or received on your behalf"),
-    SESSION_DOC      ("A consultation document","Files attached to a session with your advocate"),
-    AGREEMENT_DOC    ("An agreement",          "Contract drafts and signed agreements"),
-    SHARED_WITH_ME   ("Shared with me",        "Documents your advocate shared directly"),
-    SEARCH_BY_NAME   ("Search by name",        "If you remember the file name or a keyword");
+/** [plural] names what a picker lists, for sentences ("Loading your cases…"). */
+enum class VaultIntent(val title: String, val sub: String, val plural: String) {
+    CASE_FILE        ("A Case File",           "Anything filed for one of your matters",              "cases"),
+    HEARING_DOC      ("A Hearing Document",    "Orders, exhibits or notes from a specific hearing",   "hearings"),
+    LEGAL_NOTICE_DOC ("A Legal Notice",        "Notices sent or received on your behalf",             "legal notices"),
+    SESSION_DOC      ("A Consultation Document","Files attached to a consultation with the firm",     "consultations"),
+    AGREEMENT_DOC    ("An Agreement",          "Contract drafts and signed agreements",               "agreements"),
+    SHARED_WITH_ME   ("Shared With Me",        "Documents the firm shared with you directly",         "shared documents"),
+    SEARCH_BY_NAME   ("Search By Name",        "If you remember the file name or a keyword",          "documents");
 }
 
 data class PickerItem(val id: String, val title: String, val sub: String?)
@@ -52,9 +54,9 @@ sealed interface VaultContext {
     data class ForCase(val caseId: String, override val title: String) : VaultContext
     data class ForHearing(val hearingId: String, override val title: String) : VaultContext
     data class ForConsultation(val consultationId: String, override val title: String) : VaultContext
-    data object Notices       : VaultContext { override val title = "Legal notices" }
+    data object Notices       : VaultContext { override val title = "Legal Notices" }
     data object Agreements    : VaultContext { override val title = "Agreements" }
-    data object SharedWithMe  : VaultContext { override val title = "Shared with you" }
+    data object SharedWithMe  : VaultContext { override val title = "Shared With You" }
     data class Search(val query: String) : VaultContext {
         override val title = "Results for \"$query\""
     }
@@ -64,14 +66,15 @@ sealed interface VaultStep {
     data object Welcome : VaultStep
 
     data class PickerLoading(val intent: VaultIntent) : VaultStep
-    data class PickerError(val intent: VaultIntent, val message: String) : VaultStep
+    /** [denied]: the server refused (403) — the account doesn't include it. */
+    data class PickerError(val intent: VaultIntent, val message: String, val denied: Boolean = false) : VaultStep
     data class Picker(val intent: VaultIntent, val items: List<PickerItem>) : VaultStep
 
     data class SearchInput(val query: String = "") : VaultStep
 
     data class ResultsLoading(val context: VaultContext) : VaultStep
     data class Results(val context: VaultContext, val documents: List<Document>) : VaultStep
-    data class ResultsError(val context: VaultContext, val message: String) : VaultStep
+    data class ResultsError(val context: VaultContext, val message: String, val denied: Boolean = false) : VaultStep
 }
 
 sealed interface DownloadEvent {
@@ -99,8 +102,13 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
     private val _events = MutableSharedFlow<DownloadEvent>()
     val events: SharedFlow<DownloadEvent> = _events.asSharedFlow()
 
+    // The load behind the loading step on top. Back cancels it, so a load
+    // that finishes later can't overwrite the step the client went back to.
+    private var loadJob: Job? = null
+
     /** Returns true when back was handled, false when wizard is at root (caller should exit). */
     fun back(): Boolean {
+        loadJob?.cancel()
         val cur = _stack.value
         if (cur.size <= 1) return false
         _stack.value = cur.dropLast(1)
@@ -108,6 +116,7 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun goHome() {
+        loadJob?.cancel()
         _stack.value = listOf(VaultStep.Welcome)
     }
 
@@ -161,8 +170,9 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------- internals
 
     private fun openPicker(intent: VaultIntent) {
-        push(VaultStep.PickerLoading(intent))
-        viewModelScope.launch {
+        val loading = VaultStep.PickerLoading(intent)
+        pushLoading(loading)
+        loadJob = viewModelScope.launch {
             val itemsResult = when (intent) {
                 VaultIntent.CASE_FILE -> casesRepo.list().map { cs ->
                     cs.map { PickerItem(it.id, it.title.ifBlank { "Untitled case" },
@@ -189,16 +199,17 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 else -> return@launch
             }
-            replaceTop(itemsResult.fold(
+            replaceTop(loading, itemsResult.fold(
                 onSuccess = { items -> VaultStep.Picker(intent, items) },
-                onFailure = { e -> VaultStep.PickerError(intent, e.toFriendly()) },
+                onFailure = { e -> VaultStep.PickerError(intent, e.toFriendly(), denied = e.isDenied()) },
             ))
         }
     }
 
     private fun loadResults(context: VaultContext) {
-        push(VaultStep.ResultsLoading(context))
-        viewModelScope.launch {
+        val loading = VaultStep.ResultsLoading(context)
+        pushLoading(loading)
+        loadJob = viewModelScope.launch {
             val result = when (context) {
                 is VaultContext.ForCase         -> docsRepo.list(category = DocCategory.ALL, query = null, caseId = context.caseId)
                 is VaultContext.ForHearing      -> docsRepo.listForRel("hearing", context.hearingId)
@@ -208,9 +219,9 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
                 VaultContext.SharedWithMe       -> docsRepo.list(category = DocCategory.SHARED)
                 is VaultContext.Search          -> docsRepo.list(query = context.query)
             }
-            replaceTop(result.fold(
+            replaceTop(loading, result.fold(
                 onSuccess = { docs -> VaultStep.Results(context, docs) },
-                onFailure = { e -> VaultStep.ResultsError(context, e.toFriendly()) },
+                onFailure = { e -> VaultStep.ResultsError(context, e.toFriendly(), denied = e.isDenied()) },
             ))
         }
     }
@@ -219,12 +230,31 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
         _stack.value = _stack.value + step
     }
 
-    private fun replaceTop(step: VaultStep) {
+    /**
+     * Push a loading step. A second tap while one is loading replaces it
+     * (and cancels its load) rather than stacking two.
+     */
+    private fun pushLoading(step: VaultStep) {
+        loadJob?.cancel()
+        val top = _stack.value.last()
+        _stack.value = if (top is VaultStep.PickerLoading || top is VaultStep.ResultsLoading) {
+            _stack.value.dropLast(1) + step
+        } else {
+            _stack.value + step
+        }
+    }
+
+    /** Swap the loading step for its outcome, only while that very step is still on top. */
+    private fun replaceTop(expected: VaultStep, step: VaultStep) {
+        if (_stack.value.last() !== expected) return
         _stack.value = _stack.value.dropLast(1) + step
     }
 
+    private fun Throwable.isDenied() = (this as? HttpException)?.code() == 403
+
     private fun httpMessage(e: HttpException): String = when (e.code()) {
-        401, 403   -> "Your session expired. Sign in again."
+        401        -> "Your session expired. Sign in again."
+        403        -> "Your account doesn't include these documents. Ask the firm if you expected to see them."
         404        -> "Not available on the server."
         in 500..599 -> "Server error. Try again in a moment."
         else        -> "Couldn't reach the server (HTTP ${e.code()})."

@@ -87,6 +87,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         val auth = com.legumlex.client.data.auth.AuthRepository(
             com.legumlex.client.data.api.ApiClient.get(appContext),
             com.legumlex.client.data.auth.TokenStore(appContext),
+            appContext.cacheDir,
         )
         com.legumlex.client.data.auth.SessionEvents.ended.collect {
             auth.forget()
@@ -100,12 +101,28 @@ private fun AppShell(deepLinkIntent: Intent?) {
         }
     }
 
-    // App-wide unread badge — refresh the shared count when the route changes
-    // (covers launch, and re-sync after the Notifications screen edits it).
+    // App-wide unread badge: read on a signed-in screen at most once a minute
+    // as the route changes, and on every return to the app. The Notifications
+    // screen keeps the hub current itself as things are read.
     val context = androidx.compose.ui.platform.LocalContext.current
     val unreadCount by com.legumlex.client.feature.notifications.NotificationHub.unread.collectAsState()
-    LaunchedEffect(currentRoute) {
-        com.legumlex.client.feature.notifications.NotificationHub.refresh(context)
+    var lastUnreadAt by remember { mutableStateOf(0L) }
+    var resumes by remember { mutableStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) resumes++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumes) { lastUnreadAt = 0L }
+    LaunchedEffect(currentRoute, resumes) {
+        val now = System.currentTimeMillis()
+        if (showAppFooter(currentRoute) && now - lastUnreadAt >= 60_000L) {
+            lastUnreadAt = now
+            com.legumlex.client.feature.notifications.NotificationHub.refresh(context)
+        }
     }
     // The signed-in contact, for the header's initials: fetched once a
     // signed-in screen is reached, and again after a fresh sign-in.
@@ -116,12 +133,16 @@ private fun AppShell(deepLinkIntent: Intent?) {
         }
     }
 
+    val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+
     Scaffold(
         topBar = {
             if (showAppHeader(currentRoute)) {
                 AppHeader(
                     showBack = showHeaderBack(currentRoute, canPop),
-                    onBack = { navController.popBackStack() },
+                    // The system back: a wizard steps back a page before it
+                    // leaves, as it does for the back gesture.
+                    onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
                     onNotifications = { navController.navigate(Route.Notifications.path) },
                     unreadCount = unreadCount,
                     initials = profile?.initials,

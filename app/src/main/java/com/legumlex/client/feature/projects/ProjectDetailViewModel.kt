@@ -17,6 +17,8 @@ import okhttp3.MultipartBody
 import retrofit2.HttpException
 import java.io.File
 
+enum class ProjectSection { TASKS, MILESTONES, FILES, ACTIVITY, DISCUSSIONS }
+
 sealed interface ProjectDetailUiState {
     data object Loading : ProjectDetailUiState
     data class Ready(
@@ -26,6 +28,8 @@ sealed interface ProjectDetailUiState {
         val files: List<ProjectFile>,
         val activity: List<ProjectActivityItem>,
         val discussions: List<DiscussionSummary>,
+        /** Sections whose list could not be loaded: shown as errors with a retry, never as "none". */
+        val failed: Set<ProjectSection> = emptySet(),
     ) : ProjectDetailUiState
     data class Error(val message: String) : ProjectDetailUiState
 }
@@ -80,20 +84,28 @@ class ProjectDetailViewModel(
             coroutineScope {
                 val detail = repo.detail(projectId).getOrThrow()
 
-                // Skip child fetches for tabs the project itself disabled.
-                val tasksDeferred       = async { if (detail.settings.viewTasks)       repo.tasks(projectId).getOrNull().orEmpty()       else emptyList() }
-                val milestonesDeferred  = async { if (detail.settings.viewMilestones)  repo.milestones(projectId).getOrNull().orEmpty()  else emptyList() }
-                val filesDeferred        = async { if (detail.settings.viewFiles)       repo.files(projectId).getOrNull().orEmpty()       else emptyList() }
-                val activityDeferred    = async { if (detail.settings.viewActivityLog) repo.activity(projectId).getOrNull().orEmpty()    else emptyList() }
-                val discussionsDeferred = async { if (detail.settings.viewDiscussions) repo.discussions(projectId).getOrNull().orEmpty() else emptyList() }
-
+                // Skip child fetches for tabs the project itself disabled. A
+                // list that fails is marked failed, not shown as empty.
+                fun <T> part(on: Boolean, f: suspend () -> Result<List<T>>) = async { if (on) f() else Result.success(emptyList()) }
+                val tasks       = part(detail.settings.viewTasks)       { repo.tasks(projectId) }
+                val milestones  = part(detail.settings.viewMilestones)  { repo.milestones(projectId) }
+                val files       = part(detail.settings.viewFiles)       { repo.files(projectId) }
+                val activity    = part(detail.settings.viewActivityLog) { repo.activity(projectId) }
+                val discussions = part(detail.settings.viewDiscussions) { repo.discussions(projectId) }
+                val results = mapOf(
+                    ProjectSection.TASKS to tasks.await(), ProjectSection.MILESTONES to milestones.await(),
+                    ProjectSection.FILES to files.await(), ProjectSection.ACTIVITY to activity.await(),
+                    ProjectSection.DISCUSSIONS to discussions.await(),
+                )
+                @Suppress("UNCHECKED_CAST")
                 _state.value = ProjectDetailUiState.Ready(
                     detail      = detail,
-                    tasks       = tasksDeferred.await(),
-                    milestones  = milestonesDeferred.await(),
-                    files       = filesDeferred.await(),
-                    activity    = activityDeferred.await(),
-                    discussions = discussionsDeferred.await(),
+                    tasks       = results.getValue(ProjectSection.TASKS).getOrNull().orEmpty() as List<TaskSummary>,
+                    milestones  = results.getValue(ProjectSection.MILESTONES).getOrNull().orEmpty() as List<Milestone>,
+                    files       = results.getValue(ProjectSection.FILES).getOrNull().orEmpty() as List<ProjectFile>,
+                    activity    = results.getValue(ProjectSection.ACTIVITY).getOrNull().orEmpty() as List<ProjectActivityItem>,
+                    discussions = results.getValue(ProjectSection.DISCUSSIONS).getOrNull().orEmpty() as List<DiscussionSummary>,
+                    failed      = results.filterValues { it.isFailure }.keys,
                 )
             }
         } catch (e: Throwable) {
@@ -119,7 +131,7 @@ class ProjectDetailViewModel(
             _actionInFlight.value = true
             repo.createTask(projectId, name, startDate, dueDate, priority, milestone, description)
                 .onSuccess { _toast.value = "Task created"; onDone(); refresh() }
-                .onFailure { _toast.value = "Couldn't create the task. Try again." }
+                .onFailure { e -> _toast.value = serverMessage(e, "Couldn't create the task. Try again.") }
             _actionInFlight.value = false
         }
     }
@@ -137,13 +149,14 @@ class ProjectDetailViewModel(
                     }
                     _toast.value = "File uploaded"
                 }
-                .onFailure { _toast.value = "Upload failed. Try again." }
+                .onFailure { e -> _toast.value = serverMessage(e, "Upload failed. Try again.") }
             _actionInFlight.value = false
         }
     }
 
     /** Stream a project file to the cache dir; [onReady] gets the file + mime. */
     fun openFile(file: ProjectFile, onReady: (File, String) -> Unit, onError: () -> Unit) {
+        if (file.isExternal) { onError(); return }  // the screen opens externalLink itself
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -180,6 +193,8 @@ class ProjectDetailViewModel(
                     _openDiscussion.update { d ->
                         if (d != null && d.id == id) d.copy(comments = d.comments + added) else d
                     }
+                    // Read the thread back, so what the client sees is what was saved.
+                    repo.discussion(id).onSuccess { fresh -> if (_openDiscussion.value?.id == id) _openDiscussion.value = fresh }
                     // bump the thread's comment count in the list
                     _state.update { cur ->
                         if (cur is ProjectDetailUiState.Ready)
@@ -189,14 +204,15 @@ class ProjectDetailViewModel(
                         else cur
                     }
                 }
-                .onFailure { _toast.value = "Couldn't post your reply. Try again." }
+                .onFailure { e -> _toast.value = serverMessage(e, "Couldn't post your reply. Try again.") }
             _actionInFlight.value = false
         }
     }
 
     private fun loadErr(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401, 403    -> "Your session expired. Sign in again."
+            401         -> "Your session expired. Sign in again."
+            403         -> forbiddenMessage(e, "Your account does not include this project. Ask the firm to give you access.")
             404         -> "This project is no longer available."
             in 500..599 -> "Server error. Try again in a moment."
             else        -> "Couldn't load this project (HTTP ${e.code()})."

@@ -11,8 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -44,6 +42,7 @@ import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.caseTitleAnnotated
 import com.legumlex.client.ui.formatJudge
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
@@ -109,10 +108,11 @@ private fun CaseDetailReady(
     onOpenOrderDocument: (CaseOrder) -> Unit,
     onOpenHearing: (String) -> Unit,
 ) {
-    val today = remember { LocalDate.now() }
+    val today = remember { LocalDate.now(IST) }
     val disposed = detail.summary.status == CaseStatus.SETTLED || detail.summary.status == CaseStatus.CLOSED
+    // Cancelled or already-heard rows never count as the next hearing.
     val nextHearing = remember(detail) {
-        detail.upcomingHearings.filter { it.date != null }.minByOrNull { it.date!! }
+        detail.upcomingHearings.filter { it.date != null && it.isLive && !it.date.isBefore(today) }.minByOrNull { it.date!! }
     }
     val hearingCount = detail.upcomingHearings.size + detail.pastHearings.size
 
@@ -149,7 +149,7 @@ private fun Masthead(detail: CaseDetail) {
         // Back is provided by the app-wide header; no in-content breadcrumb.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("MATTER", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.13.em, color = LlColor.InkFaint)
-            Text("#${s.id}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.13.em, color = ClaretMidFix)
+            if (s.number.isNotBlank()) Text(s.number.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.13.em, color = LlColor.Ink)
         }
         Spacer(Modifier.height(9.dp))
         Text(caseTitleAnnotated(s.title, LlColor.InkFaint), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
@@ -167,7 +167,6 @@ private fun FlowRowMeta(detail: CaseDetail) {
         horizontalArrangement = Arrangement.spacedBy(9.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        if (s.number.isNotBlank()) Text(s.number, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkMuted)
         StatusPill(s.status.label, statusTone(s.status))
         val where = listOfNotNull(detail.court, detail.courtNumber?.let { "Ct. $it" }).joinToString(" · ")
         if (where.isNotBlank()) {
@@ -186,14 +185,15 @@ private fun FlowRowMeta(detail: CaseDetail) {
 @Composable
 private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate) {
     val days = h.date?.let { ChronoUnit.DAYS.between(today, it) } ?: 0L
-    val soon = days <= 3
-    val week = days in 4..7
+    // Red only for today and tomorrow; the rest of the week is amber.
+    val soon = days <= 1
+    val week = days in 2..7
     val band = when { soon -> ClaretMidFix; week -> LlColor.AmberMid; else -> LlColor.InkFaint }
     val boxBg = when { soon -> ClaretSoftFix; week -> LlColor.AmberSoft; else -> LlColor.Paper1 }
     val boxBorder = when { soon -> ClaretBorderFix; week -> AmberBorderFix; else -> LlColor.Border }
     val numColor = when { soon -> LlColor.Claret; week -> LlColor.Amber; else -> LlColor.Ink }
     val eyebrowColor = when { soon -> LlColor.Claret; week -> LlColor.AmberMid; else -> LlColor.InkMuted }
-    val dayWord = when (days) { 0L -> "Today"; 1L -> "Tomorrow"; else -> "In $days days" }
+    val dayWord = when (days) { 0L -> "Today"; 1L -> "Tomorrow"; else -> "In $days Days" }
 
     Box(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp)
@@ -230,6 +230,10 @@ private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate)
                             Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
+                    attendanceLabel(h.clientAttendance)?.let {
+                        Spacer(Modifier.height(5.dp))
+                        Text("Your Attendance · $it", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+                    }
                 }
             }
             val coram = formatJudge(detail.judge, detail.court)
@@ -256,28 +260,50 @@ private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate)
 @Composable
 private fun DispositionBanner(detail: CaseDetail) {
     val s = detail.summary
+    // Neutral on purpose: "disposed" says nothing about who won.
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp)
-            .clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft)
-            .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(12.dp)).padding(16.dp),
+            .clip(RoundedCornerShape(12.dp)).background(LlColor.Surface)
+            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(13.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card)
-                .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(12.dp)),
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Filled.Verified, null, tint = LlColor.VerdantMid, modifier = Modifier.size(22.dp)) }
+        ) { Icon(Icons.Outlined.Gavel, null, tint = LlColor.InkMuted, modifier = Modifier.size(22.dp)) }
         Column(Modifier.weight(1f)) {
-            Text("DISPOSED · ${(s.disposalType ?: s.status.label).uppercase()}", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.VerdantMid)
+            Text("DISPOSED", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.InkFaint)
             Spacer(Modifier.height(5.dp))
             Text(
                 listOfNotNull(s.disposalType ?: s.status.label, s.disposalDate?.format(dayYearFmt)).joinToString(" · "),
-                fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.01).em, color = LlColor.Verdant, lineHeight = 20.sp,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.01).em, color = LlColor.Ink, lineHeight = 20.sp,
             )
             detail.disposalReason?.let {
                 Spacer(Modifier.height(7.dp))
                 Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+            }
+            val finals = detail.orders.count { it.type.equals("final", true) }
+            if (finals > 0) {
+                Spacer(Modifier.height(7.dp))
+                Text(if (finals == 1) "The Final Order is under Hearings." else "The Final Orders are under Hearings.",
+                    fontFamily = Inter, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.InkMuted)
+            }
+            // Information only: the date the firm recorded, never an instruction.
+            if (detail.appealDeadline != null || !detail.appealNote.isNullOrBlank()) {
+                Spacer(Modifier.height(11.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
+                Spacer(Modifier.height(10.dp))
+                Text("APPEAL WINDOW", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
+                detail.appealDeadline?.let {
+                    Spacer(Modifier.height(3.dp))
+                    Text("Last Day · ${it.format(dayYearFmt)}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
+                }
+                detail.appealNote?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.height(3.dp))
+                    Text(it, fontFamily = Inter, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.InkMuted)
+                }
             }
         }
     }
@@ -300,10 +326,10 @@ private fun Tabs(tab: Int, onTab: (Int) -> Unit, hearings: Int, docs: Int) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (on) LlColor.Ink else LlColor.InkFaint)
-                        if (i > 0 && count > 0) Text("$count", fontFamily = Inter, fontSize = 9.sp, color = if (on) ClaretMidFix else LlColor.InkFaint)
+                        if (i > 0 && count > 0) Text("$count", fontFamily = Inter, fontSize = 9.sp, color = if (on) LlColor.Ink else LlColor.InkFaint)
                     }
                     Spacer(Modifier.height(7.dp))
-                    Box(Modifier.fillMaxWidth(0.55f).height(2.dp).clip(RoundedCornerShape(2.dp)).background(if (on) LlColor.Claret else Color.Transparent))
+                    Box(Modifier.fillMaxWidth(0.55f).height(2.dp).clip(RoundedCornerShape(2.dp)).background(if (on) LlColor.Ink else Color.Transparent))
                 }
             }
         }
@@ -319,7 +345,7 @@ private fun Tabs(tab: Int, onTab: (Int) -> Unit, hearings: Int, docs: Int) {
 private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, disposed: Boolean, onOpenConsultation: (String) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp)) {
         // Key details
-        Slabel("Key details", first = true)
+        Slabel("Key Details", first = true)
         Card {
             KdRow(Icons.Outlined.EventAvailable, "Filed", detail.filedDate?.format(dayYearFmt) ?: "—", kdSub(detail))
             KdHair()
@@ -351,13 +377,21 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                     detail.parties.respondents.forEach { PartyBlock(it, "Respondent", opposing = true) }
                 }
             }
-        } else {
-            EmptySection(Icons.Outlined.Groups, "No parties listed", "Parties haven't been recorded for this matter yet.")
+        } else if (detail.parties.others.isEmpty()) {
+            EmptySection(Icons.Outlined.Groups, "No Parties Listed", "Parties haven't been recorded for this matter yet.")
+        }
+        if (detail.parties.others.isNotEmpty()) {
+            if (hasParties) Spacer(Modifier.height(10.dp))
+            Card {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    detail.parties.others.forEach { PartyBlock(it, "Other Party", opposing = false, counselPrefix = "Counsel · ") }
+                }
+            }
         }
 
         // Advocate
         if (!detail.advocate.isNullOrBlank()) {
-            Slabel("Your advocate")
+            Slabel("Your Advocate")
             Card {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     LlAvatar(initials = initialsOf(detail.advocate), size = 46.dp, avatarUrl = detail.advocateAvatarUrl)
@@ -366,15 +400,17 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                         detail.advocateDesignation?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted) }
                         detail.advocateEmail?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint) }
                     }
-                    val origin = detail.originConsultationId
-                    Row(
-                        Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink)
-                            .clickable(enabled = origin != null) { origin?.let(onOpenConsultation) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Icon(Icons.Outlined.Forum, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
-                        Text("Message", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.04.em, color = LlColor.Paper)
+                    // Messages live in the consultation thread; without one there is nowhere to send.
+                    detail.originConsultationId?.let { origin ->
+                        Row(
+                            Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink)
+                                .clickable { onOpenConsultation(origin) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(Icons.Outlined.Forum, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
+                            Text("Message", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.04.em, color = LlColor.Paper)
+                        }
                     }
                 }
             }
@@ -394,10 +430,7 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                 Column(Modifier.weight(1f)) {
                     Text("ORIGIN", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.1.em, color = LlColor.Violet)
                     Spacer(Modifier.height(3.dp))
-                    Row {
-                        Text("Started as Consultation ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
-                        Text("#$cid", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
-                    }
+                    Text("Started As A Consultation", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
                 }
                 Icon(Icons.Outlined.ChevronRight, null, tint = LlColor.Violet, modifier = Modifier.size(18.dp))
             }
@@ -405,21 +438,18 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
 
         // Case history
         if (timeline.isNotEmpty()) {
-            Slabel("Case history")
+            Slabel("Case History")
             Card { Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp)) {
                 timeline.forEachIndexed { i, e -> TimelineItem(e, last = i == timeline.lastIndex) }
             } }
         }
-
-        // Rate (closed)
-        if (disposed) RateCard()
 
         Spacer(Modifier.height(12.dp))
     }
 }
 
 @Composable
-private fun PartyBlock(p: Party, defaultRole: String, opposing: Boolean) {
+private fun PartyBlock(p: Party, defaultRole: String, opposing: Boolean, counselPrefix: String? = null) {
     Column {
         Text((p.role ?: defaultRole).uppercase(), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(5.dp))
@@ -427,7 +457,7 @@ private fun PartyBlock(p: Party, defaultRole: String, opposing: Boolean) {
         p.advocateName?.let {
             Spacer(Modifier.height(4.dp))
             Row {
-                Text(if (opposing) "Opposing counsel · " else "Counsel · ", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+                Text(counselPrefix ?: if (opposing) "Opposing Counsel · " else "Counsel · ", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
                 Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
             }
         }
@@ -466,27 +496,6 @@ private fun TimelineItem(e: TimelineEvent, last: Boolean) {
     }
 }
 
-@Composable
-private fun RateCard() {
-    var rating by remember { mutableIntStateOf(0) }
-    Column(
-        Modifier.fillMaxWidth().padding(top = 14.dp).clip(LlShape.Card).background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card).padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("How was your experience?", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
-        Spacer(Modifier.height(4.dp))
-        Text("This matter is closed. If you'd like, rate how your chamber handled it.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
-        Spacer(Modifier.height(13.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            (1..5).forEach { i ->
-                Icon(Icons.Filled.Star, null, tint = if (i <= rating) LlColor.AmberMid else LlColor.BorderStrong,
-                    modifier = Modifier.size(27.dp).clip(RoundedCornerShape(50)).clickable { rating = i })
-            }
-        }
-    }
-}
-
 // =============================================================================
 // Hearings panel
 // =============================================================================
@@ -494,7 +503,8 @@ private fun RateCard() {
 @Composable
 private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -> Unit, onOpenHearing: (String) -> Unit) {
     // Orders are shown inside the hearing they were passed at (matched by date).
-    // The final judgement (order_type = final) is excluded — it lives in Docs.
+    // The final order (order_type = final) leads the panel on its own.
+    val finalOrders = detail.orders.filter { it.type.equals("final", true) }
     val inlineOrders = detail.orders.filter { !it.type.equals("final", true) }
     val ordersFor: (HearingRow) -> List<CaseOrder> = { h ->
         inlineOrders.filter { it.date != null && it.date == h.date }
@@ -505,22 +515,26 @@ private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -
     val noHearings = detail.upcomingHearings.isEmpty() && detail.pastHearings.isEmpty()
 
     Column(Modifier.padding(horizontal = 16.dp)) {
+        if (finalOrders.isNotEmpty()) {
+            Slabel(if (finalOrders.size == 1) "Final Order" else "Final Orders", first = true)
+            finalOrders.forEach { OrderCard(it, detail, onOpenOrderDocument) }
+        }
         if (detail.upcomingHearings.isNotEmpty()) {
-            Slabel("Upcoming", count = detail.upcomingHearings.size, accent = true, first = true)
+            Slabel("Upcoming", count = detail.upcomingHearings.size, accent = true, first = finalOrders.isEmpty())
             detail.upcomingHearings.forEach { HearingCard(it, ordersFor(it), detail, past = false, onOpenOrderDocument, onOpenHearing) }
         }
         if (detail.pastHearings.isNotEmpty()) {
-            Slabel("Past hearings", count = detail.pastHearings.size, first = detail.upcomingHearings.isEmpty())
+            Slabel("Past Hearings", count = detail.pastHearings.size, first = detail.upcomingHearings.isEmpty() && finalOrders.isEmpty())
             detail.pastHearings.forEach { HearingCard(it, ordersFor(it), detail, past = true, onOpenOrderDocument, onOpenHearing) }
         }
         // Any order not tied to a listed hearing still surfaces here.
         if (orphanOrders.isNotEmpty()) {
-            Slabel("Other orders", count = orphanOrders.size, first = noHearings)
+            Slabel("Other Orders", count = orphanOrders.size, first = noHearings && finalOrders.isEmpty())
             orphanOrders.forEach { OrderCard(it, detail, onOpenOrderDocument) }
         }
-        if (noHearings && orphanOrders.isEmpty()) {
+        if (noHearings && orphanOrders.isEmpty() && finalOrders.isEmpty()) {
             Slabel("Hearings", first = true)
-            EmptySection(Icons.Outlined.Event, "No hearings yet", "Hearing dates, notes and the orders passed at each will appear here.")
+            EmptySection(Icons.Outlined.Event, "No Hearings Yet", "Hearing dates, notes and the orders passed at each will appear here.")
         }
         Spacer(Modifier.height(12.dp))
     }
@@ -537,10 +551,13 @@ private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDeta
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(h.date?.format(dowFmt) ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.01).em, color = if (past) LlColor.InkMuted else LlColor.Ink)
+                Text(h.date?.format(if (past) dowYearFmt else dowFmt) ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.01).em, color = if (past) LlColor.InkMuted else LlColor.Ink)
                 h.time?.let { Text(it.format(timeFmt), fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkFaint) }
             }
-            StatusPill(h.status, hearingTonePill(h.status))
+            // A past date still marked Scheduled has no outcome on file: it was
+            // listed, not "scheduled" (the case history says the same).
+            val listed = past && h.status.equals("Scheduled", ignoreCase = true)
+            StatusPill(if (listed) "Listed" else h.status, hearingTonePill(if (listed) "Listed" else h.status))
         }
         h.purpose?.let {
             Spacer(Modifier.height(9.dp))
@@ -551,11 +568,30 @@ private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDeta
             Spacer(Modifier.height(7.dp))
             Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
         }
+        // Attendance and the advocate's instructions, as written (upcoming only).
+        if (!past) {
+            attendanceLabel(h.clientAttendance)?.let {
+                Spacer(Modifier.height(8.dp))
+                Text("Your Attendance · $it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+            }
+            h.clientInstructions?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(7.dp))
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 9.dp)) {
+                    Text("FROM YOUR ADVOCATE", fontFamily = Inter, fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
+                    Spacer(Modifier.height(4.dp))
+                    Text(it, fontFamily = Inter, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.InkMuted)
+                }
+            }
+        }
+        if (h.adjournmentReason == null) h.nextDate?.let { nd ->
+            Spacer(Modifier.height(7.dp))
+            Text("Next Date · ${nd.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted)
+        }
         h.adjournmentReason?.let {
             Spacer(Modifier.height(10.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.AmberSoft).border(LlDimen.HairlineWidth, AmberBorderFix, RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 9.dp)) {
                 Text(it, fontFamily = Inter, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.Amber)
-                h.nextDate?.let { nd -> Spacer(Modifier.height(4.dp)); Text("Next date → ${nd.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.sp, color = LlColor.AmberMid) }
+                h.nextDate?.let { nd -> Spacer(Modifier.height(4.dp)); Text("Next Date → ${nd.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.sp, color = LlColor.AmberMid) }
             }
         }
         // Order(s) passed at this hearing — summary + verbatim toggle at the bottom.
@@ -575,8 +611,8 @@ private fun HearingOrderBlock(o: CaseOrder, detail: CaseDetail, onOpenOrderDocum
         Text(tagText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = tagFg, modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp))
         o.relief?.let {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(Icons.Outlined.Gavel, null, tint = ClaretMidFix, modifier = Modifier.size(12.dp))
-                Text(it, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LlColor.Claret)
+                Icon(Icons.Outlined.Gavel, null, tint = LlColor.Ink, modifier = Modifier.size(12.dp))
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LlColor.Ink)
             }
         }
     }
@@ -591,7 +627,7 @@ private fun HearingOrderBlock(o: CaseOrder, detail: CaseDetail, onOpenOrderDocum
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = LlColor.InkMuted, modifier = Modifier.size(15.dp))
-            Text(if (open) "Hide order" else "View full order", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
+            Text(if (open) "Hide Order" else "View Full Order", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
         }
         AnimatedVisibility(open) { OrderPaper(o, detail, onOpenOrderDocument) }
     } else {
@@ -629,15 +665,15 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
         o.relief?.let {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(Icons.Outlined.Gavel, null, tint = ClaretMidFix, modifier = Modifier.size(13.dp))
-                Text(it, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = LlColor.Claret)
+                Icon(Icons.Outlined.Gavel, null, tint = LlColor.Ink, modifier = Modifier.size(13.dp))
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = LlColor.Ink)
             }
         }
         Spacer(Modifier.height(10.dp))
         OrderSummaryText(o, fontSize = 13.5.sp, lineHeight = 21.sp)
         val nextLine = when {
             o.nextDate != null -> "Next · ${o.nextDate.format(dayYearFmt)}" + (o.purposeNext?.let { " · for $it" } ?: "")
-            isFinal -> "Matter disposed — no further dates"
+            isFinal -> "Matter Disposed — No Further Dates"
             else -> null
         }
         nextLine?.let {
@@ -660,7 +696,7 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = LlColor.InkMuted, modifier = Modifier.size(15.dp))
-                Text(if (open) "Hide order" else "View full order", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
+                Text(if (open) "Hide Order" else "View Full Order", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
             }
             AnimatedVisibility(open) { OrderPaper(o, detail, onOpenOrderDocument) }
         } else {
@@ -687,9 +723,9 @@ private fun OrderSummaryText(
         !o.summary.isNullOrBlank() ->
             Text(o.summary, fontFamily = Inter, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.Ink)
         o.ocrStatus == "pending" ->
-            Text("Generating summary…", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkMuted)
+            Text("Generating Summary…", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkMuted)
         else ->
-            Text("Summary not available yet.", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkFaint)
+            Text("Summary Not Available Yet", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkFaint)
     }
 }
 
@@ -705,8 +741,8 @@ private fun OrderDocStatus(o: CaseOrder, onOpen: (CaseOrder) -> Unit) {
             Modifier.clip(RoundedCornerShape(8.dp)).clickable { onOpen(o) }.padding(horizontal = 6.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Icon(Icons.Outlined.OpenInNew, null, tint = LlColor.Claret, modifier = Modifier.size(14.dp))
-            Text("Certified copy", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Claret)
+            Icon(Icons.Outlined.OpenInNew, null, tint = LlColor.Ink, modifier = Modifier.size(14.dp))
+            Text("Certified Copy", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
         }
     } else {
         Row(
@@ -714,7 +750,7 @@ private fun OrderDocStatus(o: CaseOrder, onOpen: (CaseOrder) -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Icon(Icons.Outlined.FileDownloadOff, null, tint = LlColor.InkFaint, modifier = Modifier.size(14.dp))
-            Text("No certified copy on file", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkFaint)
+            Text("No Certified Copy On File", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkFaint)
         }
     }
 }
@@ -742,7 +778,7 @@ private fun OrderPaper(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (C
         Spacer(Modifier.height(11.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
         Spacer(Modifier.height(12.dp))
-        o.date?.let { Text("ORDER · ${it.format(dayYearFmt).uppercase()}", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.1.em, color = ClaretMidFix); Spacer(Modifier.height(8.dp)) }
+        o.date?.let { Text("ORDER · ${it.format(dayYearFmt).uppercase()}", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.1.em, color = LlColor.Ink); Spacer(Modifier.height(8.dp)) }
         // Verbatim body — one block per paragraph.
         paragraphs.forEachIndexed { i, p ->
             if (i > 0) Spacer(Modifier.height(9.dp))
@@ -773,15 +809,15 @@ private fun DocsPanel(detail: CaseDetail, onOpen: (CaseFile) -> Unit) {
 
     Column(Modifier.padding(horizontal = 16.dp)) {
         if (detail.documents.isEmpty()) {
-            Slabel("Case files", first = true)
-            EmptySection(Icons.Outlined.FolderOpen, "No documents yet", "Filings, orders and certified copies shared by your chamber will appear here.")
+            Slabel("Case Files", first = true)
+            EmptySection(Icons.Outlined.FolderOpen, "No Documents Yet", "Filings, orders and certified copies shared by your chamber will appear here.")
         } else {
             if (caseDocs.isNotEmpty()) {
-                Slabel("Filed in the matter", count = caseDocs.size, first = true)
+                Slabel("Filed In The Matter", count = caseDocs.size, first = true)
                 DocCard(caseDocs, onOpen)
             }
             if (hearingDocs.isNotEmpty()) {
-                Slabel("Filed at hearings", count = hearingDocs.size, first = caseDocs.isEmpty())
+                Slabel("Filed At Hearings", count = hearingDocs.size, first = caseDocs.isEmpty())
                 DocCard(hearingDocs, onOpen)
             }
         }
@@ -797,8 +833,8 @@ private fun DocCard(docs: List<CaseFile>, onOpen: (CaseFile) -> Unit) {
                 Modifier.fillMaxWidth().clickable { onOpen(f) }.padding(horizontal = 15.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Box(Modifier.size(width = 38.dp, height = 46.dp).clip(RoundedCornerShape(8.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Description, null, tint = ClaretMidFix, modifier = Modifier.size(19.dp))
+                Box(Modifier.size(width = 38.dp, height = 46.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Description, null, tint = LlColor.Ink, modifier = Modifier.size(19.dp))
                 }
                 Column(Modifier.weight(1f)) {
                     // Relation-type label chip (Order / Docket / Legal Notice …).
@@ -809,7 +845,7 @@ private fun DocCard(docs: List<CaseFile>, onOpen: (CaseFile) -> Unit) {
                     val meta = listOfNotNull(
                         f.fileType?.substringAfterLast('/')?.substringAfterLast('.')?.uppercase()
                             ?.let { if (it.startsWith("VND.OPENXMLFORMATS") || it == "MSWORD") "Word" else it },
-                        (f.hearingDate ?: f.date)?.format(dayFmt)?.let { if (f.relation == "hearing") "Hearing · $it" else it },
+                        (f.hearingDate ?: f.date)?.format(dayYearFmt)?.let { if (f.relation == "hearing") "Hearing · $it" else it },
                     ).joinToString("  ·  ")
                     Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
                 }
@@ -825,7 +861,7 @@ private fun DocCard(docs: List<CaseFile>, onOpen: (CaseFile) -> Unit) {
 private fun DocTagChip(tag: String) {
     val t = tag.lowercase()
     val (bg, fg) = when {
-        t.contains("order")    -> ClaretSoftFix to ClaretMidFix
+        t.contains("order")    -> LlColor.Paper1 to LlColor.Ink
         t.contains("judg")     -> LlColor.VerdantSoft to LlColor.Verdant
         t.contains("notice")   -> AmberSoftFix to LlColor.Amber
         t.contains("docket")   -> LlColor.SlateSoft to LlColor.SlateMid
@@ -845,7 +881,7 @@ private fun DocTagChip(tag: String) {
 @Composable
 private fun Slabel(name: String, count: Int? = null, accent: Boolean = false, first: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(top = if (first) 14.dp else 18.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = if (accent) LlColor.Claret else LlColor.InkFaint)
+        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = if (accent) LlColor.Ink else LlColor.InkFaint)
         count?.let {
             Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
                 Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LlColor.InkMuted)
@@ -889,11 +925,11 @@ private fun FlowRowChips(acts: List<CaseAct>) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         acts.forEach { a ->
             Row(
-                Modifier.clip(RoundedCornerShape(6.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(6.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
+                Modifier.clip(RoundedCornerShape(6.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(6.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Icon(Icons.Outlined.Bookmark, null, tint = ClaretMidFix, modifier = Modifier.size(12.dp))
-                Text(listOfNotNull(a.name, a.sections).joinToString(" · "), fontFamily = Inter, fontSize = 10.sp, color = ClaretMidFix)
+                Icon(Icons.Outlined.Bookmark, null, tint = LlColor.Ink, modifier = Modifier.size(12.dp))
+                Text(listOfNotNull(a.name, a.sections).joinToString(" · "), fontFamily = Inter, fontSize = 10.sp, color = LlColor.Ink)
             }
         }
     }
@@ -958,7 +994,7 @@ private fun CaseDetailError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load this matter", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Couldn't Load This Matter", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
@@ -976,6 +1012,16 @@ private fun CaseDetailError(message: String, onRetry: () -> Unit) {
 private val dowFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM")
 private val dayFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM")
 private val dayYearFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy")
+private val dowYearFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM yyyy")
+private val IST: ZoneId = ZoneId.of("Asia/Kolkata")
+
+/** The client's attendance as the advocate set it, in plain words; null when unset. */
+private fun attendanceLabel(raw: String?): String? = when (raw?.trim()?.lowercase()) {
+    "required" -> "Required"
+    "optional" -> "Optional"
+    "not_required", "not required" -> "Not Required"
+    else -> null
+}
 private val timeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 private fun hearingDateTime(h: HearingRow): String {
@@ -985,9 +1031,9 @@ private fun hearingDateTime(h: HearingRow): String {
 
 private fun kdSub(detail: CaseDetail): String? {
     val filed = detail.filedDate ?: return "${detail.summary.hearingCount} hearings".takeIf { detail.summary.hearingCount > 0 }
-    val days = ChronoUnit.DAYS.between(filed, LocalDate.now()).coerceAtLeast(0)
+    val days = ChronoUnit.DAYS.between(filed, LocalDate.now(IST)).coerceAtLeast(0)
     val parts = buildList {
-        add("Age · $days day${if (days == 1L) "" else "s"}")
+        add("Age · $days Day${if (days == 1L) "" else "s"}")
         if (detail.summary.hearingCount > 0) add("${detail.summary.hearingCount} hearing${if (detail.summary.hearingCount == 1) "" else "s"}")
     }
     return parts.joinToString(" · ")
@@ -1005,9 +1051,8 @@ private fun stripHtml(s: String?): String? {
 
 @androidx.compose.runtime.Composable private fun statusTone(s: CaseStatus): Pair<Color, Color> = when (s) {
     CaseStatus.ONGOING -> LlColor.SlateSoft to LlColor.SlateMid
-    CaseStatus.SETTLED -> LlColor.VerdantSoft to LlColor.Verdant
     CaseStatus.PENDING -> LlColor.AmberSoft to LlColor.Amber
-    CaseStatus.CLOSED, CaseStatus.UNKNOWN -> LlColor.Paper2 to LlColor.InkMuted
+    CaseStatus.SETTLED, CaseStatus.CLOSED, CaseStatus.UNKNOWN -> LlColor.Paper2 to LlColor.InkMuted
 }
 
 @androidx.compose.runtime.Composable private fun hearingTonePill(status: String): Pair<Color, Color> = when (status.lowercase()) {
@@ -1021,7 +1066,7 @@ private fun stripHtml(s: String?): String? {
 @androidx.compose.runtime.Composable private fun timelineTone(type: String?): Color {
     val t = type?.lowercase().orEmpty()
     return when {
-        t.contains("transfer") -> ClaretMidFix
+        t.contains("transfer") -> LlColor.Ink
         t.contains("dispos") || t.contains("settl") || t.contains("complet") -> LlColor.VerdantMid
         t.contains("upgrad") || t.contains("consultation") -> LlColor.Violet
         t.contains("creat") || t.contains("regist") -> LlColor.SlateMid

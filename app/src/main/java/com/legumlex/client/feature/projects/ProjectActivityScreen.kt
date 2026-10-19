@@ -84,15 +84,15 @@ class ProjectActivityViewModel(app: Application, private val projectId: String) 
         try {
             coroutineScope {
                 val detail = async { repo.detail(projectId).getOrThrow() }
-                val act = async { repo.activity(projectId).getOrNull().orEmpty() }
+                val act = async { repo.activity(projectId).getOrThrow() }
                 val d = detail.await()
-                _state.value = ActivityUiState.Ready(d.summary.name, "PRJ-${d.summary.id}", act.await())
+                _state.value = ActivityUiState.Ready(d.summary.name, d.summary.status.label, act.await())
             }
         } catch (e: Throwable) {
             if (!(preserve && _state.value is ActivityUiState.Ready)) {
                 _state.value = ActivityUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401, 403 -> "Your session expired. Sign in again."; 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load activity (HTTP ${e.code()})." }
+                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's activity. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load activity (HTTP ${e.code()})." }
                         else -> "Couldn't reach the server. Check your connection."
                     },
                 )
@@ -171,6 +171,10 @@ private fun TimelineItem(a: ProjectActivityItem, last: Boolean) {
             }
             Spacer(Modifier.height(7.dp))
             Text(humanize(a.descriptionKey), fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp, color = LlColor.Ink)
+            // What the entry is about — the task, file or milestone name the server records with it.
+            a.additionalData?.let { plainActivityData(it) }?.takeIf { it.isNotBlank() }?.let {
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
             val meta = listOfNotNull(a.actorName, a.dateAdded?.format(timeFmt)).joinToString(" · ")
             if (meta.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint) }
         }
@@ -285,3 +289,7 @@ private fun dayLabel(date: LocalDate?, today: LocalDate): String = when (date) {
 
 private fun humanize(key: String): String =
     key.removePrefix("project_activity_").removePrefix("not_").replace('_', ' ').trim().replaceFirstChar { it.uppercase() }.ifBlank { "Activity" }
+
+/** additional_data can carry markup (links, tags); show its words only. */
+internal fun plainActivityData(raw: String): String =
+    androidx.core.text.HtmlCompat.fromHtml(raw, androidx.core.text.HtmlCompat.FROM_HTML_MODE_COMPACT).toString().replace(Regex("\\s+"), " ").trim()

@@ -58,6 +58,7 @@ import com.legumlex.client.ahc.theme.LlText
 import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ahc.theme.RiskLevel
 import com.legumlex.client.feature.consultations.AhcAnalysis
+import com.legumlex.client.feature.consultations.awaitingPayment
 import com.legumlex.client.feature.consultations.Consultation
 import com.legumlex.client.feature.consultations.RiskLevel as ConsultRiskLevel
 import kotlinx.coroutines.delay
@@ -180,7 +181,9 @@ private fun AhcWarmHeader(
     val closed = consultation.closedAt != null
     val escalated = !closed && consultation.isEscalated
     val released = !closed && !escalated &&
-        (consultation.releasedAt != null || ahcData?.riskScore != null)
+        (consultation.releasedAt != null || ahcData?.released == true)
+    // Unpaid fee invoice: the review has not started, so no SLA clock runs.
+    val awaitingPay = consultation.awaitingPayment()
     val loading = !closed && !escalated && !released && ahcLoading && ahcData == null
     val pending = !closed && !escalated && !released && !loading
 
@@ -296,6 +299,7 @@ private fun AhcWarmHeader(
                     when {
                         escalated -> EscalatedRail(consultation, onOpenLinkedConsultation)
                         loading   -> LoadingRail()
+                        awaitingPay -> AwaitingPaymentRail()
                         else      -> PendingRail(remaining = remaining, overdueMin = overdueMin)
                     }
                 }
@@ -306,6 +310,7 @@ private fun AhcWarmHeader(
                 released -> Unit   // clean app bar for the released report; score leads the body
                 escalated -> SignalRail(fill = 1f, color = LlColor.SlateBorder)
                 loading   -> SignalRail(fill = 1f, color = LlColor.Paper2)
+                pending && awaitingPay -> SignalRail(fill = 1f, color = LlColor.AmberMid)
                 pending   ->
                     if (signed > 0) SignalRail(
                         fill = (remaining.toFloat() / AHC_SLA_SECONDS).coerceIn(0f, 1f),
@@ -383,6 +388,30 @@ private fun ReleasedRail(ahcData: AhcAnalysis?) {
     }
 }
 
+/** Unpaid: the fee's invoice is paid on the website before the review begins. */
+@Composable
+private fun AwaitingPaymentRail() {
+    RailRow {
+        Row(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StateChip(
+                label = "Awaiting Payment",
+                soft = LlColor.AmberSoft,
+                text = LlColor.Amber,
+                icon = Icons.Filled.HourglassTop,
+            )
+            Text(
+                "The review starts once the fee invoice is paid",
+                style = LlText.label.copy(fontSize = 11.5.sp),
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 /** In review / running late: state chip + reassurance label + live countdown. */
 @Composable
 private fun PendingRail(remaining: Int, overdueMin: Int) {
@@ -394,7 +423,7 @@ private fun PendingRail(remaining: Int, overdueMin: Int) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StateChip(
-                label = if (overdue) "Running late" else "In review",
+                label = if (overdue) "Running Late" else "In Review",
                 soft = if (overdue) LlColor.AmberSoft else LlColor.VerdantSoft,
                 text = if (overdue) LlColor.Amber else LlColor.Verdant,
                 icon = if (overdue) Icons.Filled.HourglassTop else Icons.Outlined.Visibility,
@@ -431,7 +460,7 @@ private fun EscalatedRail(consultation: Consultation, onOpenLinkedConsultation: 
                 )
             } else {
                 Text(
-                    "Adv. $name wants to talk this through",
+                    "$name wants to talk this through",
                     style = LlText.label.copy(fontSize = 11.5.sp),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )

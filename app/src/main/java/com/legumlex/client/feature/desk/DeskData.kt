@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.desk
 
+import com.legumlex.client.feature.consultations.apiError
 import android.content.Context
 import android.net.Uri
 import com.legumlex.client.BuildConfig
@@ -52,7 +53,7 @@ data class DeskTerms(
 ) {
     val takesFiles get() = maxFiles > 0 && documentTypes.isNotEmpty()
     val priced get() = basePrice > 0
-    val displayPrice get() = "₹" + "%,.0f".format(basePrice / 100.0)
+    val displayPrice get() = com.legumlex.client.feature.finance.formatMoney(basePrice / 100.0, "₹").removeSuffix(".00")
 }
 
 /** The desk's reading of a question (cases_desk_read). */
@@ -230,11 +231,11 @@ class DeskRepository(context: Context) {
         if (url.isNotBlank()) PayStart.Invoice(url) else PayStart.Sent(d["consultation_id"].int().takeIf { it > 0 })
     }.recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "The invoice could not be opened. Please try again.") }
 
-    suspend fun discard(sessionHash: String): Boolean = runCatching { api.deskDiscard(sessionHash); true }.getOrDefault(false)
+    suspend fun discard(sessionHash: String): Result<Unit> = runCatching { api.deskDiscard(sessionHash); Unit }
+        .recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "The enquiry could not be set aside. Please try again.") }
 
-    private fun serverMessage(e: Throwable): String? = (e as? HttpException)?.let {
-        runCatching { JSONObject(it.response()?.errorBody()?.string().orEmpty()).optString("message") }.getOrNull()?.takeIf { m -> m.isNotBlank() }
-    }
+    // The shared reader caches the body (it can be read once only).
+    private fun serverMessage(e: Throwable): String? = e.apiError().message
 
     /** The Legum Lex site's tracker, at its own address beside the API's. */
     @Suppress("UNCHECKED_CAST")

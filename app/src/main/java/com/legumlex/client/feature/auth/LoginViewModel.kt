@@ -45,6 +45,7 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = AuthRepository(
         api    = ApiClient.get(app),
         tokens = TokenStore(app),
+        cacheDir = app.cacheDir,
     )
 
     // A session the server ended opens the screen with its note.

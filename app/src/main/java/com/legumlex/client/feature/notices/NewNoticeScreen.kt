@@ -65,8 +65,8 @@ fun NewNoticeScreen(
     // In-content step heading replaces the old per-screen header bar.
     val heading = when (s.step) {
         NoticeStep.FORK -> "Legal Notice"
-        NoticeStep.IN_UPLOAD, NoticeStep.IN_PROCESSING, NoticeStep.IN_CONFIRM, NoticeStep.IN_DONE -> "Respond to a notice"
-        else -> "Send a notice"
+        NoticeStep.IN_UPLOAD, NoticeStep.IN_PROCESSING, NoticeStep.IN_CONFIRM, NoticeStep.IN_DONE -> "A Notice You Received"
+        else -> "Send A Notice"
     }
 
     Column(Modifier.fillMaxSize().background(LlColor.Paper)) {
@@ -96,16 +96,16 @@ fun NewNoticeScreen(
 @Composable
 private fun Fork(vm: NewNoticeViewModel) {
     Column(Modifier.fillMaxSize().padding(18.dp)) {
-        Text("What do you need?", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = LlColor.Ink)
+        Text("What Do You Need?", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = LlColor.Ink)
         Spacer(Modifier.height(6.dp))
         Text("A legal notice is a formal letter. Tell us the direction — your advocate handles the rest.",
             fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted)
         Spacer(Modifier.height(20.dp))
-        BigCard(NoticeDirection.OUTBOUND, "Send a legal notice",
+        BigCard(NoticeDirection.OUTBOUND, "Send A Legal Notice",
             "Someone owes you, or has wronged you, and you want to formally demand action.") { vm.chooseDirection(NoticeDirection.OUTBOUND) }
         Spacer(Modifier.height(14.dp))
-        BigCard(NoticeDirection.INBOUND, "Respond to a notice you received",
-            "You've received a legal notice and need help replying before the deadline.") { vm.chooseDirection(NoticeDirection.INBOUND) }
+        BigCard(NoticeDirection.INBOUND, "A Notice You Received",
+            "Upload a legal notice you've received so your advocate can review it.") { vm.chooseDirection(NoticeDirection.INBOUND) }
     }
 }
 
@@ -141,9 +141,11 @@ private fun problemIcon(key: String): Int = when (key) {
 
 @Composable
 private fun OutProblem(s: NewNoticeState, vm: NewNoticeViewModel) {
-    StepScaffold(1, NoticeDirection.OUTBOUND, "What happened?",
+    val needsType = s.selectedProblemKey != null && s.problems.firstOrNull { it.key == s.selectedProblemKey }?.typeId == null
+    StepScaffold(1, NoticeDirection.OUTBOUND, "What Happened?",
         "Choose what's closest. Your advocate refines the legal basis later.",
-        cta = "Continue", ctaEnabled = s.selectedProblemKey != null, onCta = vm::continueFromProblem) {
+        cta = "Continue", ctaEnabled = s.selectedProblemKey != null && s.selectedTypeId != null, onCta = vm::continueFromProblem) {
+        TypesStatus(s, vm)
         Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             s.problems.forEach { card ->
                 val sel = card.key == s.selectedProblemKey
@@ -167,23 +169,75 @@ private fun OutProblem(s: NewNoticeState, vm: NewNoticeViewModel) {
                 }
             }
         }
+        // No type matches this card: the server needs one, so the client names it.
+        if (needsType && s.types.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            TypeChooser(s.types, s.selectedTypeId, "Which Kind Of Notice?",
+                "None of the types matched this choice. Pick the closest; your advocate can change it.", vm::selectType)
+        }
+    }
+}
+
+/** Loading / failed state of the notice types, with a retry. */
+@Composable
+private fun TypesStatus(s: NewNoticeState, vm: NewNoticeViewModel) {
+    val err = s.typesError ?: return
+    Row(
+        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 12.dp).clip(RoundedCornerShape(8.dp))
+            .background(LlColor.AmberSoft).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(err, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Amber, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, LlColor.Amber, RoundedCornerShape(6.dp))
+            .clickable(enabled = !s.typesLoading) { vm.loadTypes() }.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Text(if (s.typesLoading) "Loading…" else "Try Again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Amber)
+        }
+    }
+}
+
+/** A required pick from the real notice types (tblcase_notice_types). */
+@Composable
+private fun TypeChooser(types: List<NoticeType>, selected: Int?, title: String, sub: String, onPick: (Int) -> Unit) {
+    Column(Modifier.padding(horizontal = 18.dp)) {
+        Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+        Spacer(Modifier.height(3.dp))
+        Text(sub, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+        Spacer(Modifier.height(10.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card)
+                .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)),
+        ) {
+            types.forEachIndexed { i, t ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
+                val on = t.id == selected
+                Row(
+                    Modifier.fillMaxWidth().clickable { onPick(t.id) }.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(t.name, fontFamily = Inter, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, fontSize = 12.5.sp,
+                        color = if (on) LlColor.Ink else LlColor.InkMuted, modifier = Modifier.weight(1f))
+                    if (on) Icon(painterResource(R.drawable.ic_ms_check_circle), null, tint = LlColor.Slate, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun OutRecipient(s: NewNoticeState, vm: NewNoticeViewModel) {
-    StepScaffold(2, NoticeDirection.OUTBOUND, "Who is it against?",
+    StepScaffold(2, NoticeDirection.OUTBOUND, "Who Is It Against?",
         "The person or company the notice is for. That's all we need to start.",
         cta = "Continue", ctaEnabled = true, onCta = vm::continueFromRecipient) {
         Column(Modifier.padding(horizontal = 18.dp)) {
-            Field("Recipient name *", s.recipientName, vm::setRecipientName,
+            Field("Recipient Name *", s.recipientName, vm::setRecipientName,
                 error = if (s.showRecipientError) "Please enter who the notice is for" else null)
             Spacer(Modifier.height(14.dp))
-            Text("Their details (optional)", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.SlateMid)
+            Text("Their Details (Optional)", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.SlateMid)
             Spacer(Modifier.height(10.dp))
             Field("Address", s.recipientAddress, vm::setRecipientAddress)
             Spacer(Modifier.height(10.dp))
-            Field("Contact number", s.recipientContact, vm::setRecipientContact, keyboard = KeyboardType.Phone)
+            Field("Contact Number", s.recipientContact, vm::setRecipientContact, keyboard = KeyboardType.Phone)
             Spacer(Modifier.height(10.dp))
             Field("Email", s.recipientEmail, vm::setRecipientEmail, keyboard = KeyboardType.Email)
         }
@@ -192,14 +246,14 @@ private fun OutRecipient(s: NewNoticeState, vm: NewNoticeViewModel) {
 
 @Composable
 private fun OutExtras(s: NewNoticeState, vm: NewNoticeViewModel) {
-    StepScaffold(3, NoticeDirection.OUTBOUND, "Anything to add?",
+    StepScaffold(3, NoticeDirection.OUTBOUND, "Anything To Add?",
         "All optional — your advocate can follow up for anything missing.",
-        cta = if (s.isSubmitting) "Submitting…" else "Submit request", ctaEnabled = !s.isSubmitting,
+        cta = if (s.isSubmitting) "Submitting…" else "Submit Request", ctaEnabled = !s.isSubmitting,
         submitting = s.isSubmitting, onCta = vm::submitOutbound) {
         Column(Modifier.padding(horizontal = 18.dp)) {
-            Field("Claim amount (₹)", s.claimAmount, vm::setClaimAmount, keyboard = KeyboardType.Number)
+            Field("Claim Amount (₹, Whole Rupees)", s.claimAmount, vm::setClaimAmount, keyboard = KeyboardType.Number)
             Spacer(Modifier.height(12.dp))
-            Field("What happened? (one line)", s.context, vm::setContext, singleLine = false)
+            Field("What Happened? (One Line)", s.context, vm::setContext, singleLine = false)
             s.error?.let {
                 Spacer(Modifier.height(10.dp))
                 Text(it, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.ClaretMid)
@@ -214,9 +268,9 @@ private fun OutExtras(s: NewNoticeState, vm: NewNoticeViewModel) {
 private fun InUpload(vm: NewNoticeViewModel) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let(vm::pickFile) }
     Column(Modifier.fillMaxSize().padding(18.dp)) {
-        Text("Upload the notice you received", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, color = LlColor.Ink)
+        Text("Upload The Notice You Received", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, color = LlColor.Ink)
         Spacer(Modifier.height(6.dp))
-        Text("Snap a photo or pick the PDF. We'll read it and help you respond in time.",
+        Text("Pick a photo or the PDF. We'll read out the key details for your advocate.",
             fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted)
         Spacer(Modifier.height(20.dp))
         Column(
@@ -229,7 +283,7 @@ private fun InUpload(vm: NewNoticeViewModel) {
                 Icon(painterResource(R.drawable.ic_ms_cloud_upload), null, tint = LlColor.Amber, modifier = Modifier.size(30.dp))
             }
             Spacer(Modifier.height(12.dp))
-            Text("Tap to upload", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
+            Text("Tap To Upload", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
             Spacer(Modifier.height(4.dp))
             Text("PDF, JPG or PNG", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
         }
@@ -241,27 +295,40 @@ private fun InProcessing() {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         CircularProgressIndicator(color = LlColor.SlateMid, strokeWidth = 3.dp)
         Spacer(Modifier.height(22.dp))
-        Text("Reading your notice…", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
+        Text("Reading Your Notice…", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
         Spacer(Modifier.height(8.dp))
-        Text("Pulling out the sender, type, claim and your deadline.",
+        Text("Pulling out the sender, type, claim and reply date.",
             fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted)
     }
 }
 
 @Composable
 private fun InConfirm(s: NewNoticeState, vm: NewNoticeViewModel) {
-    StepScaffold(null, NoticeDirection.INBOUND, "Confirm what we found",
+    StepScaffold(null, NoticeDirection.INBOUND, "Confirm What We Found",
         if (s.extractFailed) "We couldn't read it automatically — please fill these in." else "Tap any field to correct it.",
-        cta = if (s.isSubmitting) "Submitting…" else "Submit", ctaEnabled = !s.isSubmitting,
+        cta = if (s.isSubmitting) "Submitting…" else "Submit", ctaEnabled = !s.isSubmitting && s.selectedTypeId != null,
         submitting = s.isSubmitting, onCta = vm::submitInbound) {
+        TypesStatus(s, vm)
         Column(Modifier.padding(horizontal = 18.dp)) {
-            Field("Who sent it?", s.senderName, vm::setSenderName)
+            Field("Who Sent It?", s.senderName, vm::setSenderName)
             Spacer(Modifier.height(12.dp))
-            Field("Their contact", s.senderContact, vm::setSenderContact, keyboard = KeyboardType.Phone)
+            Field("Their Contact", s.senderContact, vm::setSenderContact, keyboard = KeyboardType.Phone)
             Spacer(Modifier.height(12.dp))
-            Field("Claim amount (₹)", s.claimAmountIn, vm::setClaimAmountIn, keyboard = KeyboardType.Number)
+            Field("Claim Amount (₹, Whole Rupees)", s.claimAmountIn, vm::setClaimAmountIn, keyboard = KeyboardType.Number)
             Spacer(Modifier.height(12.dp))
-            Field("Respond by (YYYY-MM-DD)", s.responseDueDate, vm::setResponseDueDate)
+            DateField("Reply Date On The Notice", s.responseDueDate, vm::setResponseDueDate)
+        }
+        // The server needs a type; when the notice didn't name one, the client picks it.
+        val named = s.types.firstOrNull { it.id == s.selectedTypeId && s.extracted?.noticeTypeId == it.id }
+        if (named == null && s.types.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            TypeChooser(s.types, s.selectedTypeId, "Which Kind Of Notice Is It?",
+                "Pick the closest; your advocate can change it.", vm::setInboundType)
+        } else if (named != null) {
+            Spacer(Modifier.height(12.dp))
+            Text("Type · ${named.name}", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(horizontal = 18.dp))
+        }
+        Column(Modifier.padding(horizontal = 18.dp)) {
             s.error?.let {
                 Spacer(Modifier.height(10.dp))
                 Text(it, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.ClaretMid)
@@ -279,12 +346,12 @@ private fun Done(s: NewNoticeState, dir: NoticeDirection, onOpenNotice: (String)
             Icon(painterResource(R.drawable.ic_ms_check_circle), null, tint = LlColor.Verdant, modifier = Modifier.size(36.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text(if (dir == NoticeDirection.OUTBOUND) "Notice request submitted" else "We've logged your notice",
+        Text(if (dir == NoticeDirection.OUTBOUND) "Notice Request Submitted" else "We've Logged Your Notice",
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = LlColor.Ink)
         Spacer(Modifier.height(9.dp))
         Text(
-            if (dir == NoticeDirection.OUTBOUND) "Your advocate is preparing your notice. You'll be asked to approve the draft before it's sent."
-            else "Your advocate will review it and help you respond before the deadline.",
+            if (dir == NoticeDirection.OUTBOUND) "Your advocate has your request. You can follow the notice here."
+            else "Your advocate has the notice. You can follow it here.",
             fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted,
         )
         s.createdReference?.let {
@@ -300,10 +367,10 @@ private fun Done(s: NewNoticeState, dir: NoticeDirection, onOpenNotice: (String)
             }
         }
         Spacer(Modifier.height(24.dp))
-        PrimaryButton("Track notice", LlColor.Ink) { s.createdNoticeId?.let(onOpenNotice) ?: onClose() }
+        PrimaryButton("Track Notice") { s.createdNoticeId?.let(onOpenNotice) ?: onClose() }
         Spacer(Modifier.height(10.dp))
         Box(Modifier.clickable(onClick = onClose).padding(8.dp)) {
-            Text("Back to notices", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.InkMuted)
+            Text("Back To Notices", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.InkMuted)
         }
     }
 }
@@ -343,28 +410,30 @@ private fun StepScaffold(
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
         Column(Modifier.padding(18.dp)) {
-            PrimaryButton(cta, c.solid, enabled = ctaEnabled, submitting = submitting, onClick = onCta)
+            PrimaryButton(cta, enabled = ctaEnabled, submitting = submitting, onClick = onCta)
         }
     }
 }
 
 @Composable
-private fun PrimaryButton(label: String, color: Color, enabled: Boolean = true, submitting: Boolean = false, onClick: () -> Unit) {
+private fun PrimaryButton(label: String, enabled: Boolean = true, submitting: Boolean = false, onClick: () -> Unit) {
+    // Theme tokens, so the button reads in dark mode as well as light.
+    val fg = if (enabled) com.legumlex.client.ui.theme.Lex.colors.primaryForeground else LlColor.InkMuted
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-            .background(if (enabled) color else LlColor.BorderStrong)
+            .background(if (enabled) com.legumlex.client.ui.theme.Lex.colors.primary else LlColor.Paper2)
             .clickable(enabled = enabled && !submitting, onClick = onClick)
             .padding(vertical = 14.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         if (submitting) {
-            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+            CircularProgressIndicator(color = fg, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = Color.White)
+        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = fg)
         if (!submitting) {
             Spacer(Modifier.width(7.dp))
-            Icon(painterResource(R.drawable.ic_ms_arrow_forward), null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Icon(painterResource(R.drawable.ic_ms_arrow_forward), null, tint = fg, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -384,13 +453,48 @@ private fun Field(
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = LlColor.SlateMid, unfocusedBorderColor = LlColor.Border,
-                focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                focusedContainerColor = com.legumlex.client.ui.theme.Lex.colors.card,
+                unfocusedContainerColor = com.legumlex.client.ui.theme.Lex.colors.card,
+                focusedTextColor = LlColor.Ink, unfocusedTextColor = LlColor.Ink,
                 errorBorderColor = LlColor.ClaretMid,
             ),
         )
         error?.let {
             Spacer(Modifier.height(5.dp))
             Text(it, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.ClaretMid)
+        }
+    }
+}
+
+/** A date chosen from the calendar, kept as yyyy-MM-dd and shown as "d MMM yyyy". */
+@Composable
+private fun DateField(label: String, value: String, onChange: (String) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val current = runCatching { java.time.LocalDate.parse(value) }.getOrNull()
+    Column {
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink)
+        Spacer(Modifier.height(7.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card)
+                .border(1.dp, LlColor.Border, RoundedCornerShape(8.dp))
+                .clickable {
+                    val d = current ?: todayIst()
+                    android.app.DatePickerDialog(ctx, { _, y, m, day ->
+                        onChange(java.time.LocalDate.of(y, m + 1, day).toString())
+                    }, d.year, d.monthValue - 1, d.dayOfMonth).show()
+                }
+                .padding(horizontal = 14.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(current?.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy")) ?: "Choose A Date",
+                fontFamily = Inter, fontSize = 13.sp, color = if (current != null) LlColor.Ink else LlColor.InkFaint, modifier = Modifier.weight(1f))
+            Icon(painterResource(R.drawable.ic_ms_schedule), null, tint = LlColor.InkMuted, modifier = Modifier.size(18.dp))
+            if (current != null) {
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.clip(RoundedCornerShape(6.dp)).clickable { onChange("") }.padding(4.dp)) {
+                    Text("Clear", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+                }
+            }
         }
     }
 }

@@ -102,7 +102,7 @@ fun DoWaitroomSheet(
                 ) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Pay & start intake", fontWeight = FontWeight.SemiBold)
+                    Text("Send Your Request", fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(
@@ -111,7 +111,7 @@ fun DoWaitroomSheet(
                 ) {
                     Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Forfeit slot & leave queue")
+                    Text("Give Up My Turn")
                 }
             } else {
                 Button(
@@ -120,7 +120,7 @@ fun DoWaitroomSheet(
                 ) {
                     Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Leave queue", fontWeight = FontWeight.SemiBold)
+                    Text("Leave The Queue", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -158,7 +158,7 @@ private fun PromptedBody(row: DoWaitroomRow) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                mmss(secondsLeft) + " left to start intake",
+                mmss(secondsLeft) + " left to send your request",
                 color = Color(0xFF047857),
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp,

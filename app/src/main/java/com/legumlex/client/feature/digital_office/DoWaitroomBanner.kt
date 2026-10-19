@@ -116,7 +116,7 @@ private fun PromptedBanner(row: DoWaitroomRow, onTap: (DoWaitroomRow) -> Unit) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                "Pay & start intake — ${mmss(secondsLeft)} left",
+                "Send your request — ${mmss(secondsLeft)} left",
                 color = Color(0xFFA7F3D0),
                 fontSize = 11.sp,
                 maxLines = 1,

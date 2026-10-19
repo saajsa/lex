@@ -286,7 +286,7 @@ private fun NextHearingCard(matter: CaseDetail, spacing: Spacing) {
                     Text(date.format(dateFmt), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = PrimaryText)
                     val purpose = matter.summary.nextHearingPurpose?.takeIf { it.isNotBlank() }
                     if (purpose != null) {
-                        Text(purpose, style = MaterialTheme.typography.bodySmall, color = SecondaryText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text("Next: $purpose", style = MaterialTheme.typography.bodySmall, color = SecondaryText, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 } else {
                     Text("No hearing scheduled yet", style = MaterialTheme.typography.bodyMedium, color = SecondaryText)

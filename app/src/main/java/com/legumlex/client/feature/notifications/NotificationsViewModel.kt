@@ -61,14 +61,6 @@ class NotificationsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.markRead(id) }
     }
 
-    fun dismiss(id: String) {
-        val target = all.firstOrNull { it.id == id } ?: return
-        all = all.filterNot { it.id == id }
-        if (!target.isRead) NotificationHub.decrement()
-        render()
-        viewModelScope.launch { repo.markRead(id) }     // no delete endpoint — read + hide
-    }
-
     fun markAllRead() {
         if (all.none { !it.isRead }) return
         all = all.map { it.copy(isRead = true) }
@@ -102,7 +94,8 @@ class NotificationsViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun messageFor(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401, 403    -> "Your session expired. Sign in again."
+            401         -> "Your session expired. Sign in again."
+            403         -> "Your account doesn't include notifications yet. Ask the firm to give you access."
             in 500..599 -> "Server error. Try again in a moment."
             else        -> "Couldn't reach the server (HTTP ${e.code()})."
         }

@@ -12,15 +12,21 @@ import java.time.format.DateTimeParseException
 class HomeRepository(private val api: ApiService) {
 
     /**
-     * Fetch JUST the chamber block. Used by the home screen's periodic poll
-     * so the "Open / Closed" badge + advocate roster reflects real-time
-     * presence without a full dashboard refetch. Silent on failure — the
-     * caller falls back to whatever chamber state was cached previously.
+     * Fetch just the chamber block, for the Digital Office landing (Home no
+     * longer shows the chamber). Null on failure.
      */
     suspend fun loadChamber(): ChamberState? =
         runCatching { api.dashboardChamber() }
             .getOrNull()
             ?.let { parseChamber(it.data()) }
+
+    /**
+     * Fetch just the next event, for Home's poll: an appointment turning
+     * joinable is what raises the live banner. Null on failure, so the poll
+     * keeps what it had; Result.success(null) when nothing is scheduled.
+     */
+    suspend fun loadNextEvent(): Result<NextEvent?> =
+        runCatching { parseNextEvent(api.dashboardNextEvent().data()) }
 
     /**
      * Persist a swipe-to-dismiss so the action row stays gone after a refresh.
@@ -31,11 +37,16 @@ class HomeRepository(private val api: ApiService) {
     suspend fun dismissAction(key: String): Boolean =
         runCatching { api.dismissActionItem(key) }.isSuccess
 
+    /** Undo a dismissal: the server puts the item back in action_items. */
+    suspend fun restoreAction(key: String): Boolean =
+        runCatching { api.restoreActionItem(key) }.isSuccess
+
 
     suspend fun loadDashboard(): Result<HomeData> = runCatching {
         coroutineScope {
-            // Profile is the auth canary — if this fails, surface Error.
-            val profileDeferred = async { api.dashboardProfile() }
+            // The contact's profile (Profile.php, which no permission gates)
+            // is the sign-in check: if it fails, surface Error.
+            val profileDeferred = async { api.profile() }
             val actionsDeferred = async { runCatching { api.dashboardActionItems()     }.getOrNull() }
             val nextDeferred    = async { runCatching { api.dashboardNextEvent()       }.getOrNull() }
             val chamberDeferred = async { runCatching { api.dashboardChamber()         }.getOrNull() }
@@ -50,7 +61,7 @@ class HomeRepository(private val api: ApiService) {
             val spaces  = spacesDeferred.await().data()
 
             HomeData(
-                firstName    = (profile?.get("firstname") as? String).orEmpty(),
+                firstName    = (profile?.get("name") as? String).orEmpty().trim().substringBefore(' '),
                 unreadCount  = (unread?.get("unread_count") as? Number)?.toInt() ?: 0,
                 workspaces   = parseWorkspaces(spaces),
                 actionItems  = parseActionItems(actions),
@@ -135,6 +146,7 @@ private fun parseActionItems(data: Map<String, Any?>?): ActionItemsBundle {
             severity = parseSeverity(sevStr),
             dueAt    = dueAt,
             deepLink = ActionItemDeepLink(parseDeepLinkType(linkType), linkId),
+            webUrl   = (item["web_url"] as? String)?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -150,6 +162,8 @@ private fun parseActionKind(s: String): ActionKind = when (s) {
     "invoice_unpaid"                -> ActionKind.InvoiceUnpaid
     "invoice_overdue"               -> ActionKind.InvoiceOverdue
     "contract_unsigned"             -> ActionKind.ContractUnsigned
+    "estimate_awaiting_decision"    -> ActionKind.EstimateAwaitingDecision
+    "proposal_awaiting_decision"    -> ActionKind.ProposalAwaitingDecision
     "doc_request_pending"           -> ActionKind.DocRequestPending
     "consultation_awaiting_reply"   -> ActionKind.ConsultationAwaitingReply
     "inbound_notice_response_due"   -> ActionKind.InboundNoticeResponseDue
@@ -172,6 +186,8 @@ private fun parseSeverity(s: String): ActionSeverity = when (s) {
 private fun parseDeepLinkType(s: String?): DeepLinkType = when (s) {
     "invoice"      -> DeepLinkType.Invoice
     "contract"     -> DeepLinkType.Contract
+    "estimate"     -> DeepLinkType.Estimate
+    "proposal"     -> DeepLinkType.Proposal
     "consultation" -> DeepLinkType.Consultation
     "case"         -> DeepLinkType.Case
     "notice"       -> DeepLinkType.Notice

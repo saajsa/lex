@@ -48,7 +48,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Directions
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.EventNote
@@ -77,6 +76,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,15 +90,12 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import coil.compose.AsyncImage
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -116,18 +117,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Calendar
 
 // Implementation of: Claude Design "Client Home" (Lexcore aesthetic).
-// Blocks, descending obligation: Greeting → Action queue → Next event →
-// Balance → Chamber. Severity stripes live on the leading edge so the queue
+// Blocks, descending obligation: Greeting and workspaces → Action Queue →
+// Next Event; the chamber has its own tab. Severity stripes live on the leading edge so the queue
 // scans by colour before reading a word.
-
-// Colours come from the Mylex palette (ui/theme): monochrome, with status
-// colours for the queue's severity stripes and the event strips.
-private val SlateSolid: Color   @Composable get() = LlColor.Slate        // "hearing" strip
-private val VerdantSolid: Color @Composable get() = LlColor.Verdant      // "appointment" strip + free-now
-private val VerdantSoft: Color  @Composable get() = LlColor.VerdantSoft
-private val Claret: Color       @Composable get() = AccentInk            // chamber hero primary CTA (monochrome)
-private val ClaretDeep: Color   @Composable get() = Lex.colors.secondaryForeground // pressed state
-private val InkMuted: Color     @Composable get() = LlColor.InkMuted     // chamber hero body
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
@@ -142,6 +134,8 @@ fun HomeScreen(
     onOpenInvoice: (String) -> Unit = {},
     onOpenContract: (String) -> Unit = {},
     onOpenConsultation: (String) -> Unit = {},
+    /** A joinable appointment's call, through the video lobby (by consultation id). */
+    onOpenVideoLobby: (String) -> Unit = {},
     onOpenCase: (String) -> Unit = {},
     onOpenNotice: (String) -> Unit = {},
     onOpenTask: (String) -> Unit = {},
@@ -201,18 +195,49 @@ fun HomeScreen(
         }
     }
 
-    // Live chamber polling — the "Open/Closed" badge and online roster
-    // reflect real-time presence (advocates signing in, going busy, leaving)
-    // every 30s while the home screen is in composition. Auto-cancels on
-    // dispose, so backgrounding or navigating away stops the network.
-    androidx.compose.runtime.DisposableEffect(vm) {
-        vm.startChamberPolling()
-        onDispose { vm.stopChamberPolling() }
+    // While Home is resumed, the next event is polled (an appointment turning
+    // joinable raises the live banner); on coming back to Home, the whole
+    // dashboard is read again, so what was done elsewhere drops off the queue.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner, vm) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    // A no-op while the first load is still in flight.
+                    vm.onResume()
+                    vm.startNextEventPolling()
+                }
+                Lifecycle.Event.ON_PAUSE -> vm.stopNextEventPolling()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            vm.stopNextEventPolling()
+        }
     }
 
+    // A swiped-away item can be put back for a few seconds.
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val onDismissAction: (ActionItem) -> Unit = { item ->
+        vm.dismissAction(item)
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            val r = snackbar.showSnackbar(
+                message     = "Removed from your queue.",
+                actionLabel = "Undo",
+                duration    = SnackbarDuration.Short,
+            )
+            if (r == SnackbarResult.ActionPerformed) vm.restoreAction(item)
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
     when (val s = state) {
         is HomeUiState.Loading -> HomeSkeleton()
-        is HomeUiState.Error   -> HomeError(message = s.message, onRetry = vm::load)
+        is HomeUiState.Error   -> HomeError(message = s.message, denied = s.denied, onRetry = vm::load)
         is HomeUiState.Ready   -> PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh    = vm::refresh,
@@ -228,6 +253,7 @@ fun HomeScreen(
                 onOpenInvoice       = onOpenInvoice,
                 onOpenContract      = onOpenContract,
                 onOpenConsultation  = onOpenConsultation,
+                onOpenVideoLobby    = onOpenVideoLobby,
                 onOpenCase          = onOpenCase,
                 onOpenNotice        = onOpenNotice,
                 onOpenTask          = onOpenTask,
@@ -239,11 +265,13 @@ fun HomeScreen(
                 onStartAgreementHealthCheckup = onStartAgreementHealthCheckup,
                 onOpenNotifications = onOpenNotifications,
                 onStartLegalNotice  = onStartLegalNotice,
-                onDismissAction     = vm::dismissAction,
+                onDismissAction     = onDismissAction,
                 waitroomRows        = waitroomRows,
                 onTapWaitroomRow    = { openWaitroomRow = it },
             )
         }
+    }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
     }
 
     openWaitroomRow?.let { row ->
@@ -275,6 +303,7 @@ private fun HomeContent(
     onOpenInvoice: (String) -> Unit,
     onOpenContract: (String) -> Unit,
     onOpenConsultation: (String) -> Unit,
+    onOpenVideoLobby: (String) -> Unit,
     onOpenCase: (String) -> Unit,
     onOpenNotice: (String) -> Unit,
     onOpenTask: (String) -> Unit,
@@ -311,6 +340,7 @@ private fun HomeContent(
             LiveSessionBanner(
                 data = data,
                 onOpenConsultation = onOpenConsultation,
+                onOpenVideoLobby = onOpenVideoLobby,
                 onOpenDigitalOffice = onWalkInDigitalOffice,
             )
         }
@@ -365,6 +395,7 @@ private fun HomeContent(
                     onOpenCalendar = onOpenCalendar,
                     onOpenConsultation = onOpenConsultation,
                     onOpenCase = onOpenCase,
+                    onOpenVideoLobby = onOpenVideoLobby,
                 )
 
                 // The chamber lives on its own tab now (Digital Office); Home
@@ -372,317 +403,6 @@ private fun HomeContent(
             }
         }
     }
-}
-
-// ── 0. Greeting + icon row ──────────────────────────────────────────────────
-
-@Composable
-private fun GreetingRow(
-    firstName: String,
-    onCalendarClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(LlColor.Paper)
-            .padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text  = todayDateLabel(),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily    = Inter,
-                    fontWeight    = FontWeight.Medium,
-                    fontSize      = 10.5.sp,
-                    letterSpacing = 1.5.sp,
-                ),
-                color = TertiaryText,
-            )
-            Spacer(Modifier.height(5.dp))
-            Text(
-                text       = "${greetingForNow()}, ${firstName.ifBlank { "there" }}",
-                fontFamily = Inter,
-                fontWeight = FontWeight.SemiBold,
-                fontSize   = 22.sp,
-                letterSpacing = (-0.44).sp,
-                lineHeight = 26.sp,
-                color      = PrimaryText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        IconSquare(
-            icon        = Icons.Outlined.CalendarMonth,
-            contentDesc = "Calendar",
-            onClick     = onCalendarClick,
-        )
-    }
-}
-
-// 42×42 rounded square; ink fill for AHC, white-with-border for the rest.
-@Composable
-private fun IconSquare(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDesc: String,
-    onClick: () -> Unit,
-    filled: Boolean = false,
-) {
-    val shape = RoundedCornerShape(8.dp)
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .clip(shape)
-            .background(if (filled) AccentInk else Surface1)
-            .then(if (filled) Modifier else Modifier.border(1.dp, BorderColor, shape))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            icon, contentDesc,
-            tint = if (filled) Color.White else PrimaryText,
-            modifier = Modifier.size(21.dp),
-        )
-    }
-}
-
-// ── 0.5. Service highlights ─────────────────────────────────────────────────
-
-// Two side-by-side CTA cards for the practice's two core funnels. The
-// Agreement Check card kicks off the AHC submission funnel; the Legal Notice
-// card opens NewConsultation with a `legal_notice` preset so the advocate
-// receives it as a notice-drafting request. Each ongoing instance keeps
-// showing up in the Action Queue below as a tracked item, so this block is
-// strictly an entry point, not a status board.
-@Composable
-private fun ServiceHighlightsBlock(
-    onStartAgreementCheck: () -> Unit,
-    onStartLegalNotice: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ServiceCard(
-            modifier = Modifier.weight(1f),
-            kind       = ServiceKind.AGREEMENT,
-            iconRes    = R.drawable.ic_contract,
-            iconBg     = LlColor.ClaretSoft,
-            iconTint   = LlColor.Claret,
-            accent     = LlColor.Claret,
-            title      = "Agreement Check",
-            desc       = "Upload a contract — get an advocate-reviewed risk report.",
-            ctaLabel   = "Start checkup",
-            onClick    = onStartAgreementCheck,
-        )
-        ServiceCard(
-            modifier = Modifier.weight(1f),
-            kind       = ServiceKind.NOTICE,
-            iconRes    = R.drawable.ic_outgoing_mail,
-            iconBg     = LlColor.SlateSoft,
-            iconTint   = LlColor.SlateMid,
-            accent     = LlColor.SlateMid,
-            title      = "Legal Notice",
-            desc       = "Draft and serve a legal notice, end to end.",
-            ctaLabel   = "Send notice",
-            onClick    = onStartLegalNotice,
-        )
-    }
-}
-
-private enum class ServiceKind { AGREEMENT, NOTICE }
-
-@Composable
-private fun ServiceCard(
-    modifier: Modifier = Modifier,
-    kind: ServiceKind,
-    iconRes: Int,
-    iconBg: Color,
-    iconTint: Color,
-    accent: Color,
-    title: String,
-    desc: String,
-    ctaLabel: String,
-    onClick: () -> Unit,
-) {
-    // One looping clock drives every micro-animation, mirroring the design's
-    // CSS keyframes: doc scan (3.6s), paper-plane dispatch (4.2s), icon ping
-    // (3.6s), icon bob (3.6s), CTA arrow nudge (1.9s) and CTA sheen (3.8s).
-    val tr = rememberInfiniteTransition(label = "svc")
-    val scanT by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart), label = "scan")
-    val flyT by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(4200, easing = LinearEasing), RepeatMode.Restart), label = "fly")
-    val pingT by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart), label = "ping")
-    val bobT by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart), label = "bob")
-    val nudgeT by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(1900, easing = LinearEasing), RepeatMode.Restart), label = "nudge")
-    val sheenT by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(3800, easing = LinearEasing), RepeatMode.Restart), label = "sheen")
-
-    // .fx-scan — sweeps down the doc, fading in then out.
-    val scanY = when {
-        scanT < 0.48f -> scanT / 0.48f * 25f
-        scanT < 0.60f -> 25f
-        else          -> 25f * (1f - (scanT - 0.60f) / 0.40f)
-    }
-    val scanA = when {
-        scanT < 0.14f -> scanT / 0.14f * 0.95f
-        scanT < 0.48f -> 0.95f
-        scanT < 0.60f -> (1f - (scanT - 0.48f) / 0.12f) * 0.95f
-        else          -> 0f
-    }
-    // .fx-ping — ring scales up and dissolves.
-    val pingScale = if (pingT < 0.55f) 1f + (pingT / 0.55f) * 0.5f else 1.5f
-    val pingA = if (pingT < 0.55f) 0.5f * (1f - pingT / 0.55f) else 0f
-    // .fx-plane — dispatch arc, fading in then out.
-    val flyA = when {
-        flyT < 0.14f -> flyT / 0.14f * 0.24f
-        flyT < 0.68f -> 0.24f
-        else         -> (1f - (flyT - 0.68f) / 0.32f) * 0.24f
-    }
-    val bobY = (-2f * sin(bobT.toDouble() * PI)).toFloat()          // single dip per loop
-    val nudgeX = (3f * sin(nudgeT.toDouble() * PI)).toFloat()
-    val sheenFrac = if (sheenT < 0.30f) -0.40f + (sheenT / 0.30f) * 1.70f else 1.30f
-
-    Surface(
-        color  = LlColor.Surface,                          // .svc-card · #fff
-        border = BorderStroke(1.dp, LlColor.Border),
-        shape  = RoundedCornerShape(12.dp),                // clips overflowing FX
-        modifier = modifier.clickable(onClick = onClick),
-    ) {
-        Box {
-            // ---- animated FX layer (behind content) ----
-            Box(Modifier.matchParentSize()) {
-                if (kind == ServiceKind.AGREEMENT) {
-                    // contract lines + scan beam, top-right
-                    Column(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 17.dp, end = 13.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                        horizontalAlignment = Alignment.End,
-                    ) {
-                        DocBar(42.dp, accent); DocBar(30.dp, accent); DocBar(39.dp, accent); DocBar(25.dp, accent)
-                    }
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 12.dp, end = 11.dp)
-                            .offset(y = scanY.dp)
-                            .graphicsLayer { alpha = scanA }
-                            .size(width = 48.dp, height = 3.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(LlColor.ClaretMid),
-                    )
-                } else {
-                    // paper-plane dispatch arc, bottom-left
-                    Icon(
-                        painter = painterResource(R.drawable.ic_send),
-                        contentDescription = null,
-                        tint = LlColor.SlateMid,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(bottom = 34.dp, start = 2.dp)
-                            .offset(x = (flyT * 150f).dp, y = (flyT * -44f).dp)
-                            .graphicsLayer { rotationZ = -8f; alpha = flyA }
-                            .size(23.dp),
-                    )
-                }
-                // ping ring over where the icon sits (top-left)
-                Box(
-                    Modifier
-                        .align(Alignment.TopStart)
-                        .padding(top = 15.dp, start = 15.dp)
-                        .graphicsLayer { scaleX = pingScale; scaleY = pingScale; alpha = pingA }
-                        .size(38.dp)
-                        .border(1.5.dp, accent, RoundedCornerShape(8.dp)),
-                )
-            }
-
-            // ---- content (above FX) ----
-            Column(modifier = Modifier.padding(start = 15.dp, end = 15.dp, top = 15.dp, bottom = 14.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(iconBg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        painter = painterResource(iconRes),
-                        contentDescription = null,
-                        tint = iconTint,
-                        modifier = Modifier.size(21.dp).offset(y = bobY.dp),
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text       = title,
-                    fontFamily = Inter,                  // .svc-title · serif
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 15.5.sp,
-                    letterSpacing = (-0.15).sp,
-                    color      = LlColor.Ink,
-                )
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    text  = desc,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.5.sp),
-                    color = LlColor.InkMuted,
-                )
-                Spacer(Modifier.height(14.dp))
-                // .svc-cta — a tinted pill with a sweeping sheen + nudging arrow.
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(LlColor.Paper1)
-                        .border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)),
-                ) {
-                    val wPx = with(LocalDensity.current) { maxWidth.toPx() }
-                    Row(
-                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text       = ctaLabel.uppercase(),
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize   = 10.5.sp,
-                            letterSpacing = 0.63.sp,
-                            color      = accent,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            Icons.AutoMirrored.Outlined.ArrowForward,
-                            null, tint = accent,
-                            modifier = Modifier.size(15.dp).offset(x = nudgeX.dp),
-                        )
-                    }
-                    // .svc-cta .sheen — translucent band sweeping left→right.
-                    Box(
-                        Modifier
-                            .matchParentSize()
-                            .graphicsLayer { translationX = sheenFrac * wPx }
-                            .background(
-                                Brush.horizontalGradient(
-                                    0.30f to Color.Transparent,
-                                    0.50f to Color.White.copy(alpha = 0.55f),
-                                    0.70f to Color.Transparent,
-                                ),
-                            ),
-                    )
-                }
-            }
-        }
-    }
-}
-
-// .fx-doc bar — a faint claret contract line.
-@Composable
-private fun DocBar(width: androidx.compose.ui.unit.Dp, accent: Color) {
-    Box(
-        Modifier
-            .size(width = width, height = 3.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(accent.copy(alpha = 0.15f)),
-    )
 }
 
 // ── 1. Action queue ─────────────────────────────────────────────────────────
@@ -702,6 +422,7 @@ private fun ActionQueueBlock(
     onAskNew: () -> Unit,
     onDismiss: (ActionItem) -> Unit,
 ) {
+    val ctx = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
 
         // Section header — title left, counts pill right
@@ -710,7 +431,7 @@ private fun ActionQueueBlock(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text       = "Action queue",
+                text       = "Action Queue",
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 17.sp,
@@ -744,6 +465,12 @@ private fun ActionQueueBlock(
                             item = item,
                             onDismiss = { onDismiss(item) },
                             onClick = {
+                                // Signing a contract and accepting an estimate or a
+                                // proposal happen on its own web page, as on the portal.
+                                val web = item.webUrl
+                                if (web != null && item.deepLink.type in WebOnlyLinks) {
+                                    openInBrowser(ctx, web); return@SwipeableActionRow
+                                }
                                 when (item.kind) {
                                     ActionKind.AhcDraftInProgress -> { onOpenAhcFunnel(); return@SwipeableActionRow }
                                     ActionKind.AhcReviewPending,
@@ -755,6 +482,8 @@ private fun ActionQueueBlock(
                                 when (item.deepLink.type) {
                                     DeepLinkType.Invoice      -> onOpenInvoice(item.deepLink.id)
                                     DeepLinkType.Contract     -> onOpenContract(item.deepLink.id)
+                                    DeepLinkType.Estimate,
+                                    DeepLinkType.Proposal     -> item.webUrl?.let { openInBrowser(ctx, it) }
                                     DeepLinkType.Consultation -> onOpenConsultation(item.deepLink.id)
                                     DeepLinkType.Case         -> onOpenCase(item.deepLink.id)
                                     DeepLinkType.Notice       -> onOpenNotice(item.deepLink.id)
@@ -770,6 +499,16 @@ private fun ActionQueueBlock(
                 }
             }
         }
+    }
+}
+
+/** Link types whose action is taken on the item's public web page. */
+private val WebOnlyLinks = setOf(DeepLinkType.Contract, DeepLinkType.Estimate, DeepLinkType.Proposal)
+
+private fun openInBrowser(ctx: Context, url: String) {
+    try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    catch (_: ActivityNotFoundException) {
+        Toast.makeText(ctx, "No browser is available to open this page.", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -916,17 +655,23 @@ private fun SwipeableActionRow(
     // re-emits without the swiped row, the state resets cleanly for whatever
     // row reuses the slot.
     key(itemKey) {
-        val dismissState = rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                if (value != SwipeToDismissBoxValue.Settled) { onDismiss(); true } else false
-            },
-            positionalThreshold = { total -> total * 0.45f },
-        )
-        SwipeToDismissBox(
-            state = dismissState,
-            backgroundContent = { DismissBackground(dismissState.dismissDirection) },
-        ) {
+        // A critical item (a reply due to a notice, an overdue invoice) stays
+        // until it is dealt with: it can't be swiped away.
+        if (item.severity == ActionSeverity.Critical) {
             ActionRow(item = item, onClick = onClick)
+        } else {
+            val dismissState = rememberSwipeToDismissBoxState(
+                confirmValueChange = { value ->
+                    if (value != SwipeToDismissBoxValue.Settled) { onDismiss(); true } else false
+                },
+                positionalThreshold = { total -> total * 0.45f },
+            )
+            SwipeToDismissBox(
+                state = dismissState,
+                backgroundContent = { DismissBackground(dismissState.dismissDirection) },
+            ) {
+                ActionRow(item = item, onClick = onClick)
+            }
         }
     }
 }
@@ -974,7 +719,8 @@ private fun ActionMetaChip(item: ActionItem) {
                 when {
                     daysOut < 0  -> "Overdue" to StatusDanger
                     daysOut == 0 -> "Today" to palette
-                    daysOut <= 7 -> "$daysOut days" to palette
+                    daysOut == 1 -> "Tomorrow" to palette
+                    daysOut <= 7 -> "$daysOut Days" to palette
                     else         -> due.format(DateTimeFormatter.ofPattern("d MMM")) to palette
                 }
             } else {
@@ -1005,6 +751,8 @@ private fun ActionMetaChip(item: ActionItem) {
 private fun kindIcon(kind: ActionKind): androidx.compose.ui.graphics.vector.ImageVector = when (kind) {
     ActionKind.InvoiceUnpaid, ActionKind.InvoiceOverdue -> Icons.AutoMirrored.Outlined.ReceiptLong
     ActionKind.ContractUnsigned                         -> Icons.Outlined.Edit
+    ActionKind.EstimateAwaitingDecision,
+    ActionKind.ProposalAwaitingDecision                 -> Icons.Outlined.Description
     ActionKind.DocRequestPending                        -> Icons.Outlined.UploadFile
     ActionKind.ConsultationAwaitingReply                -> Icons.Outlined.Forum
     ActionKind.InboundNoticeResponseDue                 -> Icons.Outlined.Gavel
@@ -1068,7 +816,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text       = "Ask your advocate",
+                    text       = "Ask On The Desk",
                     fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 11.5.sp,
@@ -1088,9 +836,10 @@ private fun NextEventBlock(
     onOpenCalendar: () -> Unit,
     onOpenConsultation: (String) -> Unit,
     onOpenCase: (String) -> Unit,
+    onOpenVideoLobby: (String) -> Unit,
 ) {
     SectionHeader(
-        title = "Next event",
+        title = "Next Event",
         actionLabel = "Calendar",
         onAction = onOpenCalendar,
     )
@@ -1100,6 +849,8 @@ private fun NextEventBlock(
     }
     val ctx = LocalContext.current
     val isHearing = event is NextEvent.Hearing
+    // Text on the strip reads on its soft fill in light and dark alike.
+    val stripPalette = if (isHearing) StatusOngoing else StatusSettled
 
     Surface(
         color  = Surface1,
@@ -1112,7 +863,7 @@ private fun NextEventBlock(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(if (isHearing) SlateSolid else VerdantSolid)
+                    .background(stripPalette.softBg)
                     .padding(horizontal = 15.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1120,7 +871,7 @@ private fun NextEventBlock(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         if (isHearing) Icons.Outlined.AccountBalance else Icons.Outlined.Videocam,
-                        null, tint = Color.White, modifier = Modifier.size(17.dp),
+                        null, tint = stripPalette.softText, modifier = Modifier.size(17.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
@@ -1129,10 +880,14 @@ private fun NextEventBlock(
                         fontWeight = FontWeight.Bold,
                         fontSize   = 11.sp,
                         letterSpacing = 1.1.sp,
-                        color      = Color.White,
+                        color      = stripPalette.softText,
                     )
                 }
-                CountdownChip(daysOut = (event.date.toEpochDay() - LocalDate.now().toEpochDay()).toInt(), event = event)
+                CountdownChip(
+                    daysOut = (event.date.toEpochDay() - LocalDate.now().toEpochDay()).toInt(),
+                    event   = event,
+                    color   = stripPalette.softText,
+                )
             }
             // Body
             Column(modifier = Modifier.padding(15.dp)) {
@@ -1145,10 +900,11 @@ private fun NextEventBlock(
                         letterSpacing = (-0.32).sp,
                         color      = PrimaryText,
                     )
-                    if (event.time != null) {
+                    val time = event.time
+                    if (time != null) {
                         Spacer(Modifier.width(9.dp))
                         Text(
-                            text       = event.time!!.format(DateTimeFormatter.ofPattern("h:mm a")),
+                            text       = time.format(DateTimeFormatter.ofPattern("h:mm a")),
                             fontFamily = Inter,
                             fontWeight = FontWeight.Medium,
                             fontSize   = 14.sp,
@@ -1197,42 +953,45 @@ private fun NextEventBlock(
                 when (event) {
                     is NextEvent.Hearing -> Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         EventActionButton(
-                            label = "View case",
+                            label = "View Case",
                             primary = true,
                             modifier = Modifier.weight(1f),
                             onClick = { onOpenCase(event.caseId.toString()) },
                         )
                         EventActionButton(
-                            label = "Directions",
+                            label = "Add To Calendar",
                             primary = false,
-                            icon = Icons.Outlined.Directions,
+                            icon = Icons.Outlined.CalendarMonth,
                             onClick = { launchCalendarInsert(ctx, event, withAlarm = false) },
                         )
                     }
                     is NextEvent.Appointment -> Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        val cid = event.consultationId?.toString()
+                        // The call opens through the video lobby, and only once
+                        // the server says it can be joined; until then the
+                        // appointment's consultation holds its details.
+                        if (event.isJoinable && cid != null) {
+                            EventActionButton(
+                                label = "Join Call",
+                                verdant = true,
+                                icon = Icons.Outlined.Videocam,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onOpenVideoLobby(cid) },
+                            )
+                        } else if (cid != null) {
+                            EventActionButton(
+                                label = "View Details",
+                                primary = true,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onOpenConsultation(cid) },
+                            )
+                        }
                         EventActionButton(
-                            label = "Join call",
-                            verdant = true,
-                            icon = Icons.Outlined.Videocam,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                val link = event.meetLink
-                                if (!link.isNullOrBlank()) {
-                                    try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }
-                                    catch (_: ActivityNotFoundException) {
-                                        Toast.makeText(ctx, "No app can open the Meet link.", Toast.LENGTH_SHORT).show()
-                                    }
-                                } else if (event.consultationId != null) {
-                                    onOpenConsultation(event.consultationId.toString())
-                                }
-                            },
-                        )
-                        EventActionButton(
-                            label = "Reschedule",
+                            label = "Add To Calendar",
                             primary = false,
-                            onClick = {
-                                event.consultationId?.let { onOpenConsultation(it.toString()) }
-                            },
+                            icon = Icons.Outlined.CalendarMonth,
+                            modifier = if (cid == null) Modifier.weight(1f) else Modifier,
+                            onClick = { launchCalendarInsert(ctx, event, withAlarm = false) },
                         )
                     }
                 }
@@ -1242,37 +1001,37 @@ private fun NextEventBlock(
 }
 
 @Composable
-private fun CountdownChip(daysOut: Int, event: NextEvent) {
+private fun CountdownChip(daysOut: Int, event: NextEvent, color: Color) {
     val now = LocalDateTime.now()
     val eventDt = event.date.atTime(event.time ?: LocalTime.of(9, 0))
     val label = when {
-        daysOut < 0 -> "past"
+        daysOut < 0 -> "Past"
         daysOut == 0 -> {
             val mins = Duration.between(now, eventDt).toMinutes()
             when {
-                mins in 1..59 -> "in $mins min"
-                mins <= 0     -> "now"
-                else          -> "today"
+                mins in 1..59 -> "In $mins Min"
+                mins <= 0     -> "Now"
+                else          -> "Today"
             }
         }
-        daysOut == 1 -> "tomorrow"
-        else         -> "in $daysOut days"
+        daysOut == 1 -> "Tomorrow"
+        else         -> "In $daysOut Days"
     }
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White.copy(alpha = 0.16f))
+            .background(color.copy(alpha = 0.10f))
             .padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Schedule, null, tint = Color.White, modifier = Modifier.size(13.dp))
+        Icon(Icons.Outlined.Schedule, null, tint = color, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(5.dp))
         Text(
             text       = label,
             fontFamily = Inter,
             fontSize   = 11.sp,
             fontWeight = FontWeight.Medium,
-            color      = Color.White,
+            color      = color,
         )
     }
 }
@@ -1287,11 +1046,15 @@ private fun EventActionButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
     val bg = when {
-        verdant -> VerdantSolid
+        verdant -> StatusSettled.softBg
         primary -> AccentInk
         else    -> Surface1
     }
-    val fg = if (primary || verdant) Color.White else PrimaryText
+    val fg = when {
+        verdant -> StatusSettled.softText
+        primary -> InverseText
+        else    -> PrimaryText
+    }
     val borderMod = if (!primary && !verdant) Modifier.border(1.dp, BorderColor, RoundedCornerShape(8.dp)) else Modifier
     Row(
         modifier = modifier
@@ -1329,7 +1092,7 @@ private fun NextEventEmptyCard() {
     ) {
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp)) {
             Text(
-                text       = "No hearings scheduled.",
+                text       = "Nothing Scheduled",
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 16.sp,
@@ -1338,7 +1101,7 @@ private fun NextEventEmptyCard() {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text  = "Your advocate will set one when needed.",
+                text  = "Your next hearing or appointment appears here once it is listed.",
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 12.5.sp),
                 color = SecondaryText,
             )
@@ -1362,371 +1125,6 @@ private fun formatEventDate(date: LocalDate): String {
         0L -> "Today"
         1L -> "Tomorrow"
         else -> date.format(DateTimeFormatter.ofPattern("EEE, d MMM"))
-    }
-}
-
-// Removed: a dedicated home balance/outstanding card ("BalanceBlock"). Pending
-// and overdue invoices are already surfaced as Action Queue items, so a separate
-// home balance section was redundant. Individual invoices open via the queue.
-
-// ── 4. Chamber (digital office) ─────────────────────────────────────────────
-//
-// Client-first hero card per the "Client Chamber.html" Lexcore redesign:
-// one advocate at a time as a calm welcome, not a list of doors. The card
-// surfaces the *primary* advocate (the first row from the chamber roster) —
-// for multi-advocate clients a "+N more advocates" link sits below the CTA
-// so they can still reach the full list via the dedicated Chamber tab.
-
-@Composable
-internal fun ChamberOpenBlock(chamber: ChamberState, onWalkIn: () -> Unit, onOpenLanding: (Int?) -> Unit, showHeading: Boolean = true) {
-    val hero = chamber.advocates.firstOrNull { !it.isBusy } ?: chamber.advocates.firstOrNull()
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        if (showHeading) {
-            ChamberSectionHeading(label = "Talk to your advocate", meta = "DIGITAL OFFICE")
-            Spacer(Modifier.height(10.dp))
-        }
-        ChamberHeroCard(
-            onOpenLanding   = { onOpenLanding(hero?.staffId) },
-            statusPillText  = "Open now",
-            statusPillColor = VerdantSolid,
-            statusPillLive  = true,
-            advocate        = hero,
-            welcome         = "We're here when you need us.",
-            availability    = if (hero?.isBusy == true) {
-                "${hero.name} is in another consult · ~${hero.etaMinutes.coerceAtLeast(2)} min"
-            } else "Available now · talk in ~2 min",
-            availColor      = if (hero?.isBusy == true) InkMuted else VerdantSolid,
-            reassure        = if (chamber.sessionFee > 0)
-                "₹${"%,d".format(chamber.sessionFee.toLong())} for an unhurried ${chamber.sessionCapMinutes} minutes — private and on the record."
-            else "Your first consultation is free and completely private. Walk in whenever you're ready — no appointment, no card.",
-            primaryLabel    = if (chamber.sessionFee > 0) "Walk in now" else "Walk in now · it's free",
-            primaryIsClaret = true,
-            primaryLeading  = null,
-            primaryTrailing = Icons.AutoMirrored.Outlined.ArrowForward,
-            onPrimary       = onWalkIn,
-            extraAdvocates  = (chamber.advocates.size - 1).coerceAtLeast(0),
-        )
-    }
-}
-
-@Composable
-internal fun ChamberClosedBlock(chamber: ChamberState, onOpenLanding: (Int?) -> Unit, showHeading: Boolean = true, onAskInstead: () -> Unit = {}) {
-    val hero = chamber.advocates.firstOrNull()
-    val opensHint = chamber.hours.ifBlank { "9:00 AM IST" }
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        if (showHeading) {
-            ChamberSectionHeading(label = "Talk to your advocate", meta = "DIGITAL OFFICE")
-            Spacer(Modifier.height(10.dp))
-        }
-        ChamberHeroCard(
-            onOpenLanding   = { onOpenLanding(hero?.staffId) },
-            statusPillText  = "Closed now",
-            statusPillColor = TertiaryText,
-            statusPillLive  = false,
-            advocate        = hero,
-            welcome         = "We're back $opensHint.",
-            availability    = "Opens $opensHint",
-            availColor      = InkMuted,
-            availIcon       = Icons.Outlined.Bedtime,
-            // "Notify me" used to sit here, wired to nothing. Closed, the
-            // useful thing is the written route: a consultation, answered
-            // when the advocate is back.
-            reassure        = "Walk-in only — drop by during chamber hours, or write to your advocate now and they will answer.",
-            primaryLabel    = "Ask your advocate instead",
-            primaryIsClaret = true,
-            primaryLeading  = null,
-            primaryTrailing = Icons.AutoMirrored.Outlined.ArrowForward,
-            onPrimary       = onAskInstead,
-            extraAdvocates  = 0,
-            closed          = true,
-        )
-    }
-}
-
-@Composable
-private fun ChamberSectionHeading(label: String, meta: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text       = label,
-            fontFamily = Inter,
-            fontWeight = FontWeight.SemiBold,
-            fontSize   = 18.sp,
-            letterSpacing = (-0.27).sp,
-            color      = PrimaryText,
-            modifier   = Modifier.weight(1f),
-        )
-        Text(
-            text       = meta,
-            fontFamily = Inter,
-            fontSize   = 10.5.sp,
-            letterSpacing = 0.5.sp,
-            color      = TertiaryText,
-        )
-    }
-}
-
-@Composable
-private fun ChamberHeroCard(
-    onOpenLanding: () -> Unit,
-    statusPillText: String,
-    statusPillColor: Color,
-    statusPillLive: Boolean,
-    advocate: ChamberAdvocate?,
-    welcome: String,
-    availability: String,
-    availColor: Color,
-    availIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
-    reassure: String,
-    primaryLabel: String,
-    primaryIsClaret: Boolean,
-    primaryLeading: androidx.compose.ui.graphics.vector.ImageVector?,
-    primaryTrailing: androidx.compose.ui.graphics.vector.ImageVector?,
-    onPrimary: () -> Unit,
-    extraAdvocates: Int,
-    closed: Boolean = false,
-) {
-    Surface(
-        color    = Surface1,
-        border   = BorderStroke(1.dp, BorderColor),
-        shape    = RoundedCornerShape(12.dp),
-        shadowElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(vertical = 14.dp)) {
-            // Top eyebrow row — "DIGITAL OFFICE" + status pill. Tap opens
-            // the advocate's Digital Office landing page.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenLanding)
-                    .padding(horizontal = 16.dp, vertical = 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text       = "DIGITAL OFFICE",
-                    fontFamily = Inter,
-                    fontSize   = 10.sp,
-                    letterSpacing = 1.4.sp,
-                    color      = TertiaryText,
-                    modifier   = Modifier.weight(1f),
-                )
-                ChamberStatusPill(text = statusPillText, color = statusPillColor, live = statusPillLive)
-            }
-            Spacer(Modifier.height(12.dp))
-
-            // Hero row — portrait + welcome + name + availability. The
-            // portrait itself opens the landing page so clients can read the
-            // "what you'll get" promises before deciding to walk in.
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.clickable(onClick = onOpenLanding)) {
-                    ChamberHeroPortrait(advocate = advocate, closed = closed)
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text       = welcome,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 20.sp,
-                        letterSpacing = (-0.4).sp,
-                        lineHeight = 23.sp,
-                        color      = PrimaryText,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    if (advocate != null) {
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = PrimaryText)) {
-                                    append(if (advocate.name.startsWith("Adv")) advocate.name else "Adv. ${advocate.name}")
-                                }
-                                append(" · your advocate")
-                            },
-                            fontFamily = Inter,
-                            fontSize   = 12.sp,
-                            color      = InkMuted,
-                            lineHeight = 16.sp,
-                            maxLines   = 2,
-                            overflow   = TextOverflow.Ellipsis,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (availIcon != null) {
-                            Icon(availIcon, null, tint = availColor, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(7.dp))
-                        } else {
-                            ChamberLivePip(color = availColor, animate = !closed && statusPillLive)
-                            Spacer(Modifier.width(7.dp))
-                        }
-                        Text(
-                            text       = availability,
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize   = 11.sp,
-                            color      = availColor,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Text(
-                text       = reassure,
-                fontFamily = Inter,
-                fontSize   = 12.5.sp,
-                lineHeight = 19.sp,
-                color      = InkMuted,
-                modifier   = Modifier.padding(horizontal = 16.dp),
-            )
-            Spacer(Modifier.height(14.dp))
-
-            // Primary CTA
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (primaryIsClaret) Claret else AccentInk)
-                    .clickable(onClick = onPrimary)
-                    .padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment     = Alignment.CenterVertically,
-            ) {
-                if (primaryLeading != null) {
-                    Icon(primaryLeading, null, tint = InverseText, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(
-                    text       = primaryLabel.uppercase(),
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 13.sp,
-                    letterSpacing = 0.5.sp,
-                    color      = InverseText,
-                )
-                if (primaryTrailing != null) {
-                    Spacer(Modifier.width(8.dp))
-                    Icon(primaryTrailing, null, tint = InverseText, modifier = Modifier.size(18.dp))
-                }
-            }
-
-            if (extraAdvocates > 0) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text       = "+ $extraAdvocates more on your panel — tap Chamber",
-                    fontFamily = Inter,
-                    fontSize   = 11.sp,
-                    color      = TertiaryText,
-                    modifier   = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChamberHeroPortrait(advocate: ChamberAdvocate?, closed: Boolean) {
-    val shape = RoundedCornerShape(12.dp)
-    Box(
-        modifier = Modifier
-            .size(width = 88.dp, height = 106.dp)
-            .border(1.dp, BorderColor, shape)
-            .clip(shape)
-            .background(if (advocate == null) Lex.colors.muted else if (closed) LlColor.SlateMid else SlateSolid),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            // Nobody at their desk: the office itself, not a question mark.
-            advocate == null -> com.legumlex.client.ui.brand.LegumMark(size = 40.dp, fillColor = Lex.colors.mutedForeground)
-            !advocate.avatarUrl.isNullOrBlank() -> AsyncImage(
-                model = advocate.avatarUrl,
-                contentDescription = advocate.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(shape),
-            )
-            else -> Text(
-                text       = (advocate.firstName.take(1) + advocate.lastName.take(1)).uppercase().ifBlank { "AD" },
-                fontFamily = Inter,
-                fontWeight = FontWeight.SemiBold,
-                fontSize   = 30.sp,
-                color      = Color.White,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChamberStatusPill(text: String, color: Color, live: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (live) {
-            ChamberLivePip(color = color, animate = true)
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(TertiaryText),
-            )
-        }
-        Spacer(Modifier.width(7.dp))
-        Text(
-            text       = text.uppercase(),
-            fontFamily = Inter,
-            fontWeight = FontWeight.Bold,
-            fontSize   = 10.5.sp,
-            letterSpacing = 0.65.sp,
-            color      = color,
-        )
-    }
-}
-
-@Composable
-private fun ChamberLivePip(color: Color, animate: Boolean) {
-    val transition = rememberInfiniteTransition(label = "chamber-pip")
-    val scale = if (animate) {
-        transition.animateFloat(
-            initialValue = 1f,
-            targetValue  = 2.6f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "chamber-pip-scale",
-        ).value
-    } else 1f
-    val alpha = if (animate) {
-        transition.animateFloat(
-            initialValue = 0.45f,
-            targetValue  = 0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "chamber-pip-alpha",
-        ).value
-    } else 0f
-    Box(contentAlignment = Alignment.Center) {
-        if (animate) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .scale(scale)
-                    .clip(CircleShape)
-                    .background(color.copy(alpha = alpha)),
-            )
-        }
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color),
-        )
     }
 }
 
@@ -1779,26 +1177,20 @@ private fun SectionHeader(
 private fun LiveSessionBanner(
     data: HomeData,
     onOpenConsultation: (String) -> Unit,
+    onOpenVideoLobby: (String) -> Unit,
     onOpenDigitalOffice: () -> Unit = {},
 ) {
     val context     = LocalContext.current
     val ev          = data.nextEvent as? NextEvent.Appointment
     val chamberOpen = data.chamber?.isOpen == true
 
-    // Advocate name resolution: when the chamber is open, the busy roster
-    // entry is a reliable signal — that's the advocate the client is with.
-    // When the chamber is CLOSED, the roster may be stale or empty and an
-    // `isBusy` flag there could refer to a different session entirely, so
-    // we don't trust it — fall back to the consultation tag or a generic.
-    val advName = if (chamberOpen) {
-        val busy = data.chamber?.advocates?.firstOrNull { it.isBusy }
-        busy?.name?.removePrefix("Adv. ")
-            ?: ev?.consultationTag?.takeIf { it.isNotBlank() }
-            ?: "Your advocate"
-    } else {
-        ev?.consultationTag?.takeIf { it.isNotBlank() }
-            ?: "Your advocate"
-    }
+    // The advocate's name only when the open chamber's roster shows who is
+    // busy; a closed chamber's roster may be stale. The consultation's tag is
+    // a matter label, never a name, so it is not used here.
+    val advocate = if (chamberOpen) {
+        data.chamber?.advocates?.firstOrNull { it.isBusy }?.name?.removePrefix("Adv. ")?.takeIf { it.isNotBlank() }
+    } else null
+    val headerName = advocate?.let { "Adv. $it" } ?: "Your advocate"
 
     // Copy must NOT say "joined chamber" when the chamber is closed —
     // a pre-scheduled video appointment legitimately runs outside chamber
@@ -1836,10 +1228,6 @@ private fun LiveSessionBanner(
         )
         Spacer(Modifier.width(12.dp))
         Row(modifier = Modifier.weight(1f)) {
-            // "Adv. " prefix only when we resolved a real personal name from
-            // the roster — the generic fallback "Your advocate" reads better
-            // without the honorific.
-            val headerName = if (advName == "Your advocate") advName else "Adv. $advName"
             Text(
                 text  = headerName,
                 style = MaterialTheme.typography.bodyMedium.copy(
@@ -1865,21 +1253,14 @@ private fun LiveSessionBanner(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.White)
                 .clickable {
-                    val link = ev?.meetLink
+                    // The call opens through the video lobby, as from the consultation.
+                    val cid = ev?.consultationId
                     when {
-                        !link.isNullOrBlank() -> {
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)))
-                            } catch (_: ActivityNotFoundException) {
-                                Toast.makeText(context, "No app can open the Meet link.", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        ev?.consultationId != null -> {
-                            onOpenConsultation(ev.consultationId.toString())
-                        }
+                        cid != null && ev?.isJoinable == true -> onOpenVideoLobby(cid.toString())
+                        cid != null                  -> onOpenConsultation(cid.toString())
                         else -> {
                             Toast.makeText(context,
-                                "Your session isn't ready yet — opening Digital Office.",
+                                "Your session isn't ready yet. Opening the Digital Office.",
                                 Toast.LENGTH_SHORT).show()
                             onOpenDigitalOffice()
                         }
@@ -1889,7 +1270,7 @@ private fun LiveSessionBanner(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text  = "Join now",
+                text  = "Join Now",
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontFamily    = Inter,
                     fontWeight    = FontWeight.SemiBold,
@@ -1899,7 +1280,7 @@ private fun LiveSessionBanner(
                 color = Color(0xFF18181B),
             )
             Spacer(Modifier.width(6.dp))
-            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = PrimaryText, modifier = Modifier.size(14.dp))
+            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Color(0xFF18181B), modifier = Modifier.size(14.dp))
         }
     }
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f)))
@@ -1915,45 +1296,31 @@ private fun HomeSkeleton() {
             .fillMaxSize()
             .background(LlColor.Paper),
     ) {
-        // Greeting
-        Row(
-            modifier = Modifier.fillMaxWidth().background(LlColor.Paper).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                ShimmerBlock(width = 80.dp, height = 11.dp)
-                Spacer(Modifier.height(7.dp))
-                ShimmerBlock(width = 200.dp, height = 22.dp)
-            }
-            repeat(3) { i ->
-                ShimmerBlock(width = 42.dp, height = 42.dp, shape = RoundedCornerShape(8.dp))
-                if (i < 2) Spacer(Modifier.width(8.dp))
-            }
+        // Date and greeting
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            ShimmerBlock(width = 150.dp, height = 11.dp)
+            Spacer(Modifier.height(7.dp))
+            ShimmerBlock(width = 220.dp, height = 24.dp)
         }
-        Spacer(Modifier.height(14.dp))
-        // Service highlights — two parallel placeholders
+        Spacer(Modifier.height(12.dp))
+        // Workspace tiles: one in view, the next one's edge showing
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            ShimmerBlock(modifier = Modifier.fillMaxWidth(0.88f), height = 188.dp, shape = RoundedCornerShape(12.dp))
+            ShimmerBlock(modifier = Modifier.weight(1f), height = 188.dp, shape = RoundedCornerShape(12.dp))
+        }
+        Spacer(Modifier.height(30.dp))
+        // Consultation figures, two by two
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             repeat(2) {
-                Surface(
-                    color = Surface1,
-                    border = BorderStroke(1.dp, BorderColor),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Column(modifier = Modifier.padding(15.dp)) {
-                        ShimmerBlock(width = 38.dp, height = 38.dp, shape = RoundedCornerShape(8.dp))
-                        Spacer(Modifier.height(12.dp))
-                        ShimmerBlock(modifier = Modifier.fillMaxWidth(0.8f), height = 14.dp)
-                        Spacer(Modifier.height(8.dp))
-                        ShimmerBlock(modifier = Modifier.fillMaxWidth(), height = 10.dp)
-                        Spacer(Modifier.height(4.dp))
-                        ShimmerBlock(modifier = Modifier.fillMaxWidth(0.7f), height = 10.dp)
-                        Spacer(Modifier.height(14.dp))
-                        ShimmerBlock(width = 80.dp, height = 11.dp)
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ShimmerBlock(modifier = Modifier.weight(1f), height = 96.dp, shape = RoundedCornerShape(12.dp))
+                    ShimmerBlock(modifier = Modifier.weight(1f), height = 96.dp, shape = RoundedCornerShape(12.dp))
                 }
             }
         }
@@ -1992,23 +1359,6 @@ private fun HomeSkeleton() {
                 ShimmerBlock(modifier = Modifier.fillMaxWidth(), height = 40.dp, shape = RoundedCornerShape(8.dp))
             }
         }
-        Spacer(Modifier.height(14.dp))
-        // Balance
-        SkSectionCard {
-            Column(modifier = Modifier.padding(16.dp)) {
-                ShimmerBlock(width = 80.dp, height = 10.dp)
-                Spacer(Modifier.height(10.dp))
-                ShimmerBlock(width = 160.dp, height = 28.dp)
-                Spacer(Modifier.height(11.dp))
-                ShimmerBlock(modifier = Modifier.fillMaxWidth(), height = 1.dp)
-                Spacer(Modifier.height(11.dp))
-                Row {
-                    ShimmerBlock(modifier = Modifier.weight(1f), height = 12.dp)
-                    Spacer(Modifier.width(12.dp))
-                    ShimmerBlock(width = 70.dp, height = 14.dp)
-                }
-            }
-        }
     }
 }
 
@@ -2039,7 +1389,7 @@ private fun ShimmerBlock(
 }
 
 @Composable
-private fun HomeError(message: String, onRetry: () -> Unit) {
+private fun HomeError(message: String, denied: Boolean, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2055,11 +1405,11 @@ private fun HomeError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = SecondaryText, modifier = Modifier.size(34.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("We can't reach Legum Lex right now", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = PrimaryText, textAlign = TextAlign.Center)
+        Text(if (denied) "Home Isn't Open To You Yet" else "We Can't Reach Legum Lex", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = PrimaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = Inter), color = SecondaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))
-        LegumSecondaryButton(text = "Try again", leadingIcon = Icons.Outlined.Refresh, onClick = onRetry, modifier = Modifier.widthIn(max = 280.dp))
+        LegumSecondaryButton(text = "Try Again", leadingIcon = Icons.Outlined.Refresh, onClick = onRetry, modifier = Modifier.widthIn(max = 280.dp))
     }
 }
 
@@ -2070,8 +1420,8 @@ private fun greetingForNow(): String {
     return when (hour) {
         in 5..11  -> "Good morning"
         in 12..16 -> "Good afternoon"
-        in 17..20 -> "Good evening"
-        else      -> "Good evening"
+        in 17..23 -> "Good evening"
+        else      -> "Hello"
     }
 }
 
@@ -2079,7 +1429,7 @@ private fun todayDateLabel(): String =
     LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", java.util.Locale.ENGLISH))
 
 // Opens the system "new calendar event" sheet (Google Calendar etc.),
-// pre-filled from a NextEvent. Used by Hearing → "Directions" (no alarm).
+// pre-filled from a NextEvent. Used by the event's "Add To Calendar" (no alarm).
 private fun launchCalendarInsert(context: Context, event: NextEvent, withAlarm: Boolean) {
     val zone  = ZoneId.systemDefault()
     val start = event.date.atTime(event.time ?: LocalTime.of(9, 0))

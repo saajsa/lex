@@ -55,9 +55,17 @@ class DocumentsRepository(
             val target    = File(targetDir, "${id}_$safeName")
             if (target.exists() && target.length() > 0) return@withContext target
 
-            val body = api.downloadDocument(id)
-            body.byteStream().use { input ->
-                target.outputStream().use { out -> input.copyTo(out) }
+            // Stream into a .part file and rename once it is whole, so a
+            // download cut off half-way is never served from the cache.
+            val part = File(targetDir, "${target.name}.part")
+            try {
+                val body = api.downloadDocument(id)
+                body.byteStream().use { input ->
+                    part.outputStream().use { out -> input.copyTo(out) }
+                }
+                if (!part.renameTo(target)) error("The download couldn't be saved.")
+            } finally {
+                part.delete()
             }
             target
         }

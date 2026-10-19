@@ -77,6 +77,12 @@ data class ProjectSettings(
     val createTasks: Boolean = false,
     val commentOnTasks: Boolean = false,
     val uploadFiles: Boolean = false,
+    val viewInvoices: Boolean = false,
+    val viewTaskComments: Boolean = false,
+    val viewTaskChecklistItems: Boolean = false,
+    val viewTaskAttachments: Boolean = false,
+    /** The client may start a discussion (the portal's open_discussions). */
+    val openDiscussions: Boolean = false,
 )
 
 data class ProjectCounts(
@@ -173,6 +179,10 @@ data class TaskDetail(
     val checklist: List<ChecklistItem>,
     val comments: List<TaskComment>,
     val assignees: List<String>,    // staff names only
+    /** The project lets the client comment on tasks (tasks/{id} `can_comment`); null when the server does not say. */
+    val canComment: Boolean? = null,
+    /** The firm shows task comments to the client (tasks/{id} `can_view_comments`); null when the server does not say. */
+    val canViewComments: Boolean? = null,
 )
 
 // --- Discussions ------------------------------------------------------------

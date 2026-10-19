@@ -17,7 +17,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import retrofit2.HttpException
+import com.legumlex.client.feature.consultations.friendlyMessage
 
 /**
  * Document-first AHC funnel state owner.
@@ -104,8 +106,13 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun abandon(thenNavigateHome: Boolean = false) = viewModelScope.launch {
         repo.abandon()
-        _state.value = State()
-        if (thenNavigateHome) _events.tryEmit(Event.NavigateToHome)
+            .onSuccess {
+                extractJob?.cancel()
+                _state.value = State()
+                _events.tryEmit(Event.Toast("The draft has been discarded."))
+                if (thenNavigateHome) _events.tryEmit(Event.NavigateToHome)
+            }
+            .onFailure { e -> _events.tryEmit(Event.Toast(e.friendlyMessage("The draft could not be discarded. Please try again."))) }
     }
 
     // -------------------------------------------------------------------------
@@ -117,7 +124,7 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
         val (name, size) = queryFileMeta(resolver, uri)
         val mime = resolver.getType(uri) ?: "application/octet-stream"
         if (size > 25L * 1024 * 1024) {
-            _events.tryEmit(Event.Toast("File exceeds 25 MB"))
+            _events.tryEmit(Event.Toast("The file is larger than 25 MB. Please choose a smaller file."))
             return@launch
         }
         val pendingId = UUID.randomUUID().toString()
@@ -140,8 +147,8 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(pending = it.pending.filterNot { p -> p.localId == pendingId }) }
                     hydrate(sess)
                 }
-                .onFailure { e -> markPendingFailed(pendingId, e.message) }
-        }.onFailure { e -> markPendingFailed(pendingId, e.message) }
+                .onFailure { e -> markPendingFailed(pendingId, e.friendlyMessage("The file could not be uploaded.")) }
+        }.onFailure { markPendingFailed(pendingId, "The file could not be read from this device.") }
     }
 
     fun removePending(localId: String) {
@@ -157,8 +164,8 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
         repo.advance()
             .onSuccess { sess ->
                 hydrate(sess)
-                // Server moved us into extracting — start the poll loop.
-                if (sess.currentStep == AhcStep.EXTRACTING) pollExtractingInternal()
+                // Server moved us into extracting — start the (single) poll.
+                if (sess.currentStep == AhcStep.EXTRACTING) pollExtracting()
             }
             .onFailure { handleFailure(it) }
         _state.update { it.copy(saving = false) }
@@ -168,18 +175,29 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
     // Step 2 — Extracting (poll until server transitions to confirm)
     // -------------------------------------------------------------------------
 
-    fun pollExtracting() = viewModelScope.launch { pollExtractingInternal() }
+    private var extractJob: Job? = null
 
-    private suspend fun pollExtractingInternal() {
-        var ticks = 0
-        while (true) {
-            val res = repo.status()
-            res.onSuccess { sess -> sess?.let { hydrate(it) } }
-            val now = _state.value.session?.currentStep
-            if (now != null && now != AhcStep.EXTRACTING) break
-            ticks++
-            _state.update { it.copy(processingSubStep = (ticks % 4) + 1) }
-            delay(3000)
+    /**
+     * One guarded poll: a second caller (screen re-entry, advance) joins the
+     * running one instead of starting another. Gives up after about three
+     * minutes with a message rather than spinning for ever.
+     */
+    fun pollExtracting() {
+        if (extractJob?.isActive == true) return
+        extractJob = viewModelScope.launch {
+            var ticks = 0
+            val maxTicks = 60            // 60 × 3 s ≈ 3 minutes
+            while (ticks < maxTicks) {
+                repo.status().onSuccess { sess -> sess?.let { hydrate(it) } }
+                val now = _state.value.session?.currentStep
+                if (now != null && now != AhcStep.EXTRACTING) return@launch
+                ticks++
+                _state.update { it.copy(processingSubStep = (ticks % 4) + 1) }
+                delay(3000)
+            }
+            _state.update {
+                it.copy(error = "Reading the document is taking longer than usual. Please check again in a few minutes.")
+            }
         }
     }
 
@@ -223,7 +241,7 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             .onFailure { e ->
-                _state.update { it.copy(payError = e.message ?: "The invoice could not be opened. Please try again.") }
+                _state.update { it.copy(payError = e.friendlyMessage("The invoice could not be opened. Please try again.")) }
             }
         _state.update { it.copy(paying = false) }
     }
@@ -231,7 +249,11 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
     /** Back from the browser, or "I Have Paid": read the check again. */
     fun checkPaid(asked: Boolean = false) = viewModelScope.launch {
         if (!_state.value.invoiceOpen) return@launch
-        repo.status().onSuccess { s -> s?.let(::hydrate) }
+        val read = repo.status().onSuccess { s -> s?.let(::hydrate) }
+        if (read.isFailure) {
+            if (asked) _state.update { it.copy(payError = read.exceptionOrNull()!!.friendlyMessage("The payment could not be checked. Please try again.")) }
+            return@launch
+        }
         if (_state.value.session?.currentStep == AhcStep.PAYMENT) {
             if (asked) _state.update { it.copy(payError = "The payment has not reached us yet. If you have just paid, give it a minute and try again.") }
         } else {
@@ -280,7 +302,7 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(expired = true) }
             return
         }
-        _state.update { it.copy(error = e.message ?: "Something went wrong") }
+        _state.update { it.copy(error = e.friendlyMessage()) }
     }
 
     private fun queryFileMeta(resolver: ContentResolver, uri: Uri): Pair<String, Long> {

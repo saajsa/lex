@@ -52,7 +52,23 @@ data class Hearing(
     val adjournmentReason: String?,
     val createdAt: LocalDateTime?,
     val history: List<HearingHistoryEntry> = emptyList(),
+    /** What happened at the hearing, as the advocate noted it. */
+    val description: String? = null,
+    /** "required" | "optional" | "not_required" | null. */
+    val clientAttendance: String? = null,
+    /** What the advocate has asked the client to bring or do, as written. */
+    val clientInstructions: String? = null,
+    /** Purpose of the next date (upcoming_purpose); never this hearing's own purpose. */
+    val nextPurpose: String? = null,
 )
+
+/** The client's attendance in plain words; null when the advocate hasn't set it. */
+fun attendanceLabel(raw: String?): String? = when (raw?.trim()?.lowercase()) {
+    "required" -> "Required"
+    "optional" -> "Optional"
+    "not_required", "not required" -> "Not Required"
+    else -> null
+}
 
 data class HearingHistoryEntry(
     val id: String,
@@ -61,4 +77,6 @@ data class HearingHistoryEntry(
     val status: HearingStatus,
     val adjournmentReason: String?,
     val createdAt: LocalDateTime?,
+    val description: String? = null,
+    val nextDate: LocalDate? = null,
 )

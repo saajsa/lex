@@ -84,7 +84,7 @@ fun CaseDocViewerScreen(
                         )
                         val pageCount = (state as? CaseDocViewerUiState.Ready)?.pages?.size
                         if (pageCount != null && pageCount > 1) {
-                            Text("$pageCount pages", style = MaterialTheme.typography.labelSmall, color = Zinc400)
+                            Text("$pageCount Pages", style = MaterialTheme.typography.labelSmall, color = Zinc400)
                         }
                     }
                 },
@@ -112,7 +112,7 @@ private fun ViewerLoadingC(inner: PaddingValues) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
             Spacer(Modifier.height(16.dp))
-            Text("Loading document…", color = Zinc400, style = MaterialTheme.typography.bodyMedium)
+            Text("Loading Document…", color = Zinc400, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

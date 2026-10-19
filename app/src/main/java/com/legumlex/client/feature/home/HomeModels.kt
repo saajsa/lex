@@ -1,27 +1,8 @@
 package com.legumlex.client.feature.home
 
-import androidx.compose.ui.graphics.vector.ImageVector
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-
-// Hearings & legacy types kept while migrating
-data class HearingPreview(
-    val countdownLabel: String,
-    val urgency: HearingUrgency,
-    val date: String,
-    val time: String,
-    val caseTitle: String,
-    val courtName: String,
-)
-
-enum class HearingUrgency { Today, Tomorrow, Soon, Later }
-
-data class ActivityItem(
-    val icon: ImageVector,
-    val title: String,
-    val timestamp: String,
-)
 
 // ── New home types ────────────────────────────────────────────────────────────
 
@@ -30,6 +11,8 @@ enum class ActionSeverity { Critical, Warning, Info }
 enum class ActionKind {
     InvoiceUnpaid, InvoiceOverdue,
     ContractUnsigned,
+    // Accepted or declined on the estimate's or proposal's own web page.
+    EstimateAwaitingDecision, ProposalAwaitingDecision,
     DocRequestPending,
     ConsultationAwaitingReply,
     InboundNoticeResponseDue,
@@ -43,7 +26,7 @@ enum class ActionKind {
     Unknown,
 }
 
-enum class DeepLinkType { Invoice, Contract, Consultation, Case, Notice, Task, Project, AhcFunnel, Agreement, Unknown }
+enum class DeepLinkType { Invoice, Contract, Estimate, Proposal, Consultation, Case, Notice, Task, Project, AhcFunnel, Agreement, Unknown }
 
 data class ActionItemDeepLink(val type: DeepLinkType, val id: String)
 
@@ -55,6 +38,8 @@ data class ActionItem(
     val severity: ActionSeverity,
     val dueAt: LocalDate?,
     val deepLink: ActionItemDeepLink,
+    /** The item's public web page (a hash link), where signing and accepting happen. */
+    val webUrl: String? = null,
 )
 
 data class ActionItemsBundle(
@@ -200,5 +185,6 @@ data class HomeData(
 sealed interface HomeUiState {
     data object Loading : HomeUiState
     data class Ready(val data: HomeData) : HomeUiState
-    data class Error(val message: String) : HomeUiState
+    /** [denied]: the server refused (403), so it is access, not the connection. */
+    data class Error(val message: String, val denied: Boolean = false) : HomeUiState
 }

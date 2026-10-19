@@ -12,19 +12,12 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
-    <!-- Hearing reminders. SCHEDULE_EXACT_ALARM is normal on API ≤31 and
-         requires user grant on API 32+; we fall back to inexact alarms when
-         not granted (acceptable for "morning of" / "evening before"). -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
         android:name=".LegumLexApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -94,14 +87,6 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-
-        <!-- Hearing-reminder broadcast receiver. Fires when an AlarmManager
-             alarm reaches its target time; posts a system notification that
-             deep-links back to the hearing detail. Not exported — only the
-             app's own scheduled alarms can trigger it. -->
-        <receiver
-            android:name=".feature.reminders.HearingReminderReceiver"
-            android:exported="false" />
 
         <!-- Serves downloaded documents to external viewer apps via a content:// URI. -->
         <provider

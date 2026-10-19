@@ -17,7 +17,7 @@ class ProfileRepository(private val api: ApiService) {
     /** A code to the number, on WhatsApp. Returns (ref, number as shown, resend seconds). */
     suspend fun requestCode(number: String): Result<Triple<String, String, Int>> = call {
         val r = api.profilePhone("request", number = number.trim())
-        Triple(r["ref"] as String, (r["to"] as? String).orEmpty(), (r["resend_after"] as? Number)?.toInt() ?: 60)
+        Triple(r["ref"] as? String ?: error("The code could not be sent. Please try again."), (r["to"] as? String).orEmpty(), (r["resend_after"] as? Number)?.toInt() ?: 60)
     }
 
     /** (state, canSms) of the code sent. */

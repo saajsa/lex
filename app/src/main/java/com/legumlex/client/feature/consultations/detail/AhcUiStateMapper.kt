@@ -17,6 +17,7 @@ import com.legumlex.client.ahc.model.SubmittedDoc
 import com.legumlex.client.ahc.theme.FindingSeverity
 import com.legumlex.client.feature.consultations.AhcAnalysis
 import com.legumlex.client.feature.consultations.Consultation
+import com.legumlex.client.feature.consultations.awaitingPayment
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -110,7 +111,7 @@ private fun docOf(c: Consultation, ahc: AhcAnalysis?, hasDocument: Boolean) = Su
 /** Submitted → Reviewed by Lex → Released / Escalated. Only stamped steps shown. */
 private fun activityOf(c: Consultation, ahc: AhcAnalysis?): List<ActivityEntry> = buildList {
     c.createdAt?.let { add(ActivityEntry("Submitted for review", it.atStamp(), DotState.DONE)) }
-    ahc?.processedAt?.let { add(ActivityEntry("Reviewed by Lex", it.atStamp(), DotState.DONE)) }
+    ahc?.processedAt?.let { add(ActivityEntry("Analysis Prepared", it.atStamp(), DotState.DONE)) }
     if (c.isEscalated) {
         c.escalatedAt?.let { add(ActivityEntry("Escalated to a consultation", it.atStamp(), DotState.DONE)) }
     } else {
@@ -133,7 +134,9 @@ fun buildAhcUiState(
 ): AhcUiState {
     val c = consultation
     val name = agreementNameOf(c, ahc)
-    val released = c.releasedAt != null || (ahc?.riskScore != null)
+    // Released is the server's word (released / released_at): a score exists
+    // before the advocate releases the report and must not reveal it early.
+    val released = c.releasedAt != null || ahc?.released == true
 
     // Still fetching the AHC bundle for an otherwise-undetermined consultation.
     if (ahcLoading && ahc == null && c.closedAt == null && !c.isEscalated &&
@@ -193,8 +196,10 @@ fun buildAhcUiState(
             doc = docOf(c, ahc, hasDocument),
             advocate = advocateOf(c),
             submittedAtLabel = c.createdAt?.atTime() ?: "",
-            etaLabel = c.createdAt?.plusMinutes(30)?.atTime()?.let { "$it IST" } ?: "",
-            remainingSeconds = remainingSeconds,
+            // Unpaid: the review has not begun, so no clock runs yet.
+            etaLabel = if (c.awaitingPayment()) "After Payment"
+                       else c.createdAt?.plusMinutes(30)?.atTime()?.let { "$it IST" } ?: "",
+            remainingSeconds = if (c.awaitingPayment()) 30 * 60 else remainingSeconds,
         )
     }
 }
@@ -220,7 +225,7 @@ private fun closedStateOf(c: Consultation, ahc: AhcAnalysis?, hasDocument: Boole
             "Closed" to "This Agreement Check has been closed."
     }
 
-    val released = c.releasedAt != null || ahc?.riskScore != null
+    val released = c.releasedAt != null || ahc?.released == true
     val score = ahc?.riskScore ?: c.riskScore
     val level = appLevelToAhc(ahc?.riskLevel ?: c.riskLevel, score)
 

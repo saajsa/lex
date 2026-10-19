@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Description
@@ -119,8 +120,11 @@ private fun Ready(state: InvoicesUiState.Ready, onOpenInvoice: (String) -> Unit)
     val billed = billable.sumOf { it.total }
     val paidTotal = billable.sumOf { it.total - it.owed() }
     val overdue = all.filter { it.status == InvoiceStatus.OVERDUE }
+    // The list carries no payment dates, so this is what has been paid on this
+    // year's invoices — said as such, not as money received this year.
     val year = java.time.LocalDate.now().year
     val paidThisYear = billable.filter { it.date?.year == year }.sumOf { it.total - it.owed() }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LazyColumn(
         Modifier.fillMaxSize().background(Lex.colors.background),
@@ -139,12 +143,19 @@ private fun Ready(state: InvoicesUiState.Ready, onOpenInvoice: (String) -> Unit)
                         chip = null)
                 }
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Paid This Year", formatMoney(paidThisYear, sym), "Settled since 1 January", Modifier.weight(1f).fillMaxHeight())
+                    StatCard("Paid On $year Invoices", formatMoney(paidThisYear, sym), "Paid against invoices issued since 1 January", Modifier.weight(1f).fillMaxHeight())
                     StatCard("Billed In Total", formatMoney(billed, sym), "Every invoice raised on your account", Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
-        item("balance") { BalanceCard(state.outstandingTotal, paidTotal, billed, sym, overdue.isEmpty()) }
+        item("balance") { BalanceCard(state.outstandingTotal, paidTotal, billed, sym, overdue.isEmpty(), state.outstandingByIssuer) }
+        item("statement") {
+            StatementLink {
+                runCatching {
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(siteUrl("mylex/statement"))))
+                }.onFailure { android.widget.Toast.makeText(context, "No browser here can open the statement.", android.widget.Toast.LENGTH_LONG).show() }
+            }
+        }
         item("list") {
             LexCard(title = "${all.size} ${if (all.size == 1) "Invoice" else "Invoices"}") {
                 Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
@@ -166,13 +177,24 @@ private fun Ready(state: InvoicesUiState.Ready, onOpenInvoice: (String) -> Unit)
 
 /** The dark balance card: what is owed, and a bar of what is paid against what is billed. */
 @Composable
-private fun BalanceCard(outstanding: Double, paid: Double, billed: Double, sym: String, nothingOverdue: Boolean) {
+private fun BalanceCard(outstanding: Double, paid: Double, billed: Double, sym: String, nothingOverdue: Boolean, byIssuer: List<Pair<String, Double>>) {
     androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.theme.LocalLexColors provides com.legumlex.client.ui.theme.DarkLexColors) {
         LexCard(container = androidx.compose.ui.graphics.Color(0xFF0C0C0E), borderColor = Lex.colors.input) {
             Column(Modifier.padding(16.dp)) {
                 Eyebrow("Outstanding Balance")
                 Spacer(Modifier.height(6.dp))
                 Text(formatMoney(outstanding, sym), style = MaterialTheme.typography.headlineMedium, color = Lex.colors.foreground)
+                // Each business bills and is paid on its own, so say what each is owed.
+                if (byIssuer.size > 1) {
+                    Spacer(Modifier.height(10.dp))
+                    byIssuer.forEach { (name, owed) ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text(name, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
+                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(formatMoney(owed, sym), style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground)
+                        }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Lex.colors.secondary)) {
                     Box(Modifier.fillMaxWidth(if (billed > 0) (paid / billed).toFloat().coerceIn(0f, 1f) else 0f).height(6.dp)
@@ -196,16 +218,35 @@ private fun BalanceCard(outstanding: Double, paid: Double, billed: Double, sym: 
     }
 }
 
+/** The web's statement of account, opened in the browser (it asks for the portal sign-in). */
+@Composable
+private fun StatementLink(onOpen: () -> Unit) {
+    LexCard(onClick = onOpen) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Description, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Statement Of Account", style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+                Text("Every invoice and payment on one statement, on the website. Sign in there with your portal account.",
+                    style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
 // --- severity ---------------------------------------------------------------
 
-private data class LSev(val mid: Color, val soft: Color)
+/** [mid] fills stripes and icons; [text] is the readable shade for words. */
+private data class LSev(val mid: Color, val soft: Color, val text: Color)
 
 @androidx.compose.runtime.Composable private fun lsev(s: InvoiceStatus): LSev = when (s) {
-    InvoiceStatus.OVERDUE -> LSev(LlColor.ClaretMid, LlColor.ClaretSoft)
-    InvoiceStatus.UNPAID  -> LSev(LlColor.AmberMid, LlColor.AmberSoft)
-    InvoiceStatus.PARTIAL -> LSev(LlColor.SlateMid, LlColor.SlateSoft)
-    InvoiceStatus.PAID    -> LSev(LlColor.VerdantMid, LlColor.VerdantSoft)
-    else                  -> LSev(LlColor.InkMuted, LlColor.Paper2)
+    InvoiceStatus.OVERDUE -> LSev(LlColor.ClaretMid, LlColor.ClaretSoft, LlColor.Claret)
+    InvoiceStatus.UNPAID  -> LSev(LlColor.AmberMid, LlColor.AmberSoft, LlColor.Amber)
+    InvoiceStatus.PARTIAL -> LSev(LlColor.SlateMid, LlColor.SlateSoft, LlColor.Slate)
+    InvoiceStatus.PAID    -> LSev(LlColor.VerdantMid, LlColor.VerdantSoft, LlColor.Verdant)
+    else                  -> LSev(LlColor.InkMuted, LlColor.Paper2, LlColor.InkMuted)
 }
 
 private fun rowIcon(s: InvoiceStatus): ImageVector = when (s) {
@@ -222,7 +263,7 @@ private fun rowHint(inv: Invoice): String? {
     return when (inv.status) {
         InvoiceStatus.OVERDUE -> {
             val d = inv.dueDate?.let { ChronoUnit.DAYS.between(it, today).toInt() } ?: 0
-            "$d ${if (d == 1) "day" else "days"} overdue"
+            if (d >= 1) "$d ${if (d == 1) "day" else "days"} overdue" else "overdue"
         }
         InvoiceStatus.UNPAID -> inv.dueDate?.let {
             val d = ChronoUnit.DAYS.between(today, it).toInt()
@@ -276,7 +317,7 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
                 }
                 rowHint(inv)?.let { h ->
                     if (inv.date != null) Text(" · ", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
-                    Text(h, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 10.5.sp, color = sev.mid)
+                    Text(h, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 10.5.sp, color = sev.text)
                 }
             }
         }
@@ -299,9 +340,9 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
 @Composable
 private fun EmptyState(filter: InvFilter) {
     val (title, body) = when (filter) {
-        InvFilter.PAID        -> "No paid invoices" to "Paid invoices will appear here once settled."
-        InvFilter.OUTSTANDING -> "Nothing outstanding" to "Every invoice is settled. New invoices from the chamber will appear here the moment they're issued."
-        InvFilter.ALL         -> "No invoices yet" to "When your advocate raises an invoice on your account, it'll appear here."
+        InvFilter.PAID        -> "No Paid Invoices" to "Paid invoices will appear here once settled."
+        InvFilter.OUTSTANDING -> "Nothing Outstanding" to "Every invoice is settled. New invoices from the chamber will appear here the moment they're issued."
+        InvFilter.ALL         -> "No Invoices Yet" to "When your advocate raises an invoice on your account, it'll appear here."
     }
     Column(
         Modifier.fillMaxWidth().clip(LlShape.Card).background(LlColor.Surface)
@@ -377,7 +418,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("Can't load your invoices", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Can't Load Your Invoices", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,
@@ -390,7 +431,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             Row(Modifier.padding(horizontal = 24.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Try again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
+                Text("Try Again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
             }
         }
     }

@@ -96,7 +96,8 @@ fun LoginScreen(
 
         Spacer(Modifier.height(spacing.s8))
 
-        Text("Welcome back.", style = MaterialTheme.typography.headlineMedium)
+        // Not "Welcome back": many arrive here for the first time.
+        Text("Sign In To Legum Lex", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(spacing.s2))
         Text(
             when (view) {
@@ -250,18 +251,18 @@ private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean) {
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
-    // Debug-only quick-fill so we don't keep typing creds during dev.
-    // BuildConfig.DEBUG is wiped in release builds, so this button + the
-    // hardcoded string both get stripped from the production APK.
-    if (BuildConfig.DEBUG) {
+    // Debug-only quick-fill so we don't keep typing creds during dev. The
+    // credentials come from local.properties (DEV_LOGIN_EMAIL/_PASSWORD), never
+    // from source; without them, and in every release build, there's no button.
+    if (BuildConfig.DEBUG && BuildConfig.DEV_LOGIN_EMAIL.isNotBlank()) {
         TextButton(
             onClick = {
-                email = "saaj.asingha@legumlex.com"
-                password = "test1234"
+                email = BuildConfig.DEV_LOGIN_EMAIL
+                password = BuildConfig.DEV_LOGIN_PASSWORD
             },
             colors  = ButtonDefaults.textButtonColors(contentColor = SecondaryText),
         ) {
-            Text("DEV · LOGIN AS ADMIN",
+            Text("Dev · Fill Test Sign-In",
                 style = MaterialTheme.typography.labelMedium)
         }
         Spacer(Modifier.height(spacing.s2))
@@ -316,7 +317,7 @@ private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean) {
 
     LegumPrimaryButton(
         text    = if (busy) "Signing in…" else "Sign In",
-        onClick = { vm.onEmailLogin(email.trim(), password.trim()) },
+        onClick = { vm.onEmailLogin(email.trim(), password) },
         enabled = email.isNotBlank() && password.isNotBlank() && !busy,
     )
 }

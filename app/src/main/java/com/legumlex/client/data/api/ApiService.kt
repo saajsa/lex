@@ -131,6 +131,13 @@ interface ApiService {
         @Field("key") key: String,
     ): Map<String, Any?>
 
+    // Undo a swipe-to-dismiss: the item returns to action_items.
+    @FormUrlEncoded
+    @POST("dashboard/action_restore")
+    suspend fun restoreActionItem(
+        @Field("key") key: String,
+    ): Map<String, Any?>
+
     @GET("dashboard/next_event")
     suspend fun dashboardNextEvent(): Map<String, Any?>
 

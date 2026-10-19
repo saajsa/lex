@@ -61,6 +61,8 @@ private sealed interface CalendarUiState {
     data object Loading : CalendarUiState
     data class Ready(val hearings: List<Hearing>) : CalendarUiState
     data class Error(val message: String) : CalendarUiState
+    /** The server refused: the contact's account doesn't include matters. */
+    data object Denied : CalendarUiState
 }
 
 private class CalendarViewModel(app: Application) : AndroidViewModel(app) {
@@ -75,10 +77,11 @@ private class CalendarViewModel(app: Application) : AndroidViewModel(app) {
         repo.list()
             .onSuccess { _state.value = CalendarUiState.Ready(it) }
             .onFailure { e ->
+                if (e is HttpException && e.code() == 403) { _state.value = CalendarUiState.Denied; return@onFailure }
                 _state.value = CalendarUiState.Error(
                     when (e) {
                         is HttpException -> when (e.code()) {
-                            401, 403 -> "Your session expired. Sign in again."
+                            401 -> "Your session expired. Sign in again."
                             in 500..599 -> "Server error. Try again in a moment."
                             else -> "Couldn't load the calendar (HTTP ${e.code()})."
                         }
@@ -117,6 +120,10 @@ fun CalendarScreen(
                 when (val s = state) {
                     is CalendarUiState.Loading -> CalendarSkeleton()
                     is CalendarUiState.Error   -> CalendarError(s.message, vm::load)
+                    is CalendarUiState.Denied  -> com.legumlex.client.ui.components.PermissionEmptyState(
+                        feature = "Calendar",
+                        message = "Your account doesn't include court matters, so there are no hearings to show. Ask the firm if you expected to see them.",
+                    )
                     is CalendarUiState.Ready   -> CalendarBody(s.hearings, onOpenHearing)
                 }
             }
@@ -417,7 +424,7 @@ private fun CalendarError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.ErrorOutline, null, tint = StatusDanger.solid, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(spacing.s4))
-        Text("Couldn't load the calendar",
+        Text("Couldn't Load The Calendar",
             style = MaterialTheme.typography.headlineSmall,
             color = PrimaryText,
             textAlign = TextAlign.Center)

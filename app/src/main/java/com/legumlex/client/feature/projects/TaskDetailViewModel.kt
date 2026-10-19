@@ -20,8 +20,12 @@ sealed interface TaskDetailUiState {
 class TaskDetailViewModel(
     app: Application,
     val taskId: String,
-    val canComment: Boolean = true,
+    /** The route's hint, used only until the task says itself (tasks/{id} `can_comment`). */
+    private val canCommentHint: Boolean = true,
 ) : AndroidViewModel(app) {
+    /** Whether the client may comment: the task's own answer, else the route's hint. */
+    fun canComment(task: TaskDetail): Boolean = task.canComment ?: canCommentHint
+
     private val repo = ProjectsRepository(ApiClient.get(app))
 
     private val _state = MutableStateFlow<TaskDetailUiState>(TaskDetailUiState.Loading)
@@ -59,7 +63,7 @@ class TaskDetailViewModel(
                         else cur
                     }
                 }
-                .onFailure { _actionError.value = "Couldn't post your comment. Try again." }
+                .onFailure { e -> _actionError.value = serverMessage(e, "Couldn't post your comment. Try again.") }
             _posting.value = false
         }
     }
@@ -68,7 +72,8 @@ class TaskDetailViewModel(
 
     private fun loadErr(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401, 403    -> "Your session expired. Sign in again."
+            401         -> "Your session expired. Sign in again."
+            403         -> forbiddenMessage(e, "Your account does not include this project's tasks. Ask the firm to give you access.")
             404         -> "This task is no longer available."
             in 500..599 -> "Server error. Try again in a moment."
             else        -> "Couldn't load this task (HTTP ${e.code()})."

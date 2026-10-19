@@ -28,6 +28,11 @@ val beamsInstanceId: String = localProps.getProperty("BEAMS_INSTANCE_ID") ?: ""
 // into local.properties as API_BASE_URL. Falls back to a placeholder so a
 // fresh checkout still configures — runtime calls will fail loudly until
 // it's set.
+// Debug-only sign-in quick-fill (LoginScreen's DEV button). Kept out of git:
+// set DEV_LOGIN_EMAIL and DEV_LOGIN_PASSWORD in local.properties; the button
+// hides when they are absent, and release builds always carry blanks.
+val devLoginEmail: String = localProps.getProperty("DEV_LOGIN_EMAIL") ?: ""
+val devLoginPassword: String = localProps.getProperty("DEV_LOGIN_PASSWORD") ?: ""
 val debugApiBaseUrl: String = localProps.getProperty("API_BASE_URL")
     ?: "https://set-API_BASE_URL-in-local-properties.invalid/customers_api/v1/"
 
@@ -88,12 +93,16 @@ android {
             buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
             buildConfigField("String", "BEAMS_INSTANCE_ID", "\"$beamsInstanceId\"")
+            buildConfigField("String", "DEV_LOGIN_EMAIL", "\"$devLoginEmail\"")
+            buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"$devLoginPassword\"")
             isMinifyEnabled = false
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"https://www.legumlex.com/customers_api/v1/\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
             buildConfigField("String", "BEAMS_INSTANCE_ID", "\"$beamsInstanceId\"")
+            buildConfigField("String", "DEV_LOGIN_EMAIL", "\"\"")
+            buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"\"")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

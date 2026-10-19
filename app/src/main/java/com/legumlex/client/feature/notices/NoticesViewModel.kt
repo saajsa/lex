@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
+/** The contact lacks the 'notices' permission (HTTP 403): the screens hide, not error. */
+const val NO_ACCESS = "Notices aren't part of your access on this account."
+
 class NoticesViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = NoticesRepository(ApiClient.get(app))
@@ -36,6 +39,14 @@ class NoticesViewModel(app: Application) : AndroidViewModel(app) {
     private var all: List<NoticeSummary> = emptyList()
 
     init { load() }
+
+    private var firstResume = true
+
+    /** Coming back to the list (from a notice, a reply, or the browser) looks again. */
+    fun resumed() {
+        if (firstResume) { firstResume = false; return }
+        refresh()
+    }
 
     fun load() = viewModelScope.launch { _state.value = NoticesUiState.Loading; fetch() }
 
@@ -113,12 +124,13 @@ class NoticesViewModel(app: Application) : AndroidViewModel(app) {
             val x = a.claimAmount; val y = b.claimAmount
             when { x == null && y == null -> 0; x == null -> 1; y == null -> -1; else -> y.compareTo(x) }
         }
-        NoticeSort.STATUS -> compareBy { it.statusLabel }
+        NoticeSort.STATUS -> compareBy { noticeStatusTitle(it) }
     }
 
     private fun messageFor(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401, 403 -> "Your session expired. Sign in again."
+            401 -> "Your session expired. Sign in again."
+            403 -> NO_ACCESS
             in 500..599 -> "Server error. Try again in a moment."
             else -> "Couldn't reach the server (HTTP ${e.code()})."
         }
@@ -136,7 +148,22 @@ class NoticeDetailViewModel(app: Application) : AndroidViewModel(app) {
     private val _approving = MutableStateFlow(false)
     val approving: StateFlow<Boolean> = _approving.asStateFlow()
 
+    /** Why telling the advocate failed; shown under the button until the next try. */
+    private val _approveError = MutableStateFlow<String?>(null)
+    val approveError: StateFlow<String?> = _approveError.asStateFlow()
+
     private var id: String? = null
+    private var firstResume = true
+
+    /** Coming back (e.g. after sending a reply) reloads quietly, keeping what is shown. */
+    fun resumed() {
+        if (firstResume) { firstResume = false; return }
+        val nid = id ?: return
+        if (_state.value !is NoticeDetailUiState.Ready) return
+        viewModelScope.launch {
+            repo.loadDetail(nid).onSuccess { _state.value = NoticeDetailUiState.Ready(it) }
+        }
+    }
 
     fun start(noticeId: String) {
         if (id == noticeId && _state.value is NoticeDetailUiState.Ready) return
@@ -149,14 +176,27 @@ class NoticeDetailViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = NoticeDetailUiState.Loading
         repo.loadDetail(nid)
             .onSuccess { _state.value = NoticeDetailUiState.Ready(it) }
-            .onFailure { _state.value = NoticeDetailUiState.Error("Couldn't load this notice.") }
+            .onFailure { e ->
+                _state.value = NoticeDetailUiState.Error(
+                    if (e is HttpException && e.code() == 403) NO_ACCESS else "Couldn't load this notice.")
+            }
     }
 
     fun approve() = viewModelScope.launch {
         val nid = id ?: return@launch
         if (_approving.value) return@launch
         _approving.value = true
-        repo.approve(nid).onSuccess { _state.value = NoticeDetailUiState.Ready(it) }
+        _approveError.value = null
+        repo.approve(nid)
+            .onSuccess { _state.value = NoticeDetailUiState.Ready(it) }
+            .onFailure { e ->
+                _approveError.value = when (e) {
+                    is HttpException -> if (e.code() in listOf(401, 403)) "Your session expired. Sign in again."
+                        else "That didn't reach your advocate. Try again in a moment."
+                    is java.io.IOException -> "That didn't reach your advocate. Check your connection and try again."
+                    else -> e.message?.takeIf { it.isNotBlank() } ?: "That didn't reach your advocate. Try again."
+                }
+            }
         _approving.value = false
     }
 }

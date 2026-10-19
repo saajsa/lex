@@ -137,10 +137,25 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     private var nextId = 0L
 
     private val flow = Mutex()
-    private val terms: Job = viewModelScope.launch {
-        // One retry: the fee line must come from the funnel, never a default.
+    private var terms: Job = loadTerms()
+
+    private fun loadTerms(): Job = viewModelScope.launch {
+        // One quiet retry: the fee line must come from the funnel, never a default.
         val t = repo.terms() ?: run { delay(1_500); repo.terms() }
         t?.let { v -> _ui.update { it.copy(terms = v, termsLoaded = true) } }
+    }
+
+    /**
+     * The desk goes no further than the question until the firm's terms (the
+     * fee, the file rules) have arrived: without them it would quote nothing,
+     * or the wrong thing. On failure it says so and offers Try Again.
+     */
+    private suspend fun termsReady(): Boolean {
+        terms.join()
+        if (_ui.value.termsLoaded) return true
+        say(Para.Text("The desk could not reach the firm just now, so it cannot go on. Please check your connection and try again."), note = true, warn = true)
+        dock(Dock.Actions(listOf(Action("terms", "Try Again", main = true))))
+        return false
     }
 
     init { go { next() } }
@@ -302,7 +317,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun askDocs() {
         reread?.await()
-        terms.join()
+        if (!termsReady()) return
         val list = read?.documents.orEmpty()
         if (list.isEmpty() || !t.takesFiles || qFiles > 0) { docs = true; return next() }
         if (!asked(Step.DOCS)) {
@@ -349,8 +364,8 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun welcome() {
+        if (!termsReady()) return
         welcomed = true
-        terms.join()
         greetBack()
         next()
     }
@@ -517,6 +532,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
             "pay" -> go { pay() }
             "paid" -> go { checkPaid(asked = true) }
             "discard" -> go { discard() }
+            "terms" -> go { dock(Dock.Waiting("…")); if (!terms.isActive) terms = loadTerms(); next() }
         }
     }
 
@@ -624,7 +640,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
                             said += "invoice"
                             say(Para.Text("The fee is an invoice from the firm, open in your browser. Pay it there, and your enquiry goes to the advocates as soon as the payment is confirmed."))
                         }
-                        dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open the Invoice Again"), Action("discard", "Set It Aside"))))
+                        dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
                     }
                 }
             }
@@ -636,13 +652,20 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun checkPaid(asked: Boolean) {
         val hash = sessionHash ?: return
-        repo.pay(hash).onSuccess { p ->
+        if (asked) dock(Dock.Waiting("Checking the payment…"))
+        repo.pay(hash).onFailure { e ->
+            if (asked) {
+                say(Para.Text(e.message ?: "The payment could not be checked. Please try again."), note = true, warn = true)
+                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
+            }
+        }.onSuccess { p ->
             if (p is PayStart.Sent) {
                 awaitingInvoice = false
                 consultationId = p.consultationId
                 delivered(savedEmail)
             } else if (asked) {
                 say(Para.Text("The payment has not reached us yet. If you have just paid, give it a minute and try again."), note = true)
+                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
             }
         }
     }
@@ -651,8 +674,15 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
         val hash = sessionHash ?: return
         dock(Dock.Waiting("…"))
         repo.discard(hash)
-        say(Para.Text("Your enquiry has been set aside. Nothing was charged."))
-        dock(Dock.Actions(listOf(Action("again", "Ask Something Else", main = true))))
+            .onSuccess {
+                awaitingInvoice = false
+                say(Para.Text("Your enquiry has been set aside. Nothing was charged."))
+                dock(Dock.Actions(listOf(Action("again", "Ask Something Else", main = true))))
+            }
+            .onFailure { e ->
+                say(Para.Text(e.message ?: "The enquiry could not be set aside. Please try again."), note = true, warn = true)
+                payActions()
+            }
     }
 
     private fun setStages(id: Long, active: Int, done: Boolean) = _ui.update { u ->

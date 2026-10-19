@@ -418,7 +418,7 @@ fun AddAnotherDocumentRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
             Icon(Icons.Outlined.Add, contentDescription = null, tint = PrimaryText, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text(
-                "Add another document",
+                "Add Another Document",
                 color = PrimaryText,
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
@@ -462,7 +462,7 @@ fun SaveAndExitSheet(
             Spacer(Modifier.height(20.dp))
             FunnelPrimaryButton(label = "Save & exit", onClick = onSaveExit)
             Spacer(Modifier.height(10.dp))
-            FunnelSecondaryButton(label = "Continue editing", onClick = onContinueEditing)
+            FunnelSecondaryButton(label = "Continue Editing", onClick = onContinueEditing)
         }
     }
 }

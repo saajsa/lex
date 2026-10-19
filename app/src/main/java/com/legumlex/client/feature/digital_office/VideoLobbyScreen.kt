@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.legumlex.client.feature.consultations.friendlyMessage
 
 // -----------------------------------------------------------------------------
 // Immersive pre-call lobby for a Digital Office video session ("Client Video
@@ -84,6 +85,10 @@ private enum class Tone(val accent: Color) { SLATE(LobbyC.Slate), VERDANT(LobbyC
 fun VideoLobbyScreen(
     consultationId: String,
     onBack: () -> Unit,
+    /** The consultation this session belongs to; defaults to plain back. */
+    onOpenConsultation: (() -> Unit)? = null,
+    /** The Digital Office, to send a fresh request after a lapse or decline. */
+    onOpenChamber: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -92,6 +97,21 @@ fun VideoLobbyScreen(
         factory = viewModelFactory { initializer { VideoLobbyViewModel(app, consultationId) } },
     )
     val ui by vm.state.collectAsState()
+
+    // Poll only while the lobby is on screen.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, vm) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            when (e) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> vm.onScreenStarted()
+                androidx.lifecycle.Lifecycle.Event.ON_STOP  -> vm.onScreenStopped()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+    val toConsultation = onOpenConsultation ?: onBack
 
     // Cosmetic camera mirror — local self-view only (the call & real device
     // permissions belong to Google Meet). Gated behind the runtime CAMERA grant.
@@ -132,14 +152,7 @@ fun VideoLobbyScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        0.0f to Color(0xFF241E19),
-                        0.52f to LobbyC.Deep,
-                        1.0f to Color(0xFF120F0D),
-                        radius = 1600f,
-                    )
-                )
+                .background(LobbyC.Deep)
                 .padding(inner)
                 .statusBarsPadding()
                 .navigationBarsPadding(),
@@ -151,7 +164,8 @@ fun VideoLobbyScreen(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (frame) {
                         LobbyFrame.Loading -> LoadingBody()
-                        else -> LobbyBody(ui, frame, vm, camGranted, onToggleCam, onBack)
+                        is LobbyFrame.Failed -> FailedBody(frame.message, onRetry = vm::retry, onBack = onBack)
+                        else -> LobbyBody(ui, frame, vm, camGranted, onToggleCam, onBack, toConsultation, onOpenChamber)
                     }
                 }
             }
@@ -198,6 +212,8 @@ private fun LobbyBody(
     camGranted: Boolean,
     onToggleCam: () -> Unit,
     onBack: () -> Unit,
+    onOpenConsultation: () -> Unit,
+    onOpenChamber: (() -> Unit)?,
 ) {
     val adv = ui.session?.advocate
     val advName = adv?.name?.takeIf { it.isNotBlank() }
@@ -217,10 +233,10 @@ private fun LobbyBody(
                 is LobbyFrame.CouldntConnect -> {
                     HeroIcon(Icons.Outlined.TimerOff, Tone.CLARET, badge = Icons.Outlined.PriorityHigh)
                     Spacer(Modifier.height(26.dp))
-                    AdvName("The window lapsed")
-                    advName.let { Spacer(Modifier.height(6.dp)); Desig("$it stepped away") }
+                    AdvName(frame.title)
+                    Spacer(Modifier.height(6.dp)); Desig(advName)
                     Spacer(Modifier.height(22.dp))
-                    PresenceChip("Joining window closed", Tone.CLARET, live = false)
+                    PresenceChip(frame.chip, Tone.CLARET, live = false)
                     frame.reason?.let {
                         Spacer(Modifier.height(20.dp))
                         Reassure(it)
@@ -229,7 +245,7 @@ private fun LobbyBody(
                 LobbyFrame.Ended -> {
                     HeroIcon(Icons.Outlined.EventAvailable, Tone.SLATE, badge = Icons.Outlined.Check)
                     Spacer(Modifier.height(26.dp))
-                    AdvName("Session ended")
+                    AdvName("Session Ended")
                     Spacer(Modifier.height(10.dp))
                     Reassure("This video session has ended. Anything else you need is on your consultation.")
                 }
@@ -251,9 +267,12 @@ private fun LobbyBody(
 
                     when {
                         ui.handingOff -> PresenceChip("Connecting you to your call", tone, live = false, spinner = true)
-                        frame is LobbyFrame.InLine -> PresenceChip("With another client right now", Tone.SLATE)
-                        frame is LobbyFrame.YourTurn -> PresenceChip("Ready for you now", Tone.VERDANT)
-                        frame is LobbyFrame.BeingApproved -> PresenceChip("Reviewing your brief", Tone.SLATE)
+                        frame is LobbyFrame.InLine -> PresenceChip("With Another Client Right Now", Tone.SLATE)
+                        frame is LobbyFrame.YourTurn -> PresenceChip("Ready For You Now", Tone.VERDANT)
+                        frame is LobbyFrame.BeingApproved -> PresenceChip(
+                            if (ui.session?.status == DoSessionStatus.APPROVED_AWAITING_PAYMENT) "Accepted · Fee Due" else "Awaiting Approval",
+                            Tone.SLATE,
+                        )
                         else -> Unit
                     }
 
@@ -281,7 +300,14 @@ private fun LobbyBody(
                         Reassure("You’re leaving Legum Lex. Google Meet will open in a moment and ask for camera & mic access.")
                     } else if (frame is LobbyFrame.BeingApproved) {
                         Spacer(Modifier.height(26.dp))
-                        Reassure("$advName is reading your matter before the call. You’ll be brought in automatically once it’s confirmed.")
+                        Reassure(
+                            if (ui.session?.status == DoSessionStatus.APPROVED_AWAITING_PAYMENT)
+                                "$advName has accepted. Pay the fee's invoice on the firm's website; the call opens here once it is paid."
+                            else
+                                "$advName is reading your matter before accepting the call" +
+                                (ui.session?.approvalWindowMinutes?.let { " (they have $it minutes to respond)" } ?: "") +
+                                ". This screen updates by itself."
+                        )
                     }
                 }
             }
@@ -289,6 +315,10 @@ private fun LobbyBody(
 
         // ── action zone ──
         Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 28.dp)) {
+            ui.message?.let {
+                Text(it, fontFamily = Inter, fontSize = 12.sp, color = LobbyC.Claret, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp))
+            }
             when {
                 ui.handingOff -> {
                     JoinButton(label = "Opening Google Meet…", busy = true, enabled = false) {}
@@ -299,7 +329,7 @@ private fun LobbyBody(
                     CameraToggle(on = ui.camOn, onClick = onToggleCam)
                     Spacer(Modifier.height(12.dp))
                     JoinButton(
-                        label = if (ready) "Join Google Meet" else "Preparing your room…",
+                        label = if (ready) "Join Google Meet" else "Preparing Your Room…",
                         enabled = ready,
                     ) { vm.startHandoff() }
                     if (ui.camOn) {
@@ -312,19 +342,30 @@ private fun LobbyBody(
                 frame is LobbyFrame.InLine -> {
                     Reassure("Sit tight — we’ll bring you in automatically the moment your advocate is free. No need to refresh.")
                     Spacer(Modifier.height(16.dp)); ReassureStrip()
-                    LeaveText("Leave the line", busy = ui.actionInFlight) { vm.leaveLine(onBack) }
+                    LeaveText("Leave The Line", busy = ui.actionInFlight) { vm.leaveLine(onBack) }
                 }
                 frame is LobbyFrame.BeingApproved -> {
+                    ui.session?.invoicePayUrl?.takeIf { ui.session?.status == DoSessionStatus.APPROVED_AWAITING_PAYMENT }?.let { url ->
+                        val ctx = LocalContext.current
+                        SolidButton("Open The Invoice", Icons.Outlined.OpenInNew, busy = false) {
+                            runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                    }
                     ReassureStrip()
-                    LeaveText("Cancel this session", busy = ui.actionInFlight) { vm.cancel(onBack) }
+                    LeaveText("Cancel This Request", busy = ui.actionInFlight) { vm.cancel(onBack) }
                 }
                 frame is LobbyFrame.CouldntConnect -> {
-                    SolidButton("Rejoin the line", Icons.Outlined.Replay, busy = ui.actionInFlight) { vm.rejoin() }
-                    Spacer(Modifier.height(11.dp))
-                    GhostButton("Back to consultation", Icons.AutoMirrored.Outlined.ArrowForward, onClick = onBack)
+                    // A lapsed or declined session is over; a new request is
+                    // made from the Digital Office, never by re-queueing here.
+                    if (onOpenChamber != null) {
+                        SolidButton("Go To The Digital Office", Icons.Outlined.Replay, busy = false, onClick = onOpenChamber)
+                        Spacer(Modifier.height(11.dp))
+                    }
+                    GhostButton("Back To The Consultation", Icons.AutoMirrored.Outlined.ArrowForward, onClick = onOpenConsultation)
                 }
                 frame is LobbyFrame.Ended -> {
-                    GhostButton("Back to consultation", Icons.AutoMirrored.Outlined.ArrowForward, onClick = onBack)
+                    GhostButton("Back To The Consultation", Icons.AutoMirrored.Outlined.ArrowForward, onClick = onOpenConsultation)
                 }
                 else -> Unit
             }
@@ -341,7 +382,7 @@ private fun HeroAvatar(name: String, avatarUrl: String?, tone: Tone, badge: Imag
         Box(
             Modifier
                 .size(118.dp).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF2B496E), Color(0xFF1E3A5F), Color(0xFF15293F))))
+                .background(Color(0xFF1E3A5F))
                 .border(1.dp, Color(0x14F5F1EA), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -365,7 +406,7 @@ private fun HeroIcon(icon: ImageVector, tone: Tone, badge: ImageVector?) {
     Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
         Box(
             Modifier.size(118.dp).clip(CircleShape)
-                .background(Brush.linearGradient(listOf(Color(0xFF2A2420), Color(0xFF1F1A16))))
+                .background(Color(0xFF221D19))
                 .border(1.dp, LobbyC.Line, CircleShape),
             contentAlignment = Alignment.Center,
         ) { Icon(icon, null, tint = tone.accent, modifier = Modifier.size(46.dp)) }
@@ -475,7 +516,7 @@ private fun Countdown(secondsLeft: Int) {
             fontSize = 46.sp, letterSpacing = 0.02.em, color = LobbyC.Paper)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Icon(Icons.Outlined.HourglassTop, null, tint = LobbyC.Amber, modifier = Modifier.size(15.dp))
-            Text("Joining window closes soon", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = LobbyC.Amber)
+            Text("Joining Window Closes Soon", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = LobbyC.Amber)
         }
     }
 }
@@ -489,9 +530,9 @@ private fun Reassure(text: String) {
 @Composable
 private fun ReassureStrip(handing: Boolean = false) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        StripItem(Icons.Outlined.OpenInNew, if (handing) "Handing off to Meet" else "Opens in Google Meet")
+        StripItem(Icons.Outlined.OpenInNew, if (handing) "Handing Off To Meet" else "Opens In Google Meet")
         Box(Modifier.padding(horizontal = 18.dp).size(3.dp).clip(CircleShape).background(LobbyC.Line))
-        StripItem(Icons.Outlined.Lock, "Private & secure")
+        StripItem(Icons.Outlined.Lock, "Private And Secure")
     }
 }
 
@@ -570,7 +611,7 @@ private fun CameraToggle(on: Boolean, onClick: () -> Unit) {
             if (on) Icons.Outlined.Videocam else Icons.Outlined.VideocamOff, null,
             tint = if (on) LobbyC.Verdant else LobbyC.Muted, modifier = Modifier.size(17.dp),
         )
-        Text(if (on) "Camera preview on" else "Preview your camera",
+        Text(if (on) "Camera Preview On" else "Preview Your Camera",
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LobbyC.Paper)
     }
 }
@@ -588,6 +629,26 @@ private fun CameraMirror(modifier: Modifier) {
             Icon(Icons.Outlined.Visibility, null, tint = LobbyC.Muted, modifier = Modifier.size(13.dp))
             Text("PREVIEW · MIRROR ONLY", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.08.em, color = LobbyC.Muted)
         }
+    }
+}
+
+// ── Failed to load ───────────────────────────────────────────────────────────
+
+@Composable
+private fun FailedBody(message: String, onRetry: () -> Unit, onBack: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        HeroIcon(Icons.Outlined.CloudOff, Tone.CLARET, badge = null)
+        Spacer(Modifier.height(26.dp))
+        AdvName("The Session Could Not Be Loaded")
+        Spacer(Modifier.height(12.dp))
+        Reassure(message)
+        Spacer(Modifier.height(26.dp))
+        SolidButton("Try Again", Icons.Outlined.Refresh, busy = false, onClick = onRetry)
+        Spacer(Modifier.height(11.dp))
+        GhostButton("Back", Icons.AutoMirrored.Outlined.ArrowBack, onClick = onBack)
     }
 }
 
@@ -636,8 +697,9 @@ private sealed interface LobbyFrame {
     data class InLine(val position: Int, val etaMinutes: Int) : LobbyFrame
     data class YourTurn(val secondsLeft: Int?) : LobbyFrame
     data object BeingApproved : LobbyFrame
-    data class CouldntConnect(val reason: String?) : LobbyFrame
+    data class CouldntConnect(val reason: String?, val title: String = "The Session Did Not Go Ahead", val chip: String = "Session Closed") : LobbyFrame
     data object Ended : LobbyFrame
+    data class Failed(val message: String) : LobbyFrame
 }
 
 data class LobbyUi(
@@ -647,17 +709,25 @@ data class LobbyUi(
     val handingOff: Boolean = false,
     val actionInFlight: Boolean = false,
     val camOn: Boolean = false,
+    /** The session could not be loaded at all (shown with Try Again). */
+    val error: String? = null,
+    /** The outcome of the last action, when it failed. */
+    val message: String? = null,
 )
 
 private fun LobbyUi.frame(): LobbyFrame {
     if (loading && session == null && waitroom == null) return LobbyFrame.Loading
+    if (session == null && waitroom == null && error != null) return LobbyFrame.Failed(error)
     // Waitroom (if the client is queued for this advocate) takes precedence for
     // the waiting experience.
     waitroom?.let { wr ->
         when (wr.status) {
             DoWaitroomStatus.WAITING  -> return LobbyFrame.InLine(wr.position, wr.etaMinutes)
             DoWaitroomStatus.PROMPTED, DoWaitroomStatus.PROMOTED -> return LobbyFrame.YourTurn(wr.promptSecondsLeft)
-            DoWaitroomStatus.EXPIRED  -> return LobbyFrame.CouldntConnect("Your joining window closed before you joined.")
+            DoWaitroomStatus.EXPIRED  -> return LobbyFrame.CouldntConnect(
+                "Your turn came and the joining window closed before the request was sent.",
+                title = "The Window Lapsed", chip = "Joining Window Closed",
+            )
             else -> Unit
         }
     }
@@ -674,7 +744,21 @@ private fun LobbyUi.frame(): LobbyFrame {
         DoSessionStatus.MEET_FAILED,
         DoSessionStatus.PAYMENT_FAILED,
         DoSessionStatus.EXPIRED,
-        DoSessionStatus.CANCELLED -> LobbyFrame.CouldntConnect(s.failureReason)
+        DoSessionStatus.CANCELLED -> LobbyFrame.CouldntConnect(
+            s.failureReason ?: when (s.status) {
+                DoSessionStatus.DECLINED_BY_ADVOCATE -> "Your advocate could not take this request."
+                DoSessionStatus.EXPIRED -> if (s.approvedAt != null) "The fee was not paid in time, so the request lapsed. Nothing was charged for a session."
+                                           else "Your advocate did not respond in time."
+                DoSessionStatus.CANCELLED -> "This request was cancelled."
+                else -> "The session could not be connected."
+            },
+            title = when (s.status) {
+                DoSessionStatus.DECLINED_BY_ADVOCATE -> "Request Declined"
+                DoSessionStatus.EXPIRED -> "Request Lapsed"
+                DoSessionStatus.CANCELLED -> "Request Cancelled"
+                else -> "The Session Did Not Go Ahead"
+            },
+        )
         DoSessionStatus.COMPLETED -> LobbyFrame.Ended
         DoSessionStatus.UNKNOWN -> LobbyFrame.BeingApproved
     }
@@ -694,27 +778,47 @@ class VideoLobbyViewModel(
 
     init {
         refresh(initial = true)
+    }
+
+    fun retry() {
+        _state.value = _state.value.copy(error = null)
+        refresh(initial = true)
         startPoll()
     }
 
+    fun onScreenStarted() = startPoll()
+    fun onScreenStopped() { pollJob?.cancel(); pollJob = null }
+
+    /** Nothing changes after these: stop polling. */
+    private fun LobbyUi.isTerminal(): Boolean = when (frame()) {
+        is LobbyFrame.Ended, is LobbyFrame.CouldntConnect -> true
+        else -> false
+    }
+
     private fun startPoll() {
-        if (pollJob?.isActive == true) return
+        if (pollJob?.isActive == true || _state.value.isTerminal()) return
         pollJob = viewModelScope.launch {
             while (isActive) {
                 delay(pollIntervalMs)
-                if (!_state.value.handingOff) refresh(initial = false)
+                if (!_state.value.handingOff) refresh(initial = false).join()
+                if (_state.value.isTerminal()) break
             }
         }
     }
 
     private fun refresh(initial: Boolean) = viewModelScope.launch {
         if (initial) _state.value = _state.value.copy(loading = true)
-        val session = repo.sessionForConsultation(consultationId).getOrNull()
+        val result = repo.sessionForConsultation(consultationId)
+        val session = result.getOrNull() ?: _state.value.session
         val advId = session?.advocate?.staffId
         // Match the live waitroom row for this consultation's advocate, if any.
         val waitroom = repo.listWaitroom().getOrNull()
             ?.firstOrNull { advId != null && it.advocateStaffId == advId }
-        _state.value = _state.value.copy(loading = false, session = session, waitroom = waitroom)
+        _state.value = _state.value.copy(
+            loading = false, session = session, waitroom = waitroom,
+            error = result.exceptionOrNull()?.friendlyMessage()
+                ?: if (session == null && waitroom == null) "No video session was found for this consultation." else null,
+        )
     }
 
     fun startHandoff() {
@@ -729,30 +833,20 @@ class VideoLobbyViewModel(
     fun leaveLine(onDone: () -> Unit) {
         val wid = _state.value.waitroom?.waitroomId ?: return onDone()
         viewModelScope.launch {
-            _state.value = _state.value.copy(actionInFlight = true)
+            _state.value = _state.value.copy(actionInFlight = true, message = null)
             repo.leaveWaitroom(wid)
-            _state.value = _state.value.copy(actionInFlight = false)
-            onDone()
+                .onSuccess { _state.value = _state.value.copy(actionInFlight = false); onDone() }
+                .onFailure { e -> _state.value = _state.value.copy(actionInFlight = false, message = e.friendlyMessage("The queue could not be left. Please try again.")) }
         }
     }
 
     fun cancel(onDone: () -> Unit) {
         val sid = _state.value.session?.id ?: return onDone()
         viewModelScope.launch {
-            _state.value = _state.value.copy(actionInFlight = true)
+            _state.value = _state.value.copy(actionInFlight = true, message = null)
             repo.cancelSession(sid)
-            _state.value = _state.value.copy(actionInFlight = false)
-            onDone()
-        }
-    }
-
-    fun rejoin() {
-        val advId = _state.value.session?.advocate?.staffId ?: return
-        viewModelScope.launch {
-            _state.value = _state.value.copy(actionInFlight = true)
-            repo.joinWaitroom(advId)
-            refresh(initial = false)
-            _state.value = _state.value.copy(actionInFlight = false)
+                .onSuccess { _state.value = _state.value.copy(actionInFlight = false); onDone() }
+                .onFailure { e -> _state.value = _state.value.copy(actionInFlight = false, message = e.friendlyMessage("The request could not be cancelled. Please try again.")) }
         }
     }
 

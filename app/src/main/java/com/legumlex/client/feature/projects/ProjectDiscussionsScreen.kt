@@ -103,13 +103,13 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
                 val detail = async { repo.detail(projectId).getOrThrow() }
                 val disc = async { repo.discussions(projectId).getOrNull().orEmpty() }
                 val d = detail.await()
-                _state.value = DiscUiState.Ready(d.summary.name, "PRJ-${d.summary.id}", disc.await())
+                _state.value = DiscUiState.Ready(d.summary.name, d.summary.status.label, disc.await())
             }
         } catch (e: Throwable) {
             if (!(preserve && _state.value is DiscUiState.Ready)) {
                 _state.value = DiscUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401, 403 -> "Your session expired. Sign in again."; 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load discussions (HTTP ${e.code()})." }
+                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's discussions. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load discussions (HTTP ${e.code()})." }
                         else -> "Couldn't reach the server. Check your connection."
                     },
                 )
@@ -120,7 +120,7 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
     fun openThread(id: String) {
         viewModelScope.launch {
             _threadLoading.value = true
-            repo.discussion(id).onSuccess { _thread.value = it }.onFailure { _toast.value = "Couldn't open the discussion."; _failed.value = id }
+            repo.discussion(id).onSuccess { _thread.value = it }.onFailure { e -> _toast.value = serverMessage(e, "Couldn't open the discussion."); _failed.value = id }
             _threadLoading.value = false
         }
     }
@@ -135,9 +135,11 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
             repo.postDiscussionComment(id, text)
                 .onSuccess { added ->
                     _thread.update { t -> if (t != null && t.id == id) t.copy(comments = t.comments + added) else t }
+                    // Read the thread back, so what the client sees is what was saved.
+                    repo.discussion(id).onSuccess { fresh -> if (_thread.value?.id == id) _thread.value = fresh }
                     _state.update { cur -> if (cur is DiscUiState.Ready) cur.copy(discussions = cur.discussions.map { if (it.id == id) it.copy(totalComments = it.totalComments + 1) else it }) else cur }
                 }
-                .onFailure { _toast.value = "Couldn't post your reply. Try again." }
+                .onFailure { e -> _toast.value = serverMessage(e, "Couldn't post your reply. Try again.") }
             _posting.value = false
         }
     }
@@ -177,7 +179,7 @@ fun ProjectDiscussionsScreen(
         Box(Modifier.fillMaxSize().padding(inner)) {
             Column(Modifier.fillMaxSize()) {
                 if (discussionId != null) {
-                    Heading(thread?.subject ?: "Discussion", null, "Discussion · ${ready?.projectRef ?: ""} · ${thread?.comments?.size ?: 0} messages")
+                    Heading(thread?.subject ?: "Discussion", null, listOfNotNull("Discussion", ready?.projectName, thread?.comments?.size?.let { n -> "$n ${if (n == 1) "Message" else "Messages"}" }).joinToString(" · "))
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when {
                             !threadLoading && thread == null && failedThread == discussionId ->
@@ -193,7 +195,7 @@ fun ProjectDiscussionsScreen(
                     }
                     Composer(posting) { vm.postReply(discussionId, it) }
                 } else {
-                    Heading("Discussions", ready?.discussions?.size, ready?.let { "${it.projectRef} · ${it.projectName}" })
+                    Heading("Discussions", ready?.discussions?.size, ready?.projectName)
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when (val s = state) {
                             is DiscUiState.Loading -> DiscSkeleton()
@@ -279,8 +281,8 @@ private fun ThreadContent(d: DiscussionDetail) {
 private fun Message(c: DiscussionComment) {
     val you = c.authorType == "contact"
     Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(if (you) LlColor.Claret else LlColor.Slate), contentAlignment = Alignment.Center) {
-            Text(initialsOfD(c.authorName, you), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(if (you) LlColor.ClaretSoft else LlColor.SlateSoft), contentAlignment = Alignment.Center) {
+            Text(initialsOfD(c.authorName, you), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = if (you) LlColor.Claret else LlColor.Slate)
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

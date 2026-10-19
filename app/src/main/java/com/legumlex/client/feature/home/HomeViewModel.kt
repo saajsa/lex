@@ -34,7 +34,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Swipe-to-dismiss from the home action queue. Hides the row immediately
      * (optimistic, in-memory) and persists the dismissal server-side so the
-     * item stays gone across refreshes, restarts and devices.
+     * item stays gone across refreshes, restarts and devices. The screen
+     * offers Undo, which calls [restoreAction].
      */
     fun dismissAction(item: ActionItem) {
         dismissedKeys.add(item.dismissKey())
@@ -45,9 +46,22 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         // Persist by the item's stable server id (e.g. "invoice_42"). Best-effort:
-        // if it fails the row is still hidden this session and the next swipe (or
-        // app run) re-attempts; the server filter is the durable source of truth.
-        viewModelScope.launch { repo.dismissAction(item.id) }
+        // if it fails the row is still hidden this session.
+        dismissJobs[item.dismissKey()] = viewModelScope.launch { repo.dismissAction(item.id) }
+    }
+
+    // In-flight dismissals, so an Undo waits for its dismissal to land first.
+    private val dismissJobs = mutableMapOf<String, Job>()
+
+    /** Undo a swipe: the server forgets the dismissal and the queue is read again. */
+    fun restoreAction(item: ActionItem) {
+        dismissedKeys.remove(item.dismissKey())
+        val pending = dismissJobs.remove(item.dismissKey())
+        viewModelScope.launch {
+            pending?.join()
+            repo.restoreAction(item.id)
+            fetch(preserveCurrent = true)
+        }
     }
 
     private fun applyDismissed(bundle: ActionItemsBundle): ActionItemsBundle {
@@ -76,69 +90,45 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ─── Chamber polling (live "Open / Closed" + busy roster) ────────────
+    // ─── Next-event polling ───────────────────────────────────────────────
     //
-    // The full dashboard is fetched once on entry; the chamber slice is the
-    // only block that changes frequently enough to need live updates (an
-    // advocate signing in, going busy, leaving). Poll JUST that endpoint
-    // every 30s while the home screen is on top, and patch only
-    // `state.data.chamber` so the rest of the UI doesn't churn.
+    // The dashboard is read on entry and on resume; the next event is the one
+    // block that changes while Home sits open (an appointment turning joinable
+    // is what raises the "Join Now" banner), so it alone is polled.
 
-    private var chamberPollJob: Job? = null
+    private var nextEventPollJob: Job? = null
 
-    /**
-     * Called from the HomeScreen's DisposableEffect when the composable
-     * enters composition. Safe to call repeatedly — re-entry cancels the
-     * prior job so we never accumulate parallel pollers.
-     *
-     * Aggressive 5s cadence — the chamber endpoint is cheap (single
-     * SELECT + small joins on the presence table) and the perceived "is
-     * Chamber open right now?" latency is what makes the surface feel
-     * alive vs dead. If the network can't keep up we'd see it; we don't.
-     *
-     * While the initial dashboard load is still in flight, the poller
-     * short-waits (500ms) so the first chamber update lands within ~1s
-     * of the initial load completing — NOT 30s later.
-     */
-    fun startChamberPolling(intervalMs: Long = 5_000L) {
-        chamberPollJob?.cancel()
-        chamberPollJob = viewModelScope.launch {
+    /** Started when Home is on screen; re-entry replaces the prior job. */
+    fun startNextEventPolling(intervalMs: Long = 30_000L) {
+        nextEventPollJob?.cancel()
+        nextEventPollJob = viewModelScope.launch {
             while (isActive) {
-                val ready = _state.value as? HomeUiState.Ready
-                if (ready == null) {
-                    // Dashboard still loading or errored — short-wait and
-                    // re-check rather than burning a full interval.
-                    delay(500)
-                    continue
-                }
-                val fresh = repo.loadChamber()
-                if (fresh != null) {
-                    // Re-read the state under us — it may have changed
-                    // (refresh in flight, error, etc.) since we issued the
-                    // HTTP call; only patch a still-Ready state.
+                delay(intervalMs)
+                if (_state.value !is HomeUiState.Ready) continue
+                repo.loadNextEvent().onSuccess { fresh ->
+                    // Patch only a still-Ready state; a refresh may be in flight.
                     val now = _state.value as? HomeUiState.Ready
-                    if (now != null) {
-                        _state.value = now.copy(data = now.data.copy(chamber = fresh))
-                        android.util.Log.d(
-                            "ChamberPoll",
-                            "is_open=${fresh.isOpen} online=${fresh.onlineCount} adv=${fresh.advocates.size}"
-                        )
+                    if (now != null && now.data.nextEvent != fresh) {
+                        _state.value = now.copy(data = now.data.copy(nextEvent = fresh))
                     }
                 }
-                delay(intervalMs)
             }
         }
     }
 
-    /** Cancel from the LaunchedEffect onDispose path. */
-    fun stopChamberPolling() {
-        chamberPollJob?.cancel()
-        chamberPollJob = null
+    fun stopNextEventPolling() {
+        nextEventPollJob?.cancel()
+        nextEventPollJob = null
+    }
+
+    /** Back on Home after acting elsewhere: read it again, keeping what is shown. */
+    fun onResume() {
+        if (_state.value is HomeUiState.Ready) refresh()
     }
 
     override fun onCleared() {
         super.onCleared()
-        stopChamberPolling()
+        stopNextEventPolling()
     }
 
     private suspend fun fetch(preserveCurrent: Boolean = false) {
@@ -151,7 +141,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { e ->
                 val msg = when (e) {
                     is HttpException -> when (e.code()) {
-                        401, 403   -> "Your session expired. Sign in again."
+                        401         -> "Your session expired. Sign in again."
+                        403         -> "Your account doesn't include this yet. Ask the firm to give you access."
                         in 500..599 -> "Server error. Try again in a moment."
                         else        -> "Couldn't reach the server (HTTP ${e.code()})."
                     }
@@ -164,7 +155,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     // Could surface a transient snackbar via a separate channel;
                     // for now the next manual refresh re-attempts.
                 } else {
-                    _state.value = HomeUiState.Error(msg)
+                    _state.value = HomeUiState.Error(msg, denied = (e as? HttpException)?.code() == 403)
                 }
             }
     }

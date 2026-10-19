@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -140,7 +141,7 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
                 "Your Role" to p.role,
                 "Client Since" to stamp(p.clientSince),
                 "You Joined" to stamp(p.joined),
-                "Last Sign-In" to (p.lastLogin?.let { stamp(it, true) } ?: "This is your first visit"),
+                "Last Sign-In" to (p.lastLogin?.let { stamp(it, true) } ?: "Not recorded yet"),
                 p.passwordChanged?.let { "Password Last Changed" to stamp(it) },
             )
             rows.forEachIndexed { i, (k, v) ->
@@ -172,6 +173,28 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
  */
 @Composable
 private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewModel) {
+    // Removing the number ends sign-in by code: a contact who signs in no
+    // other way would be locked out, so it is confirmed first.
+    var confirmRemove by remember { mutableStateOf(false) }
+    if (confirmRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text("Remove This Number?") },
+            text = {
+                Text("You will no longer be able to sign in with a code to ${m.number.orEmpty().ifBlank { "this number" }}, " +
+                    "and case updates on WhatsApp and SMS will stop. Make sure you can sign in with Google or a password first.")
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmRemove = false; vm.removeNumber() }) {
+                    Text("Remove Number", color = Lex.colors.danger.softText)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemove = false }) { Text("Keep It", color = Lex.colors.foreground) }
+            },
+            containerColor = Lex.colors.card,
+        )
+    }
     LexCard(title = "Mobile Number", trailing = {
         if (m.verified) StatusBadge("Verified", Lex.colors.success) else StatusBadge("Not Verified", Lex.colors.neutral)
     }) {
@@ -201,7 +224,7 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
                 HorizontalDivider(color = Lex.colors.border)
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                     if (m.available) TextButton(onClick = vm::openVerify) { Text("Change Number", color = Lex.colors.foreground) }
-                    TextButton(onClick = vm::removeNumber) { Text("Remove", color = Lex.colors.danger.softText) }
+                    TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Lex.colors.danger.softText) }
                 }
             } else {
                 Column(Modifier.padding(16.dp)) {

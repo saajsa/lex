@@ -119,7 +119,7 @@ fun NotificationsScreen(
                 is NotificationsUiState.Error   -> ErrorBlock(s.message, onRetry = vm::load)
                 is NotificationsUiState.Ready ->
                     if (s.bands.isEmpty()) EmptyState()
-                    else Feed(s, onOpen = { vm.markRead(it.id); onOpen(it) }, onDismiss = { vm.dismiss(it.id) })
+                    else Feed(s, onOpen = { vm.markRead(it.id); onOpen(it) }, onMarkRead = { vm.markRead(it.id) })
             }
         }
     }
@@ -157,11 +157,12 @@ private fun Header(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
         }
         val enabled = unread > 0
         Text(
-            text = "Mark all read",
+            text = "Mark All Read",
             fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize = 11.5.sp,
-            color = if (enabled) LlColor.Claret else LlColor.InkFaint,
+            // Ink, not red: it is an action, not a warning.
+            color = if (enabled) LlColor.Ink else LlColor.InkFaint,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 8.dp)
@@ -201,7 +202,7 @@ private fun SubBar(filter: NotifFilter, unread: Int, onFilter: (NotifFilter) -> 
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(14.dp))
-                Text("No unread", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                Text("None Unread", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
             }
         }
     }
@@ -228,7 +229,7 @@ private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Uni
         )
         if (pill != null) {
             Box(
-                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Claret).padding(horizontal = 5.dp, vertical = 1.dp),
+                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.ClaretMid).padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
                 Text("$pill", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = Color.White)
             }
@@ -240,16 +241,20 @@ private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Uni
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Feed(state: NotificationsUiState.Ready, onOpen: (AppNotification) -> Unit, onDismiss: (AppNotification) -> Unit) {
+private fun Feed(state: NotificationsUiState.Ready, onOpen: (AppNotification) -> Unit, onMarkRead: (AppNotification) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
         state.bands.forEach { band ->
             item(key = "band-${band.title}") { BandHeader(band) }
             items(band.items, key = { it.id }) { n ->
-                // Waiting on the client: it goes when the step is done, not by a swipe.
-                if (n.type == NotifType.ATTENTION) { NotifRow(n, onClick = { onOpen(n) }); return@items }
+                // Waiting on the client: it goes when the step is done, not by a
+                // swipe. A read row has nothing left to swipe for.
+                if (n.type == NotifType.ATTENTION || n.isRead) { NotifRow(n, onClick = { onOpen(n) }); return@items }
+                // The feed has no delete: a swipe marks the row read and it stays,
+                // dimmed, rather than vanishing only to return on the next refresh.
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { v ->
-                        if (v == SwipeToDismissBoxValue.EndToStart) { onDismiss(n); true } else false
+                        if (v == SwipeToDismissBoxValue.EndToStart) onMarkRead(n)
+                        false
                     },
                 )
                 SwipeToDismissBox(
@@ -376,7 +381,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
 @Composable
 private fun SwipeBackground() {
     Row(
-        Modifier.fillMaxSize().background(LlColor.Claret),
+        Modifier.fillMaxSize().background(com.legumlex.client.ui.theme.Lex.colors.muted),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.End,
     ) {
@@ -385,8 +390,8 @@ private fun SwipeBackground() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(20.dp))
-            Text("Dismiss", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color.White)
+            Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Ink, modifier = Modifier.size(20.dp))
+            Text("Mark Read", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = LlColor.Ink)
         }
     }
 }
@@ -412,10 +417,10 @@ private fun EmptyState() {
                 Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text("You're all caught up", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
+            Text("You're All Caught Up", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
             Spacer(Modifier.height(7.dp))
             Text(
-                "No new alerts about your cases, invoices, hearings or documents. Anything that needs you will arrive here.",
+                "Announcements from the firm, and anything waiting on you, arrive here.",
                 fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted,
                 modifier = Modifier.fillMaxWidth(0.85f),
             )
@@ -443,7 +448,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
                 Icon(Icons.Outlined.WifiOff, null, tint = LlColor.Amber, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("Couldn't load notifications", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+                Text("Couldn't Load Notifications", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
                 Spacer(Modifier.height(2.dp))
                 Text(message, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted)
             }

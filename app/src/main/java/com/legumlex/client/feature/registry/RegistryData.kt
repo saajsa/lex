@@ -42,6 +42,10 @@ data class RegisterAgreement(
     val openDeadlines: Int,
     val paymentTerms: String? = null,
     val governingLaw: String? = null,
+    val termMonths: Int? = null,
+    val jurisdiction: String? = null,
+    val ownerName: String? = null,
+    val notes: String? = null,
 )
 
 data class Deadline(
@@ -55,6 +59,9 @@ data class Deadline(
     val status: String,        // open | done | waived
     val bucket: String?,       // overdue | soon | later | closed
     val daysToDue: Int?,
+    /** What falls due, when the obligation is a sum (a payment, a price revision). */
+    val amount: Double? = null,
+    val currency: String? = null,
 )
 
 data class RegistryOverview(
@@ -95,8 +102,9 @@ class RegistryRepository(private val api: ApiService) {
 
     suspend fun detail(id: String): Result<RegistryDetail> = runCatching {
         val d = api.registryAgreement(id).dataMap()
+        val agreement = d["agreement"] as? Map<*, *> ?: error("This agreement could not be read. Please try again.")
         RegistryDetail(
-            agreement = (d["agreement"] as Map<*, *>).toAgreement(),
+            agreement = agreement.toAgreement(),
             deadlines = (d["obligations"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.toDeadline() },
         )
     }.friendly()
@@ -104,12 +112,23 @@ class RegistryRepository(private val api: ApiService) {
 
 @Suppress("UNCHECKED_CAST")
 private fun Map<String, Any?>.dataMap(): Map<String, Any?> = this["data"] as? Map<String, Any?> ?: emptyMap()
-private fun Map<*, *>?.int(k: String) = (this?.get(k) as? Number)?.toInt() ?: 0
+/** A JSON number (Moshi: Double) or a numeric string, as an Int. */
+private fun num(v: Any?): Int? = when (v) {
+    is Number -> v.toInt()
+    is String -> v.trim().toIntOrNull() ?: v.trim().toDoubleOrNull()?.toInt()
+    else -> null
+}
+private fun dbl(v: Any?): Double? = when (v) {
+    is Number -> v.toDouble()
+    is String -> v.trim().toDoubleOrNull()
+    else -> null
+}
+private fun Map<*, *>?.int(k: String) = num(this?.get(k)) ?: 0
 private fun Map<*, *>.str(k: String) = (this[k] as? String)?.takeIf { it.isNotBlank() }
 private fun Map<*, *>.date(k: String) = str(k)?.take(10)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
 private fun Map<*, *>.toAgreement() = RegisterAgreement(
-    id                = (this["id"] as? Number)?.toInt()?.toString() ?: str("id").orEmpty(),
+    id                = num(this["id"])?.toString() ?: str("id").orEmpty(),
     title             = str("title") ?: "Untitled agreement",
     reference         = str("reference_no"),
     counterparty      = str("counterparty_name"),
@@ -120,20 +139,24 @@ private fun Map<*, *>.toAgreement() = RegisterAgreement(
     expiry            = date("expiry_date"),
     signed            = date("signed_date"),
     renewalType       = str("renewal_type"),
-    renewalTermMonths = (this["renewal_term_months"] as? Number)?.toInt(),
-    noticeDays        = (this["notice_period_days"] as? Number)?.toInt(),
+    renewalTermMonths = num(this["renewal_term_months"]),
+    noticeDays        = num(this["notice_period_days"]),
     noticeBy          = date("notice_deadline_date"),
-    value             = str("contract_value")?.toDoubleOrNull(),
+    value             = dbl(this["contract_value"]),
     currency          = str("currency") ?: "INR",
     hasSignedCopy     = this["has_signed_copy"] == true,
     openDeadlines     = int("open_deadlines"),
     paymentTerms      = str("payment_terms"),
     governingLaw      = str("governing_law"),
+    termMonths        = num(this["term_months"]),
+    jurisdiction      = str("jurisdiction"),
+    ownerName         = str("owner_name"),
+    notes             = str("notes"),
 )
 
 private fun Map<*, *>.toDeadline() = Deadline(
-    id             = (this["id"] as? Number)?.toInt()?.toString().orEmpty(),
-    agreementId    = (this["agreement_id"] as? Number)?.toInt()?.toString().orEmpty(),
+    id             = num(this["id"])?.toString().orEmpty(),
+    agreementId    = num(this["agreement_id"])?.toString().orEmpty(),
     agreementTitle = str("agreement_title"),
     kindLabel      = str("kind_label") ?: "Deadline",
     title          = str("title") ?: "Deadline",
@@ -141,16 +164,22 @@ private fun Map<*, *>.toDeadline() = Deadline(
     due            = date("due_date"),
     status         = str("status") ?: "open",
     bucket         = str("bucket"),
-    daysToDue      = (this["days_to_due"] as? Number)?.toInt(),
+    daysToDue      = num(this["days_to_due"]),
+    amount         = dbl(this["amount"])?.takeIf { it != 0.0 },
+    currency       = str("currency"),
 )
 
 private fun <T> Result<T>.friendly(): Result<T> = recoverCatching { e ->
     throw IllegalStateException(
         when {
+            e is HttpException && e.code() == 401 -> "Your session expired. Sign in again."
             e is HttpException && e.code() == 403 -> "Your account does not include the register. Please ask the firm."
             e is HttpException && e.code() == 404 -> "This agreement is not on your register."
+            e is HttpException && e.code() in 500..599 -> "The server had a problem. Please try again in a moment."
             e is java.io.IOException -> "Network error. Please try again."
-            else -> e.message ?: "Something went wrong."
+            // Our own error(...) messages are written for the client; anything else is not.
+            e is IllegalStateException && !e.message.isNullOrBlank() -> e.message!!
+            else -> "The register could not be read. Please try again."
         }
     )
 }
@@ -159,15 +188,23 @@ class RegistryViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = RegistryRepository(ApiClient.get(app))
     private val _state = MutableStateFlow<Loadable<RegistryOverview>>(Loadable.Loading)
     val state: StateFlow<Loadable<RegistryOverview>> = _state.asStateFlow()
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+    /** A reload that failed while the register was on screen: the data stays, this says why it is not fresh. */
+    private val _staleReason = MutableStateFlow<String?>(null)
+    val staleReason: StateFlow<String?> = _staleReason.asStateFlow()
 
     init { load() }
 
     fun load() {
+        if (_refreshing.value) return
         viewModelScope.launch {
-            if (_state.value !is Loadable.Ready) _state.value = Loadable.Loading
+            val shown = _state.value is Loadable.Ready
+            if (shown) _refreshing.value = true else _state.value = Loadable.Loading
             repo.overview()
-                .onSuccess { _state.value = Loadable.Ready(it) }
-                .onFailure { _state.value = Loadable.Failed(it.message ?: "") }
+                .onSuccess { _state.value = Loadable.Ready(it); _staleReason.value = null }
+                .onFailure { if (shown) _staleReason.value = it.message else _state.value = Loadable.Failed(it.message ?: "") }
+            _refreshing.value = false
         }
     }
 }
@@ -177,15 +214,22 @@ class RegistryAgreementViewModel(app: Application, saved: SavedStateHandle) : An
     private val repo = RegistryRepository(ApiClient.get(app))
     private val _state = MutableStateFlow<Loadable<RegistryDetail>>(Loadable.Loading)
     val state: StateFlow<Loadable<RegistryDetail>> = _state.asStateFlow()
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+    private val _staleReason = MutableStateFlow<String?>(null)
+    val staleReason: StateFlow<String?> = _staleReason.asStateFlow()
 
     init { load() }
 
     fun load() {
+        if (_refreshing.value) return
         viewModelScope.launch {
-            _state.value = Loadable.Loading
+            val shown = _state.value is Loadable.Ready
+            if (shown) _refreshing.value = true else _state.value = Loadable.Loading
             repo.detail(id)
-                .onSuccess { _state.value = Loadable.Ready(it) }
-                .onFailure { _state.value = Loadable.Failed(it.message ?: "") }
+                .onSuccess { _state.value = Loadable.Ready(it); _staleReason.value = null }
+                .onFailure { if (shown) _staleReason.value = it.message else _state.value = Loadable.Failed(it.message ?: "") }
+            _refreshing.value = false
         }
     }
 }
@@ -206,6 +250,16 @@ internal fun compactInr(amount: Double?, currency: String = "INR"): String {
         amount >= 1_00_000    -> "$sym${trim(amount / 1_00_000)} L"
         else -> sym + NumberFormat.getNumberInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }.format(amount)
     }
+}
+
+/** ₹1,23,456.50 — a sum in full, with Indian grouping (an obligation's amount). */
+internal fun fullInr(amount: Double, currency: String? = "INR"): String {
+    val sym = if (currency.isNullOrBlank() || currency.equals("INR", true)) "₹" else "$currency "
+    val nf = NumberFormat.getNumberInstance(Locale("en", "IN")).apply {
+        minimumFractionDigits = if (amount % 1.0 == 0.0) 0 else 2
+        maximumFractionDigits = 2
+    }
+    return sym + nf.format(amount)
 }
 
 /** "187 days overdue", "Today", "In 14 days". */
@@ -234,6 +288,14 @@ internal fun renewalLabel(type: String?): String = when (type?.lowercase()) {
     else -> "Ends Without Renewal"
 }
 
+/** Title Case for a stored value: snake_case words capitalised, but a word already
+ *  carrying capitals (GST, NDA, McKinsey) is left as written. */
 internal fun title(s: String?): String =
     s.orEmpty().replace('_', ' ').split(' ').filter { it.isNotBlank() }
-        .joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.titlecase() } }
+        .joinToString(" ") { w -> if (w.any { it.isUpperCase() }) w else w.replaceFirstChar { it.titlecase() } }
+
+/** "36 months" → "3 Years"; "18 months" → "18 Months". */
+internal fun monthsLabel(m: Int): String = when {
+    m > 0 && m % 12 == 0 -> (m / 12).let { y -> "$y ${if (y == 1) "Year" else "Years"}" }
+    else -> "$m ${if (m == 1) "Month" else "Months"}"
+}

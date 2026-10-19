@@ -8,6 +8,28 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
+/** The server's own message on a refused write (403/422), else [fallback]. */
+internal fun serverMessage(e: Throwable, fallback: String): String {
+    // error(msg) in this repository carries the server's own message; anything else is ours, not theirs.
+    val http = e as? retrofit2.HttpException ?: return (e as? IllegalStateException)?.message?.takeIf { it.isNotBlank() } ?: fallback
+    val body = runCatching { http.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+    val msg = runCatching { org.json.JSONObject(body).optString("message") }.getOrNull()
+    return msg?.takeIf { it.isNotBlank() } ?: when (http.code()) {
+        403 -> "Your account does not allow this on this project."
+        else -> fallback
+    }
+}
+
+/** A 403's wording: a tab the firm hid on this project (`code: tab_hidden`) is said as such. */
+internal fun forbiddenMessage(e: Throwable, fallback: String): String {
+    val body = runCatching { (e as? retrofit2.HttpException)?.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+    val code = runCatching { org.json.JSONObject(body).optString("code") }.getOrNull()
+    return if (code == "tab_hidden") "The firm has not shared this part of the project with you." else fallback
+}
+
+/** A refusal for want of a permission, told as such rather than as an expired session. */
+internal fun isForbidden(e: Throwable): Boolean = (e as? retrofit2.HttpException)?.code() == 403
+
 class ProjectsRepository(private val api: ApiService) {
 
     suspend fun list(filter: ProjectFilter = ProjectFilter.ACTIVE): Result<List<ProjectSummary>> = runCatching {
@@ -71,7 +93,7 @@ class ProjectsRepository(private val api: ApiService) {
         val data = response["data"] as? Map<String, Any?> ?: error("No data")
         val author = data["author"] as? Map<String, Any?>
         TaskComment(
-            id         = data["id"]?.toString() ?: "",
+            id         = jId(data["id"]) ?: "",
             content    = data["content"] as? String ?: content,
             dateAdded  = parseDateTime(data["dateadded"] as? String),
             authorType = author?.get("type") as? String ?: "contact",
@@ -93,7 +115,7 @@ class ProjectsRepository(private val api: ApiService) {
         if (response["status"] != true) error(response["message"]?.toString() ?: "Could not create task")
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?>
-        data?.get("id")?.toString() ?: ""
+        jId(data?.get("id")) ?: ""
     }
 
     /** Upload a file to a project; returns the new file row. */
@@ -134,17 +156,17 @@ class ProjectsRepository(private val api: ApiService) {
 // --- parsers ---------------------------------------------------------------
 
 private fun parseSummary(m: Map<String, Any?>): ProjectSummary {
-    val statusCode = m["status"]?.toString()?.toIntOrNull()
+    val statusCode = jInt(m["status"])
     return ProjectSummary(
-        id            = m["id"]?.toString() ?: "",
+        id            = jId(m["id"]) ?: "",
         name          = m["name"] as? String ?: "Untitled",
         status        = ProjectStatus.from(statusCode),
-        progress      = m["progress"]?.toString()?.toIntOrNull() ?: 0,
+        progress      = jInt(m["progress"]) ?: 0,
         startDate     = parseDate(m["start_date"] as? String),
         deadline      = parseDate(m["deadline"] as? String),
-        billingType   = m["billing_type"]?.toString()?.toIntOrNull(),
-        tasksTotal    = m["tasks_total"]?.toString()?.toIntOrNull() ?: 0,
-        tasksOpen     = m["tasks_open"]?.toString()?.toIntOrNull() ?: 0,
+        billingType   = jInt(m["billing_type"]),
+        tasksTotal    = jInt(m["tasks_total"]) ?: 0,
+        tasksOpen     = jInt(m["tasks_open"]) ?: 0,
         nextMilestone = parseNextMilestone(m["next_milestone"]),
     )
 }
@@ -152,7 +174,7 @@ private fun parseSummary(m: Map<String, Any?>): ProjectSummary {
 @Suppress("UNCHECKED_CAST")
 private fun parseNextMilestone(raw: Any?): NextMilestoneRef? {
     val m = raw as? Map<String, Any?> ?: return null
-    val id = m["id"]?.toString() ?: return null
+    val id = jId(m["id"]) ?: return null
     return NextMilestoneRef(
         id      = id,
         name    = m["name"] as? String ?: "",
@@ -166,16 +188,16 @@ private fun parseDetail(m: Map<String, Any?>): ProjectDetail {
     val settingsMap = m["settings"] as? Map<String, Any?> ?: emptyMap()
     val countsMap   = m["counts"]   as? Map<String, Any?> ?: emptyMap()
 
-    fun b(k: String) = settingsMap[k] as? Boolean ?: false
-    fun i(map: Map<String, Any?>, k: String) = map[k]?.toString()?.toIntOrNull() ?: 0
+    fun b(k: String) = jBool(settingsMap[k])
+    fun i(map: Map<String, Any?>, k: String) = jInt(map[k]) ?: 0
 
     return ProjectDetail(
         summary         = summary,
         description     = (m["description"] as? String)?.takeIf { it.isNotBlank() },
         projectCreated  = parseDate(m["project_created"] as? String),
         dateFinished    = parseDateTime(m["date_finished"] as? String),
-        projectCost     = (m["project_cost"] as? String)?.toDoubleOrNull(),
-        estimatedHours  = (m["estimated_hours"] as? String)?.toDoubleOrNull(),
+        projectCost     = jDouble(m["project_cost"]),
+        estimatedHours  = jDouble(m["estimated_hours"]),
         settings = ProjectSettings(
             viewTasks            = b("view_tasks"),
             viewMilestones       = b("view_milestones"),
@@ -189,6 +211,11 @@ private fun parseDetail(m: Map<String, Any?>): ProjectDetail {
             createTasks          = b("create_tasks"),
             commentOnTasks       = b("comment_on_tasks"),
             uploadFiles          = b("upload_files"),
+            viewInvoices         = b("view_invoices"),
+            viewTaskComments     = b("view_task_comments"),
+            viewTaskChecklistItems = b("view_task_checklist_items"),
+            viewTaskAttachments  = b("view_task_attachments"),
+            openDiscussions      = b("open_discussions"),
         ),
         counts = ProjectCounts(
             tasksTotal      = i(countsMap, "tasks_total"),
@@ -200,27 +227,27 @@ private fun parseDetail(m: Map<String, Any?>): ProjectDetail {
 }
 
 private fun parseTaskSummary(m: Map<String, Any?>): TaskSummary = TaskSummary(
-    id             = m["id"]?.toString() ?: "",
+    id             = jId(m["id"]) ?: "",
     name           = m["name"] as? String ?: "Untitled",
-    status         = TaskStatus.from(m["status"]?.toString()?.toIntOrNull()),
-    priority       = m["priority"]?.toString()?.toIntOrNull(),
+    status         = TaskStatus.from(jInt(m["status"])),
+    priority       = jInt(m["priority"]),
     startDate      = parseDate(m["startdate"] as? String),
     dueDate        = parseDate(m["duedate"] as? String),
     milestoneName  = (m["milestone_name"] as? String)?.takeIf { it.isNotBlank() },
-    checklistTotal = m["checklist_total"]?.toString()?.toIntOrNull() ?: 0,
-    checklistDone  = m["checklist_done"]?.toString()?.toIntOrNull() ?: 0,
-    commentsCount  = m["comments_count"]?.toString()?.toIntOrNull() ?: 0,
+    checklistTotal = jInt(m["checklist_total"]) ?: 0,
+    checklistDone  = jInt(m["checklist_done"]) ?: 0,
+    commentsCount  = jInt(m["comments_count"]) ?: 0,
 )
 
 private fun parseMilestone(m: Map<String, Any?>): Milestone = Milestone(
-    id          = m["id"]?.toString() ?: "",
+    id          = jId(m["id"]) ?: "",
     name        = m["name"] as? String ?: "",
     dueDate     = parseDate(m["due_date"] as? String),
     startDate   = parseDate(m["start_date"] as? String),
     color       = (m["color"] as? String)?.takeIf { it.isNotBlank() },
     description = (m["description"] as? String)?.takeIf { it.isNotBlank() },
-    tasksTotal  = m["tasks_total"]?.toString()?.toIntOrNull() ?: 0,
-    tasksDone   = m["tasks_done"]?.toString()?.toIntOrNull() ?: 0,
+    tasksTotal  = jInt(m["tasks_total"]) ?: 0,
+    tasksDone   = jInt(m["tasks_done"]) ?: 0,
 )
 
 private fun parseFile(m: Map<String, Any?>): ProjectFile {
@@ -228,7 +255,7 @@ private fun parseFile(m: Map<String, Any?>): ProjectFile {
     val contact = (m["contact_name"] as? String)?.takeIf { it.isNotBlank() }
     val external = (m["external"] as? String)?.takeIf { it.isNotBlank() } != null
     return ProjectFile(
-        id               = m["id"]?.toString() ?: "",
+        id               = jId(m["id"]) ?: "",
         fileName         = m["file_name"] as? String ?: "",
         originalFileName = (m["original_file_name"] as? String)?.takeIf { it.isNotBlank() },
         fileType         = (m["filetype"] as? String)?.takeIf { it.isNotBlank() },
@@ -246,7 +273,7 @@ private fun parseActivity(m: Map<String, Any?>): ProjectActivityItem {
         ?: (m["staff_name"]   as? String)?.takeIf { it.isNotBlank() }
         ?: (m["contact_name"] as? String)?.takeIf { it.isNotBlank() }
     return ProjectActivityItem(
-        id              = m["id"]?.toString() ?: "",
+        id              = jId(m["id"]) ?: "",
         descriptionKey  = m["description_key"] as? String ?: "",
         additionalData  = (m["additional_data"] as? String)?.takeIf { it.isNotBlank() },
         actorName       = actor,
@@ -258,16 +285,16 @@ private fun parseActivity(m: Map<String, Any?>): ProjectActivityItem {
 private fun parseTaskDetail(m: Map<String, Any?>): TaskDetail {
     val checklist = (m["checklist"] as? List<Map<String, Any?>>).orEmpty().map { c ->
         ChecklistItem(
-            id          = c["id"]?.toString() ?: "",
+            id          = jId(c["id"]) ?: "",
             description = c["description"] as? String ?: "",
-            finished    = c["finished"] as? Boolean ?: false,
-            order       = c["list_order"]?.toString()?.toIntOrNull() ?: 0,
+            finished    = jBool(c["finished"]),
+            order       = jInt(c["list_order"]) ?: 0,
         )
     }
     val comments = (m["comments"] as? List<Map<String, Any?>>).orEmpty().map { c ->
         val author = c["author"] as? Map<String, Any?>
         TaskComment(
-            id         = c["id"]?.toString() ?: "",
+            id         = jId(c["id"]) ?: "",
             content    = c["content"] as? String ?: "",
             dateAdded  = parseDateTime(c["dateadded"] as? String),
             authorType = author?.get("type") as? String ?: "staff",
@@ -278,37 +305,39 @@ private fun parseTaskDetail(m: Map<String, Any?>): TaskDetail {
         (a["name"] as? String)?.takeIf { it.isNotBlank() }
     }
     return TaskDetail(
-        id            = m["id"]?.toString() ?: "",
+        id            = jId(m["id"]) ?: "",
         name          = m["name"] as? String ?: "Untitled",
         description   = (m["description"] as? String)?.takeIf { it.isNotBlank() },
-        status        = TaskStatus.from(m["status"]?.toString()?.toIntOrNull()),
-        priority      = m["priority"]?.toString()?.toIntOrNull(),
+        status        = TaskStatus.from(jInt(m["status"])),
+        priority      = jInt(m["priority"]),
         startDate     = parseDate(m["startdate"] as? String),
         dueDate       = parseDate(m["duedate"] as? String),
         dateFinished  = parseDateTime(m["datefinished"] as? String),
         dateAdded     = parseDateTime(m["dateadded"] as? String),
-        projectId     = m["project_id"]?.toString() ?: "",
+        projectId     = jId(m["project_id"]) ?: "",
         projectName   = (m["project_name"] as? String)?.takeIf { it.isNotBlank() },
         milestoneName = (m["milestone_name"] as? String)?.takeIf { it.isNotBlank() },
         checklist     = checklist,
         comments      = comments,
         assignees     = assignees,
+        canComment    = m["can_comment"]?.let { jBool(it) },
+        canViewComments = m["can_view_comments"]?.let { jBool(it) },
     )
 }
 
 private fun parseDiscussionSummary(m: Map<String, Any?>): DiscussionSummary = DiscussionSummary(
-    id            = m["id"]?.toString() ?: "",
+    id            = jId(m["id"]) ?: "",
     subject       = m["subject"] as? String ?: "",
     description   = (m["description"] as? String)?.takeIf { it.isNotBlank() },
     dateCreated   = parseDateTime(m["datecreated"] as? String),
     lastActivity  = parseDateTime(m["last_activity"] as? String),
     authorName    = (m["author_name"] as? String)?.takeIf { it.isNotBlank() },
-    totalComments = m["total_comments"]?.toString()?.toIntOrNull() ?: 0,
+    totalComments = jInt(m["total_comments"]) ?: 0,
 )
 
 @Suppress("UNCHECKED_CAST")
 private fun parseDiscussionDetail(m: Map<String, Any?>): DiscussionDetail = DiscussionDetail(
-    id          = m["id"]?.toString() ?: "",
+    id          = jId(m["id"]) ?: "",
     subject     = m["subject"] as? String ?: "",
     description = (m["description"] as? String)?.takeIf { it.isNotBlank() },
     dateCreated = parseDateTime(m["datecreated"] as? String),
@@ -318,12 +347,44 @@ private fun parseDiscussionDetail(m: Map<String, Any?>): DiscussionDetail = Disc
 private fun parseDiscussionComment(c: Map<String, Any?>): DiscussionComment {
     val author = c["author"] as? Map<String, Any?>
     return DiscussionComment(
-        id         = c["id"]?.toString() ?: "",
+        id         = jId(c["id"]) ?: "",
         content    = c["content"] as? String ?: "",
         created    = parseDateTime(c["created"] as? String),
         authorType = author?.get("type") as? String ?: "staff",
         authorName = (author?.get("name") as? String)?.takeIf { it.isNotBlank() },
     )
+}
+
+// --- JSON number helpers ---------------------------------------------------
+// The API client decodes into Map<String, Any?>, so every JSON number arrives
+// as a Double: (int) 40 on the server is 40.0 here, and "40.0".toIntOrNull()
+// is null. Every number and id goes through these.
+
+internal fun jInt(v: Any?): Int? = when (v) {
+    null -> null
+    is Number -> v.toInt()
+    is Boolean -> if (v) 1 else 0
+    else -> v.toString().trim().let { it.toIntOrNull() ?: it.toDoubleOrNull()?.toInt() }
+}
+
+internal fun jDouble(v: Any?): Double? = when (v) {
+    null -> null
+    is Number -> v.toDouble()
+    else -> v.toString().trim().replace(",", "").toDoubleOrNull()
+}
+
+internal fun jBool(v: Any?): Boolean = when (v) {
+    is Boolean -> v
+    is Number -> v.toInt() != 0
+    is String -> v == "1" || v.equals("true", true)
+    else -> false
+}
+
+/** An id as the routes carry it: 5.0 and "5" are both "5". */
+internal fun jId(v: Any?): String? = when (v) {
+    null -> null
+    is Number -> v.toLong().toString()
+    else -> v.toString().trim().let { t -> t.toDoubleOrNull()?.takeIf { d -> d % 1.0 == 0.0 }?.toLong()?.toString() ?: t }
 }
 
 // --- date helpers (tolerant of Perfex formats) ----------------------------

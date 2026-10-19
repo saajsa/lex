@@ -66,3 +66,21 @@ fun indianGrouping(value: Long): String {
     }
     return "$sb,$last3"
 }
+
+/** The status as the portal's notice_pill words it: the server's Title Case
+ *  status_label (e.g. "Returned Undelivered", "Deemed Served"), else the raw
+ *  enum value (Draft, Dispatched, Served, …) put into Title Case. */
+fun noticeStatusTitle(n: NoticeSummary): String {
+    if (n.statusLabel.isNotBlank()) return n.statusLabel.trim()
+    val raw = n.status
+    return raw.trim().split(Regex("[\\s_]+")).filter { it.isNotBlank() }
+        .joinToString(" ") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }
+        .ifBlank { "Pending" }
+}
+
+/** True once the other side has answered, or the window has been closed out. */
+fun NoticeSummary.isAnswered(): Boolean =
+    children.isNotEmpty() || status in listOf("Response Received", "No Response", "Expired")
+
+/** Today in India — every legal date here is an Indian date. */
+fun todayIst(): java.time.LocalDate = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"))

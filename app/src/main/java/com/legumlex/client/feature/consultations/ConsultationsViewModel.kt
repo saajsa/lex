@@ -67,14 +67,7 @@ class ConsultationsViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = SessionsUiState.Ready(bucketize(items))
             }
             .onFailure { e ->
-                val msg = when (e) {
-                    is HttpException -> when (e.code()) {
-                        401, 403    -> "Your session expired. Sign in again."
-                        in 500..599 -> "Server error. Try again in a moment."
-                        else        -> "Couldn't load consultations (HTTP ${e.code()})."
-                    }
-                    else -> "Couldn't reach the server. Check your connection."
-                }
+                val msg = e.friendlyMessage("Your consultations could not be loaded. Please try again.")
                 if (!(preserveCurrent && _state.value is SessionsUiState.Ready)) {
                     _state.value = SessionsUiState.Error(msg)
                 }

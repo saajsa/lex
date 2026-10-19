@@ -45,7 +45,7 @@ class ConsultationsRepository(private val api: ApiService) {
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?> ?: error("No data in response")
         ClosureSummary(
-            id             = data["id"]?.toString() ?: consultationId,
+            id             = data["id"].idString() ?: consultationId,
             closedAt       = (data["closed_at"] as? String).orEmpty(),
             closureReason  = (data["closure_reason"] as? String) ?: "cancelled_by_client",
             status         = (data["status"] as? String) ?: "Closed",
@@ -63,7 +63,7 @@ class ConsultationsRepository(private val api: ApiService) {
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?> ?: error("No data in response")
         ConsultationLinkage(
-            id     = data["id"]?.toString() ?: consultationId,
+            id     = data["id"].idString() ?: consultationId,
             parent = parseLinkageSide(data["parent"]),
             linked = parseLinkageSide(data["linked"]),
         )
@@ -76,7 +76,7 @@ class ConsultationsRepository(private val api: ApiService) {
         // isn't client_visible. Treat that as "no link", not an empty card.
         val id = m["id"] ?: return null
         return LinkageSide(
-            id            = id.toString(),
+            id            = id.idString() ?: return null,
             kind          = ConsultationKind.from(m["kind"] as? String),
             title         = m["title"] as? String,
             status        = m["status"] as? String,
@@ -141,7 +141,7 @@ class ConsultationsRepository(private val api: ApiService) {
         )
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?> ?: error("No data in response")
-        data["id"]?.toString() ?: error("No ID in response")
+        data["id"].idString() ?: error("No ID in response")
     }
 
     suspend fun docRequests(consultationId: String): Result<DocRequestBundle> = runCatching {
@@ -223,7 +223,7 @@ private fun parse(m: Map<String, Any?>): Consultation {
     val rawStatus       = m["status"]           as? String ?: "Open"
     val requestStatus   = m["request_status"]   as? String ?: "pending"
     val acknowledgedAt  = parseDateTime(m["acknowledged_at"] as? String)
-    val linkedCaseId    = m["case_link_id"]?.toString()?.takeIf { it != "0" && it.isNotBlank() }
+    val linkedCaseId    = m["case_link_id"].asLongOrNull()?.takeIf { it > 0 }?.toString()
     val kind            = ConsultationKind.from(m["consultation_type"] as? String)
     val pendingDocs     = m["pending_doc_count"].asIntOrNull() ?: 0
     val totalDocs       = m["total_doc_count"].asIntOrNull() ?: 0
@@ -236,7 +236,8 @@ private fun parse(m: Map<String, Any?>): Consultation {
         phase = phase,
         rawStatus = rawStatus,
         requestStatus = requestStatus,
-        acknowledged = acknowledgedAt != null,
+        // An advocate who has written has taken it up, acknowledged_at or not.
+        acknowledged = acknowledgedAt != null || (m["advocate_reply_count"].asIntOrNull() ?: 0) > 0,
         linkedToCase = linkedCaseId != null,
         kind = kind,
         pendingDocs = pendingDocs,
@@ -251,7 +252,7 @@ private fun parse(m: Map<String, Any?>): Consultation {
     val docsRaw    = (m["documents"] as? List<Map<String, Any?>>).orEmpty()
 
     return Consultation(
-        id               = m["id"]?.toString() ?: "",
+        id               = m["id"].idString() ?: "",
         tag              = (m["tag"]  as? String)?.takeIf { it.isNotBlank() },
         // The consultation's text as the client may read it (the portal's rule,
         // applied by the server): their own enquiry, their brief to the Digital
@@ -290,7 +291,7 @@ private fun parse(m: Map<String, Any?>): Consultation {
         documents        = docsRaw.map(::parseConsultationDoc),
         clientInitiated  = m["client_initiated"].asBool(),
         requestStatus    = requestStatus,
-        invoiceId        = m["invoice_id"]?.toString()?.takeIf { it != "0" && it.isNotBlank() },
+        invoiceId        = m["invoice_id"].asLongOrNull()?.takeIf { it > 0 }?.toString(),
         invoiceNumber    = (m["invoice_number"] as? String)?.takeIf { it.isNotBlank() }
                             ?: m["invoice_number"]?.toString()?.takeIf { it.isNotBlank() },
         invoiceStatus    = (m["invoice_status"] as? String)?.takeIf { it.isNotBlank() }
@@ -305,24 +306,29 @@ private fun parse(m: Map<String, Any?>): Consultation {
         isEscalated          = m["is_escalated"].asBool(),
         escalationReason     = (m["escalation_reason"] as? String)?.takeIf { it.isNotBlank() },
         escalatedAt          = parseDateTime(m["escalated_at"] as? String),
-        linkedConsultationId = m["linked_consultation_id"]?.toString()?.takeIf { it != "0" && it.isNotBlank() },
-        parentConsultationId = m["parent_consultation_id"]?.toString()?.takeIf { it != "0" && it.isNotBlank() },
+        linkedConsultationId = m["linked_consultation_id"].asLongOrNull()?.takeIf { it > 0 }?.toString(),
+        parentConsultationId = m["parent_consultation_id"].asLongOrNull()?.takeIf { it > 0 }?.toString(),
         advocateNote         = (m["advocate_note"] as? String)?.takeIf { it.isNotBlank() },
+        funnelStep           = (m["funnel_step"] as? String)?.takeIf { it.isNotBlank() },
+        paymentStatus        = (m["payment_status"] as? String)?.takeIf { it.isNotBlank() },
+        feeInvoiceId         = m["fee_invoice_id"].asLongOrNull()?.takeIf { it > 0 }?.toString(),
+        unreadCount          = m["unread_count"].asIntOrNull() ?: if (unreadReplies) 1 else 0,
     )
 }
 
 private fun parseReply(m: Map<String, Any?>) = Reply(
-    id          = m["id"]?.toString() ?: "",
+    id          = m["id"].idString() ?: "",
     message     = (m["message"] as? String).orEmpty(),
     fromClient  = m["from_client"].asBool(),
     authorName  = (m["author_name"] as? String)?.trim()?.takeIf { it.isNotBlank() }
-                    ?: if (m["from_client"]?.toString() == "1") "You" else "Your advocate",
+                    ?: if (m["from_client"].asBool()) "You" else "Your advocate",
     authorImage = (m["author_image"] as? String)?.takeIf { it.isNotBlank() },
     createdAt   = parseDateTime(m["date_added"] as? String),
+    readAt      = parseDateTime(m["read_at"] as? String),
 )
 
 private fun parseConsultationDoc(m: Map<String, Any?>) = ConsultationDoc(
-    id            = m["id"]?.toString() ?: "",
+    id            = m["id"].idString() ?: "",
     fileName      = m["file_name"] as? String ?: "",
     displayName   = (m["display_name"] as? String)?.takeIf { it.isNotBlank() }
                       ?: (m["file_name"] as? String) ?: "Untitled",
@@ -357,11 +363,9 @@ private fun deriveStatus(
                                                    -> ConsultationStatus.COMPLETED
     rawStatus.equals("Closed",    ignoreCase = true) -> ConsultationStatus.CLOSED
     rawStatus.equals("Resolved",  ignoreCase = true) -> ConsultationStatus.COMPLETED
-    // Report released but the consultation is intentionally left open for the
-    // client to read and then close themselves ("Done with this — close").
-    // It's not terminal, so keep it active rather than letting it fall through
-    // to "Pending review".
-    rawStatus.equals("Released",  ignoreCase = true) -> ConsultationStatus.IN_PROGRESS
+    // A released report is the answer given: the portal counts it resolved
+    // (Mylex_model::consult_pill), and Home's figures do too.
+    rawStatus.equals("Released",  ignoreCase = true) -> ConsultationStatus.COMPLETED
     // Digital Office "live now" — within meeting hour-window
     kind == ConsultationKind.DIGITAL_OFFICE && scheduledDate != null -> {
         val sched = java.time.LocalDateTime.of(scheduledDate, scheduledTime ?: java.time.LocalTime.NOON)
@@ -385,7 +389,7 @@ private fun deriveStatus(
 }
 
 private fun parseDocRequestItem(m: Map<String, Any?>) = DocRequestItem(
-    id                  = m["id"]?.toString() ?: "",
+    id                  = m["id"].idString() ?: "",
     documentName        = (m["document_name"] as? String).orEmpty(),
     description         = (m["description"] as? String)?.takeIf { it.isNotBlank() },
     isRequired          = m["is_required"]?.let { it.asBool() } ?: true,
@@ -393,7 +397,8 @@ private fun parseDocRequestItem(m: Map<String, Any?>) = DocRequestItem(
     fulfilledFileName   = (m["fulfilled_file_name"] as? String)?.takeIf { it.isNotBlank() },
     fulfilledDisplayName= (m["fulfilled_display_name"] as? String)?.takeIf { it.isNotBlank() },
     fulfilledAt         = parseDateTime(m["fulfilled_at"] as? String),
-    waivedReason        = (m["waived_reason"] as? String)?.takeIf { it.isNotBlank() },
+    // The server tags a client's own reason "[Client] "; show the reason itself.
+    waivedReason        = (m["waived_reason"] as? String)?.removePrefix("[Client]")?.trim()?.takeIf { it.isNotBlank() },
     createdAt           = parseDateTime(m["created_at"] as? String),
     fileSizeBytes       = (m["fulfilled_file_size"] as? Number)?.toLong(),
     fileKind            = (m["fulfilled_file_kind"] as? String)?.takeIf { it.isNotBlank() },
@@ -403,7 +408,7 @@ private fun parseDocRequestItem(m: Map<String, Any?>) = DocRequestItem(
 )
 
 private fun parseAttachment(m: Map<String, Any?>) = ConsultationAttachment(
-    id          = m["id"]?.toString() ?: "",
+    id          = m["id"].idString() ?: "",
     displayName = (m["display_name"] as? String)?.takeIf { it.isNotBlank() }
         ?: (m["file_name"] as? String).orEmpty(),
     fileName    = (m["file_name"] as? String).orEmpty(),
@@ -415,7 +420,7 @@ private fun parseAttachment(m: Map<String, Any?>) = ConsultationAttachment(
 )
 
 private fun parseAppointmentData(m: Map<String, Any?>) = AppointmentData(
-    id              = m["id"]?.toString() ?: "",
+    id              = m["id"].idString() ?: "",
     date            = parseDate(m["appointment_date"] as? String),
     startTime       = parseTime(m["start_time"] as? String),
     endTime         = parseTime(m["end_time"] as? String),
@@ -440,6 +445,12 @@ private fun Any?.asIntOrNull(): Int? = when (this) {
 private fun Any?.asLongOrNull(): Long? = when (this) {
     is Number -> toLong()
     is String -> toLongOrNull() ?: toDoubleOrNull()?.toLong()
+    else      -> null
+}
+/** An id as the server meant it: 45.0 (Moshi's Double) reads "45", never "45.0". */
+private fun Any?.idString(): String? = when (this) {
+    is Number -> toLong().toString()
+    is String -> takeIf { it.isNotBlank() }?.let { it.toDoubleOrNull()?.toLong()?.toString() ?: it }
     else      -> null
 }
 private fun Any?.asDoubleOrNull(): Double? = when (this) {
@@ -492,6 +503,7 @@ private fun parseAhcAnalysis(m: Map<String, Any?>) = AhcAnalysis(
     agreementType    = (m["context"] as? Map<*, *>)?.get("agreement_type")?.let { it as? String }?.takeIf { it.isNotBlank() },
     parties          = (m["context"] as? Map<*, *>)?.get("parties")?.let { it as? String }?.takeIf { it.isNotBlank() },
     agreementSummary = (m["context"] as? Map<*, *>)?.get("summary")?.let { it as? String }?.takeIf { it.isNotBlank() },
+    released         = m["released"].asBool(),
 )
 
 // --- date helpers ---------------------------------------------------------

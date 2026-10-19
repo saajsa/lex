@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
+import android.app.Activity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,6 +51,21 @@ fun SplashScreen(onTimeout: () -> Unit) {
         word.animateTo(1f, tween(500))
         delay(450)
         onTimeout()
+    }
+
+    // The splash is black in either theme: its status-bar icons are light
+    // while it shows, and the theme's own come back after it.
+    val view = LocalView.current
+    val dark = com.legumlex.client.ui.theme.Lex.colors.isDark
+    DisposableEffect(view) {
+        val window = (view.context as? Activity)?.window
+        val bars = window?.let { WindowCompat.getInsetsController(it, view) }
+        bars?.isAppearanceLightStatusBars = false
+        bars?.isAppearanceLightNavigationBars = false
+        onDispose {
+            bars?.isAppearanceLightStatusBars = !dark
+            bars?.isAppearanceLightNavigationBars = !dark
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {

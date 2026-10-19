@@ -89,15 +89,15 @@ class ProjectMilestonesViewModel(app: Application, private val projectId: String
         try {
             coroutineScope {
                 val detail = async { repo.detail(projectId).getOrThrow() }
-                val ms = async { repo.milestones(projectId).getOrNull().orEmpty() }
+                val ms = async { repo.milestones(projectId).getOrThrow() }
                 val d = detail.await()
-                _state.value = MilestonesUiState.Ready(d.summary.name, "PRJ-${d.summary.id}", ms.await())
+                _state.value = MilestonesUiState.Ready(d.summary.name, d.summary.status.label, ms.await())
             }
         } catch (e: Throwable) {
             if (!(preserve && _state.value is MilestonesUiState.Ready)) {
                 _state.value = MilestonesUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401, 403 -> "Your session expired. Sign in again."; 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load milestones (HTTP ${e.code()})." }
+                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's milestones. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load milestones (HTTP ${e.code()})." }
                         else -> "Couldn't reach the server. Check your connection."
                     },
                 )

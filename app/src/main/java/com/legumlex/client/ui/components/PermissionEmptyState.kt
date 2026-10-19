@@ -18,14 +18,17 @@ import com.legumlex.client.ui.theme.SecondaryText
 import com.legumlex.client.ui.theme.Surface2
 
 /**
- * Shown when the server says client_visible=0 on something the client
+ * Shown when the server refuses (403) a section the contact's account does
+ * not include, when it says client_visible=0 on something the client
  * deep-linked into, or when staff hasn't enabled edits ("viewOnly").
+ * [message] replaces the default sentence when the reason is known.
  */
 @Composable
 fun PermissionEmptyState(
     feature: String,
     viewOnly: Boolean = false,
     modifier: Modifier = Modifier,
+    message: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -51,7 +54,7 @@ fun PermissionEmptyState(
         EyebrowText(text = feature)
         Spacer(Modifier.height(14.dp))
         Text(
-            text = if (viewOnly) {
+            text = message ?: if (viewOnly) {
                 "Your advocate hasn't enabled edits on this matter yet."
             } else {
                 "Your advocate hasn't shared this with you yet."

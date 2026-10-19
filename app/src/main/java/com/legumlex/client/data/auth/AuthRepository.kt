@@ -2,9 +2,15 @@ package com.legumlex.client.data.auth
 
 import com.legumlex.client.data.api.ApiService
 import com.legumlex.client.push.PushSetup
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import retrofit2.HttpException
+import java.io.File
+
+/** cacheDir folders that hold a signed-in contact's documents. */
+private val DocCacheDirs = setOf("docs", "ahc", "casedoc", "docreq", "noticedoc")
 
 // The customers_api sign-in endpoints (Google, email + password, a code to
 // the verified mobile) + JWT persistence.
@@ -15,6 +21,8 @@ import retrofit2.HttpException
 class AuthRepository(
     private val api: ApiService,
     private val tokens: TokenStore,
+    /** The app's cacheDir: the documents opened while signed in are kept there. */
+    private val cacheDir: File? = null,
 ) {
     suspend fun signInWithGoogle(idToken: String): Result<LoginResult> =
         runAuth { api.loginWithGoogle(idToken) }
@@ -65,7 +73,25 @@ class AuthRepository(
         // already-queued push doesn't fire after sign-out. Idempotent.
         PushSetup.clear()
         com.legumlex.client.feature.profile.ProfileHub.clear()
+        com.legumlex.client.feature.notifications.NotificationHub.clear()
         tokens.clear()
+        clearDocumentCache()
+    }
+
+    // Legal documents opened in the app are cached as plain files; the next
+    // person to sign in on this device must not find them.
+    private suspend fun clearDocumentCache() {
+        val root = cacheDir ?: return
+        withContext(Dispatchers.IO) {
+            runCatching {
+                root.listFiles()?.forEach { f ->
+                    when {
+                        f.isDirectory && f.name in DocCacheDirs -> f.deleteRecursively()
+                        f.isFile && (f.name.startsWith("proj_") || f.name.startsWith("projfile_")) -> f.delete()
+                    }
+                }
+            }
+        }
     }
 
     // The OTP steps' error mapping: the server's message, and its error code

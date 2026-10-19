@@ -43,7 +43,12 @@ data class NoticeSummary(
     val parentNoticeId: String? = null,
     val isResponse: Boolean = false,
     val children: List<NoticeSummary> = emptyList(),
+    val subject: String? = null,
+    val isServed: Boolean = false,
 )
+
+/** One line of the notice's own history, oldest first. */
+data class NoticeActivity(val title: String, val date: LocalDate?, val detail: String?)
 
 /** Full tracking detail. */
 data class NoticeDetail(
@@ -72,6 +77,19 @@ data class NoticeDetail(
     val documents: List<NoticeDocument>,
     val parent: NoticeSummary? = null,      // set when this notice is a response
     val children: List<NoticeSummary> = emptyList(),  // response notices nested under this
+    val subject: String? = null,
+    val receivedDate: LocalDate? = null,
+    /** Service the law presumes (e.g. a refused or unclaimed post), when recorded. */
+    val deemedServedDate: LocalDate? = null,
+    /** The day the statutory waiting period runs out. */
+    val waitingEndDate: LocalDate? = null,
+    val isServed: Boolean = false,
+    val returnDate: LocalDate? = null,
+    val returnReason: String? = null,
+    val receivedByPerson: String? = null,
+    /** The portal's "what happens next" sentence, verbatim; null when empty. */
+    val nextStep: String? = null,
+    val activity: List<NoticeActivity> = emptyList(),
 )
 
 /** AI-extracted fields from an uploaded inbound notice (preview, pre-confirm). */
@@ -88,15 +106,15 @@ data class ExtractedNotice(
 
 /** Sort modes offered in the sort sheet. */
 enum class NoticeSort(val label: String, val sub: String?) {
-    DEADLINE("Deadline — soonest first", "Don't miss a response window"),
-    RECENT("Recent activity", "Most recently updated"),
-    AMOUNT("Claim amount — highest", null),
+    DEADLINE("Deadline — Soonest First", "Reply dates nearest first"),
+    RECENT("Recent Activity", "Most recently updated"),
+    AMOUNT("Claim Amount — Highest", null),
     STATUS("Status", null),
 }
 
 /** Priority bands the list groups into (when grouping is on). */
 enum class NoticeBand(val label: String) {
-    NEEDS_YOU("Needs you"), IN_PROGRESS("In progress"), CLOSED("Closed")
+    NEEDS_YOU("Needs You"), IN_PROGRESS("In Progress"), CLOSED("Closed")
 }
 
 /** A rendered section — a band header (null when grouping is off) + its root threads. */

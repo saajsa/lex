@@ -152,7 +152,7 @@ fun DiscardDraftDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Discard this draft?", fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+            Text("Discard This Draft?", fontFamily = Inter, fontWeight = FontWeight.SemiBold)
         },
         text = {
             Text(
@@ -172,7 +172,7 @@ fun DiscardDraftDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Keep editing", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+                Text("Keep Editing", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
         containerColor = Surface1,

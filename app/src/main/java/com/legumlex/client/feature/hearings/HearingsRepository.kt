@@ -48,9 +48,11 @@ internal fun parseHearing(m: Map<String, Any?>): Hearing {
         courtName         = (m["court_name"] as? String)?.takeIf { it.isNotBlank() },
         courtNumber       = (m["court_no"]   as? String)?.takeIf { it.isNotBlank() },
         judgeName         = (m["judge_name"] as? String)?.takeIf { it.isNotBlank() },
-        purpose           = ((m["hearing_purpose"] as? String)
-                              ?: (m["upcoming_purpose"] as? String))
-                              ?.takeIf { it.isNotBlank() },
+        purpose           = (m["hearing_purpose"] as? String)?.takeIf { it.isNotBlank() },
+        nextPurpose       = (m["upcoming_purpose"] as? String)?.takeIf { it.isNotBlank() },
+        description       = (m["description"] as? String)?.takeIf { it.isNotBlank() },
+        clientAttendance  = (m["client_attendance"] as? String)?.takeIf { it.isNotBlank() },
+        clientInstructions = (m["client_instructions"] as? String)?.takeIf { it.isNotBlank() },
         nextDate          = parseDate(m["next_date"] as? String),
         nextTime          = parseTime(m["next_time"] as? String),
         adjournmentReason = (m["adjournment_reason"] as? String)?.takeIf { it.isNotBlank() },
@@ -66,6 +68,8 @@ private fun parseHistoryEntry(m: Map<String, Any?>) = HearingHistoryEntry(
     status            = HearingStatus.from(m["status"] as? String),
     adjournmentReason = (m["adjournment_reason"] as? String)?.takeIf { it.isNotBlank() },
     createdAt         = parseDateTime(m["created_at"] as? String),
+    description       = (m["description"] as? String)?.takeIf { it.isNotBlank() },
+    nextDate          = parseDate(m["next_date"] as? String),
 )
 
 private val datePatterns = listOf("yyyy-MM-dd", "dd-MM-yyyy", "yyyy/MM/dd")

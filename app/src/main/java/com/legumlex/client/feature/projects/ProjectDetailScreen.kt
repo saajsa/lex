@@ -51,6 +51,7 @@ import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
 import com.legumlex.client.ahc.theme.Inter
+import com.legumlex.client.ui.theme.Lex
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -131,14 +132,15 @@ private fun ProjectDetailReady(
     val openTask = { id: String -> onOpenTask(id, settings.commentOnTasks) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-        Masthead(detail)
+        Masthead(detail, today)
+        if (s.failed.isNotEmpty()) FailedSections(s.failed, actionInFlight, vm::refresh)
         AtAGlance(
             detail, s.discussions.size, today,
             onMilestones = { onOpenMilestones(pid) },
             onFiles = { onOpenFiles(pid) },
             onDiscussions = { onOpenDiscussions(pid) },
         )
-        TasksSection(s.tasks, seg, { seg = it }, settings.createTasks, { showSheet = true }, openTask)
+        if (settings.viewTasks) TasksSection(s.tasks, seg, { seg = it }, settings.createTasks, { showSheet = true }, openTask)
         MoreRows(
             detail, s,
             onOpenMilestones = { onOpenMilestones(pid) },
@@ -153,7 +155,7 @@ private fun ProjectDetailReady(
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(onDismissRequest = { showSheet = false }, sheetState = sheetState, containerColor = LlColor.Paper) {
             CreateTaskSheet(
-                projectRef = "PRJ-$pid", milestones = s.milestones, inFlight = actionInFlight,
+                projectName = detail.summary.name, milestones = s.milestones, inFlight = actionInFlight,
                 onCancel = { showSheet = false },
                 onSubmit = { name, start, due, prio, ms, desc -> vm.createTask(name, start, due, prio, ms, desc, onDone = { showSheet = false }) },
             )
@@ -166,19 +168,26 @@ private fun ProjectDetailReady(
 // =============================================================================
 
 @Composable
-private fun Masthead(detail: ProjectDetail) {
+private fun Masthead(detail: ProjectDetail, today: LocalDate) {
     val s = detail.summary
     Column(Modifier.fillMaxWidth().background(LlColor.Paper).padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 15.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("PROJECT", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.13.em, color = LlColor.InkFaint)
-            Text("PRJ-${s.id}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.13.em, color = ClaretMidFix)
         }
         Spacer(Modifier.height(9.dp))
         Text(s.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 23.sp, letterSpacing = (-0.02).em, lineHeight = 28.sp, color = LlColor.Ink)
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             StatusPill(s.status.label, statusTone(s.status))
-            (s.nextMilestone?.dueDate ?: s.deadline)?.let {
-                Text("Due ${it.format(dowFmt)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+            val milestoneDue = s.nextMilestone?.dueDate
+            (milestoneDue ?: s.deadline)?.let {
+                // A date already behind us is said to have passed, not merely coloured.
+                val passed = it.isBefore(today) && s.status != ProjectStatus.Finished && s.status != ProjectStatus.Cancelled
+                val what = if (milestoneDue != null) "Milestone" else "Deadline"
+                Text(
+                    if (passed) "$what Passed · ${it.format(dowFmt)}" else "Due ${it.format(dowFmt)}",
+                    fontFamily = Inter, fontWeight = if (passed) FontWeight.SemiBold else FontWeight.Normal, fontSize = 10.5.sp,
+                    color = if (passed) LlColor.Claret else LlColor.InkFaint,
+                )
             }
         }
     }
@@ -192,10 +201,10 @@ private fun Masthead(detail: ProjectDetail) {
 private fun AtAGlance(detail: ProjectDetail, discussionCount: Int, today: LocalDate, onMilestones: () -> Unit, onFiles: () -> Unit, onDiscussions: () -> Unit) {
     val s = detail.summary
     val done = (s.tasksTotal - s.tasksOpen).coerceAtLeast(0)
-    val pacing = s.nextMilestone?.dueDate ?: s.deadline
-    val days = pacing?.let { if (it.isBefore(today)) null else ChronoUnit.DAYS.between(today, it) }
+    val settings = detail.settings
+    val days = s.nextMilestone?.dueDate?.let { ChronoUnit.DAYS.between(today, it) }   // negative once passed
 
-    Slabel("At a glance", first = true)
+    Slabel("At a Glance", first = true)
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // Hero tile (informational — tasks sit just below; not a navigation target)
         Column(
@@ -215,6 +224,7 @@ private fun AtAGlance(detail: ProjectDetail, discussionCount: Int, today: LocalD
                 Box(Modifier.fillMaxWidth(s.progress.coerceIn(0, 100) / 100f).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(s.status.meter()))
             }
             s.nextMilestone?.let { ms ->
+                val passed = days != null && days < 0
                 val soon = days != null && days <= 3
                 val cdBg = if (soon) ClaretSoftFix else LlColor.AmberSoft
                 val cdBorder = if (soon) ClaretBorderFix else AmberBorderFix
@@ -228,32 +238,46 @@ private fun AtAGlance(detail: ProjectDetail, discussionCount: Int, today: LocalD
                         Modifier.widthIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).background(cdBg).border(LlDimen.HairlineWidth, cdBorder, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text(if (days == null || days <= 0) "•" else "$days", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, color = accent)
-                        Text(when (days) { null -> "DUE"; 1L -> "DAY"; else -> "DAYS" }, fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
+                        Text(if (days == null || days == 0L) "•" else "${kotlin.math.abs(days)}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, color = accent)
+                        Text(if (days == null) "DUE" else when { days == 0L -> "TODAY"; days == -1L -> "DAY LATE"; days < 0L -> "DAYS LATE"; days == 1L -> "DAY"; else -> "DAYS" }, fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
                     }
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                            Text("NEAREST DEADLINE", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.13.em, color = accentMid)
+                            Text(if (passed) "DEADLINE PASSED" else "NEAREST DEADLINE", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.13.em, color = accentMid)
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(ms.name, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         ms.dueDate?.let {
-                            val word = when (days) { null -> ""; 0L -> "Today · "; 1L -> "Tomorrow · "; else -> "In $days days · " }
+                            val word = if (days == null) "" else when {
+                                days < -1L -> "Passed ${-days} days ago · "
+                                days == -1L -> "Passed yesterday · "
+                                days == 0L -> "Today · "
+                                days == 1L -> "Tomorrow · "
+                                else -> "In $days days · "
+                            }
                             Text(word + it.format(dowFmt), fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
                 }
             }
         }
-        // 2×2 metric tiles
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricTile(Modifier.weight(1f), Icons.Outlined.Checklist, "Open tasks", "${detail.counts.tasksOpen}", "of ${detail.counts.tasksTotal} total", false, onClick = null)
-            MetricTileText(Modifier.weight(1f), Icons.Outlined.Flag, "Next milestone", s.nextMilestone?.name ?: "—", s.nextMilestone?.dueDate?.let { "Due ${it.format(dowFmt)}" }, true, onClick = onMilestones)
+        // Metric tiles, two to a row — only for the parts this project shows its client.
+        val tiles = buildList<@Composable (Modifier) -> Unit> {
+            if (settings.viewTasks) add { m -> MetricTile(m, Icons.Outlined.Checklist, "Open Tasks", "${detail.counts.tasksOpen}", "of ${detail.counts.tasksTotal} total", false, onClick = null) }
+            if (settings.viewMilestones) add { m ->
+                val next = s.nextMilestone
+                val late = next?.dueDate?.isBefore(today) == true
+                MetricTileText(m, Icons.Outlined.Flag, "Next Milestone", next?.name ?: "—", next?.dueDate?.let { if (late) "Passed · ${it.format(dowFmt)}" else "Due ${it.format(dowFmt)}" }, late, onClick = onMilestones)
+            }
+            if (settings.viewFiles) add { m -> MetricTile(m, Icons.Outlined.Folder, "Files", "${detail.counts.filesTotal}", null, false, onClick = onFiles) }
+            if (settings.viewDiscussions) add { m -> MetricTile(m, Icons.Outlined.Forum, "Discussions", "$discussionCount", null, false, onClick = onDiscussions) }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetricTile(Modifier.weight(1f), Icons.Outlined.Folder, "Files", "${detail.counts.filesTotal}", null, false, onClick = onFiles)
-            MetricTile(Modifier.weight(1f), Icons.Outlined.Forum, "Discussions", "$discussionCount", null, false, onClick = onDiscussions)
+        tiles.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { tile -> tile(Modifier.weight(1f)) }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
@@ -309,7 +333,7 @@ private fun TasksSection(tasks: List<TaskSummary>, seg: String, onSeg: (String) 
         if (canCreate) {
             Row(Modifier.clip(RoundedCornerShape(8.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(8.dp)).clickable(onClick = onCreate).padding(start = 8.dp, end = 10.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(Icons.Outlined.Add, null, tint = ClaretMidFix, modifier = Modifier.size(15.dp))
-                Text("New task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = ClaretMidFix)
+                Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = ClaretMidFix)
             }
         }
     }
@@ -321,7 +345,7 @@ private fun TasksSection(tasks: List<TaskSummary>, seg: String, onSeg: (String) 
         }
         Spacer(Modifier.height(12.dp))
         if (list.isEmpty()) {
-            EmptySection(Icons.Outlined.Checklist, if (seg == "done") "Nothing done yet" else "No open tasks", if (canCreate && seg == "open") "Add a task with New task, or your chamber will add tasks as the work moves." else "Tasks will appear here.")
+            EmptySection(Icons.Outlined.Checklist, if (seg == "done") "Nothing Done Yet" else "No Open Tasks", if (canCreate && seg == "open") "Add a task with New Task, or your chamber will add tasks as the work moves." else "Tasks will appear here.")
         } else {
             Card {
                 list.forEachIndexed { i, t ->
@@ -392,7 +416,7 @@ private fun MoreRows(detail: ProjectDetail, s: ProjectDetailUiState.Ready, onOpe
         }
         if (settings.viewActivityLog) {
             DrillRow(Icons.Outlined.History, "Activity", null, false,
-                s.activity.firstOrNull()?.let { (it.actorName?.let { a -> "$a · " } ?: "") + humanizeKey(it.descriptionKey) } ?: "No activity yet", onOpenActivity)
+                s.activity.firstOrNull()?.let { (it.actorName?.let { a -> "$a · " } ?: "") + humanizeKey(it.descriptionKey) + (it.additionalData?.let(::plainActivityData)?.takeIf { d -> d.isNotBlank() }?.let { d -> " · $d" } ?: "") } ?: "No activity yet", onOpenActivity)
         }
     }
 }
@@ -410,8 +434,8 @@ private fun DrillRow(icon: ImageVector, label: String, count: Int?, unread: Bool
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
                 count?.takeIf { it > 0 }?.let {
-                    Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(if (unread) ClaretMidFix else LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
-                        Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = if (unread) Color.White else LlColor.InkMuted)
+                    Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(if (unread) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
+                        Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = if (unread) LlColor.Claret else LlColor.InkMuted)
                     }
                 }
             }
@@ -427,69 +451,160 @@ private fun DrillRow(icon: ImageVector, label: String, count: Int?, unread: Bool
 
 @Composable
 private fun CreateTaskSheet(
-    projectRef: String, milestones: List<Milestone>, inFlight: Boolean,
+    projectName: String, milestones: List<Milestone>, inFlight: Boolean,
     onCancel: () -> Unit,
     onSubmit: (name: String, startDate: String, dueDate: String?, priority: Int, milestone: Int, description: String?) -> Unit,
 ) {
+    // A four-step wizard: Details → Priority & Milestone → Dates → Review.
     val context = LocalContext.current
     val iso = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
-    var name by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
-    var priority by remember { mutableIntStateOf(2) }
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var desc by rememberSaveable { mutableStateOf("") }
+    var priority by rememberSaveable { mutableIntStateOf(2) }
+    var milestoneId by rememberSaveable { mutableStateOf<String?>(null) }
+    var start by remember { mutableStateOf(LocalDate.now()) }
     var due by remember { mutableStateOf<LocalDate?>(null) }
-    val start = remember { LocalDate.now() }
+    val steps = listOf("Details", "Priority & Milestone", "Dates", "Review")
+    val milestone = milestones.firstOrNull { it.id == milestoneId }
+    val datesOk = due == null || !due!!.isBefore(start)
+    val canNext = when (step) { 0 -> name.isNotBlank(); 2 -> datesOk; else -> true }
+
+    fun pick(initial: LocalDate, min: LocalDate?, onPick: (LocalDate) -> Unit) {
+        val dlg = android.app.DatePickerDialog(context, { _, y, mo, d -> onPick(LocalDate.of(y, mo + 1, d)) }, initial.year, initial.monthValue - 1, initial.dayOfMonth)
+        min?.let { dlg.datePicker.minDate = it.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+        dlg.show()
+    }
 
     Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 24.dp)) {
-        Text("$projectRef · NEW", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.InkFaint)
+        Text(projectName.uppercase(), fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(5.dp))
-        Text("New task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
-
-        FieldLabel("Task name")
-        OutlinedTextField(value = name, onValueChange = { name = it }, placeholder = { Text("e.g. Send revised logo files") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
-
-        FieldLabel("Details (optional)")
-        OutlinedTextField(value = desc, onValueChange = { desc = it }, placeholder = { Text("Add any context for your chamber…") }, maxLines = 4, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
-
-        FieldLabel("Priority")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            ProjectPriority.ALL.forEach { p ->
-                val on = priority == p.code
-                Row(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(if (on) LlColor.Ink else LlColor.Surface).border(LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.Border, RoundedCornerShape(8.dp)).clickable { priority = p.code }.padding(vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(priorityDot(p.code)))
-                    Spacer(Modifier.width(5.dp))
-                    Text(p.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = if (on) LlColor.Paper else LlColor.InkMuted)
-                }
-            }
+        Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
+        Text("Step ${step + 1} of ${steps.size} · ${steps[step]}", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 4.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            steps.indices.forEach { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i <= step) LlColor.Ink else LlColor.Paper2)) }
         }
 
-        FieldLabel("Due date (optional)")
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
-                .clickable { val b = due ?: LocalDate.now(); android.app.DatePickerDialog(context, { _, y, mo, d -> due = LocalDate.of(y, mo + 1, d) }, b.year, b.monthValue - 1, b.dayOfMonth).show() }
-                .padding(horizontal = 13.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Icon(Icons.Outlined.CalendarToday, null, tint = LlColor.InkFaint, modifier = Modifier.size(17.dp))
-            Text(due?.let { it.format(dayYearFmt) } ?: "Choose a date", fontFamily = Inter, fontSize = 13.5.sp, color = if (due == null) LlColor.InkFaint else LlColor.Ink)
+        when (step) {
+            0 -> {
+                FieldLabel("Task Name")
+                OutlinedTextField(value = name, onValueChange = { name = it }, placeholder = { Text("e.g. Send revised logo files") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+                FieldLabel("Details (Optional)")
+                OutlinedTextField(value = desc, onValueChange = { desc = it }, placeholder = { Text("Add any context for your chamber…") }, maxLines = 4, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+            }
+            1 -> {
+                FieldLabel("Priority")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    ProjectPriority.ALL.forEach { p ->
+                        val on = priority == p.code
+                        Row(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(if (on) LlColor.Ink else LlColor.Surface).border(LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.Border, RoundedCornerShape(8.dp)).clickable { priority = p.code }.padding(vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(priorityDot(p.code)))
+                            Spacer(Modifier.width(5.dp))
+                            Text(p.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = if (on) LlColor.Paper else LlColor.InkMuted)
+                        }
+                    }
+                }
+                FieldLabel("Milestone (Optional)")
+                if (milestones.isEmpty()) {
+                    Text("This project has no milestones, so the task will stand on its own.", fontFamily = Inter, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+                } else {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))) {
+                        (listOf<Milestone?>(null) + milestones).forEachIndexed { i, m ->
+                            val on = milestoneId == m?.id
+                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
+                            Row(Modifier.fillMaxWidth().background(if (on) LlColor.Paper1 else LlColor.Surface).clickable { milestoneId = m?.id }.padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).border(if (on) 4.dp else LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.BorderStrong, RoundedCornerShape(50)))
+                                Column(Modifier.weight(1f)) {
+                                    Text(m?.name ?: "No Milestone", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    m?.dueDate?.let { Text("Due ${it.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
+                FieldLabel("Start Date")
+                DateField(start.format(dayYearFmt), false) { pick(start, null) { start = it } }
+                FieldLabel("Due Date (Optional)")
+                DateField(due?.format(dayYearFmt) ?: "Choose a date", due == null) { pick(due ?: start, start) { due = it } }
+                if (due != null) Text("Clear the due date", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 8.dp).clickable { due = null })
+                if (!datesOk) Text("The due date can't be before the start date.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Claret, modifier = Modifier.padding(top = 8.dp))
+                milestone?.dueDate?.let { md ->
+                    if (due?.isAfter(md) == true) Text("This is after the milestone's own date, ${md.format(dayYearFmt)}.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Amber, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+            else -> {
+                Spacer(Modifier.height(14.dp))
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ReviewLine("Task", name.trim())
+                    desc.trim().takeIf { it.isNotEmpty() }?.let { ReviewLine("Details", it) }
+                    ReviewLine("Priority", ProjectPriority.ALL.firstOrNull { it.code == priority }?.label ?: "—")
+                    ReviewLine("Milestone", milestone?.name ?: "None")
+                    ReviewLine("Starts", start.format(dayYearFmt))
+                    ReviewLine("Due", due?.format(dayYearFmt) ?: "No due date")
+                }
+            }
         }
 
         Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).clickable(onClick = onCancel).padding(vertical = 13.dp), contentAlignment = Alignment.Center) {
-                Text("Cancel", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.InkMuted)
+            Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).clickable(enabled = !inFlight) { if (step == 0) onCancel() else step-- }.padding(vertical = 13.dp), contentAlignment = Alignment.Center) {
+                Text(if (step == 0) "Cancel" else "Back", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.InkMuted)
             }
+            val last = step == steps.lastIndex
+            val enabled = canNext && !inFlight
             Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (name.isBlank() || inFlight) LlColor.BorderStrong else LlColor.Claret)
-                    .clickable(enabled = name.isNotBlank() && !inFlight) { onSubmit(name.trim(), start.format(iso), due?.format(iso), priority, 0, desc.trim().ifBlank { null }) }
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (enabled) Lex.colors.primary else LlColor.Paper2)
+                    .clickable(enabled = enabled) {
+                        if (!last) step++
+                        else onSubmit(name.trim(), start.format(iso), due?.format(iso), priority, milestone?.id?.let { jInt(it) } ?: 0, desc.trim().ifBlank { null })
+                    }
                     .padding(vertical = 13.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (inFlight) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                val fg = if (enabled) Lex.colors.primaryForeground else LlColor.InkFaint
+                if (inFlight) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = LlColor.InkMuted)
                 else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.Add, null, tint = Color.White, modifier = Modifier.size(17.dp))
-                    Text("Create task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+                    if (last) Icon(Icons.Outlined.Add, null, tint = fg, modifier = Modifier.size(17.dp))
+                    Text(if (last) "Create Task" else "Next", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = fg)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DateField(text: String, placeholder: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick).padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Icon(Icons.Outlined.CalendarToday, null, tint = LlColor.InkFaint, modifier = Modifier.size(17.dp))
+        Text(text, fontFamily = Inter, fontSize = 13.5.sp, color = if (placeholder) LlColor.InkFaint else LlColor.Ink)
+    }
+}
+
+@Composable
+private fun ReviewLine(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(label, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkFaint, modifier = Modifier.width(78.dp))
+        Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun FailedSections(failed: Set<ProjectSection>, busy: Boolean, onRetry: () -> Unit) {
+    val names = failed.joinToString(", ") { it.name.lowercase() }
+    Row(
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(LlColor.AmberSoft)
+            .border(LlDimen.HairlineWidth, AmberBorderFix, RoundedCornerShape(10.dp)).padding(horizontal = 13.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(Icons.Outlined.CloudOff, null, tint = LlColor.Amber, modifier = Modifier.size(18.dp))
+        Text("Couldn't load this project's $names. What shows below may be incomplete.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.Amber, modifier = Modifier.weight(1f))
+        Text("Retry", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = !busy, onClick = onRetry).padding(horizontal = 8.dp, vertical = 5.dp))
     }
 }
 
@@ -581,7 +696,7 @@ private fun ProjectDetailError(message: String, onRetry: () -> Unit) {
         Spacer(Modifier.height(22.dp))
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(LlColor.Ink).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("Try Again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }

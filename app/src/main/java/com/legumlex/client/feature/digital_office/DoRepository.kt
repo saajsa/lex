@@ -1,6 +1,7 @@
 package com.legumlex.client.feature.digital_office
 
 import com.legumlex.client.data.api.ApiService
+import com.legumlex.client.feature.consultations.apiError
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -22,16 +23,25 @@ class DoRepository(private val api: ApiService) {
      * a generic Throwable with the server's message.
      */
     suspend fun startSession(advocateStaffId: Int): Result<StartResult> = runCatching {
-        val response = api.startDoSession(advocateStaffId.toString())
+        // A refusal arrives as a 4xx, so Retrofit throws before the body is
+        // read; the server's code/action live in the error body.
+        val response = try {
+            api.startDoSession(advocateStaffId.toString())
+        } catch (e: retrofit2.HttpException) {
+            val err = e.apiError()
+            when {
+                err.code == "advocate_busy" -> throw AdvocateBusyJoinQueue(advocateStaffId, err.message ?: "This advocate is in another session.")
+                err.code == "needs_registration" -> throw NeedsRegistration(err.message, err.action)
+                else -> throw e
+            }
+        }
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?>
         if (data == null) {
             val code   = response["code"]?.toString()
-            val action = response["action"]?.toString()
-            val msg    = response["message"]?.toString() ?: "Could not start session"
-            if (code == "advocate_busy" && action == "join_waitroom") {
-                throw AdvocateBusyJoinQueue(advocateStaffId, msg)
-            }
+            val msg    = response["message"]?.toString() ?: "The session could not be started."
+            if (code == "advocate_busy") throw AdvocateBusyJoinQueue(advocateStaffId, msg)
+            if (code == "needs_registration") throw NeedsRegistration(msg, response["action"]?.toString())
             error(msg)
         }
         // Moshi parses JSON numbers as Double by default, so `23` arrives as
@@ -39,7 +49,7 @@ class DoRepository(private val api: ApiService) {
         // call (route /sessions/{:num}/intake won't match "23.0"). Coerce
         // through Int to guarantee a clean integer string.
         val sessionId = data["session_id"]?.asIntString() ?: error("No session_id")
-        val free      = (data["free"]?.toString()?.toBooleanStrictOrNull()) == true
+        val free      = data["free"] == true || data["free"].asIntOrNull() == 1
         StartResult(sessionId = sessionId, free = free)
     }
 
@@ -79,8 +89,8 @@ class DoRepository(private val api: ApiService) {
     /** Client-driven cancel — see [ApiService.cancelDoSession]. */
     suspend fun cancelSession(sessionId: String): Result<Unit> = runCatching {
         val response = api.cancelDoSession(sessionId)
-        val ok = response["status"]?.toString()?.toBooleanStrictOrNull() == true
-        if (!ok) error(response["message"]?.toString() ?: "Could not cancel session")
+        val ok = response["status"] == true || response["status"]?.toString() == "true"
+        if (!ok) error(response["message"]?.toString() ?: "The request could not be cancelled.")
         Unit
     }
 
@@ -122,22 +132,29 @@ class DoRepository(private val api: ApiService) {
      * (book directly) vs advocate_offline.
      */
     suspend fun joinWaitroom(advocateStaffId: Int): Result<DoWaitroomRow> = runCatching {
-        val response = api.joinDoWaitroom(advocateStaffId.toString())
-        val ok = response["status"]?.toString()?.toBooleanStrictOrNull() == true
+        // The server refuses with a 409 whose body carries the code
+        // (cabin_free / advocate_offline / …); surface it as [WaitroomRefused].
+        val response = try {
+            api.joinDoWaitroom(advocateStaffId.toString())
+        } catch (e: retrofit2.HttpException) {
+            val err = e.apiError()
+            if (err.code != null) throw WaitroomRefused(err.code, err.message)
+            throw e
+        }
+        val ok = response["status"] == true || response["status"]?.toString() == "true"
         if (!ok) {
-            val code = response["code"]?.toString() ?: "join_failed"
-            error(code)
+            throw WaitroomRefused(response["code"]?.toString() ?: "join_failed", response["message"]?.toString())
         }
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?>
-            ?: error("Server returned no waitroom data")
+            ?: error("The queue could not be joined.")
         parseWaitroomRow(data)
     }
 
     suspend fun leaveWaitroom(waitroomId: Int): Result<Unit> = runCatching {
         val response = api.leaveDoWaitroom(waitroomId.toString())
-        val ok = response["status"]?.toString()?.toBooleanStrictOrNull() == true
-        if (!ok) error(response["message"]?.toString() ?: "Could not leave queue")
+        val ok = response["status"] == true || response["status"]?.toString() == "true"
+        if (!ok) error(response["message"]?.toString() ?: "The queue could not be left.")
         Unit
     }
 }
@@ -180,6 +197,12 @@ class AdvocateBusyJoinQueue(
     message: String,
 ) : RuntimeException(message)
 
+/** sessions POST 403 code=needs_registration: the client has not registered for the office. */
+class NeedsRegistration(message: String?, val registerUrl: String? = null) : RuntimeException(message ?: "Register for the Digital Office on the website first.")
+
+/** waitroom/join refused: [code] is the server's (cabin_free, advocate_offline, …). */
+class WaitroomRefused(val code: String, val serverMessage: String?) : RuntimeException(serverMessage ?: code)
+
 /**
  * Coerce a JSON-decoded id value to a clean integer string. Moshi decodes
  * naked JSON numbers as Double — naively calling .toString() on those yields
@@ -217,11 +240,14 @@ private fun parseSession(m: Map<String, Any?>): DoSession {
         id             = m["id"]?.asIntString() ?: "",
         status         = DoSessionStatus.from(m["status"] as? String),
         meetLink       = (m["meet_link"] as? String)?.takeIf { it.isNotBlank() },
-        sessionFee     = m["session_fee"]?.toString()?.toDoubleOrNull() ?: 0.0,
+        sessionFee     = (m["session_fee"] as? Number)?.toDouble() ?: m["session_fee"]?.toString()?.toDoubleOrNull() ?: 0.0,
         sessionNote    = (m["session_note"] as? String)?.takeIf { it.isNotBlank() },
         startedAt      = parseDateTime(m["started_at"] as? String),
         endedAt        = parseDateTime(m["ended_at"] as? String),
-        failureReason  = (m["failure_reason"] as? String)?.takeIf { it.isNotBlank() },
+        // The client-safe sentence only; failure_reason is the staff wording.
+        failureReason  = (m["failure_reason_client"] as? String)?.takeIf { it.isNotBlank() },
+        approvalWindowMinutes = m["approval_window_minutes"].asIntOrNull()?.takeIf { it > 0 },
+        invoicePayUrl  = ((m["invoice"] as? Map<*, *>)?.get("pay_url") as? String)?.takeIf { it.isNotBlank() },
         appointmentId  = m["appointment_id"]?.asIntString()?.takeIf { it.isNotBlank() && it != "0" && it != "null" },
         consultationId = m["consultation_id"]?.asIntString()?.takeIf { it.isNotBlank() && it != "0" && it != "null" },
         approvedAt     = (m["approved_at"] as? String)?.takeIf { it.isNotBlank() },

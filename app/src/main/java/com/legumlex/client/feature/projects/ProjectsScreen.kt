@@ -77,12 +77,6 @@ import java.time.temporal.ChronoUnit
 // acts inside it (tasks, comments, files) on the detail screen.
 // -----------------------------------------------------------------------------
 
-// LlColor.ClaretSoft / ClaretMid are broken placeholders; use the real tints.
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
-private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
-
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ProjectsScreen(onOpenProject: (String) -> Unit) {
@@ -124,20 +118,12 @@ private fun ProjectSummary.isFinished(): Boolean =
 /** The date that paces the project — its nearest upcoming milestone, else its deadline. */
 private fun ProjectSummary.pacingDate(): LocalDate? = nextMilestone?.dueDate ?: deadline
 
-private fun ProjectSummary.deadlineDays(today: LocalDate): Long? {
-    val d = pacingDate() ?: return null
-    if (d.isBefore(today)) return null
-    return ChronoUnit.DAYS.between(today, d)
-}
-
 private fun ProjectSummary.tasksDone(): Int = (tasksTotal - tasksOpen).coerceAtLeast(0)
-
-private data class Band(val name: String, val due: Boolean, val items: List<ProjectSummary>)
 
 /**
  * Projects, as Mylex's projects screen lays it out: the eyebrow and title,
  * four figures, an All | Active | Finished toggle, and a card per project —
- * a status stripe, its reference, the name, progress, and the dates.
+ * a status stripe, the name, progress, and the dates.
  */
 @Composable
 private fun ProjectsReady(
@@ -207,8 +193,6 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
             Box(Modifier.width(4.dp).height(48.dp).clip(RoundedCornerShape(2.dp)).background(p.status.palette.solid))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("PRJ-${p.id}", fontFamily = Mono, style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground)
-                Spacer(Modifier.height(4.dp))
                 Text(p.name, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -237,8 +221,10 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
             Row(Modifier.height(IntrinsicSize.Min)) {
                 PFact("Started", p.startDate?.let { pdate(it) } ?: "Not Recorded", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
-                PFact("Deadline", p.deadline?.let { pdate(it) } ?: "No Deadline Set", Modifier.weight(1f),
-                    alarm = !done && p.deadline?.isBefore(today) == true)
+                // A deadline behind us is said to have passed, not only coloured.
+                val passed = !done && p.deadline?.isBefore(today) == true
+                PFact(if (passed) "Deadline Passed" else "Deadline", p.deadline?.let { pdate(it) } ?: "No Deadline Set", Modifier.weight(1f),
+                    alarm = passed)
             }
         }
     }
@@ -257,26 +243,6 @@ private fun PFact(label: String, value: String, modifier: Modifier, alarm: Boole
 private fun pdate(d: LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
 
 // =============================================================================
-// Nearest-deadline spotlight
-// =============================================================================
-
-// =============================================================================
-// Filter bar
-// =============================================================================
-
-// Display order All · Active · Finished; CLOSED renders as "Finished".
-private val filterOrder = listOf(ProjectFilter.ALL, ProjectFilter.ACTIVE, ProjectFilter.CLOSED)
-// =============================================================================
-// Section header
-// =============================================================================
-
-// =============================================================================
-// Project row
-// =============================================================================
-
-private enum class DueTone { IMMINENT, WEEK, NORMAL, QUIET }
-
-// =============================================================================
 // Empty / loading / error
 // =============================================================================
 
@@ -292,7 +258,7 @@ private fun ProjectsEmpty() {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.WorkOutline, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("No projects yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("No Projects Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
@@ -300,15 +266,9 @@ private fun ProjectsEmpty() {
             fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp),
         )
-        Spacer(Modifier.height(22.dp))
-        Row(
-            Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(Icons.Outlined.Forum, null, tint = LlColor.InkFaint, modifier = Modifier.size(16.dp))
-            Text("Need something done? Raise it in Consultations", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
-        }
+        Spacer(Modifier.height(16.dp))
+        Text("Need something done? Ask the firm through Consultations.", fontFamily = Inter, fontSize = 11.5.sp,
+            color = LlColor.InkFaint, textAlign = TextAlign.Center)
     }
 }
 
@@ -326,9 +286,9 @@ private fun FilteredEmpty(filter: ProjectFilter) {
         Spacer(Modifier.height(18.dp))
         Text(
             when (filter) {
-                ProjectFilter.ACTIVE -> "No active projects"
-                ProjectFilter.CLOSED -> "No finished projects"
-                else -> "No projects"
+                ProjectFilter.ACTIVE -> "No Active Projects"
+                ProjectFilter.CLOSED -> "No Finished Projects"
+                else -> "No Projects"
             },
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
@@ -339,44 +299,28 @@ private fun FilteredEmpty(filter: ProjectFilter) {
     }
 }
 
+/** Mirrors the loaded page: header, four figures, the filter row, then project cards. */
 @Composable
 private fun ProjectsSkeleton() {
-    Column(Modifier.fillMaxSize().background(LlColor.Paper)) {
-        Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-            Sk(74.dp, 11.dp); Spacer(Modifier.height(11.dp)); Sk(172.dp, 28.dp, 7.dp); Spacer(Modifier.height(11.dp)); Sk(228.dp, 13.dp)
-        }
-        // spotlight skeleton (with its progress-meter line)
-        Column(
-            Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp),
-        ) {
-            Sk(96.dp, 11.dp); Spacer(Modifier.height(13.dp)); Sk(modifier = Modifier.fillMaxWidth(0.82f), height = 18.dp); Spacer(Modifier.height(9.dp)); Sk(modifier = Modifier.fillMaxWidth(0.58f), height = 11.dp)
-            Spacer(Modifier.height(13.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                Sk(modifier = Modifier.weight(1f), height = 5.dp, radius = 3.dp); Sk(34.dp, 11.dp)
-            }
-            Spacer(Modifier.height(14.dp)); Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2)); Spacer(Modifier.height(13.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Sk(52.dp, 44.dp, 11.dp)
-                Column(Modifier.weight(1f)) { Sk(modifier = Modifier.fillMaxWidth(0.6f), height = 13.dp); Spacer(Modifier.height(7.dp)); Sk(modifier = Modifier.fillMaxWidth(0.74f), height = 11.dp) }
+    Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column { Sk(110.dp, 11.dp); Spacer(Modifier.height(9.dp)); Sk(140.dp, 26.dp, 7.dp) }
+        repeat(2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(2) { Sk(modifier = Modifier.weight(1f), height = 96.dp, radius = 12.dp) }
             }
         }
-        Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(66, 82, 90).forEach { Sk(it.dp, 34.dp, 999.dp) }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
-        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) { Sk(210.dp, 34.dp, 8.dp); Spacer(Modifier.weight(1f)); Sk(64.dp, 13.dp) }
         repeat(3) {
             Column(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp).padding(bottom = 10.dp)
-                    .clip(LlShape.Card).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card).padding(14.dp),
+                Modifier.fillMaxWidth().clip(LlShape.Card).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card).padding(16.dp),
             ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Sk(70.dp, 14.dp); Sk(80.dp, 18.dp, 7.dp) }
-                Spacer(Modifier.height(12.dp)); Sk(modifier = Modifier.fillMaxWidth(0.82f), height = 16.dp)
-                Spacer(Modifier.height(11.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Sk(modifier = Modifier.weight(1f), height = 5.dp, radius = 3.dp); Sk(30.dp, 11.dp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Sk(modifier = Modifier.fillMaxWidth(0.6f), height = 16.dp); Sk(78.dp, 20.dp, 6.dp) }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Sk(modifier = Modifier.weight(1f), height = 6.dp, radius = 3.dp); Sk(30.dp, 11.dp)
                 }
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { Sk(modifier = Modifier.weight(1f), height = 30.dp); Sk(modifier = Modifier.weight(1f), height = 30.dp) }
             }
         }
     }
@@ -399,7 +343,7 @@ private fun ProjectsError(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load your projects", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't Load Your Projects", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
@@ -410,13 +354,8 @@ private fun ProjectsError(message: String, onRetry: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("Try Again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.01.em, color = LlColor.Paper)
         }
     }
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-private val dowFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM")

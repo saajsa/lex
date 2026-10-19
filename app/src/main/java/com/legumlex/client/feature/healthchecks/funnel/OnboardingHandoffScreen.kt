@@ -102,7 +102,7 @@ fun OnboardingAhcHandoffScreen(
                 )
                 Spacer(Modifier.height(16.dp))
                 FunnelPrimaryButton(
-                    label = "Start agreement check",
+                    label = "Start Agreement Check",
                     onClick = onStartHealthCheck,
                     icon = Icons.Outlined.HealthAndSafety,
                 )

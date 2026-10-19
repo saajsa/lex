@@ -29,6 +29,14 @@ fun plainAmount(amount: Double): String {
            else String.format(Locale.US, "%.2f", rounded)
 }
 
+/** A page on the website itself (the API base URL without /customers_api/v1/). */
+fun siteUrl(path: String): String {
+    val base = BuildConfig.API_BASE_URL
+        .removeSuffix("/")
+        .removeSuffix("/customers_api/v1")
+    return "$base/${path.removePrefix("/")}"
+}
+
 /**
  * Derives the public Perfex/Razorpay payment URL for an invoice from the API
  * base URL. The base URL ends with /customers_api/v1/; we strip that suffix

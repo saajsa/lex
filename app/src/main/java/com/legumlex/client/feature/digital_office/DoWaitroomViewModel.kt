@@ -17,7 +17,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.legumlex.client.feature.consultations.friendlyMessage
 
 /**
  * Activity-scoped DoWaitroomViewModel — shared between the home banner and the
@@ -27,7 +29,22 @@ import kotlinx.coroutines.launch
 @Composable
 fun sharedDoWaitroomViewModel(): DoWaitroomViewModel {
     val owner = LocalContext.current as ViewModelStoreOwner
-    return viewModel(viewModelStoreOwner = owner)
+    val vm: DoWaitroomViewModel = viewModel(viewModelStoreOwner = owner)
+    // Poll only while the app is in the foreground: follow the activity's
+    // lifecycle (start/stop are idempotent, so several callers are fine).
+    val lifecycle = (owner as? androidx.lifecycle.LifecycleOwner)?.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle, vm) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            when (e) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> vm.resumePolling()
+                androidx.lifecycle.Lifecycle.Event.ON_STOP  -> vm.pausePolling()
+                else -> Unit
+            }
+        }
+        lifecycle?.addObserver(obs)
+        onDispose { lifecycle?.removeObserver(obs) }
+    }
+    return vm
 }
 
 /**
@@ -69,6 +86,12 @@ class DoWaitroomViewModel(app: Application) : AndroidViewModel(app) {
 
     init { startPolling() }
 
+    /** The app went to the background: stop polling until it returns. */
+    fun pausePolling() { pollJob?.cancel(); pollJob = null }
+
+    /** The app is back: refresh at once and poll again. */
+    fun resumePolling() { if (pollJob?.isActive != true) startPolling() }
+
     fun clearEvent() { _event.value = null }
 
     fun refresh() {
@@ -97,16 +120,18 @@ class DoWaitroomViewModel(app: Application) : AndroidViewModel(app) {
                             it.status in setOf(DoWaitroomStatus.WAITING, DoWaitroomStatus.PROMPTED)
                     }
                     _rows.value = withoutDup + row
-                    _event.value = "Joined queue · position #${row.position}"
+                    _event.value = "You are in the queue · position ${row.position}"
                 }
                 .onFailure { e ->
-                    when (e.message) {
+                    val code = (e as? WaitroomRefused)?.code
+                    when (code) {
                         "cabin_free" -> {
                             _bookDirectly.tryEmit(advocateStaffId)
-                            _event.value = "Cabin is free — opening booking…"
+                            _event.value = "The advocate is free now — opening your request."
                         }
-                        "advocate_offline" -> _event.value = "Advocate just stepped out."
-                        else               -> _event.value = "Could not join queue: ${e.message ?: "try again"}"
+                        "advocate_offline" -> _event.value = "The advocate has just stepped out."
+                        else -> _event.value = (e as? WaitroomRefused)?.serverMessage
+                            ?: e.friendlyMessage("The queue could not be joined. Please try again.")
                     }
                 }
         }
@@ -117,11 +142,11 @@ class DoWaitroomViewModel(app: Application) : AndroidViewModel(app) {
             repo.leaveWaitroom(waitroomId)
                 .onSuccess {
                     _rows.value = _rows.value.filterNot { it.waitroomId == waitroomId }
-                    _event.value = "Left queue"
+                    _event.value = "You have left the queue."
                 }
                 .onFailure {
                     Log.e(TAG, "waitroom leave failed", it)
-                    _event.value = "Could not leave queue."
+                    _event.value = it.friendlyMessage("The queue could not be left. Please try again.")
                 }
         }
     }
@@ -129,7 +154,7 @@ class DoWaitroomViewModel(app: Application) : AndroidViewModel(app) {
     private fun startPolling() {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 runCatching { refresh() }
                 delay(POLL_INTERVAL_MS)
             }

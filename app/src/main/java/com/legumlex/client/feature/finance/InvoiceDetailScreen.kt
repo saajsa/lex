@@ -42,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -68,8 +67,8 @@ import java.time.temporal.ChronoUnit
 // Invoice Detail — the "Client Invoice Statement" Lexcore design: a dignified
 // letterhead sheet whose emotional core is the Balance due hero. Block order:
 // letterhead → status pill → matter → balance hero → action stack (with the
-// editable partial-amount field + Pay) → amount summary → expandable breakdown
-// → footer. Severity (Overdue/Unpaid/Partial/Paid) drives a single accent
+// link to pay on the website) → amount summary → payments → expandable
+// breakdown → footer. Severity (Overdue/Unpaid/Partial/Paid) drives a single accent
 // colour across pill, hero band and summary.
 
 private val dayFmt = DateTimeFormatter.ofPattern("d MMM yyyy")
@@ -98,22 +97,22 @@ private fun statusIcon(s: InvoiceStatus): ImageVector = when (s) {
 private fun statusLabel(inv: Invoice): String {
     val today = LocalDate.now()
     return when (inv.status) {
-        InvoiceStatus.PAID      -> "Paid in full"
-        InvoiceStatus.PARTIAL   -> "Partially paid"
+        InvoiceStatus.PAID      -> "Paid In Full"
+        InvoiceStatus.PARTIAL   -> "Partially Paid"
         InvoiceStatus.CANCELLED -> "Cancelled"
         InvoiceStatus.DRAFT     -> "Draft"
         InvoiceStatus.OVERDUE   -> {
             val d = inv.dueDate?.let { ChronoUnit.DAYS.between(it, today).toInt() } ?: 0
-            "Overdue · $d ${if (d == 1) "day" else "days"}"
+            if (d >= 1) "Overdue · $d ${if (d == 1) "Day" else "Days"}" else "Overdue"
         }
         InvoiceStatus.UNPAID    -> {
             val due = inv.dueDate
             if (due != null) {
                 val d = ChronoUnit.DAYS.between(today, due).toInt()
                 when {
-                    d == 0 -> "Due today"
-                    d == 1 -> "Due tomorrow"
-                    d > 0  -> "Due in $d days"
+                    d == 0 -> "Due Today"
+                    d == 1 -> "Due Tomorrow"
+                    d > 0  -> "Due In $d Days"
                     else   -> "Overdue"
                 }
             } else "Unpaid"
@@ -189,6 +188,7 @@ private fun Sheet(
                 BalanceHero(detail)
                 ActionStack(state)
                 AmountSummary(detail)
+                PaymentsSection(detail)
                 ExpandableBreakdown(detail)
                 DocFooter(detail)
             }
@@ -242,7 +242,7 @@ private fun DateCol(label: String, value: String, over: Boolean) {
             fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(4.dp))
         Text(value, fontFamily = Inter, fontWeight = FontWeight.Medium,
-            fontSize = 12.5.sp, color = if (over) LlColor.ClaretMid else LlColor.Ink)
+            fontSize = 12.5.sp, color = if (over) LlColor.Claret else LlColor.Ink)
     }
 }
 
@@ -263,7 +263,7 @@ private fun StatusPill(inv: Invoice) {
         ) {
             Icon(statusIcon(inv.status), null, tint = sev.mid, modifier = Modifier.size(17.dp))
             Text(statusLabel(inv), fontFamily = Inter, fontWeight = FontWeight.Bold,
-                fontSize = 12.sp, color = sev.mid)
+                fontSize = 12.sp, color = sev.accent)
         }
     }
 }
@@ -310,7 +310,7 @@ private fun BalanceHero(detail: InvoiceDetail) {
     Column(
         Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Brush.verticalGradient(listOf(LlColor.Surface, if (settled) LlColor.VerdantSoft else sev.soft)))
+            .background(if (settled) LlColor.VerdantSoft else sev.soft)
             .border(LlDimen.HairlineWidth, if (settled) LlColor.VerdantBorder else sev.border, RoundedCornerShape(12.dp))
             .padding(horizontal = 18.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -320,7 +320,7 @@ private fun BalanceHero(detail: InvoiceDetail) {
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.Top) {
             Text(sym, fontFamily = Inter, fontWeight = FontWeight.Medium,
-                fontSize = 22.sp, color = if (settled) LlColor.VerdantMid else LlColor.InkMuted,
+                fontSize = 22.sp, color = if (settled) LlColor.Verdant else LlColor.InkMuted,
                 modifier = Modifier.padding(top = 6.dp, end = 3.dp))
             Text(
                 formatAmountOnly(if (settled) 0.0 else inv.leftToPay),
@@ -334,7 +334,7 @@ private fun BalanceHero(detail: InvoiceDetail) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Outlined.Verified, null, tint = LlColor.Verdant, modifier = Modifier.size(15.dp))
                 val on = detail.payments.mapNotNull { it.date }.maxOrNull()
-                Text("Paid in full" + (on?.let { " · ${it.format(dayFmt)}" } ?: ""),
+                Text("Paid In Full" + (on?.let { " · ${it.format(dayFmt)}" } ?: ""),
                     fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = LlColor.Verdant)
             }
         }
@@ -342,9 +342,9 @@ private fun BalanceHero(detail: InvoiceDetail) {
         Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Border))
         Spacer(Modifier.height(13.dp))
         Row(Modifier.fillMaxWidth()) {
-            HeroSub("Invoice total", formatMoney(inv.total, sym), LlColor.Ink, Modifier.weight(1f))
+            HeroSub("Invoice Total", formatMoney(inv.total, sym), LlColor.Ink, Modifier.weight(1f))
             Box(Modifier.width(LlDimen.HairlineWidth).height(30.dp).background(LlColor.Border))
-            HeroSub("Amount paid", formatMoney(paid, sym), LlColor.VerdantMid, Modifier.weight(1f))
+            HeroSub("Amount Paid", formatMoney(paid, sym), LlColor.Verdant, Modifier.weight(1f))
         }
     }
 }
@@ -416,8 +416,8 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
 private fun GhostRow(context: android.content.Context, inv: Invoice, settled: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         if (settled) {
-            GhostAction(Icons.Outlined.ReceiptLong, "Receipt", { openPaymentPage(context, inv) }, Modifier.weight(1f))
-            GhostAction(Icons.AutoMirrored.Outlined.OpenInNew, "In browser", { openPaymentPage(context, inv) }, Modifier.weight(1f))
+            // One page on the website holds the invoice and its payments.
+            GhostAction(Icons.AutoMirrored.Outlined.OpenInNew, "View On The Website", { openPaymentPage(context, inv) }, Modifier.weight(1f))
         } else {
             // Unpaid: Pay above already opens the page; the link can be passed on.
             GhostAction(Icons.Outlined.Share, "Share Link", { sharePaymentLink(context, inv) }, Modifier.weight(1f))
@@ -465,7 +465,7 @@ private fun AmountSummary(detail: InvoiceDetail) {
         if (detail.discount != 0.0)   SumRow("Discount", "− " + formatMoney(detail.discount, sym), valueColor = LlColor.Verdant)
         if (detail.adjustment != 0.0) SumRow("Adjustment", formatMoney(detail.adjustment, sym))
         SumRow("Total", formatMoney(detail.invoice.total, sym), total = true)
-        if (partlyPaid) SumRow("Amount paid", "− " + formatMoney(paid, sym), valueColor = LlColor.Verdant)
+        if (partlyPaid) SumRow("Amount Paid", "− " + formatMoney(paid, sym), valueColor = LlColor.Verdant)
         BalanceRow(formatMoney(detail.invoice.leftToPay.coerceAtLeast(0.0), sym), settled)
     }
 }
@@ -494,7 +494,7 @@ private fun SumRow(label: String, value: String, total: Boolean = false, valueCo
 @Composable
 private fun BalanceRow(value: String, settled: Boolean) {
     val bg = if (settled) LlColor.VerdantSoft else LlColor.ClaretSoft
-    val fg = if (settled) LlColor.Verdant else LlColor.ClaretMid
+    val fg = if (settled) LlColor.Verdant else LlColor.Claret
     Box(Modifier.fillMaxWidth().background(bg)) {
         Column {
             Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
@@ -514,7 +514,7 @@ private fun BalanceRow(value: String, settled: Boolean) {
 
 @Composable
 private fun ExpandableBreakdown(detail: InvoiceDetail) {
-    if (detail.items.isEmpty() && detail.payments.isEmpty()) return
+    if (detail.items.isEmpty()) return
 
     var expanded by rememberSaveable { mutableStateOf(false) }
     val rot by animateFloatAsState(if (expanded) 180f else 0f, label = "chev")
@@ -529,32 +529,35 @@ private fun ExpandableBreakdown(detail: InvoiceDetail) {
             Spacer(Modifier.width(8.dp))
             Text("Breakdown", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
                 color = LlColor.Ink, modifier = Modifier.weight(1f))
-            Text("${detail.items.size} items", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkFaint)
+            Text("${detail.items.size} ${if (detail.items.size == 1) "Item" else "Items"}", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkFaint)
             Spacer(Modifier.width(5.dp))
             Icon(Icons.Outlined.ExpandMore, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp).rotate(rot))
         }
         AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.padding(top = 10.dp)) {
-                if (detail.items.isNotEmpty()) {
-                    Column(Modifier.clip(RoundedCornerShape(12.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))) {
-                        detail.items.forEachIndexed { i, item ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
-                            BreakdownItem(item, detail.invoice.currencySymbol)
-                        }
+                Column(Modifier.clip(RoundedCornerShape(12.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))) {
+                    detail.items.forEachIndexed { i, item ->
+                        if (i > 0) Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
+                        BreakdownItem(item, detail.invoice.currencySymbol)
                     }
                 }
-                if (detail.payments.isNotEmpty()) {
-                    Spacer(Modifier.height(14.dp))
-                    Text("PAYMENTS", fontFamily = Inter, fontWeight = FontWeight.Bold,
-                        fontSize = 9.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
-                    Spacer(Modifier.height(8.dp))
-                    Column(Modifier.clip(RoundedCornerShape(12.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))) {
-                        detail.payments.forEachIndexed { i, p ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
-                            PaymentItem(p, detail.invoice.currencySymbol)
-                        }
-                    }
-                }
+            }
+        }
+    }
+}
+
+/** The payments recorded against the invoice, in view (not folded away) — paid or part-paid alike. */
+@Composable
+private fun PaymentsSection(detail: InvoiceDetail) {
+    if (detail.payments.isEmpty()) return
+    Column(Modifier.padding(horizontal = 18.dp).padding(top = 18.dp)) {
+        Text("PAYMENTS RECEIVED", fontFamily = Inter, fontWeight = FontWeight.Bold,
+            fontSize = 9.5.sp, letterSpacing = 0.1.em, color = LlColor.InkMuted)
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.clip(RoundedCornerShape(12.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))) {
+            detail.payments.forEachIndexed { i, p ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
+                PaymentItem(p, detail.invoice.currencySymbol)
             }
         }
     }
@@ -744,7 +747,11 @@ private fun sharePaymentLink(context: android.content.Context, inv: Invoice) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, "Invoice ${inv.number}")
-        putExtra(Intent.EXTRA_TEXT, "Invoice ${inv.number}\n${formatMoney(inv.total, inv.currencySymbol)}\n$url")
+        // Quote what is still owed, not the invoice total.
+        val owed = inv.leftToPay.coerceAtLeast(0.0)
+        val line = if (owed > 0.0 && owed < inv.total) "Balance due ${formatMoney(owed, inv.currencySymbol)} of ${formatMoney(inv.total, inv.currencySymbol)}"
+                   else "Amount due ${formatMoney(owed, inv.currencySymbol)}"
+        putExtra(Intent.EXTRA_TEXT, "Invoice ${inv.number}\n$line\n$url")
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     try {
@@ -756,11 +763,11 @@ private fun sharePaymentLink(context: android.content.Context, inv: Invoice) {
 
 // --- helpers ----------------------------------------------------------------
 
-// Amount without the currency symbol (rendered separately in the hero).
+// Amount without the currency symbol (rendered separately in the hero); paise shown, as on the invoice.
 private fun formatAmountOnly(amount: Double): String {
     val nf = java.text.NumberFormat.getNumberInstance(java.util.Locale("en", "IN")).apply {
-        minimumFractionDigits = 0
-        maximumFractionDigits = 0
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
     }
     return nf.format(amount)
 }
@@ -810,7 +817,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.ErrorOutline, null, tint = LlColor.InkMuted, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("Couldn't open this invoice", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't Open This Invoice", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,
@@ -823,7 +830,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             Row(Modifier.padding(horizontal = 24.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Try again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
+                Text("Try Again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
             }
         }
     }

@@ -65,6 +65,8 @@ sealed interface ConsultationDetailUiState {
          * stays null when there's no linkage in either direction.
          */
         val linkage: ConsultationLinkage? = null,
+        /** True once the linkage fetch has finished (found or not). */
+        val linkageLoaded: Boolean = false,
     ) : ConsultationDetailUiState
     data class Error(val message: String) : ConsultationDetailUiState
 }
@@ -117,6 +119,43 @@ class ConsultationDetailViewModel(
                 _state.value = ConsultationDetailUiState.Error(friendly(e))
             }
     }
+
+    /**
+     * Quiet refresh (screen resumed, pull-to-refresh): refetch the row and
+     * the kind's bundle without dropping to the Loading state, so what the
+     * client is reading stays on screen. Falls back to [load] from an error.
+     */
+    fun refresh() = viewModelScope.launch {
+        val current = _state.value as? ConsultationDetailUiState.Ready
+        if (current == null) { load(); return@launch }
+        _refreshing.value = true
+        repo.detail(consultationId)
+            .onSuccess { refreshed ->
+                val now = _state.value as? ConsultationDetailUiState.Ready ?: return@onSuccess
+                _state.value = now.copy(consultation = refreshed)
+                when (refreshed.kind) {
+                    ConsultationKind.AHC -> repo.ahcAnalysis(consultationId).onSuccess { ahc ->
+                        (_state.value as? ConsultationDetailUiState.Ready)?.let { _state.value = it.copy(ahcData = ahc) }
+                        maybeStartAhcInReviewPoll()
+                    }
+                    ConsultationKind.DOC_REQUEST -> refreshDocRequestsQuiet().join()
+                    ConsultationKind.DIGITAL_OFFICE ->
+                        com.legumlex.client.feature.digital_office.DoRepository(ApiClient.get(getApplication()))
+                            .sessionForConsultation(consultationId)
+                            .onSuccess { sess -> (_state.value as? ConsultationDetailUiState.Ready)?.let { _state.value = it.copy(doSession = sess) } }
+                    else -> Unit
+                }
+                if (!refreshed.isConverted()) repo.attachments(consultationId).onSuccess { list ->
+                    (_state.value as? ConsultationDetailUiState.Ready)?.let { _state.value = it.copy(attachments = list) }
+                }
+            }
+            .onFailure { e -> _events.emit(ReplyEvent.Failed(friendly(e))) }
+        _refreshing.value = false
+    }
+
+    private val _refreshing = MutableStateFlow(false)
+    /** True while a pull-to-refresh / resume refresh is running. */
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
 
     private fun loadAhc(id: String) = viewModelScope.launch {
         val current = _state.value as? ConsultationDetailUiState.Ready ?: return@launch
@@ -179,7 +218,7 @@ class ConsultationDetailViewModel(
         // or staff escalates (the linked consultation owns updates from then).
         if (c.closedAt != null) return false
         if (c.isEscalated)      return false
-        val released = c.releasedAt != null || ready.ahcData?.riskScore != null
+        val released = c.releasedAt != null || ready.ahcData?.released == true
         return !released
     }
 
@@ -207,8 +246,10 @@ class ConsultationDetailViewModel(
             authorImage = null,
             createdAt   = java.time.LocalDateTime.now(),
         )
-        _state.value = ConsultationDetailUiState.Ready(
-            current.consultation.copy(
+        // copy(), not a new Ready: the AHC report, the document checklist,
+        // the session and the shared files stay on screen while it sends.
+        _state.value = current.copy(
+            consultation = current.consultation.copy(
                 replies = current.consultation.replies + optimistic,
                 replyCount = current.consultation.replyCount + 1,
             )
@@ -223,16 +264,14 @@ class ConsultationDetailViewModel(
                         val replaced = now.consultation.replies.map { r ->
                             if (r.id == optimistic.id) serverReply else r
                         }
-                        _state.value = ConsultationDetailUiState.Ready(
-                            now.consultation.copy(replies = replaced)
-                        )
+                        _state.value = now.copy(consultation = now.consultation.copy(replies = replaced))
                     }
                 }
                 .onFailure { e ->
                     val now = _state.value
                     if (now is ConsultationDetailUiState.Ready) {
-                        _state.value = ConsultationDetailUiState.Ready(
-                            now.consultation.copy(
+                        _state.value = now.copy(
+                            consultation = now.consultation.copy(
                                 replies = now.consultation.replies.filter { it.id != optimistic.id },
                                 replyCount = (now.consultation.replyCount - 1).coerceAtLeast(0),
                             )
@@ -574,11 +613,15 @@ class ConsultationDetailViewModel(
      * Idempotent — repeated calls overwrite the cached value.
      */
     fun loadLinkage() = viewModelScope.launch {
-        val current = _state.value as? ConsultationDetailUiState.Ready ?: return@launch
+        if (_state.value !is ConsultationDetailUiState.Ready) return@launch
         repo.linkage(consultationId)
             .onSuccess { l ->
                 val now = _state.value as? ConsultationDetailUiState.Ready ?: return@onSuccess
-                _state.value = now.copy(linkage = l)
+                _state.value = now.copy(linkage = l, linkageLoaded = true)
+            }
+            .onFailure {
+                val now = _state.value as? ConsultationDetailUiState.Ready ?: return@onFailure
+                _state.value = now.copy(linkageLoaded = true)
             }
             // Failures are silent — the close sheet falls back to its
             // generic copy when linkage is null, and the link card simply
@@ -672,7 +715,7 @@ class ConsultationDetailViewModel(
                         if (row.id == requestId)
                             row.copy(
                                 status = DocRequestStatus.WAIVED,
-                                waivedReason = "[Client] $trimmedReason",
+                                waivedReason = trimmedReason,
                             )
                         else row
                     }
@@ -738,15 +781,10 @@ class ConsultationDetailViewModel(
             }
     }
 
-    private fun friendly(e: Throwable): String = when (e) {
-        is HttpException -> when (e.code()) {
-            401, 403   -> "Your session expired. Sign in again."
-            404        -> "This consultation is no longer available."
-            in 500..599 -> "Server error. Try again in a moment."
-            else        -> "Couldn't reach the server (HTTP ${e.code()})."
-        }
-        else -> "Couldn't reach the server. Check your connection."
-    }
+    /** The server's own sentence when it gave one (ApiError), else plain words. */
+    private fun friendly(e: Throwable): String =
+        if (e.apiError().http == 404 && e.apiError().message == null) "This consultation is no longer available."
+        else e.friendlyMessage()
 }
 
 sealed interface ReplyEvent {

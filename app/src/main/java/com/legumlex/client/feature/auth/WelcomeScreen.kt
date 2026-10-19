@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,16 +33,16 @@ private data class Slide(val title: String, val body: String)
 
 private val slides = listOf(
     Slide(
-        title = "Your case, in your pocket.",
-        body  = "Hearing dates, documents, and updates from your advocate — all in one calm, private place.",
+        title = "Your Matters, In One Place",
+        body  = "Consultations, cases, projects and agreements with Legum Lex, and what each of them needs from you.",
     ),
     Slide(
-        title = "Hearing dates, documents, updates — all in one place.",
-        body  = "Track every matter and document without a phone call or an email thread.",
+        title = "Ask, And Hear Back",
+        body  = "Put a question to the advocates, see a notice through, or sit with one in the Digital Office.",
     ),
     Slide(
-        title = "Secure, private, always with you.",
-        body  = "Sensitive information stays encrypted on your device. Only you and your advocate see it.",
+        title = "Between You And The Firm",
+        body  = "What you see here is shared between your account and the firm. Signing out clears the documents opened on this phone.",
     ),
 )
 
@@ -117,9 +119,11 @@ fun WelcomeScreen(onFinish: () -> Unit) {
 @Composable
 private fun SlideContent(slide: Slide, pageNumber: Int, total: Int) {
     val spacing = LocalSpacing.current
+    // Scrolls rather than clips on a small screen or at a large font size.
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = spacing.s4),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -129,10 +133,10 @@ private fun SlideContent(slide: Slide, pageNumber: Int, total: Int) {
             shape = RoundedCornerShape(12.dp),
             color = Surface2,
             border = BorderStroke(1.dp, BorderSubtle),
-            modifier = Modifier.size(280.dp),
+            modifier = Modifier.fillMaxWidth(0.7f).widthIn(max = 280.dp).aspectRatio(1f),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                val illoModifier = Modifier.size(188.dp)
+                val illoModifier = Modifier.fillMaxSize(0.67f)
                 when (pageNumber) {
                     1    -> CaseFileIllustration(illoModifier)
                     2    -> CalendarIllustration(illoModifier)
@@ -141,12 +145,6 @@ private fun SlideContent(slide: Slide, pageNumber: Int, total: Int) {
             }
         }
         Spacer(Modifier.height(spacing.s6))
-        Text(
-            "SLIDE $pageNumber OF $total",
-            style = MaterialTheme.typography.labelSmall,
-            color = TertiaryText,
-            fontWeight = FontWeight.Bold,
-        )
         Spacer(Modifier.height(spacing.s2))
         Text(
             slide.title,

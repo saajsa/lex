@@ -1,6 +1,7 @@
 package com.legumlex.client.feature.consultations.detail
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Cancel
@@ -48,7 +49,7 @@ import java.time.ZoneId
  *
  *   • Withdraw request           — only while pending + self-initiated
  *   • Update preferred slot      — only while not yet scheduled
- *   • View AHC report (PDF)      — AHC consultations only
+ *   • View Your Agreement        — Agreement Check, once a document is on file
  *
  * The menu hides entries that don't apply to this consultation so the user
  * never sees a disabled-for-no-reason action.
@@ -61,7 +62,9 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
 
     val withdrawable    = c.canWithdraw()
     val rescheduleable  = c.canRescheduleSlot()
-    val hasAhc          = c.kind == ConsultationKind.AHC
+    // The client's own agreement (the document the Check read), when one is on file.
+    val hasAhc          = c.kind == ConsultationKind.AHC &&
+        (ready.ahcData?.agreementSizeBytes != null || ready.attachments.isNotEmpty())
     // Close = terminal cancel via the new lifecycle endpoint. Mutually
     // exclusive with withdraw in the menu — withdraw only shows while the
     // request is still pending+self-initiated; close covers every other
@@ -84,7 +87,7 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
     ) {
         if (hasAhc) {
             DropdownMenuItem(
-                text = { Text("View AHC report") },
+                text = { Text("View Your Agreement") },
                 leadingIcon = {
                     Icon(Icons.Outlined.PictureAsPdf, null, tint = PrimaryText)
                 },
@@ -97,7 +100,7 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
         }
         if (rescheduleable) {
             DropdownMenuItem(
-                text = { Text("Update preferred slot") },
+                text = { Text("Update Preferred Slot") },
                 leadingIcon = {
                     Icon(Icons.Outlined.CalendarMonth, null, tint = PrimaryText)
                 },
@@ -111,7 +114,7 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
             if (hasAhc || rescheduleable) HorizontalDivider()
             DropdownMenuItem(
                 text = {
-                    Text("Withdraw request", color = StatusDanger.solid)
+                    Text("Withdraw Request", color = StatusDanger.solid)
                 },
                 leadingIcon = {
                     Icon(Icons.Outlined.Cancel, null, tint = StatusDanger.solid)
@@ -126,15 +129,13 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
         if (closable) {
             if (hasAhc || rescheduleable) HorizontalDivider()
             DropdownMenuItem(
-                text        = { Text("Close consultation") },
+                text        = { Text("Close Consultation") },
                 leadingIcon = { Icon(Icons.Outlined.CheckCircle, null, tint = PrimaryText) },
                 enabled     = !ready.actionInFlight,
                 onClick     = {
                     menuOpen = false
-                    // Refresh linkage so the sheet's "linked child still
-                    // open" block has up-to-date state. If the load fails
-                    // the sheet falls back to its generic copy — caller
-                    // is intentionally fire-and-forget.
+                    // The sheet waits for the linkage (below), so its "linked
+                    // consultation still open" block is never missed.
                     vm.loadLinkage()
                     closeOpen = true
                 },
@@ -145,7 +146,7 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
     if (confirmWithdraw) {
         AlertDialog(
             onDismissRequest = { confirmWithdraw = false },
-            title = { Text("Withdraw this request?") },
+            title = { Text("Withdraw This Request?") },
             text = {
                 Text(
                     "Your firm won't act on this request and it will disappear " +
@@ -181,7 +182,13 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
         )
     }
 
-    if (closeOpen) {
+    if (closeOpen && !ready.linkageLoaded) {
+        androidx.compose.foundation.layout.Box(
+            androidx.compose.ui.Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) { androidx.compose.material3.CircularProgressIndicator(color = PrimaryText) }
+    }
+    if (closeOpen && ready.linkageLoaded) {
         CloseConsultationSheet(
             consultation = c,
             linkage      = ready.linkage,
@@ -204,10 +211,21 @@ private fun ReschedulePreferredSheet(
     onConfirm: (LocalDate?, LocalTime?) -> Unit,
 ) {
     // Local picker state — we don't push to the VM until "Save".
-    val zone = ZoneId.systemDefault()
-    val initEpochMillis = (initialDate ?: LocalDate.now())
+    // The Material date picker works in UTC midnights: convert with UTC both
+    // ways, or the chosen day shifts by one west of Greenwich.
+    val zone = ZoneId.of("UTC")
+    val today = LocalDate.now()
+    val initEpochMillis = (initialDate?.takeIf { !it.isBefore(today) } ?: today)
         .atStartOfDay(zone).toInstant().toEpochMilli()
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initEpochMillis)
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initEpochMillis,
+        selectableDates = object : androidx.compose.material3.SelectableDates {
+            // No past dates: a preferred slot is in the future.
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                !Instant.ofEpochMilli(utcTimeMillis).atZone(zone).toLocalDate().isBefore(today)
+            override fun isSelectableYear(year: Int): Boolean = year >= today.year
+        },
+    )
     val timePickerState = rememberTimePickerState(
         initialHour   = initialTime?.hour   ?: 10,
         initialMinute = initialTime?.minute ?: 0,
@@ -236,7 +254,7 @@ private fun ReschedulePreferredSheet(
             else TextButton(onClick = onDismiss) { Text("Cancel") }
         },
         title = {
-            Text(if (page == 0) "Preferred date" else "Preferred time",
+            Text(if (page == 0) "Preferred Date" else "Preferred Time",
                 fontWeight = FontWeight.SemiBold, color = PrimaryText)
         },
         text = {

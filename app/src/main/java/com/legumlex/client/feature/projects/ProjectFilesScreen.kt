@@ -111,15 +111,15 @@ class ProjectFilesViewModel(app: Application, private val projectId: String) : A
         try {
             coroutineScope {
                 val detail = async { repo.detail(projectId).getOrThrow() }
-                val files = async { repo.files(projectId).getOrNull().orEmpty() }
+                val files = async { repo.files(projectId).getOrThrow() }
                 val d = detail.await()
-                _state.value = FilesUiState.Ready(d.summary.name, "PRJ-${d.summary.id}", d.settings.uploadFiles, files.await())
+                _state.value = FilesUiState.Ready(d.summary.name, d.summary.status.label, d.settings.uploadFiles, files.await())
             }
         } catch (e: Throwable) {
             if (!(preserve && _state.value is FilesUiState.Ready)) {
                 _state.value = FilesUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401, 403 -> "Your session expired. Sign in again."; 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load files (HTTP ${e.code()})." }
+                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's files. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load files (HTTP ${e.code()})." }
                         else -> "Couldn't reach the server. Check your connection."
                     },
                 )
@@ -136,7 +136,7 @@ class ProjectFilesViewModel(app: Application, private val projectId: String) : A
                     _state.update { cur -> if (cur is FilesUiState.Ready) cur.copy(files = listOf(added) + cur.files) else cur }
                     _toast.value = "File uploaded"
                 }
-                .onFailure { _toast.value = "Upload failed. Try again." }
+                .onFailure { e -> _toast.value = serverMessage(e, "Upload failed. Try again.") }
             _uploading.value = false
         }
     }
@@ -177,7 +177,14 @@ fun ProjectFilesScreen(projectId: String, onBack: () -> Unit) {
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { scope.launch { val part = uriToFilePart(context, it); if (part != null) vm.uploadFile(part) else Toast.makeText(context, "Couldn't read that file.", Toast.LENGTH_LONG).show() } }
     }
-    val openFile = { f: ProjectFile -> vm.openFile(f, onReady = { file, mime -> openProjFile(context, file, mime) }, onError = { Toast.makeText(context, "Couldn't open the file.", Toast.LENGTH_LONG).show() }) }
+    val openFile: (ProjectFile) -> Unit = { f ->
+        // A linked file (Drive, Dropbox…) lives elsewhere: open its own link.
+        val link = f.externalLink?.takeIf { it.isNotBlank() }
+        if (f.isExternal) {
+            if (link == null) Toast.makeText(context, "This file has no link to open.", Toast.LENGTH_LONG).show()
+            else runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))) }
+                .onFailure { Toast.makeText(context, "No app here can open that link.", Toast.LENGTH_LONG).show() }
+        } else vm.openFile(f, onReady = { file, mime -> openProjFile(context, file, mime) }, onError = { Toast.makeText(context, "Couldn't open the file.", Toast.LENGTH_LONG).show() }) }
 
     Scaffold(containerColor = LlColor.Paper, contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {

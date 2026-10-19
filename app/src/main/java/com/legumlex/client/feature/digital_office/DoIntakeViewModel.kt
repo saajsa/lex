@@ -16,7 +16,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
+import com.legumlex.client.feature.consultations.friendlyMessage
+import com.legumlex.client.feature.home.ActiveDoSession
 
 /**
  * Drives the DO intake screen end-to-end with the approval-gate flow
@@ -34,9 +35,13 @@ import retrofit2.HttpException
  *          On signature verify → server mints Meet + flips to in_progress
  *          and the verifyPayment response carries meet_link. VM emits
  *          Submitted.
- *   4. Advocate declines OR cron auto-declines (2 min) → status =
+ *   4. Advocate declines OR cron auto-declines (approval window) → status =
  *      declined_by_advocate / expired. VM transitions to Declined state.
  *   5. Client cancels → VM hits /cancel and transitions to Cancelled.
+ *
+ * A session already in flight (chamber.active_session, or [resumeSessionId])
+ * resumes into Waiting instead of offering a second request; a client who
+ * has not registered for the office is sent to the website to register.
  */
 sealed interface DoIntakeUiState {
     data object Loading : DoIntakeUiState
@@ -44,6 +49,7 @@ sealed interface DoIntakeUiState {
     /** Compose-the-brief state. */
     data class Ready(
         val advocate: ChamberAdvocate,
+        /** This client's fee (client_session_fee), invoiced only after acceptance. */
         val sessionFee: Double,
         val currency: String,
         /** True while we're hitting start+intake. UI disables submit. */
@@ -65,15 +71,27 @@ sealed interface DoIntakeUiState {
         val openingInvoice: Boolean = false,
         /** True while the cancel request is in flight. */
         val cancelling: Boolean = false,
+        /** Minutes the advocate has to accept (server's approval_window_minutes). */
+        val approvalWindowMinutes: Int? = null,
     ) : DoIntakeUiState
 
-    /** Advocate declined OR cron auto-declined the request. Terminal in-VM. */
+    /** Advocate declined, the request lapsed, or the fee was not paid in time. Terminal in-VM. */
     data class Declined(
         val advocate: ChamberAdvocate,
         val reason: String,
+        /** True when the advocate had accepted and the payment window lapsed. */
+        val lapsedAfterAccept: Boolean = false,
     ) : DoIntakeUiState
 
     data class Cancelled(val advocateName: String) : DoIntakeUiState
+
+    /** The client has not registered for the office: registration is on the website. */
+    data class NeedsRegistration(
+        val officeName: String,
+        val message: String?,
+        /** The server's `action`: the portal page to register on. */
+        val registerUrl: String? = null,
+    ) : DoIntakeUiState
 
     data class Error(val message: String) : DoIntakeUiState
 }
@@ -91,6 +109,8 @@ sealed interface DoIntakeEvent {
 class DoIntakeViewModel(
     app: Application,
     private val initialAdvocateStaffId: Int?,
+    /** A session to resume into Waiting (e.g. reopened from Home). */
+    private val resumeSessionId: String? = null,
 ) : AndroidViewModel(app) {
 
     private val api  = ApiClient.get(app)
@@ -104,10 +124,24 @@ class DoIntakeViewModel(
 
     /** Active poll job for the Waiting state. */
     private var pollJob: Job? = null
+    /** False while the screen is stopped, so the poll does not run in the background. */
+    private var visible = true
+    private var officeName = ""
 
     init { load() }
 
     fun retry() = load()
+
+    /** Lifecycle hooks from the screen: poll only while it is on screen. */
+    fun onScreenStarted() {
+        visible = true
+        val w = _state.value as? DoIntakeUiState.Waiting ?: return
+        if (pollJob?.isActive != true) startPolling(w.sessionId, immediate = true)
+    }
+    fun onScreenStopped() {
+        visible = false
+        pollJob?.cancel(); pollJob = null
+    }
 
     private fun load() = viewModelScope.launch {
         _state.value = DoIntakeUiState.Loading
@@ -116,16 +150,31 @@ class DoIntakeViewModel(
                 @Suppress("UNCHECKED_CAST")
                 val raw = resp["data"] as? Map<String, Any?>
                 val chamber = raw?.let { parseChamber(it) }
-                if (chamber == null || !chamber.isOpen || chamber.advocates.isEmpty()) {
+                if (chamber == null) {
+                    _state.value = DoIntakeUiState.Error("The Digital Office could not be loaded. Please try again.")
+                    return@onSuccess
+                }
+                officeName = chamber.officeName
+
+                // A request already in flight outranks a new one: resume it.
+                val inFlight = resumeSessionId
+                    ?: chamber.activeSession?.takeIf { it.isResumable() }?.id?.toString()
+                if (inFlight != null && resume(inFlight, chamber.roster, chamber.currency)) return@onSuccess
+
+                if (!chamber.hasAccess) {
+                    _state.value = DoIntakeUiState.NeedsRegistration(chamber.officeName, null)
+                    return@onSuccess
+                }
+                if (!chamber.isOpen || chamber.roster.isEmpty()) {
                     _state.value = DoIntakeUiState.Error(
                         "The Digital Office is closed right now. Please try again during chamber hours."
                     )
                     return@onSuccess
                 }
-                val explicit = chamber.advocates.firstOrNull { it.staffId == initialAdvocateStaffId }
+                val explicit = chamber.roster.firstOrNull { it.staffId == initialAdvocateStaffId }
                 val target = explicit
-                    ?: chamber.advocates.firstOrNull { !it.isBusy }
-                    ?: chamber.advocates.firstOrNull()
+                    ?: chamber.roster.firstOrNull { !it.isBusy }
+                    ?: chamber.roster.firstOrNull()
                 if (target == null) {
                     _state.value = DoIntakeUiState.Error(
                         "No counsel are in the chamber right now. Please try again later."
@@ -134,11 +183,40 @@ class DoIntakeViewModel(
                 }
                 _state.value = DoIntakeUiState.Ready(
                     advocate   = target,
-                    sessionFee = chamber.sessionFee,
+                    sessionFee = chamber.clientSessionFee,
                     currency   = chamber.currency,
                 )
             }
-            .onFailure { e -> _state.value = DoIntakeUiState.Error(friendly(e)) }
+            .onFailure { e -> _state.value = DoIntakeUiState.Error(e.friendlyMessage()) }
+    }
+
+    private fun ActiveDoSession.isResumable() = id > 0 && DoSessionStatus.from(status) in setOf(
+        DoSessionStatus.AWAITING_APPROVAL, DoSessionStatus.APPROVED_AWAITING_PAYMENT,
+    )
+
+    /** Enter Waiting for an existing session; false when it is not waiting any more. */
+    private suspend fun resume(sessionId: String, roster: List<ChamberAdvocate>, currency: String): Boolean {
+        val s = repo.getSession(sessionId).getOrNull() ?: return false
+        if (s.status != DoSessionStatus.AWAITING_APPROVAL && s.status != DoSessionStatus.APPROVED_AWAITING_PAYMENT) return false
+        val adv = roster.firstOrNull { it.staffId == s.advocate?.staffId } ?: s.advocate?.let {
+            ChamberAdvocate(
+                staffId = it.staffId, name = it.name, firstName = it.firstName.orEmpty(), lastName = it.lastName.orEmpty(),
+                barCouncilId = null, designation = it.designation, avatarUrl = it.avatarUrl, lastSeen = null,
+                isBusy = false, sessionStartedAt = null, queueCount = 0, etaMinutes = 0,
+            )
+        } ?: return false
+        _state.value = DoIntakeUiState.Waiting(
+            advocate     = adv,
+            sessionFee   = s.sessionFee,
+            currency     = currency,
+            sessionId    = s.id,
+            briefSummary = s.sessionNote,
+            approvedAt   = s.approvedAt,
+            payUrl       = s.invoicePayUrl,
+            approvalWindowMinutes = s.approvalWindowMinutes,
+        )
+        startPolling(s.id, immediate = true)
+        return true
     }
 
     // ── Submit ────────────────────────────────────────────────────────────
@@ -154,26 +232,22 @@ class DoIntakeViewModel(
         _state.value = current.copy(submitting = true)
         val started = repo.startSession(current.advocate.staffId).getOrElse { e ->
             _state.value = current.copy(submitting = false)
-            if (e is AdvocateBusyJoinQueue) {
-                _events.emit(DoIntakeEvent.OfferJoinQueue(
+            when (e) {
+                is AdvocateBusyJoinQueue -> _events.emit(DoIntakeEvent.OfferJoinQueue(
                     advocateStaffId = e.advocateStaffId,
                     advocateName    = current.advocate.name,
                 ))
-            } else {
-                _events.emit(DoIntakeEvent.Failed(friendly(e)))
+                is NeedsRegistration -> _state.value = DoIntakeUiState.NeedsRegistration(officeName, e.message, e.registerUrl)
+                else -> _events.emit(DoIntakeEvent.Failed(e.friendlyMessage()))
             }
             return@launch
         }
 
-        // Approval-gate flow: payment ALWAYS happens after advocate accepts,
-        // even for what the server reports as paid. The `free` flag still
-        // matters because it determines whether the polling will see an
-        // approved_awaiting_payment state at all (free goes direct to
-        // in_progress; paid stops at the payment step). We always submit
-        // intake first and let the server decide.
+        // Approval-gate flow: payment ALWAYS happens after advocate accepts.
+        // We always submit intake first and let the server decide.
         val intake = repo.submitIntake(started.sessionId, intakeText.trim()).getOrElse { e ->
             _state.value = current.copy(submitting = false)
-            _events.emit(DoIntakeEvent.Failed(friendly(e)))
+            _events.emit(DoIntakeEvent.Failed(e.friendlyMessage()))
             return@launch
         }
 
@@ -185,23 +259,29 @@ class DoIntakeViewModel(
             sessionId    = intake.sessionId,
             briefSummary = intake.briefSummary,
         )
-        startPolling(intake.sessionId)
+        startPolling(intake.sessionId, immediate = true)
     }
 
     // ── Polling ───────────────────────────────────────────────────────────
 
-    private fun startPolling(sessionId: String) {
+    private fun startPolling(sessionId: String, immediate: Boolean = false) {
         pollJob?.cancel()
+        if (!visible) return
         pollJob = viewModelScope.launch {
             // Tight 4-second cadence — the user is staring at "advocate is
-            // reviewing" and wants the transition the moment it happens. The
-            // server endpoint is cheap.
+            // reviewing" and wants the transition the moment it happens.
+            var first = immediate
             while (isActive) {
-                delay(4_000)
+                if (!first) delay(4_000)
+                first = false
                 val current = _state.value as? DoIntakeUiState.Waiting ?: break
                 if (current.cancelling || current.openingInvoice) continue
 
                 val fresh = repo.getSession(sessionId).getOrNull() ?: continue
+                val window = fresh.approvalWindowMinutes ?: current.approvalWindowMinutes
+                if (window != current.approvalWindowMinutes) {
+                    _state.value = current.copy(approvalWindowMinutes = window)
+                }
                 when (fresh.status) {
                     DoSessionStatus.AWAITING_APPROVAL -> {
                         // Still waiting — no state change.
@@ -210,8 +290,12 @@ class DoIntakeViewModel(
                         // Advocate accepted: the fee is an invoice, paid on its
                         // page on the website. Raised and opened once; paying it
                         // starts the session, which the next poll sees.
-                        if (current.payUrl == null) {
-                            _state.value = current.copy(approvedAt = fresh.approvedAt, openingInvoice = true)
+                        val w = _state.value as? DoIntakeUiState.Waiting ?: break
+                        val known = w.payUrl ?: fresh.invoicePayUrl
+                        if (known != null) {
+                            if (w.payUrl == null || w.approvedAt == null) _state.value = w.copy(payUrl = known, approvedAt = fresh.approvedAt ?: w.approvedAt)
+                        } else {
+                            _state.value = w.copy(approvedAt = fresh.approvedAt, openingInvoice = true)
                             repo.feeInvoice(sessionId)
                                 .onSuccess { url ->
                                     (_state.value as? DoIntakeUiState.Waiting)?.let { _state.value = it.copy(payUrl = url, openingInvoice = false) }
@@ -219,15 +303,13 @@ class DoIntakeViewModel(
                                 }
                                 .onFailure { e ->
                                     (_state.value as? DoIntakeUiState.Waiting)?.let { _state.value = it.copy(openingInvoice = false) }
-                                    _events.emit(DoIntakeEvent.Failed(friendly(e)))
+                                    _events.emit(DoIntakeEvent.Failed(e.friendlyMessage()))
                                 }
                         }
                     }
                     DoSessionStatus.CONFIRMED,
                     DoSessionStatus.IN_PROGRESS -> {
-                        // Free session: advocate accepted → server minted Meet
-                        // immediately. Navigate.
-                        pollJob?.cancel(); pollJob = null
+                        pollJob = null
                         _events.emit(DoIntakeEvent.Submitted(
                             consultationId = fresh.consultationId,
                             meetLink       = fresh.meetLink,
@@ -235,7 +317,7 @@ class DoIntakeViewModel(
                         return@launch
                     }
                     DoSessionStatus.DECLINED_BY_ADVOCATE -> {
-                        pollJob?.cancel(); pollJob = null
+                        pollJob = null
                         _state.value = DoIntakeUiState.Declined(
                             advocate = current.advocate,
                             reason   = fresh.failureReason
@@ -244,16 +326,21 @@ class DoIntakeViewModel(
                         return@launch
                     }
                     DoSessionStatus.EXPIRED -> {
-                        // Auto-declined by cron sweep — same user-facing message.
-                        pollJob?.cancel(); pollJob = null
+                        pollJob = null
+                        val afterAccept = fresh.approvedAt != null || current.approvedAt != null
                         _state.value = DoIntakeUiState.Declined(
                             advocate = current.advocate,
-                            reason   = "Your advocate didn't respond in time. Please try again later.",
+                            reason   = fresh.failureReason ?: if (afterAccept)
+                                "Your advocate accepted, but the fee was not paid in time, so the request lapsed. " +
+                                "No session took place; you can send a new request."
+                            else
+                                "Your advocate didn't respond in time. Please try again later.",
+                            lapsedAfterAccept = afterAccept,
                         )
                         return@launch
                     }
                     DoSessionStatus.CANCELLED -> {
-                        pollJob?.cancel(); pollJob = null
+                        pollJob = null
                         _state.value = DoIntakeUiState.Cancelled(current.advocate.name)
                         return@launch
                     }
@@ -261,9 +348,9 @@ class DoIntakeViewModel(
                     DoSessionStatus.ADVOCATE_OFFLINE,
                     DoSessionStatus.ADVOCATE_BUSY,
                     DoSessionStatus.PAYMENT_FAILED -> {
-                        pollJob?.cancel(); pollJob = null
+                        pollJob = null
                         _state.value = DoIntakeUiState.Error(
-                            fresh.failureReason ?: "Couldn't complete this session. Please contact the firm."
+                            fresh.failureReason ?: "This session could not go ahead. Please contact the firm."
                         )
                         return@launch
                     }
@@ -293,25 +380,13 @@ class DoIntakeViewModel(
                 _state.value = DoIntakeUiState.Cancelled(current.advocate.name)
             }
             .onFailure { e ->
-                _state.value = current.copy(cancelling = false)
-                _events.emit(DoIntakeEvent.Failed(friendly(e)))
+                (_state.value as? DoIntakeUiState.Waiting)?.let { _state.value = it.copy(cancelling = false) }
+                _events.emit(DoIntakeEvent.Failed(e.friendlyMessage()))
             }
     }
 
     override fun onCleared() {
         super.onCleared()
         pollJob?.cancel()
-    }
-
-    private fun friendly(e: Throwable): String = when (e) {
-        is HttpException -> when (e.code()) {
-            401, 403   -> "Your session expired. Sign in again."
-            409        -> "Couldn't reach the advocate just now. Please refresh and try again."
-            422        -> "Couldn't accept your request. Please check the form and try again."
-            501        -> "Paid sessions aren't supported in the app yet. Use the web portal."
-            in 500..599 -> "Server error. Try again in a moment."
-            else        -> "Couldn't reach the server (HTTP ${e.code()})."
-        }
-        else -> "Couldn't reach the server. Check your connection."
     }
 }

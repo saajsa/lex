@@ -621,10 +621,10 @@ private fun initialsOf(name: String?): String =
     name?.split(" ")?.filter { it.isNotBlank() }
         ?.take(2)?.joinToString("") { it.first().uppercase() }?.ifBlank { "?" } ?: "?"
 
-/** Prefix the advocate's name with "Adv." for legal context, avoiding doubles. */
+/** The advocate's name as recorded (the portal adds no prefix). */
 private fun advName(name: String?): String {
     val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return "Your advocate"
-    return if (n.startsWith("adv", ignoreCase = true)) n else "Adv. $n"
+    return n   // as recorded, as the portal shows it
 }
 
 // =============================================================================

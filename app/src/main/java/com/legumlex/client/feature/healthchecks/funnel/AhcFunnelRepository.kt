@@ -75,7 +75,7 @@ class AhcFunnelRepository(private val api: ApiService) {
                 parties       = it["parties"]?.toString().orEmpty(),
                 summary       = it["summary"]?.toString().orEmpty(),
                 riskHint      = RiskLevel.from(it["risk_hint"] as? String),
-                confidence    = (it["confidence"]?.toString()?.toFloatOrNull()),
+                confidence    = it["confidence"].numOrNull()?.toFloat(),
                 error         = it["error"]?.toString(),
             )
         }
@@ -90,15 +90,16 @@ class AhcFunnelRepository(private val api: ApiService) {
             sessionHash    = data["session_hash"]?.toString().orEmpty(),
             currentStep    = AhcStep.from(data["current_step"] as? String),
             status         = data["status"]?.toString().orEmpty(),
-            consultationId = data["consultation_id"]?.toString()?.takeIf { it.isNotBlank() && it != "null" },
+            // Moshi reads JSON numbers as Double: 45 → 45.0, so go through Number.
+            consultationId = data["consultation_id"].idOrNull(),
             paymentStatus  = data["payment_status"]?.toString().orEmpty(),
-            amountPaid     = (data["amount_paid"]?.toString()?.toDoubleOrNull()?.toInt()) ?: 0,
-            pricePaise     = (data["price_paise"]?.toString()?.toDoubleOrNull()?.toInt()) ?: 0,
+            amountPaid     = data["amount_paid"].numOrNull()?.toInt() ?: 0,
+            pricePaise     = data["price_paise"].numOrNull()?.toInt() ?: 0,
             documents      = docsRaw.map { d ->
                 AhcDocument(
-                    id        = d["id"]?.toString().orEmpty(),
+                    id        = d["id"].idOrNull().orEmpty(),
                     name      = d["name"]?.toString().orEmpty(),
-                    sizeBytes = d["size"]?.toString()?.toLongOrNull() ?: 0L,
+                    sizeBytes = d["size"].numOrNull()?.toLong() ?: 0L,
                     mime      = d["mime"]?.toString().orEmpty(),
                 )
             },
@@ -106,4 +107,17 @@ class AhcFunnelRepository(private val api: ApiService) {
             confirmed  = confirmed,
         )
     }
+}
+
+private fun Any?.numOrNull(): Double? = when (this) {
+    is Number -> toDouble()
+    is String -> toDoubleOrNull()
+    else      -> null
+}
+
+/** An id as the server meant it: 45.0 reads "45"; blank, 0 and "null" read null. */
+private fun Any?.idOrNull(): String? = when (this) {
+    is Number -> toLong().takeIf { it > 0 }?.toString()
+    is String -> takeIf { it.isNotBlank() && it != "null" && it != "0" }?.let { it.toDoubleOrNull()?.toLong()?.toString() ?: it }
+    else      -> null
 }

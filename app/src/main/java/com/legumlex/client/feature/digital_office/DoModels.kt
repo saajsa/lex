@@ -39,6 +39,7 @@ data class DoSession(
     val sessionNote: String?,
     val startedAt: LocalDateTime?,
     val endedAt: LocalDateTime?,
+    /** failure_reason_client: a sentence written for the client, never the staff reason. */
     val failureReason: String?,
     val appointmentId: String?,
     val consultationId: String?,
@@ -46,6 +47,10 @@ data class DoSession(
     /** When advocate has accepted (free or paid). Null otherwise. */
     val approvedAt: String? = null,
     val declinedAt: String? = null,
+    /** Minutes the advocate has to accept, as the server sets it. */
+    val approvalWindowMinutes: Int? = null,
+    /** The fee's invoice page, once raised (sessions/{id}.invoice.pay_url). */
+    val invoicePayUrl: String? = null,
 )
 
 data class DoAdvocate(
@@ -95,3 +100,7 @@ data class DoWaitroomRow(
     val promptExpiresAt: String?,
     val promptSecondsLeft: Int?,
 )
+
+/** The portal's Digital Office page, where a client registers for the office. */
+fun portalOfficeUrl(): String =
+    com.legumlex.client.BuildConfig.API_BASE_URL.substringBefore("customers_api/").trimEnd('/') + "/mylex/office"

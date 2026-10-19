@@ -70,24 +70,44 @@ fun NoticesScreen(
     val allFlat by vm.allFlat.collectAsState()
 
     var showSort by remember { mutableStateOf(false) }
+    // No 'notices' permission: the section hides rather than erroring.
+    val noAccess = (state as? NoticesUiState.Error)?.message == NO_ACCESS
+
+    // Look again on coming back — from a notice, a reply, or another app.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.resumed()
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
 
     // The app-wide header (logo · back · notifications) sits above via the Scaffold.
     Column(Modifier.fillMaxSize().background(LlColor.Paper)) {
 
-        // Content heading — title + New (the app header has no per-screen actions).
-        Row(
-            Modifier.fillMaxWidth().padding(start = 18.dp, end = 14.dp, top = 8.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Legal notices", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
-            Row(
-                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onNew).padding(horizontal = 13.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("New", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
-            }
+        // Content heading — kicker + title, as the other list screens (PageHeader).
+        com.legumlex.client.ui.components.PageHeader(
+            eyebrow = "Litigation", title = "Legal Notices",
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp),
+            actions = {
+                if (!noAccess) Row(
+                    Modifier.clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.primary).clickable(onClick = onNew).padding(horizontal = 13.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("New", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
+                }
+            },
+        )
+
+        if (noAccess) {
+            com.legumlex.client.ui.components.LexEmpty(
+                "Notices Aren't Available", NO_ACCESS,
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+            )
+            return@Column
         }
 
         FilterBar(filter, counts(allFlat), vm::setFilter)
@@ -199,7 +219,7 @@ private fun SortBar(sort: NoticeSort, state: NoticesUiState, onSort: () -> Unit)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_ms_layers), null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(5.dp))
-                Text("${ready.total} notices · ${ready.threadCount} threads", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                Text("${ready.total} ${if (ready.total == 1) "Notice" else "Notices"} · ${ready.threadCount} ${if (ready.threadCount == 1) "Thread" else "Threads"}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
             }
         }
     }
@@ -248,8 +268,8 @@ private fun SortSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Group by priority", fontFamily = Inter, fontSize = 13.sp, color = LlColor.Ink)
-                Text("Needs you → In progress → Closed", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
+                Text("Group By Priority", fontFamily = Inter, fontSize = 13.sp, color = LlColor.Ink)
+                Text("Needs You → In Progress → Closed", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
             }
             Toggle(grouped) { onToggleGroup(!grouped) }
         }
@@ -281,8 +301,8 @@ private fun GBand(band: NoticeBand, roots: List<NoticeSummary>) {
     }
     val total = roots.sumOf { 1 + it.children.size }
     val countText = when (band) {
-        NoticeBand.NEEDS_YOU -> "$total awaiting you"
-        NoticeBand.IN_PROGRESS -> "$total active"
+        NoticeBand.NEEDS_YOU -> "$total Awaiting You"
+        NoticeBand.IN_PROGRESS -> "$total Active"
         NoticeBand.CLOSED -> "$total"
     }
     Row(
@@ -340,26 +360,25 @@ private fun NoticeRow(n: NoticeSummary, nested: Boolean = false, onClick: () -> 
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    n.subject?.let { Text(it, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     n.referenceNumber?.let { Text(it, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted, maxLines = 1, softWrap = false) }
                     money(n.claimAmount)?.let { Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.Ink, maxLines = 1, softWrap = false) }
                     if (n.children.isNotEmpty()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(painterResource(R.drawable.ic_ms_reply), null, tint = LlColor.InkFaint, modifier = Modifier.size(11.dp))
                             Spacer(Modifier.width(3.dp))
-                            Text("${n.children.size} repl" + if (n.children.size == 1) "y" else "ies", fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint, maxLines = 1, softWrap = false)
+                            Text("${n.children.size} Repl" + if (n.children.size == 1) "y" else "ies", fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint, maxLines = 1, softWrap = false)
                         }
                     }
                 }
                 // lfacets — countdown + your-action tag. Hide the response
                 // countdown (incl. the "overdue" state) once a response has been
                 // recorded — a replied/closed/expired notice is no longer "due".
-                val responded = n.children.isNotEmpty() ||
-                    n.status in listOf("Response Received", "No Response", "Expired")
-                val showCd = !n.isClosed && !responded && n.responseDueDate != null
-                if (showCd || n.needsApproval) {
+                val showCd = !n.isClosed && !n.isAnswered() && n.responseDueDate != null
+                if (showCd || (n.needsApproval && n.statusLabel.isBlank())) {
                     Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (showCd) CountdownPill(n.responseDueDate!!)
-                        if (n.needsApproval) StateTag(if (n.direction == NoticeDirection.INBOUND) "Approve reply" else "Approve draft")
+                        if (n.needsApproval && n.statusLabel.isBlank()) StateTag(if (n.direction == NoticeDirection.INBOUND) "Reply Ready For You" else "Draft Ready For You")
                     }
                 }
             }
@@ -391,17 +410,17 @@ private fun StateTag(text: String) {
     Box(
         Modifier.clip(RoundedCornerShape(6.dp)).background(LlColor.AmberSoft).padding(horizontal = 7.dp, vertical = 3.dp),
     ) {
-        Text(text.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 9.5.sp, letterSpacing = 0.4.sp, color = LlColor.Amber)
+        Text(text, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 9.5.sp, color = LlColor.Amber)
     }
 }
 
 @Composable
 private fun StatusChip(n: NoticeSummary) {
     val (bg, fg) = when {
-        n.isClosed -> LlColor.Paper2 to LlColor.InkMuted
-        n.needsApproval -> LlColor.AmberSoft to LlColor.Amber
-        n.direction == NoticeDirection.OUTBOUND -> LlColor.SlateSoft to LlColor.SlateMid
-        else -> LlColor.AmberSoft to LlColor.Amber
+        n.isClosed || n.status in listOf("Cancelled", "Expired", "No Response") -> LlColor.Paper2 to LlColor.InkMuted
+        n.status == "Returned" -> LlColor.AmberSoft to LlColor.Amber
+        n.status in listOf("Served", "Delivered", "Response Received") -> LlColor.VerdantSoft to LlColor.Verdant
+        else -> LlColor.SlateSoft to LlColor.SlateMid
     }
     Box(Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
         Text(chipLabel(n), fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 10.sp, color = fg, maxLines = 1)
@@ -410,35 +429,26 @@ private fun StatusChip(n: NoticeSummary) {
 
 @Composable
 private fun CountdownPill(due: LocalDate) {
-    val days = ChronoUnit.DAYS.between(LocalDate.now(), due)
-    val soon = days <= 10
-    val bg = if (soon) LlColor.ClaretSoft else LlColor.AmberSoft
-    val fg = if (soon) LlColor.ClaretMid else LlColor.Amber
+    val days = ChronoUnit.DAYS.between(todayIst(), due)
+    // A passed date is stated plainly, not alarmed: the advocate advises on it.
+    val (bg, fg) = when {
+        days < 0 -> LlColor.Paper2 to LlColor.InkMuted
+        days <= 10 -> LlColor.ClaretSoft to LlColor.ClaretMid
+        else -> LlColor.AmberSoft to LlColor.Amber
+    }
     Row(Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(R.drawable.ic_ms_schedule), null, tint = fg, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(4.dp))
-        Text(if (days < 0) "overdue" else "${days}d to respond", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = fg)
+        Text(when { days < 0 -> "Response Date Passed"; days == 0L -> "Reply Due Today"; days == 1L -> "Reply Due In 1 Day"; else -> "Reply Due In $days Days" }, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = fg)
     }
 }
 
-private fun chipLabel(n: NoticeSummary): String = when {
-    n.needsApproval -> "YOUR OK"
-    n.isClosed && n.status == "Response Received" -> "REPLIED"
-    n.isClosed -> "CLOSED"
-    n.direction == NoticeDirection.INBOUND && n.children.isNotEmpty() -> "REPLIED"
-    n.status in listOf("Dispatched", "Sent") -> "SENT"
-    n.status in listOf("Served", "Delivered") -> "SERVED"
-    n.status == "Received" -> "RECEIVED"
-    n.status == "Draft" -> if (n.direction == NoticeDirection.INBOUND) "REVIEWING" else "DRAFTING"
-    n.status == "Response Received" -> "REPLIED"
-    n.status == "No Response" -> "NO REPLY"
-    n.status == "Expired" -> "EXPIRED"
-    else -> n.status.uppercase()
-}
+/** The real status, as the portal shows it; the "needs you" note is a separate tag. */
+private fun chipLabel(n: NoticeSummary): String = noticeStatusTitle(n)
 
 private fun relTime(dt: LocalDateTime?): String {
     if (dt == null) return ""
-    val mins = Duration.between(dt, LocalDateTime.now()).toMinutes().coerceAtLeast(0)
+    val mins = Duration.between(dt, LocalDateTime.now(java.time.ZoneId.of("Asia/Kolkata"))).toMinutes().coerceAtLeast(0)
     return when {
         mins < 1 -> "now"; mins < 60 -> "${mins}m"; mins < 1440 -> "${mins / 60}h"
         mins < 10080 -> "${mins / 1440}d"; else -> "${mins / 10080} wk"
@@ -458,9 +468,9 @@ private fun Empty(onNew: () -> Unit) {
                 Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.InkFaint, modifier = Modifier.size(27.dp))
             }
             Spacer(Modifier.height(15.dp))
-            Text("No notices yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink)
+            Text("No Notices Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink)
             Spacer(Modifier.height(7.dp))
-            Text("Send a legal notice, or upload one you've received and we'll help you respond.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.fillMaxWidth(0.85f))
+            Text("Ask your advocate to send a legal notice, or upload one you've received for them to review.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.fillMaxWidth(0.85f))
             Spacer(Modifier.height(16.dp))
             Row(
                 Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onNew).padding(horizontal = 16.dp, vertical = 11.dp),
@@ -468,7 +478,7 @@ private fun Empty(onNew: () -> Unit) {
             ) {
                 Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Start a notice", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
+                Text("Start A Notice", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
             }
         }
     }
@@ -485,7 +495,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
                 Icon(Icons.Outlined.Inventory2, null, tint = LlColor.Amber, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("Couldn't load notices", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+                Text("Couldn't Load Notices", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
                 Text(message, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted)
             }
             Row(

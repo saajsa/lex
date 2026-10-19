@@ -88,11 +88,11 @@ fun VaultScreen(onBack: () -> Unit) {
     BackHandler { if (!vm.back()) onBack() }
 
     val title = when (step) {
-        is VaultStep.Welcome         -> "Vault"
+        is VaultStep.Welcome         -> "Documents"
         is VaultStep.PickerLoading   -> (step as VaultStep.PickerLoading).intent.title
         is VaultStep.PickerError     -> (step as VaultStep.PickerError).intent.title
         is VaultStep.Picker          -> (step as VaultStep.Picker).intent.title
-        is VaultStep.SearchInput     -> "Search documents"
+        is VaultStep.SearchInput     -> "Search Documents"
         is VaultStep.ResultsLoading  -> (step as VaultStep.ResultsLoading).context.title
         is VaultStep.Results         -> (step as VaultStep.Results).context.title
         is VaultStep.ResultsError    -> (step as VaultStep.ResultsError).context.title
@@ -112,7 +112,7 @@ fun VaultScreen(onBack: () -> Unit) {
                     .padding(horizontal = 20.dp)
                     .padding(top = 14.dp, bottom = 6.dp),
             ) {
-                EyebrowText("Documents", color = TertiaryText)
+                EyebrowText("Your File", color = TertiaryText)
                 Text(title, style = MaterialTheme.typography.headlineSmall, color = PrimaryText, maxLines = 1)
             }
             AnimatedContent(
@@ -125,12 +125,16 @@ fun VaultScreen(onBack: () -> Unit) {
             ) { current ->
                 when (current) {
                     is VaultStep.Welcome        -> WelcomeStep(onPick = vm::chooseIntent)
-                    is VaultStep.PickerLoading  -> StepCenteredSpinner("Loading your ${current.intent.title.lowercase()}…")
-                    is VaultStep.PickerError    -> StepError(current.message) { vm.retryPicker(current.intent) }
+                    is VaultStep.PickerLoading  -> StepCenteredSpinner("Loading your ${current.intent.plural}…")
+                    is VaultStep.PickerError    -> if (current.denied) {
+                        com.legumlex.client.ui.components.PermissionEmptyState(feature = current.intent.title, message = current.message)
+                    } else StepError(current.message) { vm.retryPicker(current.intent) }
                     is VaultStep.Picker         -> PickerStep(current) { item -> vm.choosePickerItem(current.intent, item) }
                     is VaultStep.SearchInput    -> SearchStep(initial = current.query, onSubmit = vm::submitSearch)
                     is VaultStep.ResultsLoading -> StepCenteredSpinner("Fetching documents…")
-                    is VaultStep.ResultsError   -> StepError(current.message) { vm.retryResults(current.context) }
+                    is VaultStep.ResultsError   -> if (current.denied) {
+                        com.legumlex.client.ui.components.PermissionEmptyState(feature = current.context.title, message = current.message)
+                    } else StepError(current.message) { vm.retryResults(current.context) }
                     is VaultStep.Results        -> ResultsStep(
                         current,
                         downloading = downloading,
@@ -158,7 +162,7 @@ private fun WelcomeStep(onPick: (VaultIntent) -> Unit) {
             .padding(top = spacing.s3, bottom = spacing.s8),
     ) {
         Text(
-            "What are you looking for?",
+            "What Are You Looking For?",
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
             color = PrimaryText,
         )
@@ -270,14 +274,14 @@ private fun IntentTile(
 private fun PickerStep(step: VaultStep.Picker, onPick: (PickerItem) -> Unit) {
     val spacing = LocalSpacing.current
     val (header, subhead) = when (step.intent) {
-        VaultIntent.CASE_FILE   -> "Which case?"           to "Pick the matter to pull documents from."
-        VaultIntent.HEARING_DOC -> "Which hearing?"        to "Pick a date to fetch its documents."
-        VaultIntent.SESSION_DOC -> "Which session?"        to "Pick a consultation to fetch its files."
+        VaultIntent.CASE_FILE   -> "Which Case?"           to "Pick the matter to pull documents from."
+        VaultIntent.HEARING_DOC -> "Which Hearing?"        to "Pick a date to fetch its documents."
+        VaultIntent.SESSION_DOC -> "Which Consultation?"   to "Pick a consultation to fetch its files."
         else                    -> step.intent.title       to step.intent.sub
     }
 
     if (step.items.isEmpty()) {
-        StepEmpty(header = "Nothing to pick", body = "There aren't any ${step.intent.title.lowercase()} on your account yet.")
+        StepEmpty(header = "Nothing To Pick", body = "There aren't any ${step.intent.plural} on your account yet.")
         return
     }
 
@@ -352,7 +356,7 @@ private fun SearchStep(initial: String, onSubmit: (String) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focus),
-            placeholder = { Text("e.g. Vermicompost, Order, PAN…") },
+            placeholder = { Text("e.g. order, agreement, PAN") },
             leadingIcon = { Icon(Icons.Outlined.Search, null, tint = SecondaryText, modifier = Modifier.size(20.dp)) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSubmit(query) }),
@@ -400,7 +404,7 @@ private fun ResultsStep(
                 Icon(Icons.AutoMirrored.Outlined.LibraryBooks, null, tint = TertiaryText, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(spacing.s4))
-            Text("No documents here yet", style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
+            Text("No Documents Here Yet", style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
             Spacer(Modifier.height(spacing.s2))
             Text(
                 "Nothing's been attached to this yet. Try a different choice or check again later.",
@@ -569,7 +573,7 @@ private fun StepError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.ErrorOutline, null, tint = StatusDanger.solid, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(spacing.s4))
-        Text("Something went wrong",
+        Text("Something Went Wrong",
             style = MaterialTheme.typography.headlineSmall,
             color = PrimaryText,
             textAlign = TextAlign.Center)

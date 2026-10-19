@@ -131,7 +131,7 @@ private fun CasesReady(
     onOpenCase: (String) -> Unit,
     onOpenNotices: () -> Unit,
 ) {
-    val today = remember { LocalDate.now() }
+    val today = remember { LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")) }
     val active = remember(cases) { cases.filterNot { it.isClosedCase() } }
     val closed = remember(cases) { cases.filter { it.isClosedCase() } }
     val scheduled = remember(active, today) { active.count { it.upcomingHearingDays(today) != null } }
@@ -162,8 +162,9 @@ private fun CasesReady(
                 }
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatCard("Hearings Scheduled", "$scheduled", "Dates fixed across all your matters", Modifier.weight(1f).fillMaxHeight(),
-                        chip = { if (scheduled == 0) StatusChip("None Listed", Lex.colors.success, Icons.Outlined.CheckCircle) })
-                    StatCard("Hearings Held", "${cases.sumOf { it.hearingCount }}", "Hearings on record across your matters",
+                        // No date fixed is not good news: a neutral chip, never green.
+                        chip = { if (scheduled == 0) StatusChip("None Listed", Lex.colors.neutral) })
+                    StatCard("Hearings On Record", "${cases.sumOf { it.hearingCount }}", "Every hearing noted on your matters",
                         Modifier.weight(1f).fillMaxHeight())
                 }
             }
@@ -175,7 +176,7 @@ private fun CasesReady(
         item("filter") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SegmentedToggle(
-                    options = listOf(CaseFilter.ALL to "All", CaseFilter.ACTIVE to "Active", CaseFilter.CLOSED to "Closed"),
+                    options = listOf(CaseFilter.ALL to "All", CaseFilter.ACTIVE to "Active", CaseFilter.CLOSED to "Disposed"),
                     selected = filter, onSelect = onFilter,
                 )
                 Spacer(Modifier.weight(1f))
@@ -314,7 +315,7 @@ private fun CasesEmpty() {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.Gavel, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("No cases filed yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("No Cases Filed Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
@@ -348,9 +349,9 @@ private fun FilteredEmpty(filter: CaseFilter) {
         Spacer(Modifier.height(18.dp))
         Text(
             when (filter) {
-                CaseFilter.ACTIVE -> "No active matters"
-                CaseFilter.CLOSED -> "No closed matters"
-                else -> "No matters"
+                CaseFilter.ACTIVE -> "No Active Matters"
+                CaseFilter.CLOSED -> "No Disposed Matters"
+                else -> "No Matters"
             },
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
@@ -414,7 +415,7 @@ private fun CasesError(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load your matters", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't Load Your Matters", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,

@@ -21,8 +21,8 @@ enum class ConsultationKind(val apiValue: String, val label: String) {
     LEGAL_ENQUIRY  ("legal_enquiry",    "Legal Enquiry"),
     AHC            ("agreement_review", "Agreement Check"),
     LEGAL_NOTICE   ("legal_notice",     "Legal Notice"),
-    DOC_REQUEST    ("document_request", "Documents requested"),
-    DIGITAL_OFFICE ("digital_office",   "Video session");
+    DOC_REQUEST    ("document_request", "Documents Requested"),
+    DIGITAL_OFFICE ("digital_office",   "Video Session");
 
     companion object {
         fun from(raw: String?): ConsultationKind = when (raw?.lowercase()?.trim()) {
@@ -42,12 +42,12 @@ enum class ConsultationKind(val apiValue: String, val label: String) {
 // up from related entities (pending docs, unread replies, etc.).
 // -----------------------------------------------------------------------------
 enum class ConsultationStatus(val label: String, private val tone: (LexColors) -> StatusPalette) {
-    PENDING_REVIEW("Pending review",       { it.warning }),
+    PENDING_REVIEW("Pending Review",       { it.warning }),
     ACKNOWLEDGED  ("Acknowledged",         { it.blue }),
-    IN_PROGRESS   ("In progress",          { it.blue }),
+    IN_PROGRESS   ("In Progress",          { it.blue }),
     SCHEDULED     ("Scheduled",            { it.info }),
-    AWAITING_DOCS ("Awaiting documents",   { it.warning }),
-    LIVE_NOW      ("Live now",             { it.success }),
+    AWAITING_DOCS ("Awaiting Documents",   { it.warning }),
+    LIVE_NOW      ("Live Now",             { it.success }),
     COMPLETED     ("Completed",            { it.success }),
     CONVERTED     ("Litigation",            { it.success }),
     CANCELLED     ("Cancelled",            { it.neutral }),
@@ -63,7 +63,7 @@ enum class ConsultationStatus(val label: String, private val tone: (LexColors) -
 enum class ConsultationFilter(val label: String) {
     ALL("All"),
     ACTIVE("Active"),
-    AWAITING_YOU("Awaiting you"),
+    AWAITING_YOU("Awaiting You"),
     DONE("Done"),
     CONVERTED("Converted"),   // legacy entry — retained for any older callers
 }
@@ -120,6 +120,13 @@ data class Consultation(
     val linkedConsultationId: String? = null, // child created on escalation
     val parentConsultationId: String? = null, // parent that escalated to this one
     val advocateNote: String? = null,
+    /** Agreement Check funnel position (intake/payment/pending_review/result). */
+    val funnelStep: String? = null,
+    /** Fee invoice state: paid / unpaid / cancelled, or null with no fee invoice. */
+    val paymentStatus: String? = null,
+    val feeInvoiceId: String? = null,
+    /** Shared advocate messages not yet read. */
+    val unreadCount: Int = 0,
 )
 
 /** True iff the client is allowed to withdraw this consultation themselves. */
@@ -238,6 +245,8 @@ data class Reply(
     val authorName: String,
     val authorImage: String?,
     val createdAt: LocalDateTime?,
+    /** When the advocate read it (client messages only), as the portal records it. */
+    val readAt: LocalDateTime? = null,
 )
 
 // Lightweight document reference attached to a consultation. Doesn't carry the
@@ -400,6 +409,7 @@ data class AhcAnalysis(
     val agreementType: String? = null,     // e.g. "Lease", "Vendor MSA"
     val parties: String? = null,           // e.g. "Davinder Singh ↔ Lakhwinder Singh"
     val agreementSummary: String? = null,  // factual one-liner
+    val released: Boolean = false,         // server: report released to the client
 )
 
 /**
@@ -437,3 +447,20 @@ data class LinkageSide(
 ) {
     val isClosed: Boolean get() = !closedAt.isNullOrBlank()
 }
+
+/**
+ * An Agreement Check whose fee invoice is still unpaid sits at the funnel's
+ * payment step: the advocate has not started, so it reads "Awaiting Payment"
+ * rather than a review in progress (the invoice is paid on the website).
+ */
+fun Consultation.awaitingPayment(): Boolean =
+    kind == ConsultationKind.AHC && closedAt == null &&
+        (funnelStep == "payment" || (paymentStatus == "unpaid" && funnelStep !in setOf("pending_review", "result")))
+
+/** Whether the advocate's review clock is running (the funnel reached review). */
+fun Consultation.inAdvocateReview(): Boolean =
+    kind != ConsultationKind.AHC || funnelStep == null || funnelStep in setOf("pending_review", "result")
+
+/** The status as the client should read it. */
+val Consultation.statusLabel: String
+    get() = if (awaitingPayment()) "Awaiting Payment" else status.label

@@ -17,6 +17,8 @@ sealed interface InvoicesUiState {
         val outstandingTotal: Double,
         val outstandingCount: Int,
         val currencySymbol: String,
+        /** What is owed to each issuing business, largest first — each bills and is paid separately. */
+        val outstandingByIssuer: List<Pair<String, Double>> = emptyList(),
     ) : InvoicesUiState
     data class Error(val message: String) : InvoicesUiState
 }
@@ -65,6 +67,11 @@ class InvoicesViewModel(app: Application) : AndroidViewModel(app) {
                     outstandingTotal = outstanding.sumOf { it.leftToPay },
                     outstandingCount = outstanding.size,
                     currencySymbol   = invoices.firstOrNull()?.currencySymbol ?: "",
+                    outstandingByIssuer = outstanding
+                        .groupBy { it.issuerName.ifBlank { "Other" } }
+                        .map { (name, list) -> name to list.sumOf { it.leftToPay } }
+                        .filter { it.second > 0.0 }
+                        .sortedByDescending { it.second },
                 )
             }
             .onFailure { e ->
@@ -78,7 +85,8 @@ class InvoicesViewModel(app: Application) : AndroidViewModel(app) {
 
 internal fun friendlyMessage(e: Throwable): String = when (e) {
     is HttpException -> when (e.code()) {
-        401, 403   -> "Your session expired. Sign in again."
+        401        -> "Your session expired. Sign in again."
+        403        -> "Your account does not include billing. Ask the firm to give you access."
         404        -> "Not available."
         in 500..599 -> "Server error. Try again in a moment."
         else        -> "Couldn't reach the server (HTTP ${e.code()})."

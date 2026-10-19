@@ -230,8 +230,9 @@ fun WorkspaceTile(
         Box(
             modifier
                 .fillMaxWidth()
-                // Every entrance the same height, whatever its words.
-                .height(WorkspaceTileHeight)
+                // Every entrance the same height, whatever its words; taller
+                // only when a large font size needs the room.
+                .heightIn(min = WorkspaceTileHeight)
                 .clip(MaterialTheme.shapes.large)
                 .background(look.surface)
                 .border(1.dp, if (offered) look.border else Lex.colors.input, MaterialTheme.shapes.large)
@@ -239,7 +240,7 @@ fun WorkspaceTile(
         ) {
             // The accent runs the head of the card.
             Box(Modifier.width(72.dp).height(3.dp).background(if (offered) look.gate else look.gate.copy(alpha = 0.45f)))
-            Row(Modifier.fillMaxSize().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min = WorkspaceTileHeight).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Eyebrow(eyebrow)
                     Spacer(Modifier.height(6.dp))
@@ -277,7 +278,7 @@ fun WorkspaceTile(
     }
 }
 
-/** The height every workspace entrance shares. */
+/** The height every workspace entrance shares (its minimum, at large font sizes). */
 val WorkspaceTileHeight = 188.dp
 
 /** The Legum Lex desk's mark: a gold ">_" tile, with the site's AI tag. */

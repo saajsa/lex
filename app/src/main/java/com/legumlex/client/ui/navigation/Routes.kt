@@ -64,7 +64,7 @@ sealed class Route(val path: String) {
         /** Fresh notice (fork) when no parent; a nested response when parent is set. */
         fun build(parentId: String? = null, recipientName: String? = null): String {
             if (parentId == null) return "notices/new"
-            val to = java.net.URLEncoder.encode(recipientName.orEmpty(), "UTF-8")
+            val to = android.net.Uri.encode(recipientName.orEmpty())
             return "notices/new?parent=$parentId&to=$to"
         }
     }
@@ -77,7 +77,7 @@ sealed class Route(val path: String) {
         const val ARG_FILE = "fileId"
         const val ARG_NAME = "name"
         fun build(noticeId: String, fileId: String, name: String?): String {
-            val n = java.net.URLEncoder.encode(name.orEmpty(), "UTF-8")
+            val n = android.net.Uri.encode(name.orEmpty())
             return "notices/$noticeId/doc/$fileId?name=$n"
         }
     }
@@ -143,7 +143,7 @@ sealed class Route(val path: String) {
         const val ARG_NAME = "name"
         fun build(rid: String, name: String? = null): String =
             "consultations/doc-file/$rid?name=" +
-                java.net.URLEncoder.encode(name ?: "", "UTF-8")
+                android.net.Uri.encode(name ?: "")
     }
 
     /**
@@ -156,7 +156,7 @@ sealed class Route(val path: String) {
         const val ARG_NAME = "name"
         fun build(kind: String, id: String, name: String? = null): String =
             "matters/doc/$kind/$id?name=" +
-                java.net.URLEncoder.encode(name ?: "", "UTF-8")
+                android.net.Uri.encode(name ?: "")
     }
 
     /**
@@ -195,18 +195,6 @@ sealed class Route(val path: String) {
                 ?: "digital_office/landing?advocate="
     }
 }
-
-// The five top-level tabs — the only routes that never show a back arrow.
-val mainShellRoutes = setOf(
-    Route.Home.path,
-    Route.Consultations.path,
-    Route.DigitalOffice.path,
-    Route.More.path,
-    // Workspaces, entered from Home's tiles: roots too, so no back arrow.
-    Route.Matters.path,
-    Route.Projects.path,
-    Route.Registry.path,
-)
 
 // ── App-wide chrome (header + footer) visibility ─────────────────────────────
 //

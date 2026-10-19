@@ -122,21 +122,19 @@ internal fun WorkspaceEntrances(
 
 private data class Entrance(val workspace: Workspace, val title: String, val eyebrow: String, val description: String, val onEnter: (() -> Unit)?, val cta: String = "Enter")
 
-/** Consultations · Awaiting An Answer · Resolved · Written Reports. */
+/** Consultations · Active · Resolved · Written Reports. */
 @Composable
 internal fun ConsultationFigures(ws: Workspaces, onOpenConsultations: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard("Consultations", "${ws.consultations}", "Every session you have raised with us",
                 Modifier.weight(1f).fillMaxHeight(), onClick = onOpenConsultations)
+            // The portal's figure counts every consultation not yet resolved,
+            // including one waiting on the client; the Consultations screen
+            // calls the same set Active.
             StatCard(
-                "Awaiting An Answer", "${ws.awaiting}", "Sessions an advocate has still to answer",
+                "Active", "${ws.awaiting}", "Sessions still open with the firm",
                 Modifier.weight(1f).fillMaxHeight(),
-                valueColor = if (ws.awaiting > 0) Lex.colors.danger.solid else Lex.colors.foreground,
-                chip = {
-                    if (ws.awaiting > 0) StatusChip("With The Firm", Lex.colors.warning, Icons.Outlined.Schedule)
-                    else StatusChip("None Outstanding", Lex.colors.success, Icons.Outlined.CheckCircle)
-                },
                 onClick = onOpenConsultations,
             )
         }

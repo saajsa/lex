@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -59,30 +61,54 @@ private fun statusPalette(status: String): StatusPalette = when (status.lowercas
     else -> Lex.colors.neutral
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistryScreen(onOpenAgreement: (String) -> Unit) {
     val vm: RegistryViewModel = viewModel()
     val state by vm.state.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
+    val stale by vm.staleReason.collectAsState()
 
     when (val s = state) {
         Loadable.Loading -> Box(Modifier.fillMaxSize().background(Lex.colors.background), Alignment.Center) {
             CircularProgressIndicator(color = Lex.colors.foreground, strokeWidth = 2.dp)
         }
         is Loadable.Failed -> Failed(s.message, vm::load)
-        is Loadable.Ready -> RegistryBody(s.data, onOpenAgreement)
+        is Loadable.Ready -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::load, modifier = Modifier.fillMaxSize()) {
+            RegistryBody(s.data, stale, vm::load, onOpenAgreement)
+        }
+    }
+}
+
+/** A reload failed: what is shown is the last copy that loaded. */
+@Composable
+private fun StaleNote(reason: String, onRetry: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(Lex.colors.warning.softBg, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Not refreshed: $reason", style = MaterialTheme.typography.bodySmall, color = Lex.colors.warning.softText, modifier = Modifier.weight(1f))
+        TextButton(onClick = onRetry) { Text("Try Again", color = Lex.colors.foreground) }
     }
 }
 
 @Composable
-private fun RegistryBody(d: RegistryOverview, onOpenAgreement: (String) -> Unit) {
+private fun RegistryBody(d: RegistryOverview, stale: String?, onRetry: () -> Unit, onOpenAgreement: (String) -> Unit) {
     var filter by rememberSaveable { mutableStateOf("all") }
-    val shown = d.agreements.filter { filter == "all" || it.status == filter }
+    // The statuses actually on the register (active, expired, terminated, superseded), in that order.
+    val statuses = listOf("active", "expired", "terminated", "superseded")
+        .filter { st -> st == "active" || d.agreements.any { it.status == st } } +
+        d.agreements.map { it.status }.distinct().filter { it !in setOf("active", "expired", "terminated", "superseded") }
+    val current = if (filter in statuses) filter else "all"   // a status that has left the register falls back to All
+    val shown = d.agreements.filter { current == "all" || it.status == current }
+    val anyOverdue = d.upcoming.any { it.bucket == "overdue" || (it.daysToDue ?: 0) < 0 }
 
     Column(
         Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PageHeader(eyebrow = "Registry", title = "Register")
+        stale?.let { StaleNote(it, onRetry) }
 
         // The figures, two by two — the portal's own six, less value on file.
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -97,7 +123,7 @@ private fun RegistryBody(d: RegistryOverview, onOpenAgreement: (String) -> Unit)
 
         // Coming up: overdue first, then the next thirty days.
         LexCard(title = "Coming Up", trailing = {
-            if (d.upcoming.isNotEmpty()) StatusBadge("${d.upcoming.size}", Lex.colors.danger)
+            if (d.upcoming.isNotEmpty()) StatusBadge("${d.upcoming.size}", if (anyOverdue) Lex.colors.danger else Lex.colors.warning)
         }) {
             if (d.upcoming.isEmpty()) {
                 LexEmpty("Nothing Coming Up", "No deadline is overdue or due in the next 30 days.", icon = Icons.Outlined.TaskAlt)
@@ -118,13 +144,13 @@ private fun RegistryBody(d: RegistryOverview, onOpenAgreement: (String) -> Unit)
             } else {
                 Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     SegmentedToggle(
-                        options = listOf("all" to "All", "active" to "Active", "expired" to "Expired", "terminated" to "Terminated"),
-                        selected = filter, onSelect = { filter = it },
+                        options = listOf("all" to "All") + statuses.map { it to title(it) },
+                        selected = current, onSelect = { filter = it },
                     )
                 }
                 HorizontalDivider(color = Lex.colors.border)
                 if (shown.isEmpty()) {
-                    LexEmpty("No ${title(filter)} Agreements", "None of your agreements is ${filter.lowercase()}.")
+                    LexEmpty("No ${title(current)} Agreements", "None of your agreements is ${title(current).lowercase()}.")
                 }
                 shown.forEachIndexed { i, a ->
                     if (i > 0) HorizontalDivider(color = Lex.colors.border)
@@ -155,7 +181,7 @@ private fun AgreementRow(a: RegisterAgreement, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
                 endsNote(a.expiry)?.let {
                     Text("  ·  $it", style = MaterialTheme.typography.bodySmall,
-                        color = if (a.expiry!!.isBefore(java.time.LocalDate.now())) Lex.colors.danger.solid else Lex.colors.mutedForeground)
+                        color = if (a.expiry!!.isBefore(java.time.LocalDate.now())) Lex.colors.danger.softText else Lex.colors.mutedForeground)
                 }
             }
             if (a.openDeadlines > 0) {
@@ -183,6 +209,9 @@ private fun DeadlineRow(o: Deadline, showAgreement: Boolean, onClick: (() -> Uni
             StatusBadge(title(o.kindLabel), if (o.status == "open") Lex.colors.warning else Lex.colors.neutral)
             Spacer(Modifier.height(6.dp))
             Text(o.title, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+            o.amount?.let {
+                Text(fullInr(it, o.currency), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+            }
             if (showAgreement && o.agreementTitle != null) {
                 Text(o.agreementTitle, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
             } else if (o.description != null) {
@@ -195,27 +224,32 @@ private fun DeadlineRow(o: Deadline, showAgreement: Boolean, onClick: (() -> Uni
             Text(
                 when (o.status) { "done" -> "Done"; "waived" -> "Waived"; else -> dueNote(o.daysToDue) },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (overdue) Lex.colors.danger.solid else Lex.colors.mutedForeground,
+                color = if (overdue) Lex.colors.danger.softText else Lex.colors.mutedForeground,
             )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistryAgreementScreen() {
     val vm: RegistryAgreementViewModel = viewModel()
     val state by vm.state.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
+    val stale by vm.staleReason.collectAsState()
     when (val s = state) {
         Loadable.Loading -> Box(Modifier.fillMaxSize().background(Lex.colors.background), Alignment.Center) {
             CircularProgressIndicator(color = Lex.colors.foreground, strokeWidth = 2.dp)
         }
         is Loadable.Failed -> Failed(s.message, vm::load)
-        is Loadable.Ready -> AgreementBody(s.data)
+        is Loadable.Ready -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::load, modifier = Modifier.fillMaxSize()) {
+            AgreementBody(s.data, stale, vm::load)
+        }
     }
 }
 
 @Composable
-private fun AgreementBody(d: RegistryDetail) {
+private fun AgreementBody(d: RegistryDetail, stale: String?, onRetry: () -> Unit) {
     val a = d.agreement
     val today = java.time.LocalDate.now()
     Column(
@@ -223,6 +257,7 @@ private fun AgreementBody(d: RegistryDetail) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PageHeader(eyebrow = "Agreement Register", title = a.title)
+        stale?.let { StaleNote(it, onRetry) }
 
         // Who it is with, and the two dates that matter: when it ends, and
         // when notice has to be given by.
@@ -244,7 +279,7 @@ private fun AgreementBody(d: RegistryDetail) {
                 DateCell("Ends", a.expiry, endsNote(a.expiry), a.expiry?.isBefore(today) == true, Modifier.weight(1f))
                 Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
                 DateCell("Notice By", a.noticeBy,
-                    a.noticeBy?.let { if (it.isBefore(today)) "Window closed" else dueNote(java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt()) },
+                    a.noticeBy?.let { if (it.isBefore(today)) "Window Closed" else dueNote(java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt()) },
                     a.noticeBy?.isBefore(today) == true, Modifier.weight(1f))
             }
         }
@@ -265,15 +300,18 @@ private fun AgreementBody(d: RegistryDetail) {
         LexCard(title = "Agreement Details") {
             val rows = listOfNotNull(
                 a.reference?.let { Triple("Reference", it, true) },
-                a.category?.let { Triple("Category", it, false) },
+                a.category?.let { Triple("Category", title(it), false) },
                 Triple("Starts", a.effective.long(), false),
                 Triple("Ends", a.expiry.long(), false),
+                a.termMonths?.takeIf { it > 0 }?.let { Triple("Term", monthsLabel(it), false) },
                 a.signed?.let { Triple("Signed", it.long(), false) },
                 Triple("At The End", renewalLabel(a.renewalType), false),
-                a.noticeDays?.let { Triple("Notice Period", "$it days", false) },
-                a.renewalTermMonths?.takeIf { a.renewalType != "none" }?.let { Triple("Renews For", "$it months", false) },
+                a.noticeDays?.let { Triple("Notice Period", "$it ${if (it == 1) "Day" else "Days"}", false) },
+                a.renewalTermMonths?.takeIf { a.renewalType != "none" && it > 0 }?.let { Triple("Renews For", monthsLabel(it), false) },
                 Triple("Value", compactInr(a.value, a.currency), false),
                 Triple("Signed Copy", if (a.hasSignedCopy) "On File" else "Not On File", false),
+                a.jurisdiction?.let { Triple("Jurisdiction", it, false) },
+                a.ownerName?.let { Triple("Owner", it, false) },
             )
             rows.forEachIndexed { i, (k, v, mono) ->
                 if (i > 0) HorizontalDivider(color = Lex.colors.border)
@@ -283,6 +321,7 @@ private fun AgreementBody(d: RegistryDetail) {
 
         a.paymentTerms?.let { Prose("Payment Terms", it) }
         a.governingLaw?.let { Prose("Governing Law", it) }
+        a.notes?.let { Prose("Notes", it) }
 
         Text(
             "Adding deadlines, recording what happened and replacing the signed copy are done on the client portal.",
@@ -300,7 +339,7 @@ private fun DateCell(label: String, date: java.time.LocalDate?, note: String?, a
         Spacer(Modifier.height(4.dp))
         Text(date.long(), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
         note?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = if (alarm) Lex.colors.danger.solid else Lex.colors.mutedForeground)
+            Text(it, style = MaterialTheme.typography.bodySmall, color = if (alarm) Lex.colors.danger.softText else Lex.colors.mutedForeground)
         }
     }
 }

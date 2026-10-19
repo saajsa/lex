@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -122,12 +121,13 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpenInvoice      = { id -> navController.navigate(Route.InvoiceDetail.build(id)) },
                 onOpenContract     = { _  -> navController.navigate(Route.Vault.path) },
                 onOpenConsultation = { id -> navController.navigate(Route.ConsultationDetail.build(id)) },
+                onOpenVideoLobby   = { id -> navController.navigate(Route.VideoLobby.build(id)) },
                 onOpenCase         = { id -> navController.navigate(Route.CaseDetail.build(id)) },
                 onOpenNotice       = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
                 onOpenAgreement    = { id -> navController.navigate(Route.RegistryAgreement.build(id)) },
                 onOpenTask         = { id -> navController.navigate(Route.TaskDetail.build(id)) },
                 onOpenProject      = { id -> navController.navigate(Route.ProjectDetail.build(id)) },
-                onAskNew           = { navController.navigate(Route.NewConsultation.path) },
+                onAskNew           = { navController.navigate(Route.NewConsultation.build()) },
                 onWalkInDigitalOffice = { navController.navigate(Route.DoIntake.build()) },
                 onOpenChamberLanding  = { id -> navController.navigate(Route.DoLanding.build(id)) },
                 onStartDoSessionWith  = { advocateId ->
@@ -210,25 +210,12 @@ fun LegumNavGraph(navController: NavHostController) {
                     n.link.removePrefix("consultation/").takeIf { n.link.startsWith("consultation/") }?.let {
                         navController.navigate(Route.ConsultationDetail.build(it)); return@NotificationsScreen
                     }
-                    // Deep-link by type to the most relevant destination. Exact
-                    // record IDs aren't carried on the notification, so we land
-                    // on the list/tab the alert belongs to.
-                    val dest = when (n.type) {
-                        com.legumlex.client.feature.notifications.NotifType.INVOICE,
-                        com.legumlex.client.feature.notifications.NotifType.PAYMENT     -> Route.Invoices.path
-                        com.legumlex.client.feature.notifications.NotifType.TASK,
-                        com.legumlex.client.feature.notifications.NotifType.PROJECT     -> Route.Projects.path
-                        com.legumlex.client.feature.notifications.NotifType.HEARING     -> Route.Matters.path
-                        com.legumlex.client.feature.notifications.NotifType.ATTENTION,
-                        com.legumlex.client.feature.notifications.NotifType.AHC,
-                        com.legumlex.client.feature.notifications.NotifType.APPOINTMENT,
-                        com.legumlex.client.feature.notifications.NotifType.DOCREQUEST,
-                        com.legumlex.client.feature.notifications.NotifType.SIGNATURE,
-                        com.legumlex.client.feature.notifications.NotifType.MESSAGE,
-                        com.legumlex.client.feature.notifications.NotifType.DOCUMENT    -> Route.Consultations.path
-                        else -> Route.Home.path
+                    // The feed holds only firm announcements and items waiting on
+                    // the client; an item whose consultation isn't shared yet
+                    // opens the consultations list.
+                    if (n.type == com.legumlex.client.feature.notifications.NotifType.ATTENTION) {
+                        navController.navigateTab(Route.Consultations.path)
                     }
-                    navController.navigate(dest)
                 },
             )
         }
@@ -238,7 +225,7 @@ fun LegumNavGraph(navController: NavHostController) {
                     navController.navigate(Route.ConsultationDetail.build(id))
                 },
                 onNewConsultation = {
-                    navController.navigate(Route.NewConsultation.path)
+                    navController.navigate(Route.NewConsultation.build())
                 },
             )
         }
@@ -293,7 +280,7 @@ fun LegumNavGraph(navController: NavHostController) {
         composable(Route.More.path) {
             val context = LocalContext.current
             val auth    = remember(context) {
-                AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext))
+                AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext), context.cacheDir)
             }
             val scope   = rememberCoroutineScope()
             MoreScreen(
@@ -376,7 +363,7 @@ fun LegumNavGraph(navController: NavHostController) {
             ConsultationDetailScreen(
                 consultationId = id,
                 onBack         = { navController.popBackStack() },
-                onNewConsultation = { navController.navigate(Route.NewConsultation.path) },
+                onNewConsultation = { navController.navigate(Route.NewConsultation.build()) },
                 onOpenCase     = { caseId ->
                     navController.navigate(Route.CaseDetail.build(caseId)) {
                         popUpTo(Route.Matters.path)
@@ -419,6 +406,12 @@ fun LegumNavGraph(navController: NavHostController) {
             VideoLobbyScreen(
                 consultationId = cid,
                 onBack         = { navController.popBackStack() },
+                onOpenConsultation = {
+                    navController.navigate(Route.ConsultationDetail.build(cid)) {
+                        popUpTo(Route.VideoLobby.path) { inclusive = true }
+                    }
+                },
+                onOpenChamber  = { navController.navigate(Route.DigitalOffice.path) },
             )
         }
 
@@ -433,8 +426,7 @@ fun LegumNavGraph(navController: NavHostController) {
             val kind = entry.arguments?.getString(Route.CaseDocViewer.ARG_KIND).orEmpty()
             val id   = entry.arguments?.getString(Route.CaseDocViewer.ARG_ID).orEmpty()
             val name = entry.arguments?.getString(Route.CaseDocViewer.ARG_NAME)
-                ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                ?.takeIf { it.isNotBlank() }
+                ?.takeIf { it.isNotBlank() }  // Navigation has already decoded it
             CaseDocViewerScreen(kind = kind, id = id, fileName = name, onBack = { navController.popBackStack() })
         }
 
@@ -449,8 +441,7 @@ fun LegumNavGraph(navController: NavHostController) {
         ) { entry ->
             val rid  = entry.arguments?.getString(Route.DocFileViewer.ARG).orEmpty()
             val name = entry.arguments?.getString(Route.DocFileViewer.ARG_NAME)
-                ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                ?.takeIf { it.isNotBlank() }
+                ?.takeIf { it.isNotBlank() }  // Navigation has already decoded it
             DocFileViewerScreen(
                 requestId = rid,
                 fileName  = name,
@@ -492,6 +483,7 @@ fun LegumNavGraph(navController: NavHostController) {
             ConversationThreadScreen(
                 consultationId = id,
                 onBack         = { navController.popBackStack() },
+                onNewQuestion  = { navController.navigate(Route.NewConsultation.build()) },
             )
         }
 
@@ -676,9 +668,13 @@ fun LegumNavGraph(navController: NavHostController) {
     }
 }
 
-/** Go to a bottom-bar tab as the bar itself does, so its state is kept. */
-private fun NavHostController.navigateTab(path: String) = navigate(path) {
-    popUpTo(graph.findStartDestination().id) { saveState = true }
+/**
+ * Go to a bottom-bar tab as the bar itself does, so its state is kept. Home is
+ * the root of the signed-in graph (Splash is popped on the way in), so tabs pop
+ * back to it; popping to the start destination would be a silent no-op.
+ */
+internal fun NavHostController.navigateTab(path: String) = navigate(path) {
+    popUpTo(Route.Home.path) { saveState = true }
     launchSingleTop = true
     restoreState = true
 }

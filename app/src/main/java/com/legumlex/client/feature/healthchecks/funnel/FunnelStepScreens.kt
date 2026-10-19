@@ -76,7 +76,7 @@ fun StepUploadScreen(
         ) {
             FunnelStepHeader(
                 step = AhcStep.UPLOAD,
-                question = "Upload the agreement",
+                question = "Upload The Agreement",
                 sub = "We'll read it and pre-fill the details. PDF, DOCX, JPG or PNG, up to 25 MB.",
             )
 
@@ -153,7 +153,7 @@ fun StepExtractingScreen(
             }
             Spacer(Modifier.height(28.dp))
             Text(
-                "Reading your agreement",
+                "Reading Your Agreement",
                 color = PrimaryText,
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
@@ -184,7 +184,7 @@ fun StepExtractingScreen(
             }
             Spacer(Modifier.height(28.dp))
             Text(
-                "Run in background",
+                "Run In Background",
                 color = SecondaryText,
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
@@ -241,7 +241,7 @@ fun StepConfirmScreen(
         onSaveAndExit = onSaveAndExit,
         action = {
             FunnelPrimaryButton(
-                label = "Confirm & continue",
+                label = "Confirm And Continue",
                 onClick = vm::submitConfirm,
                 enabled = draft.isComplete && !state.saving,
             )
@@ -275,7 +275,7 @@ fun StepConfirmScreen(
                 // Contract type — 3×2 grid, pre-selected from extraction
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        EyebrowText("Contract type")
+                        EyebrowText("Contract Type")
                         if (extraction?.ok == true && extraction.contractType != null
                             && extraction.contractType == draft.contractType) {
                             Spacer(Modifier.width(8.dp))
@@ -370,7 +370,7 @@ private fun PreliminaryAnalysisCard(extraction: AhcExtraction) {
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Initial risk hint",
+                        "Initial Risk Hint",
                         color = SecondaryText,
                         fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
@@ -523,8 +523,8 @@ fun EdgeExpiredScreen(
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 300.dp),
         )
         Spacer(Modifier.height(28.dp))
-        FunnelPrimaryButton(label = "Start a new agreement check", onClick = onStartNew)
+        FunnelPrimaryButton(label = "Start A New Agreement Check", onClick = onStartNew)
         Spacer(Modifier.height(10.dp))
-        FunnelSecondaryButton(label = "Back to Agreement Checks", onClick = onBackToHealthChecks)
+        FunnelSecondaryButton(label = "Back To Agreement Checks", onClick = onBackToHealthChecks)
     }
 }

@@ -1,5 +1,7 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.feature.consultations.apiError
+import com.legumlex.client.feature.consultations.friendlyMessage
 import com.legumlex.client.ui.theme.Zinc300
 import com.legumlex.client.ui.theme.Zinc400
 import com.legumlex.client.ui.theme.Zinc950
@@ -265,15 +267,9 @@ class DocFileViewerViewModel(
         (state.value as? DocViewerUiState.Ready)?.pages?.forEach { if (!it.isRecycled) it.recycle() }
     }
 
-    private fun friendly(e: Throwable): String = when (e) {
-        is retrofit2.HttpException -> when (e.code()) {
-            401, 403   -> "Your session expired. Sign in again."
-            404        -> "This document is no longer available."
-            in 500..599 -> "Server error. Try again in a moment."
-            else        -> "Couldn’t reach the server (HTTP ${e.code()})."
-        }
-        else -> e.message?.takeIf { it.isNotBlank() } ?: "Couldn’t open the document."
-    }
+    private fun friendly(e: Throwable): String =
+        if (e.apiError().http == 404 && e.apiError().message == null) "This document is no longer available."
+        else e.friendlyMessage("The document could not be opened.")
 }
 
 sealed interface DocViewerUiState {

@@ -14,7 +14,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,7 +52,9 @@ fun LegumBottomBar(navController: NavHostController) {
                     selected = selected,
                     onClick = {
                         navController.navigate(tab.route.path) {
-                            popUpTo(navController.graph.findStartDestination().id) {
+                            // Home is the signed-in root (Splash is popped on the way
+                            // in), so tabs pop back to it and keep their state.
+                            popUpTo(Route.Home.path) {
                                 saveState = true
                             }
                             launchSingleTop = true

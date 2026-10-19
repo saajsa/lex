@@ -203,7 +203,9 @@ fun LlAvatar(
         // once loaded, so a missing/slow/broken image degrades to initials.
         Text(
             initials,
-            style = LlText.heroVerdict.copy(color = Color.White, fontSize = (size.value * 0.34f).sp),
+            // On an ink tile the initials take the page colour: Ink is near-white
+            // in dark mode, where white initials vanished.
+            style = LlText.heroVerdict.copy(color = if (bg == LlColor.Ink) LlColor.Paper else Color.White, fontSize = (size.value * 0.34f).sp),
         )
         if (!avatarUrl.isNullOrBlank()) {
             AsyncImage(

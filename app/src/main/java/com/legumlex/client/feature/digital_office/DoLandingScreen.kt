@@ -107,6 +107,12 @@ fun DoLandingScreen(
         },
     )
     val state by vm.state.collectAsState()
+    // Shared with the home banner, so a join here shows there at once.
+    val waitroomVm = sharedDoWaitroomViewModel()
+    LaunchedEffect(waitroomVm) {
+        // The cabin turned out to be free: go straight to the request.
+        waitroomVm.bookDirectly.collect { staffId -> onWalkIn(staffId) }
+    }
 
     Scaffold(
         containerColor = LexPaper,
@@ -117,6 +123,15 @@ fun DoLandingScreen(
                     chamber  = ready.chamber,
                     advocate = ready.advocate,
                     onWalkIn = { onWalkIn(ready.advocate?.staffId) },
+                    onJoinQueue = {
+                        ready.advocate?.staffId?.let { waitroomVm.join(it) }
+                        onBack()
+                    },
+                    onRegister = {
+                        runCatching {
+                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(portalOfficeUrl())))
+                        }
+                    },
                 )
             }
         },
@@ -156,7 +171,7 @@ private fun ErrorShell(inner: PaddingValues, msg: String, onRetry: () -> Unit) {
         Text(msg, color = LexInkMuted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(16.dp))
         OutlinedButton(onClick = onRetry, colors = ButtonDefaults.outlinedButtonColors(contentColor = LexClaret)) {
-            Text("Retry")
+            Text("Try Again")
         }
     }
 }
@@ -190,7 +205,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(LexSlate, LexSlateDeep)))
+            .background(LexSlate)
             .padding(bottom = 20.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -203,9 +218,6 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = LexPaper)
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { /* share - phase 3 */ }) {
-                    Icon(Icons.Outlined.IosShare, null, tint = LexPaper)
-                }
             }
             Spacer(Modifier.height(2.dp))
 
@@ -222,7 +234,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
             )
             Spacer(Modifier.height(7.dp))
             Text(
-                text       = advocate?.let { "Adv. ${it.name}" } ?: "Your advocate",
+                text       = advocate?.name ?: "Your Advocate",
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 25.sp,
@@ -299,9 +311,9 @@ private fun HeroStatus(open: Boolean, busy: Boolean, advocate: ChamberAdvocate?)
         else     -> Color(0xFF4ADE80)
     }
     val label = when {
-        !open    -> "Closed now"
-        busy     -> "In another consult · ~${(advocate?.etaMinutes ?: 2).coerceAtLeast(2)} min"
-        else     -> "Here for you · open now"
+        !open    -> "Closed Now"
+        busy     -> "In Another Consultation · ~${(advocate?.etaMinutes ?: 2).coerceAtLeast(2)} Min"
+        else     -> "Open Now"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         LivePip(color = color, animate = open && !busy)
@@ -383,34 +395,33 @@ private fun BenefitsBlock() {
             color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
-            shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
                 BenefitRow(
                     icon  = Icons.Outlined.Videocam,
-                    title = "A consultation on Google Meet",
+                    title = "A Consultation On Google Meet",
                     sub   = "One-to-one with your advocate, in the Meet app on your phone",
                     first = true,
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Schedule,
-                    title = "Read before the call",
+                    title = "Read Before The Call",
                     sub   = "The advocate reads what you wrote before deciding to take it",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Savings,
-                    title = "Nothing charged until they agree",
-                    sub   = "The fee is shown before you pay, and only once the advocate has agreed",
+                    title = "Nothing Charged Until They Agree",
+                    sub   = "The fee is invoiced only once the advocate has agreed, and paid on the firm's website",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Summarize,
-                    title = "On your file",
+                    title = "On Your File",
                     sub   = "The consultation stays in Consultations, with the advocate's replies",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Lock,
-                    title = "Private & confidential",
+                    title = "Private And Confidential",
                     sub   = "Only you and your advocate are in the call",
                 )
             }
@@ -455,14 +466,13 @@ private fun WalkInStepsBlock() {
             color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
-            shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
                 // The four steps of the Legum Lex chamber page's How It Works.
-                StepRow(n = "1", title = "Say what has happened", sub = "In your own words; the advocate reads it first", trailing = Icons.Outlined.EditNote, first = true)
-                StepRow(n = "2", title = "The advocate agrees",   sub = "They read it before deciding to take the call",   trailing = Icons.Outlined.HourglassTop)
-                StepRow(n = "3", title = "Face to face",          sub = "The consultation opens in Google Meet",           trailing = Icons.Outlined.Videocam)
+                StepRow(n = "1", title = "Say What Has Happened", sub = "In your own words; the advocate reads it first", trailing = Icons.Outlined.EditNote, first = true)
+                StepRow(n = "2", title = "The Advocate Agrees",   sub = "They read it before deciding to take the call",   trailing = Icons.Outlined.HourglassTop)
+                StepRow(n = "3", title = "Face To Face",          sub = "The consultation opens in Google Meet",           trailing = Icons.Outlined.Videocam)
             }
         }
     }
@@ -521,7 +531,6 @@ private fun AboutAdvocateBlock(advocate: ChamberAdvocate?, chamber: ChamberState
             color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
-            shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -560,7 +569,7 @@ private fun buildAboutLine(advocate: ChamberAdvocate, chamber: ChamberState): St
     val parts = mutableListOf<String>()
     advocate.designation?.takeIf { it.isNotBlank() }?.let { parts += it }
     chamber.location.takeIf { it.isNotBlank() }?.let { parts += "Practising in $it" }
-    if (parts.isEmpty()) return "Adv. ${advocate.name} is here to help with your matter."
+    if (parts.isEmpty()) return "${advocate.name} sits in the Digital Office during chamber hours."
     return parts.joinToString(" · ") + "."
 }
 
@@ -572,7 +581,6 @@ private fun WhenYouCanWalkInBlock(chamber: ChamberState) {
             color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
-            shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 6.dp)) {
@@ -623,22 +631,27 @@ private fun WalkInActionBar(
     chamber: ChamberState,
     advocate: ChamberAdvocate?,
     onWalkIn: () -> Unit,
+    onJoinQueue: () -> Unit,
+    onRegister: () -> Unit,
 ) {
     val open    = chamber.isOpen
     val busy    = advocate?.isBusy == true
-    val feeFree = chamber.sessionFee <= 0.0
+    // This client's own fee (client_session_fee), as the server reckons it.
+    val fee     = chamber.clientSessionFee
     val hint    = when {
-        !open    -> "Walk-in closed — back at ${chamber.hours.ifBlank { "9:00 AM" }}"
-        busy     -> "Adv. ${advocate?.name ?: "your advocate"} is in another consult · join the queue"
-        feeFree  -> "Open now"
-        else     -> "Open now · ₹${"%,d".format(chamber.sessionFee.toLong())} for the session"
+        !chamber.hasAccess -> "Sessions are open to registered clients · register once on the website"
+        !open    -> "Walk-in closed — back at ${chamber.hours.ifBlank { "chamber hours" }}"
+        busy     -> "${advocate?.name ?: "Your advocate"} is in another consultation · join the queue"
+        fee <= 0 -> "Open now"
+        else     -> "Open now · ${com.legumlex.client.feature.finance.formatMoney(fee, if (chamber.currency == "INR") "₹" else chamber.currency + " ").removeSuffix(".00")} after the advocate accepts"
     }
-    val ctaText = when {
-        !open    -> "Notify me when we open"
-        busy     -> "Join the queue"
-        else     -> "Walk in now"
+    // Closed: no button at all (there is nothing to do until the chamber opens).
+    val cta: Pair<String, () -> Unit>? = when {
+        !chamber.hasAccess -> "Register On The Website" to onRegister
+        !open    -> null
+        busy     -> "Join The Queue" to onJoinQueue
+        else     -> "Walk In Now" to onWalkIn
     }
-    val ctaEnabled = open  // closed-state CTA is informational only for now
 
     Column(modifier = Modifier.fillMaxWidth().background(LexPaper)) {
         HorizontalDivider(color = LexBorder, thickness = 1.dp)
@@ -658,29 +671,29 @@ private fun WalkInActionBar(
                 textAlign  = TextAlign.Center,
             )
         }
+        if (cta != null) {
         Spacer(Modifier.height(11.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (ctaEnabled) LexClaret else LexInkMuted)
-                .clickable(enabled = ctaEnabled, onClick = onWalkIn)
+                .background(LexClaret)
+                .clickable(onClick = cta.second)
                 .padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment     = Alignment.CenterVertically,
         ) {
             Text(
-                text       = ctaText.uppercase(),
+                text       = cta.first,
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 13.sp,
                 letterSpacing = 0.5.sp,
                 color      = Color.White,
             )
-            if (ctaEnabled) {
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
-            }
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        }
         }
         }
     }

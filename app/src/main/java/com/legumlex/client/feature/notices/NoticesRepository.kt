@@ -87,9 +87,11 @@ class NoticesRepository(private val api: ApiService) {
         responseDueDate = date(m["response_due_date"] as? String),
         createdAt = dateTime(m["created_at"] as? String),
         needsApproval = m["needs_approval"] == true,
-        parentNoticeId = (m["parent_notice_id"] as? Number)?.toInt()?.toString(),
+        parentNoticeId = idOf(m["parent_notice_id"]),
         isResponse = m["is_response"] == true,
         children = childRows(m["children"]),
+        subject = (m["subject"] as? String)?.takeIf { it.isNotBlank() },
+        isServed = m["is_served"] == true || (m["is_served"] as? Number)?.toInt() == 1,
     )
 
     private fun childRows(v: Any?): List<NoticeSummary> =
@@ -113,22 +115,43 @@ class NoticesRepository(private val api: ApiService) {
         deliveryDate = date(m["delivery_date"] as? String),
         deliveryStatus = m["delivery_status"] as? String,
         waitingPeriodDays = num(m["waiting_period_days"]).toInt(),
-        notes = m["notes"] as? String,
-        consultationId = (m["consultation_id"] as? Number)?.toInt()?.toString(),
+        notes = ((m["remarks"] as? String) ?: (m["notes"] as? String))?.takeIf { it.isNotBlank() },
+        consultationId = idOf(m["consultation_id"]),
         convertedToCase = m["converted_to_case"] == true,
-        caseId = (m["case_id"] as? Number)?.toInt()?.toString(),
+        caseId = idOf(m["case_id"]),
         approvedAt = dateTime(m["approved_at"] as? String),
         documents = (m["documents"] as? List<*>).orEmpty().filterIsInstance<Map<String, Any?>>().map {
             NoticeDocument(
                 id = num(it["id"]).toLong().toString(),
-                name = (it["name"] as? String).orEmpty(),
+                name = (it["display_name"] as? String)?.takeIf { s -> s.isNotBlank() }
+                    ?: (it["name"] as? String).orEmpty(),
                 tag = it["tag"] as? String,
                 filetype = it["filetype"] as? String,
             )
         },
         parent = (m["parent"] as? Map<String, Any?>)?.let(::parseSummary),
         children = childRows(m["children"]),
+        subject = (m["subject"] as? String)?.takeIf { it.isNotBlank() },
+        receivedDate = date(m["received_date"] as? String),
+        deemedServedDate = date(m["deemed_served_date"] as? String),
+        waitingEndDate = date(m["waiting_end_date"] as? String),
+        isServed = m["is_served"] == true || (m["is_served"] as? Number)?.toInt() == 1,
+        returnDate = date(m["return_date"] as? String),
+        returnReason = (m["return_reason"] as? String)?.takeIf { it.isNotBlank() },
+        receivedByPerson = (m["received_by_person"] as? String)?.takeIf { it.isNotBlank() },
+        nextStep = (m["next_step"] as? String)?.takeIf { it.isNotBlank() },
+        activity = (m["activity"] as? List<*>).orEmpty().filterIsInstance<Map<String, Any?>>().mapNotNull {
+            val title = (it["title"] as? String)?.takeIf { t -> t.isNotBlank() } ?: return@mapNotNull null
+            NoticeActivity(title, date(it["date"] as? String), (it["detail"] as? String)?.takeIf { d -> d.isNotBlank() })
+        },
     )
+
+    /** A positive id whether the server sends it as a number or a string; null otherwise. */
+    private fun idOf(v: Any?): String? = when (v) {
+        is Number -> v.toLong().takeIf { it > 0 }?.toString()
+        is String -> v.trim().toLongOrNull()?.takeIf { it > 0 }?.toString()
+        else -> null
+    }
 
     @Suppress("UNCHECKED_CAST")
     private fun rows(resp: Map<String, Any?>): List<Map<String, Any?>> {

@@ -26,6 +26,8 @@ data class NewNoticeState(
     val step: NoticeStep = NoticeStep.FORK,
     val direction: NoticeDirection? = null,
     val types: List<NoticeType> = emptyList(),
+    val typesLoading: Boolean = true,
+    val typesError: String? = null,
     val problems: List<ProblemCard> = emptyList(),
     // outbound
     val selectedProblemKey: String? = null,   // which card is highlighted (cards can share a typeId)
@@ -45,6 +47,9 @@ data class NewNoticeState(
     val claimAmountIn: String = "",
     val responseDueDate: String = "",
     val extractFailed: Boolean = false,
+    val senderAddress: String = "",
+    val senderAdvocateName: String = "",
+    val receivedDate: String = "",
     // response nesting (outbound reply to a received inbound notice)
     val parentNoticeId: String? = null,
     val parentLabel: String? = null,
@@ -63,12 +68,18 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
 
     private var pickedFile: Triple<String, String, ByteArray>? = null
 
-    init {
-        viewModelScope.launch {
-            repo.loadTypes().onSuccess { types ->
-                _state.update { it.copy(types = types, problems = buildProblems(types)) }
+    init { loadTypes() }
+
+    /** The real notice types; a failure is shown with a retry, never silently empty. */
+    fun loadTypes() = viewModelScope.launch {
+        _state.update { it.copy(typesLoading = true, typesError = null) }
+        repo.loadTypes()
+            .onSuccess { types ->
+                _state.update { it.copy(types = types, problems = buildProblems(types), typesLoading = false) }
             }
-        }
+            .onFailure {
+                _state.update { it.copy(typesLoading = false, typesError = "The notice types couldn't be loaded.") }
+            }
     }
 
     /** Enter the funnel as an outbound response nested under a received notice. */
@@ -86,8 +97,13 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- navigation ----
-    fun chooseDirection(d: NoticeDirection) = _state.update {
-        it.copy(direction = d, step = if (d == NoticeDirection.OUTBOUND) NoticeStep.OUT_PROBLEM else NoticeStep.IN_UPLOAD)
+    fun chooseDirection(d: NoticeDirection) {
+        // A file picked for one direction must never ride along with the other.
+        pickedFile = null
+        _state.update {
+            it.copy(direction = d, step = if (d == NoticeDirection.OUTBOUND) NoticeStep.OUT_PROBLEM else NoticeStep.IN_UPLOAD,
+                pickedFileName = null, extracted = null, extractFailed = false, selectedTypeId = null, selectedProblemKey = null, error = null)
+        }
     }
 
     fun back() = _state.update {
@@ -111,7 +127,12 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- outbound ----
     fun selectProblem(card: ProblemCard) = _state.update { it.copy(selectedProblemKey = card.key, selectedTypeId = card.typeId) }
-    fun continueFromProblem() { if (_state.value.selectedProblemKey != null) go(NoticeStep.OUT_RECIPIENT) }
+    /** The server needs a real type; when a card matches none, the client names it. */
+    fun selectType(id: Int) = _state.update { it.copy(selectedTypeId = id) }
+    fun continueFromProblem() {
+        val s = _state.value
+        if (s.selectedProblemKey != null && s.selectedTypeId != null) go(NoticeStep.OUT_RECIPIENT)
+    }
 
     fun setRecipientName(v: String) = _state.update { it.copy(recipientName = v, showRecipientError = false) }
     fun setRecipientAddress(v: String) = _state.update { it.copy(recipientAddress = v) }
@@ -122,11 +143,12 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
         go(NoticeStep.OUT_EXTRAS)
     }
 
-    fun setClaimAmount(v: String) = _state.update { it.copy(claimAmount = v) }
+    fun setClaimAmount(v: String) = _state.update { it.copy(claimAmount = v.filter(Char::isDigit).take(13)) }
     fun setContext(v: String) = _state.update { it.copy(context = v) }
 
     fun submitOutbound() = viewModelScope.launch {
         val s = _state.value
+        if (s.selectedTypeId == null) { _state.update { it.copy(error = "Choose the notice type first.") }; return@launch }
         _state.update { it.copy(isSubmitting = true, error = null) }
         repo.create(
             fields = mapOf(
@@ -157,7 +179,7 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
         val bytes = runCatching { resolver.openInputStream(uri).use { it?.readBytes() } }.getOrNull()
         if (bytes == null) { _state.update { it.copy(error = "Could not read that file") }; return@launch }
         pickedFile = Triple(name, mime, bytes)
-        _state.update { it.copy(pickedFileName = name, step = NoticeStep.IN_PROCESSING, extractFailed = false) }
+        _state.update { it.copy(pickedFileName = name, step = NoticeStep.IN_PROCESSING, extractFailed = false, error = null) }
 
         repo.extract(name, mime, bytes)
             .onSuccess { ex ->
@@ -168,11 +190,15 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
                         it.copy(
                             step = NoticeStep.IN_CONFIRM,
                             extracted = ex,
-                            selectedTypeId = ex.noticeTypeId ?: it.types.firstOrNull()?.id,
+                            // Only a type the notice itself names; never a guess.
+                            selectedTypeId = ex.noticeTypeId?.takeIf { id -> it.types.any { t -> t.id == id } },
                             senderName = ex.senderName.orEmpty(),
                             senderContact = ex.senderContact.orEmpty(),
-                            claimAmountIn = ex.claimAmount.orEmpty(),
-                            responseDueDate = ex.responseDueDate.orEmpty(),
+                            senderAddress = ex.senderAddress.orEmpty(),
+                            senderAdvocateName = ex.senderAdvocateName.orEmpty(),
+                            claimAmountIn = digitsOfAmount(ex.claimAmount),
+                            responseDueDate = isoOrBlank(ex.responseDueDate),
+                            receivedDate = isoOrBlank(ex.receivedDate),
                         )
                     }
                 }
@@ -182,19 +208,23 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setSenderName(v: String) = _state.update { it.copy(senderName = v) }
     fun setSenderContact(v: String) = _state.update { it.copy(senderContact = v) }
-    fun setClaimAmountIn(v: String) = _state.update { it.copy(claimAmountIn = v) }
+    fun setClaimAmountIn(v: String) = _state.update { it.copy(claimAmountIn = v.filter(Char::isDigit).take(13)) }
     fun setResponseDueDate(v: String) = _state.update { it.copy(responseDueDate = v) }
     fun setInboundType(id: Int) = _state.update { it.copy(selectedTypeId = id) }
 
     fun submitInbound() = viewModelScope.launch {
         val s = _state.value
+        if (s.selectedTypeId == null) { _state.update { it.copy(error = "Choose the notice type first.") }; return@launch }
         _state.update { it.copy(isSubmitting = true, error = null) }
         repo.create(
             fields = mapOf(
                 "notice_direction" to "Inbound",
-                "notice_type_id" to (s.selectedTypeId ?: s.types.firstOrNull()?.id)?.toString(),
+                "notice_type_id" to s.selectedTypeId?.toString(),
                 "sender_name" to s.senderName,
                 "sender_contact" to s.senderContact,
+                "sender_address" to s.senderAddress,
+                "sender_advocate_name" to s.senderAdvocateName,
+                "received_date" to s.receivedDate,
                 "claim_amount" to s.claimAmountIn,
                 "response_due_date" to s.responseDueDate,
             ),
@@ -213,21 +243,40 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
     private fun buildProblems(types: List<NoticeType>): List<ProblemCard> {
         fun match(vararg kw: String): Int? =
             types.firstOrNull { t -> kw.any { t.name.contains(it, ignoreCase = true) } }?.id
-        val fallback = types.firstOrNull()?.id
+        // No match → null: the client then picks the type themselves (never the
+        // alphabetically first type standing in silently).
+        val fallback: Int? = null
         return listOf(
-            ProblemCard("dues", "Unpaid cheque or dues",
+            ProblemCard("dues", "Unpaid Cheque Or Dues",
                 "Money you're owed — a bounced cheque, unpaid invoice or loan.",
                 match("demand", "cheque", "payment") ?: fallback),
-            ProblemCard("service", "Bad service or faulty product",
+            ProblemCard("service", "Bad Service Or Faulty Product",
                 "A purchase or service that went wrong.",
                 match("service", "deficiency", "consumer") ?: fallback),
-            ProblemCard("property", "Property dispute",
+            ProblemCard("property", "Property Dispute",
                 "Rent, deposit, possession or a boundary issue.",
                 match("property", "rent", "tenan") ?: fallback),
-            ProblemCard("other", "Something else",
-                "Describe it in a line — we'll route it correctly.",
+            ProblemCard("other", "Something Else",
+                "Describe it in a line — your advocate takes it from there.",
                 match("other", "general") ?: fallback),
         )
+    }
+
+    /** "₹1,50,000.00" → "150000": whole rupees, digits only. */
+    private fun digitsOfAmount(raw: String?): String =
+        raw?.substringBefore('.')?.filter(Char::isDigit)?.take(13).orEmpty()
+
+    /** An extracted date as yyyy-MM-dd, or blank when it can't be read reliably. */
+    private fun isoOrBlank(raw: String?): String {
+        val t = raw?.trim().orEmpty()
+        if (t.isBlank()) return ""
+        val patterns = listOf("yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy", "d/M/yyyy", "d-M-yyyy", "dd.MM.yyyy")
+        for (p in patterns) {
+            val d = runCatching { java.time.LocalDate.parse(t.take(10), java.time.format.DateTimeFormatter.ofPattern(p)) }.getOrNull()
+                ?: runCatching { java.time.LocalDate.parse(t, java.time.format.DateTimeFormatter.ofPattern(p)) }.getOrNull()
+            if (d != null) return d.toString()
+        }
+        return ""
     }
 
     private fun queryName(uri: Uri): String {

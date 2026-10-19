@@ -116,7 +116,9 @@ fun FunnelScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Surface1),
+            .background(Surface1)
+            // Edge-to-edge: keep the action bar above the keyboard.
+            .imePadding(),
     ) {
         // ── Step ribbon ────────────────────────────────────────────
         // (Back lives in the app-wide header now; this sub-bar keeps the
@@ -143,7 +145,7 @@ fun FunnelScreen(
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    text = "Save & exit",
+                    text = "Save And Exit",
                     color = SecondaryText,
                     fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,

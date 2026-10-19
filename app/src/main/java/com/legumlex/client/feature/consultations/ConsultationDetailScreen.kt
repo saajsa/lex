@@ -73,7 +73,22 @@ fun ConsultationDetailScreen(
         },
     )
     val state by vm.state.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
     var showSpec by remember { mutableStateOf(false) }
+
+    // Back on screen (from the thread, the browser after paying, the lobby):
+    // refresh quietly. The first resume is the initial load, already running.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, vm) {
+        var first = true
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (first) first = false else vm.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
     // The AHC body's bottom "Done with this — close" button flips this; the
     // sheet renders at the screen level (below the layout switch) so it
     // stays mounted across body-content recompositions.
@@ -149,6 +164,11 @@ fun ConsultationDetailScreen(
                 }
             }
 
+            androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh    = { vm.refresh() },
+                modifier     = Modifier.fillMaxSize(),
+            ) {
             when {
                 c.isConverted() -> DetailConverted(
                     consultation = c,
@@ -230,6 +250,7 @@ fun ConsultationDetailScreen(
                     }
                 }
             }
+            }
 
             if (showSpec) {
                 ModalBottomSheet(
@@ -260,7 +281,15 @@ fun ConsultationDetailScreen(
     // menu uses, with the same blocking-on-open-linked-child invariants.
     if (ahcCloseOpen) {
         val ready = state as? ConsultationDetailUiState.Ready
-        if (ready != null) {
+        // The sheet must know about an open linked consultation before it
+        // offers to close: fetch the linkage first, then show it.
+        LaunchedEffect(Unit) { if (ready?.linkageLoaded != true) vm.loadLinkage() }
+        if (ready != null && !ready.linkageLoaded) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = PrimaryText, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+            }
+        }
+        if (ready != null && ready.linkageLoaded) {
             com.legumlex.client.feature.consultations.components.CloseConsultationSheet(
                 consultation = ready.consultation,
                 linkage      = ready.linkage,
@@ -292,7 +321,7 @@ private fun DeclineDocRequestDialog(
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 22.dp)) {
             Text(
-                "I don’t have this",
+                "I Don’t Have This",
                 fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink,
             )
@@ -395,7 +424,7 @@ private fun ScaffoldedError(message: String, onBack: () -> Unit, onRetry: () -> 
                 Icon(Icons.Outlined.ErrorOutline, null, tint = StatusDanger.solid, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(spacing.s4))
-            Text("Couldn't load this consultation",
+            Text("This Consultation Could Not Be Loaded",
                 style = MaterialTheme.typography.headlineSmall,
                 color = PrimaryText,
                 textAlign = TextAlign.Center)
@@ -403,7 +432,7 @@ private fun ScaffoldedError(message: String, onBack: () -> Unit, onRetry: () -> 
             Text(message, style = MaterialTheme.typography.bodyMedium, color = SecondaryText, textAlign = TextAlign.Center)
             Spacer(Modifier.height(spacing.s5))
             LegumSecondaryButton(
-                text        = "Try again",
+                text        = "Try Again",
                 leadingIcon = Icons.Outlined.Refresh,
                 onClick     = onRetry,
                 modifier    = Modifier.widthIn(max = 280.dp),
@@ -422,7 +451,7 @@ private fun openAttachment(
     val uri = try {
         FileProvider.getUriForFile(context, authority, file)
     } catch (e: Exception) {
-        Toast.makeText(context, "Couldn't open file: ${e.message}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "This file could not be opened.", Toast.LENGTH_LONG).show()
         return
     }
     val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -431,7 +460,7 @@ private fun openAttachment(
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     try {
-        context.startActivity(Intent.createChooser(intent, "Open document").apply {
+        context.startActivity(Intent.createChooser(intent, "Open Document").apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     } catch (e: Exception) {

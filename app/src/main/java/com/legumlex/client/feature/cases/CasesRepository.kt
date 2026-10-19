@@ -65,8 +65,11 @@ private fun parseDetail(m: Map<String, Any?>): CaseDetail {
     val partiesMap = m["parties"] as? Map<String, Any?>
     val petitioners = (partiesMap?.get("petitioners") as? List<Map<String, Any?>>).orEmpty().map(::parseParty)
     val respondents = (partiesMap?.get("respondents") as? List<Map<String, Any?>>).orEmpty().map(::parseParty)
+    val others      = (partiesMap?.get("others") as? List<Map<String, Any?>>).orEmpty().map(::parseParty)
 
+    // Soonest first: the server sends upcoming hearings newest-date first.
     val upcoming = (m["hearings_upcoming"] as? List<Map<String, Any?>>).orEmpty().map(::parseHearing)
+        .sortedBy { it.date ?: LocalDate.MAX }
     val past     = (m["hearings_past"]     as? List<Map<String, Any?>>).orEmpty().map(::parseHearing)
 
     val acts  = (m["acts"]  as? List<Map<String, Any?>>).orEmpty().map(::parseAct)
@@ -87,7 +90,9 @@ private fun parseDetail(m: Map<String, Any?>): CaseDetail {
         advocateAvatarUrl   = (m["advocate_image"] as? String)?.takeIf { it.isNotBlank() },
         originConsultationId = (m["consultation_id"]?.toString())?.takeIf { it.isNotBlank() && it != "0" },
         disposalReason      = (m["disposal_reason"] as? String)?.takeIf { it.isNotBlank() },
-        parties             = Parties(petitioners, respondents),
+        appealDeadline      = parseDate(m["appeal_deadline"] as? String),
+        appealNote          = (m["appeal_note"] as? String)?.takeIf { it.isNotBlank() },
+        parties             = Parties(petitioners, respondents, others),
         acts                = acts,
         orders              = orders,
         documents           = docs,
@@ -143,6 +148,8 @@ private fun parseHearing(m: Map<String, Any?>) = HearingRow(
     description = (m["description"] as? String)?.takeIf { it.isNotBlank() },
     adjournmentReason = (m["adjournment_reason"] as? String)?.takeIf { it.isNotBlank() },
     nextDate = parseDate(m["next_date"] as? String),
+    clientAttendance = (m["client_attendance"] as? String)?.takeIf { it.isNotBlank() },
+    clientInstructions = (m["client_instructions"] as? String)?.takeIf { it.isNotBlank() },
 )
 
 private fun parseTimelineEvent(m: Map<String, Any?>) = TimelineEvent(

@@ -53,7 +53,8 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { e ->
                 val msg = when (e) {
                     is HttpException -> when (e.code()) {
-                        401, 403    -> "Your session expired. Sign in again."
+                        401         -> "Your session expired. Sign in again."
+                        403         -> forbiddenMessage(e, "Your account does not include projects. Ask the firm to give you access.")
                         in 500..599 -> "Server error. Try again in a moment."
                         else        -> "Couldn't load projects (HTTP ${e.code()})."
                     }

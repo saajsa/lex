@@ -12,14 +12,18 @@ import java.time.LocalTime
 enum class CaseFilter(val apiValue: String?, val label: String) {
     ALL(null, "All"),
     ACTIVE("active", "Active"),
-    CLOSED("closed", "Closed"),
+    CLOSED("closed", "Disposed"),
 }
 
+/**
+ * A case's status in the cases module's own words (case_status:
+ * active / pending / disposed), as the portal's case_pill shows them.
+ */
 enum class CaseStatus(val label: String, private val tone: (LexColors) -> StatusPalette) {
-    ONGOING("Ongoing", { it.blue }),
-    SETTLED("Settled", { it.success }),
-    PENDING("On Hold", { it.warning }),
-    CLOSED("Closed",  { it.neutral }),
+    ONGOING("Active", { it.blue }),
+    SETTLED("Disposed", { it.neutral }),
+    PENDING("Pending", { it.warning }),
+    CLOSED("Disposed",  { it.neutral }),
     UNKNOWN("Pending", { it.neutral });
 
     val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
@@ -70,6 +74,9 @@ data class CaseDetail(
     val advocateAvatarUrl: String?,
     val originConsultationId: String?,
     val disposalReason: String?,
+    /** The last day to appeal, as the firm recorded it (information only). */
+    val appealDeadline: LocalDate? = null,
+    val appealNote: String? = null,
     val parties: Parties,
     val acts: List<CaseAct>,
     val orders: List<CaseOrder>,
@@ -81,6 +88,8 @@ data class CaseDetail(
 data class Parties(
     val petitioners: List<Party>,
     val respondents: List<Party>,
+    /** Interveners, proforma parties and anyone else on the record. */
+    val others: List<Party> = emptyList(),
 )
 
 data class Party(
@@ -126,7 +135,15 @@ data class HearingRow(
     val description: String? = null,   // hearing notes / what happened
     val adjournmentReason: String? = null,
     val nextDate: LocalDate? = null,
+    /** "required" | "optional" | "not_required" | null — whether the client is to attend. */
+    val clientAttendance: String? = null,
+    /** What the advocate has asked the client to bring or do, as written. */
+    val clientInstructions: String? = null,
 )
+
+/** Hearings that are still to happen: not cancelled, not already heard. */
+val HearingRow.isLive: Boolean
+    get() = status.trim().lowercase() !in setOf("cancelled", "completed")
 
 data class TimelineEvent(
     val type: String,

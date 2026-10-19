@@ -325,7 +325,13 @@ private fun Chamber(
 
     // The desk comes first: the call is what the tab is for.
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (!c.hasAccess) Registration(c, ink) { onWalkIn(null) }
+        // Registration is on the website (the portal's Digital Office page).
+        val context = LocalContext.current
+        if (!c.hasAccess) Registration(c, ink) {
+            runCatching {
+                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(portalOfficeUrl())))
+            }
+        }
         c.activeSession?.let { a ->
             InSession(ink) { a.consultationId?.let { onOpenConsultation(it.toString()) } ?: onWalkIn(null) }
         }
@@ -376,11 +382,11 @@ private fun Registration(c: ChamberState, ink: ChamberInk, onRegister: () -> Uni
             style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
         Spacer(Modifier.height(14.dp))
         Figures(listOf(
-            Figure("₹${"%,d".format(c.onboardingFee.toLong())}", null, "Registration, once"),
-            Figure("₹${"%,d".format(c.clientSessionFee.toLong())}", null, "Each consultation, once accepted"),
+            Figure(com.legumlex.client.feature.finance.formatMoney(c.onboardingFee, "₹").removeSuffix(".00"), null, "Registration, once"),
+            Figure(com.legumlex.client.feature.finance.formatMoney(c.clientSessionFee, "₹").removeSuffix(".00"), null, "Each consultation, once accepted"),
         ), ink)
         Spacer(Modifier.height(14.dp))
-        Pill("Register And Enter", Icons.AutoMirrored.Outlined.ArrowForward, ink.gold, ink.onGold, null, onRegister, Modifier.fillMaxWidth())
+        Pill("Register On The Website", Icons.AutoMirrored.Outlined.ArrowForward, ink.gold, ink.onGold, null, onRegister, Modifier.fillMaxWidth())
     }
 }
 
@@ -416,7 +422,8 @@ private fun Desk(
 ) {
     val fg = Lex.colors.foreground
     val muted = Lex.colors.mutedForeground
-    val roster = if (open) c.roster else emptyList()
+    // No roster until the client has registered: there is no one to call yet.
+    val roster = if (open && c.hasAccess) c.roster else emptyList()
     // The first advocate free is chosen until the visitor chooses.
     var chosenId by remember { mutableStateOf<Int?>(null) }
     val chosen = roster.firstOrNull { it.staffId == chosenId } ?: roster.firstOrNull { !it.isBusy } ?: roster.firstOrNull()
@@ -465,12 +472,13 @@ private fun Desk(
         CallPanel(
             a = chosen,
             shutLine = clockSay(c.sitting, clock, roster.isEmpty()),
+            sitting  = clock.phase == "during",
             onKnock = { chosen?.let { onWalkIn(it.staffId) } },
             onWait = { chosen?.let { onOpenLanding(it.staffId) } },
         )
         if (chosen == null) {
             TextButton(onClick = onAskAdvocate, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp)) {
-                Text("Ask Your Advocate Instead", style = MaterialTheme.typography.labelLarge, color = fg)
+                Text("Ask On The Desk Instead", style = MaterialTheme.typography.labelLarge, color = fg)
                 Spacer(Modifier.width(6.dp))
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = fg, modifier = Modifier.size(16.dp))
             }
@@ -628,9 +636,9 @@ private fun AdvocateCard(a: ChamberAdvocate, selected: Boolean, onClick: () -> U
                 Spacer(Modifier.width(6.dp))
                 Text(
                     when {
-                        !a.isBusy -> "Free now"
-                        a.queueCount > 0 -> "In session · ${a.queueCount} waiting"
-                        else -> "In session"
+                        !a.isBusy -> "Free Now"
+                        a.queueCount > 0 -> "In Session · ${a.queueCount} Waiting"
+                        else -> "In Session"
                     },
                     style = MaterialTheme.typography.labelMedium, color = Lex.colors.secondaryForeground,
                 )
@@ -694,7 +702,7 @@ private fun Register(c: ChamberState, ink: ChamberInk) {
  * busy, it reads In Session and opens their waiting room instead.
  */
 @Composable
-private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit, onWait: () -> Unit) {
+private fun CallPanel(a: ChamberAdvocate?, shutLine: String, sitting: Boolean, onKnock: () -> Unit, onWait: () -> Unit) {
     val me = rememberSelfView()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MeetFrame).padding(8.dp)) {
         // Portrait while someone is in it; shorter while it stands empty.
@@ -703,7 +711,9 @@ private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit
                 Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Outlined.MeetingRoom, null, tint = MeetMuted, modifier = Modifier.size(44.dp))
                     Spacer(Modifier.height(12.dp))
-                    Text("No one is in the call yet.", style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                    // Outside sitting hours there is no call to be in: the stage
+                    // says the chamber is shut, and when it opens.
+                    Text(if (sitting) "No one is in the call yet." else "The chamber is shut.", style = TextStyle(fontFamily = Inter, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                         color = Color.White, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(4.dp))
                     Text(shutLine, style = MaterialTheme.typography.bodySmall, color = MeetMuted, textAlign = TextAlign.Center)

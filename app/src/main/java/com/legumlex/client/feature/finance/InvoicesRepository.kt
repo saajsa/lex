@@ -23,14 +23,21 @@ class InvoicesRepository(private val api: ApiService) {
     }
 }
 
+/** Moshi reads JSON numbers as Double: 5.0 and "5" are both "5". */
+private fun idOf(v: Any?): String? = when (v) {
+    null -> null
+    is Number -> if (v.toDouble() % 1.0 == 0.0) v.toLong().toString() else v.toString()
+    else -> v.toString().trim().let { s -> s.toDoubleOrNull()?.takeIf { it % 1.0 == 0.0 }?.toLong()?.toString() ?: s }
+}.takeIf { !it.isNullOrBlank() }
+
 private fun parseInvoice(m: Map<String, Any?>): Invoice {
     val date    = parseDate(m["date"] as? String)
     val dueDate = parseDate(m["duedate"] as? String)
     val total      = (m["total"]?.toString()?.toDoubleOrNull()) ?: 0.0
-    // The list endpoint doesn't include total_left_to_pay; default to full total.
+    // Without total_left_to_pay (an older server), the whole total is owed.
     val leftToPay  = (m["total_left_to_pay"]?.toString()?.toDoubleOrNull()) ?: total
     return Invoice(
-        id              = m["id"]?.toString() ?: "",
+        id              = idOf(m["id"]) ?: "",
         number          = (m["formatted_number"] as? String)?.takeIf { it.isNotBlank() }
                             ?: formatFallback(m),
         date            = date,
@@ -38,7 +45,7 @@ private fun parseInvoice(m: Map<String, Any?>): Invoice {
         total           = total,
         leftToPay       = leftToPay,
         currencySymbol  = (m["symbol"] as? String)?.takeIf { it.isNotBlank() } ?: "",
-        status          = InvoiceStatus.derive(m["status"]?.toString(), dueDate),
+        status          = InvoiceStatus.derive(idOf(m["status"]), dueDate),
         hash            = m["hash"] as? String ?: "",
         projectName     = (m["project_name"] as? String)?.takeIf { it.isNotBlank() },
         issuerName      = (m["issuer_name"] as? String).orEmpty()
@@ -67,8 +74,9 @@ private fun parseDetail(m: Map<String, Any?>): InvoiceDetail {
         Payment(
             date          = parseDate(it["date"] as? String),
             amount        = it["amount"]?.toString()?.toDoubleOrNull() ?: 0.0,
-            method        = (it["payment_method"] as? String)?.takeIf { v -> v.isNotBlank() }
-                              ?: (it["paymentmode"] as? String),
+            // The payment mode's label, then the method the gateway named; never the raw mode id.
+            method        = listOf("name", "paymentmethod", "payment_method")
+                              .firstNotNullOfOrNull { k -> (it[k] as? String)?.trim()?.takeIf { v -> v.isNotBlank() } },
             transactionId = (it["transactionid"] as? String)?.takeIf { v -> v.isNotBlank() },
         )
     }
@@ -115,7 +123,7 @@ private fun parseDetail(m: Map<String, Any?>): InvoiceDetail {
 
 private fun formatFallback(m: Map<String, Any?>): String {
     val prefix = (m["prefix"] as? String).orEmpty()
-    val num    = m["number"]?.toString().orEmpty()
+    val num    = idOf(m["number"]).orEmpty()
     return prefix + num.padStart(6, '0')
 }
 

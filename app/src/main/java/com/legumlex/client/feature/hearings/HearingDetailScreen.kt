@@ -117,6 +117,43 @@ private fun HearingDetailContent(h: Hearing, onOpenCase: (String) -> Unit) {
             )
         }
 
+        // Attendance and instructions as the advocate set them — information only.
+        val attendance = attendanceLabel(h.clientAttendance)
+        if (attendance != null || !h.clientInstructions.isNullOrBlank()) {
+            Spacer(Modifier.height(spacing.s5))
+            EyebrowText("From Your Advocate")
+            Spacer(Modifier.height(spacing.s2))
+            InfoCard {
+                if (attendance != null) KvRow("Your Attendance", attendance)
+                if (attendance != null && !h.clientInstructions.isNullOrBlank()) Divider()
+                h.clientInstructions?.takeIf { it.isNotBlank() }?.let {
+                    Column(Modifier.padding(vertical = 8.dp)) {
+                        Text("Instructions", style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
+                        Spacer(Modifier.height(4.dp))
+                        Text(it, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
+                    }
+                }
+            }
+        }
+
+        if (!h.description.isNullOrBlank()) {
+            Spacer(Modifier.height(spacing.s5))
+            EyebrowText("What Happened")
+            Spacer(Modifier.height(spacing.s2))
+            Text(h.description, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
+        }
+
+        h.nextDate?.let { nd ->
+            Spacer(Modifier.height(spacing.s5))
+            EyebrowText("Next Date")
+            Spacer(Modifier.height(spacing.s2))
+            InfoCard {
+                KvRow("Date", listOfNotNull(nd.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy")),
+                    h.nextTime?.format(DateTimeFormatter.ofPattern("h:mm a"))).joinToString(" · "))
+                h.nextPurpose?.let { Divider(); KvRow("Next", it) }
+            }
+        }
+
         Spacer(Modifier.height(spacing.s5))
         EyebrowText("Status")
         Spacer(Modifier.height(spacing.s2))
@@ -127,7 +164,7 @@ private fun HearingDetailContent(h: Hearing, onOpenCase: (String) -> Unit) {
 @Composable
 private fun DateBlock(h: Hearing) {
     val spacing = LocalSpacing.current
-    val today = LocalDate.now()
+    val today = LocalDate.now(IST)
     val daysOut = h.date?.let { ChronoUnit.DAYS.between(today, it).toInt() }
 
     val (countdownLabel, dotColor) = when {
@@ -135,8 +172,8 @@ private fun DateBlock(h: Hearing) {
         daysOut <  0        -> "Past"     to TertiaryText
         daysOut == 0        -> "Today"    to StatusDanger.solid
         daysOut == 1        -> "Tomorrow" to StatusDanger.solid
-        daysOut <= 7        -> "In $daysOut days" to StatusPending.solid
-        else                -> "In $daysOut days" to TertiaryText
+        daysOut <= 7        -> "In $daysOut Days" to StatusPending.solid
+        else                -> "In $daysOut Days" to TertiaryText
     }
 
     Column {
@@ -167,7 +204,8 @@ private fun DateBlock(h: Hearing) {
             Spacer(Modifier.height(spacing.s3))
         }
         Text(
-            text = h.date?.format(DateTimeFormatter.ofPattern("EEE, d MMM")) ?: "Date TBA",
+            // The year is shown whenever the date is not this year (past dates especially).
+            text = h.date?.let { d -> d.format(DateTimeFormatter.ofPattern(if (d.year == today.year && !d.isBefore(today)) "EEE, d MMM" else "EEE, d MMM yyyy")) } ?: "Date TBA",
             fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize = 36.sp,
@@ -227,6 +265,18 @@ private fun LinkedCaseCard(h: Hearing, onClick: () -> Unit) {
 }
 
 @Composable
+private fun InfoCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        color  = MaterialTheme.colorScheme.surface,
+        shape  = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, BorderColor),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(14.dp), content = content)
+    }
+}
+
+@Composable
 private fun CourtCard(h: Hearing) {
     Surface(
         color  = MaterialTheme.colorScheme.surface,
@@ -281,6 +331,7 @@ private fun StatusCard(h: Hearing) {
 
 @Composable
 private fun HistoryRow(entry: HearingHistoryEntry) {
+    Column {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -294,6 +345,11 @@ private fun HistoryRow(entry: HearingHistoryEntry) {
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter),
             color = SecondaryText,
         )
+    }
+    // What happened that day, as the advocate noted it.
+    entry.description?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = PrimaryText, modifier = Modifier.padding(start = 18.dp, top = 2.dp))
+    }
     }
 }
 
@@ -339,7 +395,8 @@ private fun StickyActions(h: Hearing) {
             LegumPrimaryButton(
                 text        = "Add To Calendar",
                 leadingIcon = Icons.Outlined.CalendarMonth,
-                enabled     = h.date != null,
+                // A hearing that has already happened has nothing to add.
+                enabled     = h.date != null && !h.date.isBefore(LocalDate.now(IST)),
                 onClick     = { addToCalendar(ctx, h) },
                 modifier    = Modifier.weight(1f),
             )
@@ -390,7 +447,7 @@ private fun HearingDetailError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = StatusDanger.solid, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(spacing.s4))
-        Text("Couldn't load this hearing",
+        Text("Couldn't Load This Hearing",
             style = MaterialTheme.typography.headlineSmall,
             color = PrimaryText,
             textAlign = TextAlign.Center)
@@ -398,7 +455,7 @@ private fun HearingDetailError(message: String, onRetry: () -> Unit) {
         Text(message, style = MaterialTheme.typography.bodyMedium, color = SecondaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(spacing.s5))
         LegumSecondaryButton(
-            text        = "Try again",
+            text        = "Try Again",
             leadingIcon = Icons.Outlined.Refresh,
             onClick     = onRetry,
             modifier    = Modifier.widthIn(max = 280.dp),
@@ -407,17 +464,28 @@ private fun HearingDetailError(message: String, onRetry: () -> Unit) {
 }
 
 
+private val IST: java.time.ZoneId = java.time.ZoneId.of("Asia/Kolkata")
+
 private fun addToCalendar(context: android.content.Context, h: Hearing) {
     val date = h.date ?: return
-    val zone = java.time.ZoneId.systemDefault()
+    // Court time is Indian time, whatever zone the phone is in.
+    val zone = IST
     val start = date.atTime(h.time ?: java.time.LocalTime.of(10, 0))
     val intent = android.content.Intent(android.content.Intent.ACTION_INSERT).apply {
         data = android.provider.CalendarContract.Events.CONTENT_URI
         putExtra(android.provider.CalendarContract.Events.TITLE, "Hearing · ${h.caseTitle}")
         putExtra(android.provider.CalendarContract.Events.EVENT_LOCATION, listOfNotNull(h.courtName, h.courtNumber?.let { "Court $it" }).joinToString(", "))
         putExtra(android.provider.CalendarContract.Events.DESCRIPTION, h.purpose ?: "Hearing in ${h.caseNumber.ifBlank { h.caseTitle }}")
-        putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.atZone(zone).toInstant().toEpochMilli())
-        putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, start.plusHours(1).atZone(zone).toInstant().toEpochMilli())
+        putExtra(android.provider.CalendarContract.Events.EVENT_TIMEZONE, zone.id)
+        if (h.time == null) {
+            // All-day events are UTC midnight-to-midnight by the calendar provider's rule.
+            val utc = java.time.ZoneOffset.UTC
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, date.atStartOfDay(utc).toInstant().toEpochMilli())
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, date.plusDays(1).atStartOfDay(utc).toInstant().toEpochMilli())
+        } else {
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.atZone(zone).toInstant().toEpochMilli())
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, start.plusHours(1).atZone(zone).toInstant().toEpochMilli())
+        }
         putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, h.time == null)
     }
     try { context.startActivity(intent) } catch (_: android.content.ActivityNotFoundException) {

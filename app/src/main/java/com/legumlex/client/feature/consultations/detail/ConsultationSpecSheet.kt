@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.feature.consultations.statusLabel
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,7 +55,7 @@ fun ConsultationSpecContent(c: Consultation) {
         )
 
         Text(
-            text  = "Consultation details",
+            text  = "Consultation Details",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
             color = PrimaryText,
         )
@@ -70,7 +71,7 @@ fun ConsultationSpecContent(c: Consultation) {
 
         // Status & flags
         SpecSection("Status") {
-            SpecRow(Icons.Outlined.Circle, "Status", c.status.label)
+            SpecRow(Icons.Outlined.Circle, "Status", c.statusLabel)
             SpecRow(Icons.Outlined.Flag, "Priority", c.priority ?: "Medium")
             SpecRow(Icons.Outlined.Bolt, "Urgent", if (c.isUrgent) "Yes" else "No")
         }
@@ -85,7 +86,7 @@ fun ConsultationSpecContent(c: Consultation) {
         // Dates
         SpecSection("Timeline") {
             c.createdAt?.let    { SpecRow(Icons.Outlined.Schedule,         "Submitted",    it.format(dtFmt)) }
-            c.lastUpdatedAt?.let{ SpecRow(Icons.Outlined.Update,           "Last updated", it.format(dtFmt)) }
+            c.lastUpdatedAt?.let{ SpecRow(Icons.Outlined.Update,           "Last Updated", it.format(dtFmt)) }
             c.acknowledgedAt?.let{ SpecRow(Icons.Outlined.DoneAll,         "Acknowledged", it.format(dtFmt)) }
         }
 
@@ -106,7 +107,7 @@ fun ConsultationSpecContent(c: Consultation) {
 
         // Linked matter
         if (!c.linkedCaseId.isNullOrBlank()) {
-            SpecSection("Linked matter") {
+            SpecSection("Linked Matter") {
                 c.linkedCaseTitle?.let  { SpecRow(Icons.Outlined.Gavel,  "Title",  it) }
                 c.linkedCaseNumber?.let { SpecRow(Icons.Outlined.Tag,     "Number", it) }
             }
@@ -115,17 +116,19 @@ fun ConsultationSpecContent(c: Consultation) {
         // Counts
         SpecSection("Activity") {
             SpecRow(Icons.Outlined.ChatBubbleOutline, "Replies",   "${c.replyCount}")
-            SpecRow(Icons.Outlined.FolderOpen,        "Documents", "${c.totalDocCount}")
+            // Files on the consultation, or the documents requested, whichever is the count here.
+            SpecRow(Icons.Outlined.FolderOpen,        "Documents", "${maxOf(c.totalDocCount, c.documents.size)}")
             if (c.kind == ConsultationKind.DOC_REQUEST) {
-                SpecRow(Icons.Outlined.Pending, "Pending uploads", "${c.pendingDocCount}")
+                SpecRow(Icons.Outlined.Pending, "Pending Uploads", "${c.pendingDocCount}")
             }
         }
 
         // AHC risk
-        if (c.kind == ConsultationKind.AHC && c.riskScore != null) {
-            SpecSection("Risk assessment") {
-                c.riskLevel?.let { SpecRow(Icons.Outlined.Shield, "Risk level", it.label) }
-                SpecRow(Icons.Outlined.Speed, "Risk score", "${c.riskScore} / 100")
+        // Only once the advocate has released the report.
+        if (c.kind == ConsultationKind.AHC && c.riskScore != null && c.releasedAt != null) {
+            SpecSection("Risk Assessment") {
+                c.riskLevel?.let { SpecRow(Icons.Outlined.Shield, "Risk Level", it.label) }
+                SpecRow(Icons.Outlined.Speed, "Risk Score", "${c.riskScore} / 100")
             }
         }
     }

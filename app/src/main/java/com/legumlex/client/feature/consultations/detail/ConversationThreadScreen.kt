@@ -49,7 +49,12 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConversationThreadScreen(consultationId: String, onBack: () -> Unit) {
+fun ConversationThreadScreen(
+    consultationId: String,
+    onBack: () -> Unit,
+    /** Where a new question starts once this one is closed (the desk). */
+    onNewQuestion: () -> Unit = onBack,
+) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
     val vm: ConsultationDetailViewModel = viewModel(
@@ -57,10 +62,13 @@ fun ConversationThreadScreen(consultationId: String, onBack: () -> Unit) {
         factory = viewModelFactory {
             initializer { ConsultationDetailViewModel(app = app, consultationId = consultationId) }
         },
-    )    // Attach: the same upload the consultation's own composer makes.
+    )
+    // Attach: the same upload the consultation's own composer makes, after
+    // the client confirms the file (it is shared with the advocate at once).
+    var pendingUpload by remember { mutableStateOf<android.net.Uri?>(null) }
     val attachPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-    ) { uri -> if (uri != null) vm.uploadAttachment(uri) }
+    ) { uri -> if (uri != null) pendingUpload = uri }
 
     val state by vm.state.collectAsState()
     val isSending by vm.isSending.collectAsState()
@@ -85,30 +93,66 @@ fun ConversationThreadScreen(consultationId: String, onBack: () -> Unit) {
         if (total > 0) listState.animateScrollToItem(total + 5) // overshoot for headers
     }
 
+    val ready = state as? ConsultationDetailUiState.Ready
+    // A closed, declined or resolved consultation takes no further messages,
+    // exactly as its detail screen has it.
+    val locked = ready?.consultation?.status?.let { it in setOf(
+        com.legumlex.client.feature.consultations.ConsultationStatus.COMPLETED,
+        com.legumlex.client.feature.consultations.ConsultationStatus.CLOSED,
+        com.legumlex.client.feature.consultations.ConsultationStatus.CANCELLED,
+        com.legumlex.client.feature.consultations.ConsultationStatus.DECLINED,
+        com.legumlex.client.feature.consultations.ConsultationStatus.CONVERTED,
+    ) } == true
+
     Scaffold(
         bottomBar = {
-            ThreadComposer(
-                onAttach = { attachPicker.launch(arrayOf("*/*")) },
-                value = composing,
-                onChange = { composing = it },
-                onSend = {
-                    val msg = composing.trim()
-                    if (msg.isNotBlank()) {
-                        vm.sendReply(msg)
-                        composing = ""
-                    }
-                },
-                isSending = isSending,
-            )
+            if (ready == null) {
+                // Nothing to reply to until the consultation has loaded.
+            } else if (locked) {
+                LockedComposer(onNewQuestion)
+            } else {
+                ThreadComposer(
+                    onAttach = { attachPicker.launch(arrayOf("*/*")) },
+                    value = composing,
+                    onChange = { composing = it },
+                    onSend = {
+                        val msg = composing.trim()
+                        if (msg.isNotBlank()) {
+                            vm.sendReply(msg)
+                            composing = ""
+                        }
+                    },
+                    isSending = isSending,
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
+        // Edge-to-edge: the composer rides above the keyboard.
+        modifier = Modifier.imePadding(),
     ) { inner ->
-        val replies = (state as? ConsultationDetailUiState.Ready)?.consultation?.replies.orEmpty()
-        if (state is ConsultationDetailUiState.Loading) {
-            Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PrimaryText, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+        val replies = ready?.consultation?.replies.orEmpty()
+        when (val s = state) {
+            is ConsultationDetailUiState.Loading -> {
+                Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = PrimaryText, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                }
+                return@Scaffold
             }
-            return@Scaffold
+            is ConsultationDetailUiState.Error -> {
+                Column(
+                    Modifier.fillMaxSize().padding(inner).padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text("The Conversation Could Not Be Loaded", style = MaterialTheme.typography.titleMedium, color = PrimaryText)
+                    Spacer(Modifier.height(8.dp))
+                    Text(s.message, style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = { vm.load() }) { Text("Try Again") }
+                }
+                return@Scaffold
+            }
+            else -> Unit
         }
         val spacing = LocalSpacing.current
         LazyColumn(
@@ -137,13 +181,54 @@ fun ConversationThreadScreen(consultationId: String, onBack: () -> Unit) {
             if (replies.isEmpty()) {
                 item("empty") {
                     Text(
-                        "No messages yet. Your reply will start the thread.",
+                        if (locked) "No messages were exchanged on this consultation."
+                        else "No messages yet. Your reply will start the thread.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = SecondaryText,
                         modifier = Modifier.padding(top = 32.dp),
                     )
                 }
             }
+        }
+    }
+
+    pendingUpload?.let { uri ->
+        val name = remember(uri) {
+            runCatching {
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            }.getOrNull() ?: "this file"
+        }
+        AlertDialog(
+            onDismissRequest = { pendingUpload = null },
+            title = { Text("Share This File?") },
+            text = { Text("$name will be added to this consultation and shared with your advocate.") },
+            confirmButton = {
+                TextButton(onClick = { vm.uploadAttachment(uri); pendingUpload = null }) { Text("Share") }
+            },
+            dismissButton = { TextButton(onClick = { pendingUpload = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun LockedComposer(onNewQuestion: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            HorizontalDivider(color = BorderSubtle)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "This consultation is closed to new messages. The conversation stays here for your records.",
+                style = MaterialTheme.typography.bodySmall,
+                color = SecondaryText,
+            )
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = onNewQuestion,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentInk, contentColor = InverseText),
+            ) { Text("Ask A New Question") }
         }
     }
 }
@@ -236,11 +321,11 @@ private fun ThreadMessage(r: Reply) {
                     )
                 }
             }
-            // Read receipt eyebrow (currently a static "Sent" — real receipts later).
+            // Read receipt: read once the advocate has opened it (read_at).
             if (isClient) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "SENT",
+                    if (r.readAt != null) "READ" else "SENT",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
@@ -307,7 +392,7 @@ private fun ThreadComposer(
                     value = value,
                     onValueChange = onChange,
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Write a message", style = MaterialTheme.typography.bodyMedium) },
+                    placeholder = { Text("Write A Message", style = MaterialTheme.typography.bodyMedium) },
                     singleLine = false,
                     maxLines = 5,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),

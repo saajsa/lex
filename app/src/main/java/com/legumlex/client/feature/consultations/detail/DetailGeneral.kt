@@ -73,7 +73,9 @@ fun DetailGeneral(
     val st by vm.state.collectAsState()
     val attachments = (st as? ConsultationDetailUiState.Ready)?.attachments ?: emptyList()
 
+    // Resolved is final as the web desk has it: a further question is a new one.
     val isLocked = consultation.status in setOf(
+        ConsultationStatus.COMPLETED,
         ConsultationStatus.CLOSED,
         ConsultationStatus.CANCELLED,
         ConsultationStatus.DECLINED,
@@ -111,6 +113,7 @@ fun DetailGeneral(
                 onNewConsultation = onNewConsultation,
                 isSending = isSending,
                 locked = isLocked,
+                resolved = consultation.status == ConsultationStatus.COMPLETED,
                 advocate = advName(consultation.assignedTo),
             )
         },
@@ -156,7 +159,7 @@ fun DetailGeneral(
             // ── shared files (two-way, tap to open) ─────────────────────────
             if (attachments.isNotEmpty()) {
                 Column(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = LlDimen.SectionGap)) {
-                    SectionHead("Shared files · ${attachments.size}")
+                    SectionHead("Shared Files · ${attachments.size}")
                     Spacer(Modifier.height(9.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         attachments.forEach { att -> SharedFileRow(att) { vm.openAttachment(att) } }
@@ -167,7 +170,7 @@ fun DetailGeneral(
             // ── advocate card ───────────────────────────────────────────────
             if (!consultation.assignedTo.isNullOrBlank()) {
                 Column(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = LlDimen.SectionGap)) {
-                    SectionHead("Your advocate")
+                    SectionHead("Your Advocate")
                     Spacer(Modifier.height(9.dp))
                     DCard { AdvocateCard(consultation, phase) }
                 }
@@ -268,13 +271,13 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
     val reason = c.advocateNote?.takeIf { it.isNotBlank() }
     val spec = when (phase) {
         GenPhase.AWAITING -> Spec(
-            LlColor.AmberMid, Icons.Outlined.HourglassTop, "Awaiting your advocate",
-            "Submitted ${c.createdAt?.let { com.legumlex.client.feature.consultations.relativeAgo(it) } ?: "recently"}. $adv will see it shortly — we usually reply within a day.",
+            LlColor.AmberMid, Icons.Outlined.HourglassTop, "Awaiting Your Advocate",
+            "Submitted ${c.createdAt?.let { com.legumlex.client.feature.consultations.relativeAgo(it) } ?: "recently"}. $adv will see it shortly — the firm usually replies within 30 minutes during chamber hours.",
         )
-        GenPhase.ACTIVE -> Spec(LlColor.SlateMid, Icons.Outlined.Forum, "With your advocate", null)
+        GenPhase.ACTIVE -> Spec(LlColor.SlateMid, Icons.Outlined.Forum, "With Your Advocate", null)
         GenPhase.RESOLVED -> Spec(
             LlColor.Verdant, Icons.Outlined.TaskAlt, "Resolved",
-            "$adv marked your question resolved. Still need something? Reply below — it reopens the thread.",
+            "$adv marked your question resolved. The conversation stays here for your records; anything further is a new question.",
         )
         GenPhase.CLOSED -> Spec(
             LlColor.InkFaint, Icons.Outlined.Inventory2, "Closed",
@@ -339,7 +342,7 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalArrangement = Arrangement.spacedBy(11.dp),
                 ) {
-                    meta.forEach { (k, v) -> MetaItem(k, v, mono = true) }
+                    meta.forEach { (k, v) -> MetaItem(k, v, mono = false) }
                     c.assignedTo?.takeIf { it.isNotBlank() }?.let {
                         MetaItem(if (phase == GenPhase.CLOSED) "Handled by" else "Assigned to", adv, mono = false)
                     }
@@ -372,7 +375,7 @@ private fun UrgentPill() {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(Icons.Outlined.PriorityHigh, null, tint = ClaretMidFix, modifier = Modifier.size(12.dp))
-        Text("URGENT", fontFamily = Inter, fontWeight = FontWeight.Bold,
+        Text("MARKED URGENT", fontFamily = Inter, fontWeight = FontWeight.Bold,
             fontSize = 9.sp, letterSpacing = 0.06.em, color = ClaretMidFix)
     }
 }
@@ -563,8 +566,10 @@ private fun BubbleColumn(r: Reply, me: Boolean, continuation: Boolean, sending: 
                     Icon(Icons.Outlined.Schedule, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
                     Text("Sending…", fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint)
                 } else {
-                    Icon(Icons.Outlined.DoneAll, null, tint = LlColor.SlateMid, modifier = Modifier.size(13.dp))
-                    Text("Sent${r.createdAt?.let { " · ${it.format(timeFmt)}" } ?: ""}",
+                    // Read only once the advocate has opened it (read_at).
+                    val read = r.readAt != null
+                    Icon(if (read) Icons.Outlined.DoneAll else Icons.Outlined.Done, null, tint = LlColor.SlateMid, modifier = Modifier.size(13.dp))
+                    Text(if (read) "Read · ${r.readAt!!.format(timeFmt)}" else "Sent${r.createdAt?.let { " · ${it.format(timeFmt)}" } ?: ""}",
                         fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint)
                 }
             }
@@ -612,14 +617,14 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
         ) { Icon(Icons.Outlined.MarkEmailUnread, null, tint = LlColor.AmberMid, modifier = Modifier.size(27.dp)) }
         Spacer(Modifier.height(15.dp))
         Text(
-            if (phase == GenPhase.CLOSED) "This enquiry is closed" else "Your question is with ${advName(c.assignedTo)}",
+            if (phase == GenPhase.CLOSED) "This Enquiry Is Closed" else "Your Question Is With ${advName(c.assignedTo)}",
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
             letterSpacing = (-0.01).em, color = LlColor.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(7.dp))
         Text(
             if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
-            else "${advName(c.assignedTo)} will respond shortly — we usually reply within a day. You'll get a notification the moment there's an answer.",
+            else "${advName(c.assignedTo)} will respond shortly — the firm usually replies within 30 minutes during chamber hours. You'll get a notification the moment there's an answer.",
             fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
@@ -690,7 +695,7 @@ private fun AdvocateCard(c: Consultation, phase: GenPhase) {
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(LlColor.Verdant))
-                    Text("Usually replies within a day", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+                    Text("Usually replies within 30 minutes", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
                 }
             }
         }
@@ -710,6 +715,7 @@ private fun Composer(
     onNewConsultation: () -> Unit,
     isSending: Boolean,
     locked: Boolean,
+    resolved: Boolean = false,
     advocate: String,
 ) {
     Column(
@@ -730,7 +736,8 @@ private fun Composer(
                 ) {
                     Icon(Icons.Outlined.Lock, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
                     Text(
-                        "This enquiry is closed. Start a new consultation to continue.",
+                        if (resolved) "$advocate marked this question resolved. Anything further is a new question."
+                        else "This enquiry is closed. Ask a new question to continue.",
                         fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted,
                     )
                 }
@@ -743,7 +750,7 @@ private fun Composer(
                 ) {
                     Icon(Icons.Outlined.Add, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("NEW CONSULTATION", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+                    Text("Ask A New Question", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
                 }
             }
@@ -823,10 +830,10 @@ private fun initialsOf(name: String?): String =
     name?.split(" ")?.filter { it.isNotBlank() }
         ?.take(2)?.joinToString("") { it.first().uppercase() }?.ifBlank { "?" } ?: "?"
 
-/** Prefix the advocate's name with "Adv." for legal context, avoiding doubles. */
+/** The advocate's name as recorded (the portal adds no prefix). */
 private fun advName(name: String?): String {
     val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return "your advocate"
-    return if (n.startsWith("adv", ignoreCase = true)) n else "Adv. $n"
+    return n   // as recorded, as the portal shows it
 }
 
 @Composable

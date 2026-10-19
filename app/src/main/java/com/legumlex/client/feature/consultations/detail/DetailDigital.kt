@@ -114,68 +114,71 @@ private fun SessionStateCard(s: DoSession, spacing: Spacing) {
         DoSessionStatus.IN_PROGRESS, DoSessionStatus.CONFIRMED -> StateInfo(
             icon  = Icons.Outlined.VideoCall,
             tint  = StatusSettled.solid,
-            title = "Session live",
+            title = "Session Live",
             sub   = "Your advocate is waiting. Tap below to join.",
         )
         DoSessionStatus.AWAITING_INTAKE -> StateInfo(
             icon  = Icons.Outlined.Edit,
             tint  = StatusOngoing.solid,
-            title = "Awaiting brief",
+            title = "Awaiting Brief",
             sub   = "Submit your brief from the Digital Office lobby to continue.",
         )
         DoSessionStatus.PENDING_PAYMENT, DoSessionStatus.APPROVED_AWAITING_PAYMENT -> StateInfo(
             icon  = Icons.Outlined.Payments,
             tint  = StatusOngoing.solid,
-            title = "Awaiting payment",
-            sub   = "Complete payment to continue your session.",
+            title = "Accepted · Fee Due",
+            sub   = "Your advocate has accepted. Pay the fee's invoice on the firm's website; the call opens once it is paid.",
         )
         DoSessionStatus.AWAITING_APPROVAL -> StateInfo(
             icon  = Icons.Outlined.Schedule,
             tint  = StatusOngoing.solid,
-            title = "Awaiting advocate approval",
-            sub   = "Your advocate is reviewing your brief.",
+            title = "Awaiting Approval",
+            sub   = "Your advocate is reviewing your brief" +
+                (s.approvalWindowMinutes?.let { " and has $it minutes to respond." } ?: "."),
         )
         DoSessionStatus.DECLINED_BY_ADVOCATE -> StateInfo(
             icon  = Icons.Outlined.Cancel,
             tint  = StatusDanger.solid,
-            title = "Advocate declined",
+            title = "Advocate Declined",
             sub   = s.failureReason ?: "Your advocate can't take this session right now.",
         )
         DoSessionStatus.COMPLETED -> StateInfo(
             icon  = Icons.Outlined.EventAvailable,
             tint  = TertiaryText,
-            title = "Session ended",
+            title = "Session Ended",
             sub   = s.endedAt?.let { "Ended ${formatRelativePast(it)}" } ?: "This session has ended.",
         )
         DoSessionStatus.CANCELLED -> StateInfo(
             icon  = Icons.Outlined.Cancel,
             tint  = StatusDanger.solid,
-            title = "Session cancelled",
+            title = "Session Cancelled",
             sub   = s.failureReason ?: "This session was cancelled.",
         )
         DoSessionStatus.PAYMENT_FAILED, DoSessionStatus.MEET_FAILED -> StateInfo(
             icon  = Icons.Outlined.ErrorOutline,
             tint  = StatusDanger.solid,
-            title = "Session couldn't start",
+            title = "The Session Could Not Start",
             sub   = s.failureReason ?: "Please contact us so we can connect you with counsel.",
         )
         DoSessionStatus.ADVOCATE_OFFLINE, DoSessionStatus.ADVOCATE_BUSY -> StateInfo(
             icon  = Icons.Outlined.PersonOff,
             tint  = StatusDanger.solid,
-            title = "Counsel unavailable",
+            title = "Counsel Unavailable",
             sub   = s.failureReason ?: "Your advocate stepped away before the session could start.",
         )
         DoSessionStatus.EXPIRED -> StateInfo(
             icon  = Icons.Outlined.Timer,
             tint  = TertiaryText,
-            title = "Session expired",
-            sub   = "This session was not joined in time.",
+            title = "Request Lapsed",
+            sub   = s.failureReason ?: if (s.approvedAt != null)
+                "Your advocate accepted, but the fee was not paid in time, so the request lapsed. No session took place."
+            else "Your advocate did not respond in time, so the request lapsed. Nothing was charged.",
         )
         DoSessionStatus.UNKNOWN -> StateInfo(
             icon  = Icons.Outlined.HelpOutline,
             tint  = TertiaryText,
             title = "Session",
-            sub   = "Status unavailable.",
+            sub   = "This session's status is not available right now.",
         )
     }
 
@@ -238,6 +241,7 @@ private fun EnterLobbySection(s: DoSession, spacing: Spacing, onEnterLobby: () -
         DoSessionStatus.CONFIRMED,
         DoSessionStatus.IN_PROGRESS,
         DoSessionStatus.AWAITING_APPROVAL,
+        DoSessionStatus.APPROVED_AWAITING_PAYMENT,
     )
     if (!lobbyRelevant) return
 
@@ -255,7 +259,7 @@ private fun EnterLobbySection(s: DoSession, spacing: Spacing, onEnterLobby: () -
         Icon(Icons.Outlined.VideoCall, null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(spacing.s2))
         Text(
-            if (ready) "Enter video lobby" else "Go to waiting lobby",
+            if (ready) "Enter The Video Lobby" else "Go To The Waiting Lobby",
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
         )
     }
@@ -288,7 +292,7 @@ private fun SessionDetailsCard(s: DoSession, spacing: Spacing) {
             DetailRow(
                 label = "Fee",
                 value = if (s.sessionFee > 0)
-                    "₹${"%,d".format(s.sessionFee.toLong())}"
+                    com.legumlex.client.feature.finance.formatMoney(s.sessionFee, "₹").removeSuffix(".00")
                 else "Complimentary",
             )
             if (!s.failureReason.isNullOrBlank()
