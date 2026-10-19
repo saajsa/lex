@@ -106,6 +106,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
     // screen keeps the hub current itself as things are read.
     val context = androidx.compose.ui.platform.LocalContext.current
     val unreadCount by com.legumlex.client.feature.notifications.NotificationHub.unread.collectAsState()
+    val actionBundle by com.legumlex.client.feature.home.ActionHub.bundle.collectAsState()
     var lastUnreadAt by remember { mutableStateOf(0L) }
     var resumes by remember { mutableStateOf(0) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -122,6 +123,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         if (showAppFooter(currentRoute) && now - lastUnreadAt >= 60_000L) {
             lastUnreadAt = now
             com.legumlex.client.feature.notifications.NotificationHub.refresh(context)
+            com.legumlex.client.feature.home.ActionHub.refresh(context)
         }
     }
     // The signed-in contact, for the header's initials: fetched once a
@@ -145,6 +147,9 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
                     onNotifications = { navController.navigate(Route.Notifications.path) },
                     unreadCount = unreadCount,
+                    onActions = { navController.navigate(Route.ActionQueue.path) { launchSingleTop = true } },
+                    actionCount = actionBundle?.total ?: 0,
+                    actionCritical = (actionBundle?.critical ?: 0) > 0,
                     initials = profile?.initials,
                     avatarUrl = profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },

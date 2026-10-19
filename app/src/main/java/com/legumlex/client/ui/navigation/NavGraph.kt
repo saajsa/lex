@@ -137,6 +137,20 @@ fun LegumNavGraph(navController: NavHostController) {
                 onStartLegalNotice = { navController.navigate(Route.Notices.path) },
             )
         }
+        composable(Route.ActionQueue.path) {
+            com.legumlex.client.feature.home.ActionQueueScreen(
+                onOpenInvoice      = { id -> navController.navigate(Route.InvoiceDetail.build(id)) },
+                onOpenContract     = { _  -> navController.navigate(Route.Vault.path) },
+                onOpenConsultation = { id -> navController.navigate(Route.ConsultationDetail.build(id)) },
+                onOpenCase         = { id -> navController.navigate(Route.CaseDetail.build(id)) },
+                onOpenNotice       = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
+                onOpenTask         = { id -> navController.navigate(Route.TaskDetail.build(id)) },
+                onOpenProject      = { id -> navController.navigate(Route.ProjectDetail.build(id)) },
+                onOpenAgreement    = { id -> navController.navigate(Route.RegistryAgreement.build(id)) },
+                onOpenAhcFunnel    = { navController.navigate(Route.AhcFunnel.path) },
+                onAskNew           = { navController.navigate(Route.NewConsultation.build()) },
+            )
+        }
         composable(Route.Matters.path) {
             CasesScreen(
                 onOpenCase = { id -> navController.navigate(Route.CaseDetail.build(id)) },

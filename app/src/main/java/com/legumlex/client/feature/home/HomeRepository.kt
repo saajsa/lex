@@ -37,6 +37,10 @@ class HomeRepository(private val api: ApiService) {
     suspend fun dismissAction(key: String): Boolean =
         runCatching { api.dismissActionItem(key) }.isSuccess
 
+    /** Just the action queue, for the header's queue button and its screen. */
+    suspend fun loadActionItems(): Result<ActionItemsBundle> =
+        runCatching { parseActionItems(api.dashboardActionItems().data()) }
+
     /** Undo a dismissal: the server puts the item back in action_items. */
     suspend fun restoreAction(key: String): Boolean =
         runCatching { api.restoreActionItem(key) }.isSuccess

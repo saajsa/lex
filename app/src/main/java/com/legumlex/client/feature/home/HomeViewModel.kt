@@ -137,6 +137,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = HomeUiState.Ready(
                     it.copy(actionItems = applyDismissed(it.actionItems)),
                 )
+                // The header's queue button reads the same queue.
+                ActionHub.set(applyDismissed(it.actionItems))
             }
             .onFailure { e ->
                 val msg = when (e) {

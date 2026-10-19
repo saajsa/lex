@@ -373,21 +373,8 @@ private fun HomeContent(
                 )
                 ConsultationFigures(data.workspaces, onOpenConsultations)
 
-                // 1. Action queue
-                ActionQueueBlock(
-                    bundle             = data.actionItems,
-                    onOpenInvoice      = onOpenInvoice,
-                    onOpenContract     = onOpenContract,
-                    onOpenConsultation = onOpenConsultation,
-                    onOpenCase         = onOpenCase,
-                    onOpenNotice       = onOpenNotice,
-                    onOpenTask         = onOpenTask,
-                    onOpenProject      = onOpenProject,
-                onOpenAgreement = onOpenAgreement,
-                    onOpenAhcFunnel    = onStartAgreementHealthCheckup,
-                    onAskNew           = onAskNew,
-                    onDismiss          = onDismissAction,
-                )
+                // The action queue lives behind the header's queue button now
+                // (ActionQueueScreen), beside the bell.
 
                 // 2. Next event
                 NextEventBlock(
@@ -408,7 +395,7 @@ private fun HomeContent(
 // ── 1. Action queue ─────────────────────────────────────────────────────────
 
 @Composable
-private fun ActionQueueBlock(
+internal fun ActionQueueBlock(
     bundle: ActionItemsBundle,
     onOpenInvoice: (String) -> Unit,
     onOpenContract: (String) -> Unit,
@@ -421,12 +408,13 @@ private fun ActionQueueBlock(
     onOpenAhcFunnel: () -> Unit,
     onAskNew: () -> Unit,
     onDismiss: (ActionItem) -> Unit,
+    showHeader: Boolean = true,
 ) {
     val ctx = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
 
         // Section header — title left, counts pill right
-        Row(
+        if (showHeader) Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

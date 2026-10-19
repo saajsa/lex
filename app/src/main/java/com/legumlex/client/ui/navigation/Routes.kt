@@ -26,6 +26,7 @@ sealed class Route(val path: String) {
     data object More          : Route("more")
     data object Registry      : Route("registry")
     data object DigitalOffice : Route("office")
+    data object ActionQueue   : Route("actions")
 
     // Account
     data object Profile       : Route("profile")

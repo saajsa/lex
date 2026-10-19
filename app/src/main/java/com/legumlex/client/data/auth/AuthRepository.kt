@@ -74,6 +74,7 @@ class AuthRepository(
         PushSetup.clear()
         com.legumlex.client.feature.profile.ProfileHub.clear()
         com.legumlex.client.feature.notifications.NotificationHub.clear()
+        com.legumlex.client.feature.home.ActionHub.clear()
         tokens.clear()
         clearDocumentCache()
     }
