@@ -21,7 +21,6 @@ import com.legumlex.client.data.auth.AuthRepository
 import com.legumlex.client.data.auth.TokenStore
 import kotlinx.coroutines.launch
 import com.legumlex.client.feature.auth.LoginScreen
-import com.legumlex.client.feature.auth.RegisterPlaceholderScreen
 import com.legumlex.client.feature.auth.SplashScreen
 import com.legumlex.client.feature.auth.WelcomeScreen
 import com.legumlex.client.feature.calendar.CalendarScreen
@@ -109,11 +108,7 @@ fun LegumNavGraph(navController: NavHostController) {
                         popUpTo(Route.Login.path) { inclusive = true }
                     }
                 },
-                onRegister = { navController.navigate(Route.Register.path) },
             )
-        }
-        composable(Route.Register.path) {
-            RegisterPlaceholderScreen(onBack = { navController.popBackStack() })
         }
 
         // --- Main shell (bottom-nav tabs) ---
@@ -333,6 +328,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpenDocument     = { file ->
                     navController.navigate(Route.CaseDocViewer.build("file", file.id, file.name))
                 },
+                onOpenHearing      = { id -> navController.navigate(Route.HearingDetail.build(id)) },
             )
         }
 
@@ -372,6 +368,7 @@ fun LegumNavGraph(navController: NavHostController) {
             ConsultationDetailScreen(
                 consultationId = id,
                 onBack         = { navController.popBackStack() },
+                onNewConsultation = { navController.navigate(Route.NewConsultation.path) },
                 onOpenCase     = { caseId ->
                     navController.navigate(Route.CaseDetail.build(caseId)) {
                         popUpTo(Route.Matters.path)

@@ -64,6 +64,9 @@ fun DetailGeneral(
     onOpenCase: (String) -> Unit,
     onOpenThread: (String) -> Unit,
     onOpenSpec: () -> Unit = {},
+    /** Withdraw / Close, as the other consultation kinds have them. */
+    topBarActions: @Composable () -> Unit = {},
+    onNewConsultation: () -> Unit = onBack,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isSending by vm.isSending.collectAsState()
@@ -105,7 +108,7 @@ fun DetailGeneral(
                     if (msg.isNotBlank()) { vm.sendReply(msg); composing = "" }
                 },
                 onAttach = { filePicker.launch(arrayOf("*/*")) },
-                onNewConsultation = onBack,
+                onNewConsultation = onNewConsultation,
                 isSending = isSending,
                 locked = isLocked,
                 advocate = advName(consultation.assignedTo),
@@ -120,7 +123,7 @@ fun DetailGeneral(
                 .padding(bottom = 14.dp),
         ) {
             // ── masthead (kind chip + ref + serif subject) ──────────────────
-            Masthead(consultation, onOpenSpec)
+            Masthead(consultation, onOpenSpec, topBarActions)
 
             // ── status hero (left colour band) ──────────────────────────────
             Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = 2.dp)) {
@@ -197,7 +200,7 @@ private fun phaseOf(c: Consultation): GenPhase {
 // =============================================================================
 
 @Composable
-private fun Masthead(c: Consultation, onOpenSpec: () -> Unit) {
+private fun Masthead(c: Consultation, onOpenSpec: () -> Unit, actions: @Composable () -> Unit) {
     val isNotice = c.kind == com.legumlex.client.feature.consultations.ConsultationKind.LEGAL_NOTICE
     Row(
         Modifier
@@ -220,7 +223,7 @@ private fun Masthead(c: Consultation, onOpenSpec: () -> Unit) {
                         null, tint = LlColor.InkMuted, modifier = Modifier.size(13.dp),
                     )
                     Text(
-                        if (isNotice) "LEGAL NOTICE" else "GENERAL",
+                        c.kind.label.uppercase(),
                         fontFamily = Inter, fontWeight = FontWeight.Bold,
                         fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkMuted,
                     )
@@ -245,8 +248,9 @@ private fun Masthead(c: Consultation, onOpenSpec: () -> Unit) {
                 .clickable(onClick = onOpenSpec),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Outlined.Info, null, tint = LlColor.InkMuted, modifier = Modifier.size(21.dp))
+            Icon(Icons.Outlined.Info, "Details", tint = LlColor.InkMuted, modifier = Modifier.size(21.dp))
         }
+        actions()
     }
 }
 
@@ -273,11 +277,11 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
         )
         GenPhase.CLOSED -> Spec(
             LlColor.InkFaint, Icons.Outlined.Inventory2, "Closed",
-            "This inquiry was closed. The full conversation stays here for your records.",
+            "This enquiry was closed. The full conversation stays here for your records.",
         )
         GenPhase.DECLINED -> Spec(
             LlColor.Claret, Icons.Outlined.Block, "Declined",
-            reason ?: "Your advocate was unable to take this inquiry on.",
+            reason ?: "Your advocate was unable to take this enquiry on.",
         )
     }
 
@@ -607,7 +611,7 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
         ) { Icon(Icons.Outlined.MarkEmailUnread, null, tint = LlColor.AmberMid, modifier = Modifier.size(27.dp)) }
         Spacer(Modifier.height(15.dp))
         Text(
-            if (phase == GenPhase.CLOSED) "This inquiry is closed" else "Your question is with ${advName(c.assignedTo)}",
+            if (phase == GenPhase.CLOSED) "This enquiry is closed" else "Your question is with ${advName(c.assignedTo)}",
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
             letterSpacing = (-0.01).em, color = LlColor.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
@@ -725,7 +729,7 @@ private fun Composer(
                 ) {
                     Icon(Icons.Outlined.Lock, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
                     Text(
-                        "This inquiry is closed. Start a new consultation to continue.",
+                        "This enquiry is closed. Start a new consultation to continue.",
                         fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted,
                     )
                 }

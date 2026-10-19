@@ -81,6 +81,8 @@ data class DeskUi(
     val error: String = "",
     val files: List<DeskFile> = emptyList(),
     val terms: DeskTerms = DeskTerms(),
+    /** The funnel's terms have arrived; until then nothing is said about the fee. */
+    val termsLoaded: Boolean = false,
     /** The conversation shows once the first question is sent, as the page's open(); before, the intro. */
     val opened: Boolean = false,
     /** What the question composer should hold when it comes back (a "Change"). */
@@ -129,7 +131,11 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     private var nextId = 0L
 
     private val flow = Mutex()
-    private val terms: Job = viewModelScope.launch { repo.terms()?.let { t -> _ui.update { it.copy(terms = t) } } }
+    private val terms: Job = viewModelScope.launch {
+        // One retry: the fee line must come from the funnel, never a default.
+        val t = repo.terms() ?: run { delay(1_500); repo.terms() }
+        t?.let { v -> _ui.update { it.copy(terms = v, termsLoaded = true) } }
+    }
 
     init { go { next() } }
 

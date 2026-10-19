@@ -191,9 +191,14 @@ fun DeskScreen(
                 Spacer(Modifier.height(10.dp))
             }
             Box(Modifier.padding(horizontal = 14.dp)) {
-                QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
+                if (ui.termsLoaded && !ui.terms.isActive) {
+                    Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
+                        style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
+                } else {
+                    QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
+                }
             }
-            Disclaimer(ui.terms, compact = typing)
+            if (ui.termsLoaded) Disclaimer(ui.terms, compact = typing)
             if (!typing) {
                 Services(onAgreement) { tracking = true }
                 Foot(ui.terms.firm)
@@ -212,7 +217,7 @@ fun DeskScreen(
                     is Dock.Waiting -> WaitLine(d.label)
                 }
             }
-            Disclaimer(ui.terms, compact = true)
+            if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         }
     }
 

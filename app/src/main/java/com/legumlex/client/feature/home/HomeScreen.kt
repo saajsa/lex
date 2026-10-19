@@ -1073,7 +1073,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 11.5.sp,
                     letterSpacing = 0.46.sp,
-                    color      = Color.White,
+                    color      = com.legumlex.client.ui.theme.InverseText,
                 )
             }
         }
@@ -1812,7 +1812,7 @@ private fun LiveSessionBanner(
         else                                   -> "is ready"
     }
 
-    Column(modifier = Modifier.fillMaxWidth().background(AccentInk)) {
+    Column(modifier = Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF18181B))  /* dark in both themes: its text is white */) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1863,7 +1863,7 @@ private fun LiveSessionBanner(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(com.legumlex.client.ui.theme.Lex.colors.card)
+                .background(Color.White)
                 .clickable {
                     val link = ev?.meetLink
                     when {
@@ -1896,7 +1896,7 @@ private fun LiveSessionBanner(
                     fontSize      = 12.sp,
                     letterSpacing = 0.48.sp,
                 ),
-                color = PrimaryText,
+                color = Color(0xFF18181B),
             )
             Spacer(Modifier.width(6.dp))
             Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = PrimaryText, modifier = Modifier.size(14.dp))

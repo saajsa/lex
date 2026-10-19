@@ -16,7 +16,7 @@ import java.time.temporal.ChronoUnit
 // mistake, not a design mistake."
 // -----------------------------------------------------------------------------
 enum class ConsultationKind(val apiValue: String, val label: String) {
-    GENERAL        ("general",          "General inquiry"),
+    GENERAL        ("general",          "General Enquiry"),
     // From the Legum Lex desk (Consult); the portal's pill says "Legal Enquiry".
     LEGAL_ENQUIRY  ("legal_enquiry",    "Legal Enquiry"),
     AHC            ("agreement_review", "Agreement Check"),

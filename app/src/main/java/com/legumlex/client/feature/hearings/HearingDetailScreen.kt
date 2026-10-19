@@ -68,9 +68,7 @@ fun HearingDetailScreen(
 
     Scaffold(
         bottomBar = {
-            if (state is HearingDetailUiState.Ready) {
-                StickyActions()
-            }
+            (state as? HearingDetailUiState.Ready)?.let { StickyActions(it.hearing) }
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { inner ->
@@ -321,7 +319,8 @@ private fun Divider() = HorizontalDivider(color = BorderSubtle)
 // --- Sticky bottom bar ---------------------------------------------------
 
 @Composable
-private fun StickyActions() {
+private fun StickyActions(h: Hearing) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val spacing = LocalSpacing.current
     Surface(
         color = MaterialTheme.colorScheme.background,
@@ -335,16 +334,13 @@ private fun StickyActions() {
                 .padding(horizontal = spacing.s4, vertical = spacing.s3),
             horizontalArrangement = Arrangement.spacedBy(spacing.s3),
         ) {
-            LegumSecondaryButton(
-                text        = "Calendar",
-                leadingIcon = Icons.Outlined.CalendarMonth,
-                onClick     = { /* CalendarContract intent, later */ },
-                modifier    = Modifier.weight(1f),
-            )
+            // The hearing into the phone's own calendar, with its reminders. The
+            // firm's reminder emails come from the server, as they do on the web.
             LegumPrimaryButton(
-                text        = "Remind Me",
-                leadingIcon = Icons.Outlined.NotificationsActive,
-                onClick     = { /* WorkManager schedule, later */ },
+                text        = "Add To Calendar",
+                leadingIcon = Icons.Outlined.CalendarMonth,
+                enabled     = h.date != null,
+                onClick     = { addToCalendar(ctx, h) },
                 modifier    = Modifier.weight(1f),
             )
         }
@@ -407,5 +403,24 @@ private fun HearingDetailError(message: String, onRetry: () -> Unit) {
             onClick     = onRetry,
             modifier    = Modifier.widthIn(max = 280.dp),
         )
+    }
+}
+
+
+private fun addToCalendar(context: android.content.Context, h: Hearing) {
+    val date = h.date ?: return
+    val zone = java.time.ZoneId.systemDefault()
+    val start = date.atTime(h.time ?: java.time.LocalTime.of(10, 0))
+    val intent = android.content.Intent(android.content.Intent.ACTION_INSERT).apply {
+        data = android.provider.CalendarContract.Events.CONTENT_URI
+        putExtra(android.provider.CalendarContract.Events.TITLE, "Hearing · ${h.caseTitle}")
+        putExtra(android.provider.CalendarContract.Events.EVENT_LOCATION, listOfNotNull(h.courtName, h.courtNumber?.let { "Court $it" }).joinToString(", "))
+        putExtra(android.provider.CalendarContract.Events.DESCRIPTION, h.purpose ?: "Hearing in ${h.caseNumber.ifBlank { h.caseTitle }}")
+        putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, start.atZone(zone).toInstant().toEpochMilli())
+        putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, start.plusHours(1).atZone(zone).toInstant().toEpochMilli())
+        putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, h.time == null)
+    }
+    try { context.startActivity(intent) } catch (_: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(context, "No calendar app is installed.", android.widget.Toast.LENGTH_SHORT).show()
     }
 }

@@ -63,7 +63,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
-    onRegister: () -> Unit,
 ) {
     val spacing  = LocalSpacing.current
     val context  = LocalContext.current
@@ -172,16 +171,19 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Someone new becomes a client through the Legum Lex desk on the
+            // website (Consult, Google sign-in), as they do from the site.
+            val ctx = androidx.compose.ui.platform.LocalContext.current
             Text(
-                "New client?",
+                "New to Legum Lex?",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SecondaryText,
             )
             TextButton(
-                onClick = onRegister,
+                onClick = { openSite(ctx, "?desk=1") },
                 colors  = ButtonDefaults.textButtonColors(contentColor = AccentInk),
             ) {
-                Text("Register", style = MaterialTheme.typography.labelLarge)
+                Text("Consult Us", style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -298,13 +300,15 @@ private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean) {
 
     Spacer(Modifier.height(spacing.s2))
 
+    val fpCtx = androidx.compose.ui.platform.LocalContext.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         TextButton(
-            onClick = { /* Forgot flow — not in v1 scope. */ },
+            // The portal's own reset: a link to the address on file.
+            onClick = { openSite(fpCtx, "authentication/forgot_password") },
             colors = ButtonDefaults.textButtonColors(contentColor = SecondaryText),
             enabled = !busy,
         ) {
-            Text("Forgot password?", style = MaterialTheme.typography.bodyMedium)
+            Text("Forgot Password?", style = MaterialTheme.typography.bodyMedium)
         }
     }
 
@@ -501,4 +505,15 @@ private fun Context.requireActivity(): ComponentActivity {
         ctx = ctx.baseContext
     }
     error("LoginScreen must be hosted in a ComponentActivity")
+}
+
+
+/** A page of the Legum Lex site, beside the API, in the browser. */
+internal fun openSite(context: android.content.Context, path: String) {
+    val site = com.legumlex.client.BuildConfig.API_BASE_URL.substringBefore("customers_api/")
+    try {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(site + path)))
+    } catch (_: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(context, "No browser is installed.", android.widget.Toast.LENGTH_SHORT).show()
+    }
 }

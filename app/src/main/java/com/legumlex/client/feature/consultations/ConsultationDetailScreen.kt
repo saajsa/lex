@@ -62,6 +62,7 @@ fun ConsultationDetailScreen(
     onOpenAhcDocument: (String) -> Unit = {},
     onOpenDocFile: (rid: String, name: String?) -> Unit = { _, _ -> },
     onOpenVideoLobby: (consultationId: String) -> Unit = {},
+    onNewConsultation: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -173,6 +174,8 @@ fun ConsultationDetailScreen(
                         onOpenCase   = onOpenCase,
                         onOpenThread = onOpenThread,
                         onOpenSpec   = openSpec,
+                        topBarActions = actionsMenu,
+                        onNewConsultation = onNewConsultation,
                     )
                     ConsultationKind.AHC            -> DetailAHC(
                         consultation       = c,

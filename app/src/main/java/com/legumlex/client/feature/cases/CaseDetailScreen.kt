@@ -70,6 +70,7 @@ fun CaseDetailScreen(
     onOpenConsultation: (String) -> Unit = {},
     onOpenDocument: (CaseFile) -> Unit = {},
     onOpenOrderDocument: (CaseOrder) -> Unit = {},
+    onOpenHearing: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -90,7 +91,7 @@ fun CaseDetailScreen(
                 is CaseDetailUiState.Loading -> CaseDetailSkeleton()
                 is CaseDetailUiState.Error -> CaseDetailError(s.message, vm::load)
                 is CaseDetailUiState.Ready -> PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = vm::refresh) {
-                    CaseDetailReady(s.detail, s.timeline, tab, { tab = it }, onOpenConsultation, onOpenDocument, onOpenOrderDocument)
+                    CaseDetailReady(s.detail, s.timeline, tab, { tab = it }, onOpenConsultation, onOpenDocument, onOpenOrderDocument, onOpenHearing)
                 }
             }
         }
@@ -106,6 +107,7 @@ private fun CaseDetailReady(
     onOpenConsultation: (String) -> Unit,
     onOpenDocument: (CaseFile) -> Unit,
     onOpenOrderDocument: (CaseOrder) -> Unit,
+    onOpenHearing: (String) -> Unit,
 ) {
     val today = remember { LocalDate.now() }
     val disposed = detail.summary.status == CaseStatus.SETTLED || detail.summary.status == CaseStatus.CLOSED
@@ -127,7 +129,7 @@ private fun CaseDetailReady(
 
         when (tab) {
             0 -> OverviewPanel(detail, timeline, disposed, onOpenConsultation)
-            1 -> HearingsPanel(detail, onOpenOrderDocument)
+            1 -> HearingsPanel(detail, onOpenOrderDocument, onOpenHearing)
             else -> DocsPanel(detail, onOpenDocument)
         }
         Spacer(Modifier.height(8.dp))
@@ -490,7 +492,7 @@ private fun RateCard() {
 // =============================================================================
 
 @Composable
-private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -> Unit) {
+private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -> Unit, onOpenHearing: (String) -> Unit) {
     // Orders are shown inside the hearing they were passed at (matched by date).
     // The final judgement (order_type = final) is excluded — it lives in Docs.
     val inlineOrders = detail.orders.filter { !it.type.equals("final", true) }
@@ -505,11 +507,11 @@ private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -
     Column(Modifier.padding(horizontal = 16.dp)) {
         if (detail.upcomingHearings.isNotEmpty()) {
             Slabel("Upcoming", count = detail.upcomingHearings.size, accent = true, first = true)
-            detail.upcomingHearings.forEach { HearingCard(it, ordersFor(it), detail, past = false, onOpenOrderDocument) }
+            detail.upcomingHearings.forEach { HearingCard(it, ordersFor(it), detail, past = false, onOpenOrderDocument, onOpenHearing) }
         }
         if (detail.pastHearings.isNotEmpty()) {
             Slabel("Past hearings", count = detail.pastHearings.size, first = detail.upcomingHearings.isEmpty())
-            detail.pastHearings.forEach { HearingCard(it, ordersFor(it), detail, past = true, onOpenOrderDocument) }
+            detail.pastHearings.forEach { HearingCard(it, ordersFor(it), detail, past = true, onOpenOrderDocument, onOpenHearing) }
         }
         // Any order not tied to a listed hearing still surfaces here.
         if (orphanOrders.isNotEmpty()) {
@@ -525,11 +527,12 @@ private fun HearingsPanel(detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -
 }
 
 @Composable
-private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDetail, past: Boolean, onOpenOrderDocument: (CaseOrder) -> Unit) {
+private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDetail, past: Boolean, onOpenOrderDocument: (CaseOrder) -> Unit, onOpenHearing: (String) -> Unit) {
     Column(
         Modifier.fillMaxWidth().padding(top = 10.dp).clip(LlShape.Card)
             .background(if (past) LlColor.Paper1 else LlColor.Surface)
             .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card)
+            .clickable(enabled = h.id.isNotBlank()) { onOpenHearing(h.id) }
             .padding(horizontal = 15.dp, vertical = 13.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
