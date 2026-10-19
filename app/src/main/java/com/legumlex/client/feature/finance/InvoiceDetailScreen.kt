@@ -196,14 +196,14 @@ private fun Sheet(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
-                Letterhead(inv)
+                Letterhead(inv, detail.issuer)
                 StatusPill(inv)
                 if (!inv.projectName.isNullOrBlank()) MatterBlock(inv)
                 BalanceHero(detail)
                 ActionStack(state, onPay, onAmountChange)
                 AmountSummary(detail)
                 ExpandableBreakdown(detail)
-                FirmFooter()
+                FirmFooter(detail.issuer)
             }
         }
     }
@@ -212,7 +212,7 @@ private fun Sheet(
 // 1 · Letterhead -------------------------------------------------------------
 
 @Composable
-private fun Letterhead(inv: Invoice) {
+private fun Letterhead(inv: Invoice, issuer: Issuer?) {
     val overdue = inv.status == InvoiceStatus.OVERDUE
     Column {
         // claret hairline cap
@@ -223,17 +223,20 @@ private fun Letterhead(inv: Invoice) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Ink),
-                        contentAlignment = Alignment.Center,
-                    ) { LegumMark(size = 22.dp, fillColor = LlColor.Paper) }
-                    Spacer(Modifier.width(11.dp))
+                // The issuer as the invoice prints it: its logo and name, or
+                // nothing invented while it is unknown.
+                Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
+                    issuer?.logoUrl?.let { url ->
+                        coil.compose.AsyncImage(model = url, contentDescription = null,
+                            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)))
+                        Spacer(Modifier.width(11.dp))
+                    }
                     Column {
-                        Text("Legum Lex", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+                        Text(issuer?.name ?: "Invoice", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
-                        Text("ADVOCATES", fontFamily = Inter, fontWeight = FontWeight.Bold,
-                            fontSize = 8.5.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
+                        issuer?.gstin?.takeIf { it.isNotBlank() }?.let {
+                            Text("GSTIN $it", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
+                        }
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -683,29 +686,23 @@ private fun PaymentItem(p: Payment, symbol: String) {
 // 8 · Footer -----------------------------------------------------------------
 
 @Composable
-private fun FirmFooter() {
-    val context = LocalContext.current
+private fun FirmFooter(issuer: Issuer?) {
+    if (issuer == null) return
     Spacer(Modifier.height(18.dp))
     Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
     Column(
         Modifier.fillMaxWidth().background(LlColor.Paper1).padding(horizontal = 18.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Legum Lex, Advocates", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
-        Spacer(Modifier.height(7.dp))
-        Text(
-            "Office No. 10 & 11, Casablanca CHS, Jesal Park,\nBhayander (East), Mumbai 401105",
-            fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 15.sp,
-            color = LlColor.InkMuted, textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "+91 98194 64324",
-            fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = LlColor.Ink,
-            modifier = Modifier.clickable {
-                try { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+919819464324"))) } catch (_: Exception) {}
-            },
-        )
+        Text(issuer.legal.ifBlank { issuer.name }, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+        if (issuer.address.isNotBlank()) {
+            Spacer(Modifier.height(7.dp))
+            Text(issuer.address, fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 15.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center)
+        }
+        if (issuer.email.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(issuer.email, fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = LlColor.Ink)
+        }
     }
 }
 

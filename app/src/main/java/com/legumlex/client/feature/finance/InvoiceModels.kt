@@ -58,7 +58,11 @@ data class InvoiceDetail(
     val notes: String?,
     val items: List<InvoiceItem>,
     val payments: List<Payment>,
+    /** Who issued it, as the invoice prints it (cases_document_supplier). */
+    val issuer: Issuer? = null,
 )
+
+data class Issuer(val name: String, val legal: String, val address: String, val gstin: String, val email: String, val logoUrl: String?)
 
 data class InvoiceItem(
     val description: String,

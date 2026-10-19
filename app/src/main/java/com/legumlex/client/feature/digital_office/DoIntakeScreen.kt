@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.legumlex.client.ui.theme.Lex
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -317,7 +318,7 @@ private fun WaitingRings(initial: String, avatarUrl: String?, ringColor: Color) 
         Box(
             modifier = Modifier
                 .size(84.dp)
-                .border(3.dp, Color.White, CircleShape)
+                .border(3.dp, LexCard, CircleShape)
                 .clip(CircleShape)
                 .background(Color(0xFF1E3A5F)),
             contentAlignment = Alignment.Center,
@@ -454,28 +455,28 @@ private fun TerminalStateBlock(
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 13.sp,
                     letterSpacing = 0.5.sp,
-                    color      = Color.White,
+                    color      = LexOnInk,
                 )
             }
         }
     }
 }
 
-// Lexcore palette tokens — file-private. When the chamber/landing tokens
-// move into ui/theme/Lexcore.kt, this file should import them from there.
-private val LexClaret      = Color(0xFF7D1930)
-private val LexClaretSoft  = Color(0xFFFDF2F4)
-private val LexVerdant     = Color(0xFF1A5C3A)
-private val LexVerdantSoft = Color(0xFFF0FAF4)
-private val LexAmber       = Color(0xFF92400E)
-private val LexAmberSoft   = Color(0xFFFFFBEB)
-private val LexInk         = Color(0xFF1C1917)
-private val LexInkMuted    = Color(0xFF57534E)
-private val LexInkFaint    = Color(0xFFA8A29E)
-private val LexBorder      = Color(0xFFE7E2DB)
-private val LexBorderStrong= Color(0xFFD4CDC5)
-private val LexPaper       = Color(0xFFFAF9F7)
-private val LexSurface1    = Color(0xFFF5F2EE)
+// The theme's own colours (light and dark), named as this screen used them.
+// The urgency tiles keep fixed status colours with white text.
+private val LexClaret: Color      @Composable get() = Lex.colors.primary
+private val LexVerdant            = Color(0xFF1A5C3A)
+private val LexAmber              = Color(0xFF92400E)
+private val LexUrgent             = Color(0xFF7D1930)
+private val LexInk: Color         @Composable get() = Lex.colors.foreground
+private val LexInkMuted: Color    @Composable get() = Lex.colors.mutedForeground
+private val LexInkFaint: Color    @Composable get() = Lex.colors.faint
+private val LexBorder: Color      @Composable get() = Lex.colors.border
+private val LexBorderStrong: Color @Composable get() = Lex.colors.input
+private val LexPaper: Color       @Composable get() = Lex.colors.background
+private val LexSurface1: Color    @Composable get() = Lex.colors.muted
+private val LexCard: Color        @Composable get() = Lex.colors.card
+private val LexOnInk: Color       @Composable get() = Lex.colors.primaryForeground
 
 private data class IntakeArea(val key: String, val label: String, val icon: ImageVector)
 private val INTAKE_AREAS = listOf(
@@ -491,7 +492,7 @@ private data class IntakeUrgency(val key: String, val label: String, val color: 
 private val INTAKE_URGENCIES = listOf(
     IntakeUrgency("low",  "Low",        LexVerdant),
     IntakeUrgency("med",  "This week",  LexAmber),
-    IntakeUrgency("high", "Urgent",     LexClaret),
+    IntakeUrgency("high", "Urgent",     LexUrgent),
 )
 
 @Composable
@@ -679,8 +680,8 @@ private fun AreaChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bg     = if (selected) LexInk else Color.White
-    val fg     = if (selected) LexPaper else LexInkMuted
+    val bg     = if (selected) LexInk else LexCard
+    val fg     = if (selected) LexOnInk else LexInkMuted
     val border = if (selected) LexInk else LexBorder
     Row(
         modifier = modifier
@@ -710,8 +711,8 @@ private fun UrgencySegmentedControl(selected: String?, onSelect: (String) -> Uni
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         INTAKE_URGENCIES.forEach { u ->
             val isSel = selected == u.key
-            val bg     = if (isSel) u.color else Color.White
-            val fg     = if (isSel) LexPaper else LexInkMuted
+            val bg     = if (isSel) u.color else LexCard
+            val fg     = if (isSel) Color.White else LexInkMuted
             val border = if (isSel) u.color else LexBorder
             Row(
                 modifier = Modifier
@@ -769,9 +770,9 @@ private fun IntakeTextarea(
             unfocusedBorderColor = LexBorder,
             disabledBorderColor  = LexBorder,
             cursorColor          = LexClaret,
-            focusedContainerColor   = Color.White,
-            unfocusedContainerColor = Color.White,
-            disabledContainerColor  = Color.White,
+            focusedContainerColor   = LexCard,
+            unfocusedContainerColor = LexCard,
+            disabledContainerColor  = LexCard,
         ),
     )
 }
@@ -840,7 +841,7 @@ private fun IntakeActionBar(
             ) {
                 if (submitting) {
                     CircularProgressIndicator(
-                        color       = Color.White,
+                        color       = LexOnInk,
                         strokeWidth = 2.dp,
                         modifier    = Modifier.size(18.dp),
                     )
@@ -851,7 +852,7 @@ private fun IntakeActionBar(
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 13.sp,
                         letterSpacing = 0.5.sp,
-                        color      = Color.White,
+                        color      = LexOnInk,
                     )
                 } else {
                     Text(
@@ -861,13 +862,13 @@ private fun IntakeActionBar(
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 13.sp,
                         letterSpacing = 0.5.sp,
-                        color      = Color.White,
+                        color      = LexOnInk,
                     )
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = LexOnInk,
                         modifier = Modifier.size(18.dp),
                     )
                 }

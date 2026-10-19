@@ -123,6 +123,16 @@ private fun parseDetail(m: Map<String, Any?>): InvoiceDetail {
         notes      = (m["clientnote"] as? String)?.takeIf { it.isNotBlank() },
         items      = items,
         payments   = payments,
+        issuer     = (m["issuer"] as? Map<*, *>)?.let { i ->
+            Issuer(
+                name    = (i["name"] as? String).orEmpty(),
+                legal   = (i["legal"] as? String).orEmpty(),
+                address = (i["address"] as? String).orEmpty(),
+                gstin   = (i["gstin"] as? String).orEmpty(),
+                email   = (i["email"] as? String).orEmpty(),
+                logoUrl = (i["logo_url"] as? String)?.takeIf { it.isNotBlank() },
+            )
+        }?.takeIf { it.name.isNotBlank() },
     )
 }
 

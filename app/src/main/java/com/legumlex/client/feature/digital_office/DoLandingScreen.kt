@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.legumlex.client.ui.theme.Lex
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -62,13 +63,13 @@ private val LexSlateDeep = Color(0xFF15293F)
 private val LexSlateMid  = Color(0xFFCDD8E8)
 private val LexSlateFog  = Color(0xFF9FB0C6)
 private val LexClaret    = Color(0xFF7D1930)
-private val LexClaretSoft= Color(0xFFFDF2F4)
+private val LexClaretSoft: Color @Composable get() = Lex.colors.danger.softBg
 private val LexVerdant   = Color(0xFF1A5C3A)
-private val LexInkMuted  = Color(0xFF57534E)
-private val LexInkFaint  = Color(0xFFA8A29E)
-private val LexBorder    = Color(0xFFE7E2DB)
-private val LexPaper     = Color(0xFFFAF9F7)
-private val LexSurface1  = Color(0xFFF5F2EE)
+private val LexInkMuted: Color @Composable get() = Lex.colors.mutedForeground
+private val LexInkFaint: Color @Composable get() = Lex.colors.faint
+private val LexBorder: Color @Composable get() = Lex.colors.border
+private val LexPaper: Color @Composable get() = Lex.colors.background
+private val LexSurface1: Color @Composable get() = Lex.colors.muted
 
 /**
  * Digital Office landing screen — the calm, client-first advocate page.
@@ -244,7 +245,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
             HeroStatus(open = chamber.isOpen, busy = advocate?.isBusy == true, advocate = advocate)
             Spacer(Modifier.height(7.dp))
             Text(
-                text       = if (chamber.isOpen) "We usually connect you in under 2 minutes"
+                text       = if (chamber.isOpen) "The advocate reads what you write, then answers your knock"
                              else "Opens ${chamber.hours.ifBlank { "9:00 AM" }}",
                 fontFamily = Inter,
                 fontSize   = 10.5.sp,
@@ -379,7 +380,7 @@ private fun BenefitsBlock() {
     Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 22.dp)) {
         SectionEyebrow("WHAT YOU'LL GET")
         Surface(
-            color  = Color.White,
+            color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
@@ -388,29 +389,29 @@ private fun BenefitsBlock() {
             Column {
                 BenefitRow(
                     icon  = Icons.Outlined.Videocam,
-                    title = "A private video consult",
-                    sub   = "One-to-one with your advocate — no one else in the room",
+                    title = "A consultation on Google Meet",
+                    sub   = "One-to-one with your advocate, in the Meet app on your phone",
                     first = true,
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Schedule,
-                    title = "An unhurried conversation",
-                    sub   = "Time to explain everything and ask anything",
+                    title = "Read before the call",
+                    sub   = "The advocate reads what you wrote before deciding to take it",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Savings,
-                    title = "Your first consult is free",
-                    sub   = "No card, no commitment — just walk in",
+                    title = "Nothing charged until they agree",
+                    sub   = "The fee is shown before you pay, and only once the advocate has agreed",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Summarize,
-                    title = "A written summary you keep",
-                    sub   = "Clear next steps, sent to you right after",
+                    title = "On your file",
+                    sub   = "The consultation stays in Consultations, with the advocate's replies",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Lock,
                     title = "Private & confidential",
-                    sub   = "Encrypted end-to-end — what you share stays yours",
+                    sub   = "Only you and your advocate are in the call",
                 )
             }
         }
@@ -451,16 +452,17 @@ private fun WalkInStepsBlock() {
     Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 0.dp)) {
         SectionEyebrow("WHAT HAPPENS WHEN YOU WALK IN")
         Surface(
-            color  = Color.White,
+            color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column {
-                StepRow(n = "1", title = "Tell us what's going on", sub = "A two-minute note so you needn't repeat yourself", trailing = Icons.Outlined.EditNote, first = true)
-                StepRow(n = "2", title = "We connect you",          sub = "A short hold — usually under two minutes",      trailing = Icons.Outlined.HourglassTop)
-                StepRow(n = "3", title = "Talk it through",         sub = "A calm, private video call with your advocate",  trailing = Icons.Outlined.Videocam)
+                // The four steps of the Legum Lex chamber page's How It Works.
+                StepRow(n = "1", title = "Say what has happened", sub = "In your own words; the advocate reads it first", trailing = Icons.Outlined.EditNote, first = true)
+                StepRow(n = "2", title = "The advocate agrees",   sub = "They read it before deciding to take the call",   trailing = Icons.Outlined.HourglassTop)
+                StepRow(n = "3", title = "Face to face",          sub = "The consultation opens in Google Meet",           trailing = Icons.Outlined.Videocam)
             }
         }
     }
@@ -516,7 +518,7 @@ private fun AboutAdvocateBlock(advocate: ChamberAdvocate?, chamber: ChamberState
     Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 22.dp)) {
         SectionEyebrow("ABOUT YOUR ADVOCATE")
         Surface(
-            color  = Color.White,
+            color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
@@ -567,17 +569,20 @@ private fun WhenYouCanWalkInBlock(chamber: ChamberState) {
     Column(modifier = Modifier.padding(horizontal = 18.dp)) {
         SectionEyebrow("WHEN YOU CAN WALK IN")
         Surface(
-            color  = Color.White,
+            color  = Lex.colors.card,
             border = BorderStroke(1.dp, LexBorder),
             shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(horizontal = 15.dp, vertical = 6.dp)) {
-                val hours = chamber.hours.ifBlank { "3:30 – 9:00 PM IST" }
-                ScheduleRow(day = "Mon – Fri", hours = hours, today = chamber.isOpen)
-                ScheduleRow(day = "Sat",       hours = "11:00 AM – 2:00 PM")
-                ScheduleRow(day = "Sun",       hours = "Closed", closed = true, last = true)
+                val h = chamber.sitting
+                fun t(m: Int) = java.time.LocalTime.of(m / 60, m % 60).format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+                val names = listOf("", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+                val days = if (h.days.size > 1) "${names[h.days.first()]} – ${names[h.days.last()]}" else names[h.days.first()]
+                val off = (1..7).filter { it !in h.days }.joinToString(", ") { names[it] }
+                ScheduleRow(day = days, hours = "${t(h.from)} – ${t(h.to)}", today = chamber.isOpen, last = off.isEmpty())
+                if (off.isNotEmpty()) ScheduleRow(day = off, hours = "Closed", closed = true, last = true)
             }
         }
     }
@@ -625,7 +630,7 @@ private fun WalkInActionBar(
     val hint    = when {
         !open    -> "Walk-in closed — back at ${chamber.hours.ifBlank { "9:00 AM" }}"
         busy     -> "Adv. ${advocate?.name ?: "your advocate"} is in another consult · join the queue"
-        feeFree  -> "Open now · your first consult is free"
+        feeFree  -> "Open now"
         else     -> "Open now · ₹${"%,d".format(chamber.sessionFee.toLong())} for the session"
     }
     val ctaText = when {
