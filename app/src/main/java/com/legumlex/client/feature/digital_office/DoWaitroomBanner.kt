@@ -78,7 +78,7 @@ private fun PromptedBanner(row: DoWaitroomRow, onTap: (DoWaitroomRow) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF065F46))  // emerald-800 — high contrast
             .clickable { onTap(row) }
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -138,7 +138,7 @@ private fun WaitingBanner(row: DoWaitroomRow, onTap: (DoWaitroomRow) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onTap(row) }
             .padding(horizontal = 14.dp, vertical = 12.dp),

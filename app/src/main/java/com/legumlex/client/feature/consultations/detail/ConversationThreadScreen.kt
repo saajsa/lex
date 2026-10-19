@@ -33,7 +33,7 @@ import com.legumlex.client.ui.theme.AccentInk
 import com.legumlex.client.ui.theme.BorderColor
 import com.legumlex.client.ui.theme.BorderSubtle
 import com.legumlex.client.ui.theme.InverseText
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
@@ -153,7 +153,7 @@ private fun DaySeparator(date: LocalDate) {
         Text(
             date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
             style = MaterialTheme.typography.labelSmall.copy(
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.0.sp,
             ),
@@ -188,7 +188,7 @@ private fun ThreadMessage(r: Reply) {
                 r.createdAt?.let {
                     Text(
                         it.format(DateTimeFormatter.ofPattern("h:mm a")),
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 10.5.sp),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 10.5.sp),
                         color = TertiaryText,
                     )
                 }
@@ -237,7 +237,7 @@ private fun ThreadMessage(r: Reply) {
                 Text(
                     "SENT",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.96.sp,
                     ),
@@ -262,7 +262,7 @@ private fun InitialsAvatar(name: String, modifier: Modifier = Modifier) {
         Text(
             initials,
             color = InverseText,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize = 10.sp,
         )
@@ -305,7 +305,7 @@ private fun ThreadComposer(
                     singleLine = false,
                     maxLines = 5,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BorderColor,
                         unfocusedBorderColor = BorderColor,

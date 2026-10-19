@@ -1,12 +1,10 @@
 package com.legumlex.client.feature.consultations
 
-import com.legumlex.client.ui.theme.StatusAdjourned
-import com.legumlex.client.ui.theme.StatusClosed
-import com.legumlex.client.ui.theme.StatusDanger
-import com.legumlex.client.ui.theme.StatusOngoing
+import com.legumlex.client.ui.theme.LexColors
+import com.legumlex.client.ui.theme.Lex
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Composable
 import com.legumlex.client.ui.theme.StatusPalette
-import com.legumlex.client.ui.theme.StatusPending
-import com.legumlex.client.ui.theme.StatusSettled
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -40,18 +38,20 @@ enum class ConsultationKind(val apiValue: String, val label: String) {
 // from a server-derived status code + a few computed booleans the repo wires
 // up from related entities (pending docs, unread replies, etc.).
 // -----------------------------------------------------------------------------
-enum class ConsultationStatus(val label: String, val palette: StatusPalette) {
-    PENDING_REVIEW("Pending review",       StatusPending),
-    ACKNOWLEDGED  ("Acknowledged",         StatusOngoing),
-    IN_PROGRESS   ("In progress",          StatusOngoing),
-    SCHEDULED     ("Scheduled",            StatusAdjourned),
-    AWAITING_DOCS ("Awaiting documents",   StatusPending),
-    LIVE_NOW      ("Live now",             StatusSettled),
-    COMPLETED     ("Completed",            StatusSettled),
-    CONVERTED     ("Litigation",            StatusSettled),
-    CANCELLED     ("Cancelled",            StatusClosed),
-    CLOSED        ("Closed",               StatusClosed),
-    DECLINED      ("Declined",             StatusDanger);
+enum class ConsultationStatus(val label: String, private val tone: (LexColors) -> StatusPalette) {
+    PENDING_REVIEW("Pending review",       { it.warning }),
+    ACKNOWLEDGED  ("Acknowledged",         { it.blue }),
+    IN_PROGRESS   ("In progress",          { it.blue }),
+    SCHEDULED     ("Scheduled",            { it.info }),
+    AWAITING_DOCS ("Awaiting documents",   { it.warning }),
+    LIVE_NOW      ("Live now",             { it.success }),
+    COMPLETED     ("Completed",            { it.success }),
+    CONVERTED     ("Litigation",            { it.success }),
+    CANCELLED     ("Cancelled",            { it.neutral }),
+    CLOSED        ("Closed",               { it.neutral }),
+    DECLINED      ("Declined",             { it.danger });
+
+    val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
 }
 
 // Filter chips on the Consultations list. The list flattens the

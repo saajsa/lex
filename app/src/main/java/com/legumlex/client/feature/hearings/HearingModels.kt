@@ -1,25 +1,25 @@
 package com.legumlex.client.feature.hearings
 
-import com.legumlex.client.ui.theme.StatusAdjourned
-import com.legumlex.client.ui.theme.StatusClosed
-import com.legumlex.client.ui.theme.StatusDanger
-import com.legumlex.client.ui.theme.StatusOngoing
+import com.legumlex.client.ui.theme.LexColors
+import com.legumlex.client.ui.theme.Lex
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Composable
 import com.legumlex.client.ui.theme.StatusPalette
-import com.legumlex.client.ui.theme.StatusPending
-import com.legumlex.client.ui.theme.StatusSettled
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 
-enum class HearingStatus(val label: String, val palette: StatusPalette) {
-    SCHEDULED   ("Scheduled",     StatusOngoing),
-    IN_PROGRESS ("In Progress",   StatusPending),
-    ADJOURNED   ("Adjourned",     StatusAdjourned),
-    POSTPONED   ("Postponed",     StatusAdjourned),
-    COMPLETED   ("Completed",     StatusSettled),
-    CANCELLED   ("Cancelled",     StatusDanger),
-    NO_APPEARANCE("No Appearance", StatusDanger),
-    UNKNOWN     ("Pending",       StatusClosed);
+enum class HearingStatus(val label: String, private val tone: (LexColors) -> StatusPalette) {
+    SCHEDULED   ("Scheduled",     { it.blue }),
+    IN_PROGRESS ("In Progress",   { it.warning }),
+    ADJOURNED   ("Adjourned",     { it.info }),
+    POSTPONED   ("Postponed",     { it.info }),
+    COMPLETED   ("Completed",     { it.success }),
+    CANCELLED   ("Cancelled",     { it.danger }),
+    NO_APPEARANCE("No Appearance", { it.danger }),
+    UNKNOWN     ("Pending",       { it.neutral });
+
+    val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
 
     companion object {
         fun from(raw: String?): HearingStatus = when (raw?.lowercase()?.trim()) {

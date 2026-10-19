@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.notices
 
+import com.legumlex.client.ahc.theme.Mono
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.legumlex.client.ui.theme.Lex
+import com.legumlex.client.ui.theme.LexColors
+import com.legumlex.client.ui.theme.StatusPalette
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,8 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.R
 import com.legumlex.client.ahc.theme.LlColor
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -68,7 +71,7 @@ fun NoticeDetailScreen(
                 CircularProgressIndicator(color = LlColor.InkMuted, strokeWidth = 2.dp)
             }
             is NoticeDetailUiState.Error -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                Text(s.message, fontFamily = SourceSans, fontSize = 13.sp, color = LlColor.InkMuted)
+                Text(s.message, fontFamily = Inter, fontSize = 13.sp, color = LlColor.InkMuted)
             }
             is NoticeDetailUiState.Ready -> Body(s.notice, approving, vm::approve, onMessageAdvocate, onOpen, onRespond, onOpenDocument)
         }
@@ -106,14 +109,14 @@ private fun Body(
                 Spacer(Modifier.height(11.dp))
                 Text(
                     (if (out) "Notice to " else "Notice from ") + sum.counterparty,
-                    fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink,
+                    fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink,
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     sum.referenceNumber?.let { RefChip(it) }
                     sum.createdAt?.let {
-                        Text("·", fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint)
-                        Text("Created ${it.toLocalDate().format(SHORT)}", fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                        Text("·", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                        Text("Created ${it.toLocalDate().format(SHORT)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
                     }
                 }
             }
@@ -125,13 +128,13 @@ private fun Body(
                     Modifier.fillMaxWidth().background(LlColor.AmberSoft).clickable { onOpen(p.id) }.padding(horizontal = 16.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(Color.White).border(1.dp, LlColor.AmberSoft, RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.AmberSoft, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_reply), null, tint = LlColor.Amber, modifier = Modifier.size(17.dp))
                     }
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("In response to a received notice", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Amber)
-                        p.referenceNumber?.let { Text(it, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.AmberMid) }
+                        Text("In response to a received notice", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Amber)
+                        p.referenceNumber?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, color = LlColor.AmberMid) }
                     }
                     Icon(painterResource(R.drawable.ic_ms_chevron_right), null, tint = LlColor.AmberMid, modifier = Modifier.size(18.dp))
                 }
@@ -141,8 +144,8 @@ private fun Body(
             // ---------- rail ----------
             Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 15.dp)) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    Text("PROGRESS", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 1.4.sp, color = LlColor.InkFaint)
-                    if (!out) Text("tracks your reply", fontFamily = SourceSans, fontSize = 9.sp, color = LlColor.InkFaint)
+                    Text("PROGRESS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 1.4.sp, color = LlColor.InkFaint)
+                    if (!out) Text("tracks your reply", fontFamily = Inter, fontSize = 9.sp, color = LlColor.InkFaint)
                 }
                 val steps = railSteps(n)
                 steps.forEachIndexed { i, step -> RailRow(step, sum.direction, last = i == steps.lastIndex) }
@@ -164,7 +167,7 @@ private fun Body(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(painterResource(R.drawable.ic_ms_visibility), null, tint = LlColor.InkFaint, modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Tap to read the full notice", fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint)
+                                Text("Tap to read the full notice", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
                             }
                         }
                     }
@@ -225,13 +228,13 @@ private fun Body(
                 Section("Your advocate") {
                     Panel {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Paper2), contentAlignment = Alignment.Center) {
-                                Text(initials(adv), fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = LlColor.InkMuted)
+                            Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2), contentAlignment = Alignment.Center) {
+                                Text(initials(adv), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = LlColor.InkMuted)
                             }
                             Spacer(Modifier.width(11.dp))
-                            Text(adv, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
+                            Text(adv, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
                             n.consultationId?.let { cid ->
-                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(LlColor.Paper1).border(1.dp, LlColor.Border, RoundedCornerShape(10.dp)).clickable { onMessageAdvocate(cid) }, contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable { onMessageAdvocate(cid) }, contentAlignment = Alignment.Center) {
                                     Icon(painterResource(R.drawable.ic_ms_forum), null, tint = LlColor.SlateMid, modifier = Modifier.size(18.dp))
                                 }
                             }
@@ -259,13 +262,13 @@ private fun Body(
                         .background(LlColor.VioletSoft).padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(Color.White), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
                     }
                     Spacer(Modifier.width(11.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("No response by ${sum.responseDueDate.format(SHORT)}?", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
-                        Text("Convert this notice into a case and we'll proceed.", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.Violet.copy(alpha = 0.8f))
+                        Text("No response by ${sum.responseDueDate.format(SHORT)}?", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
+                        Text("Convert this notice into a case and we'll proceed.", fontFamily = Inter, fontSize = 11.sp, color = LlColor.Violet.copy(alpha = 0.8f))
                     }
                 }
             }
@@ -274,11 +277,11 @@ private fun Body(
                     Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VioletSoft).padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(Color.White), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
                     }
                     Spacer(Modifier.width(11.dp))
-                    Text("This notice became a case", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
+                    Text("This notice became a case", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
                 }
             }
 
@@ -333,19 +336,19 @@ private fun Footer(
 @Composable
 private fun GhostIconBtn(label: String, icon: Painter, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = LlColor.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(7.dp))
-        Text(label.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
+        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
     }
 }
 
 @Composable
 private fun PrimaryBtn(label: String, icon: Painter, color: Color, loading: Boolean = false, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(color).clickable(enabled = !loading, onClick = onClick).padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(color).clickable(enabled = !loading, onClick = onClick).padding(vertical = 13.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         if (loading) {
@@ -353,7 +356,7 @@ private fun PrimaryBtn(label: String, icon: Painter, color: Color, loading: Bool
         } else {
             Icon(icon, null, tint = Color.White, modifier = Modifier.size(17.dp))
             Spacer(Modifier.width(8.dp))
-            Text(label.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = Color.White)
+            Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = Color.White)
         }
     }
 }
@@ -361,10 +364,10 @@ private fun PrimaryBtn(label: String, icon: Painter, color: Color, loading: Bool
 @Composable
 private fun GhostBtn(label: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
         horizontalArrangement = Arrangement.Center,
     ) {
-        Text(label.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
+        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
     }
 }
 
@@ -374,12 +377,12 @@ private fun GhostBtn(label: String, onClick: () -> Unit) {
 private fun CaseDirBadge(d: NoticeDirection) {
     val c = dirColors(d)
     Row(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(c.soft).padding(start = 6.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
+        Modifier.clip(RoundedCornerShape(6.dp)).background(c.soft).padding(start = 6.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(if (d == NoticeDirection.OUTBOUND) painterResource(R.drawable.ic_ms_outgoing_mail) else painterResource(R.drawable.ic_ms_mark_email_unread), null, tint = c.solid, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(4.dp))
-        Text(if (d == NoticeDirection.OUTBOUND) "OUTBOUND" else "INBOUND", fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 9.5.sp, letterSpacing = 0.5.sp, color = c.solid)
+        Text(if (d == NoticeDirection.OUTBOUND) "OUTBOUND" else "INBOUND", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 9.5.sp, letterSpacing = 0.5.sp, color = c.solid)
     }
 }
 
@@ -396,15 +399,15 @@ private fun StatusChip(n: NoticeSummary) {
         n.isClosed -> "CLOSED"
         else -> n.statusLabel.uppercase()
     }
-    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = fg, maxLines = 1)
+    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = fg, maxLines = 1)
     }
 }
 
 @Composable
 private fun RefChip(text: String) {
-    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(LlColor.Paper2).padding(horizontal = 8.dp, vertical = 3.dp)) {
-        Text(text, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 10.sp, color = LlColor.InkMuted)
+    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(LlColor.Paper2).padding(horizontal = 8.dp, vertical = 3.dp)) {
+        Text(text, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 10.sp, color = LlColor.InkMuted)
     }
 }
 
@@ -414,16 +417,16 @@ private fun CountdownChipDetail(due: LocalDate) {
     val soon = days in 0..10
     val bg = if (soon) LlColor.ClaretSoft else LlColor.AmberSoft
     val fg = if (soon) LlColor.ClaretMid else LlColor.Amber
-    Row(Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(R.drawable.ic_ms_schedule), null, tint = fg, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(4.dp))
-        Text(if (days < 0) "overdue" else "$days days left", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = fg)
+        Text(if (days < 0) "overdue" else "$days days left", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = fg)
     }
 }
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Text(title.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 1.4.sp, color = LlColor.InkFaint, modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 9.dp))
+    Text(title.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 1.4.sp, color = LlColor.InkFaint, modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 9.dp))
     Box(Modifier.padding(horizontal = 18.dp)) { content() }
 }
 
@@ -435,22 +438,25 @@ private fun Panel(content: @Composable () -> Unit) {
 @Composable
 private fun Kv(k: String, v: String, mono: Boolean = false, amt: Boolean = false, strong: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
-        Text(k.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.width(88.dp))
+        Text(k.uppercase(), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.width(88.dp))
         Text(
             v,
-            fontFamily = if (mono || amt) SourceSans else SourceSans,
+            fontFamily = if (mono) Mono else Inter,
             fontWeight = if (amt || strong || mono) FontWeight.SemiBold else FontWeight.Normal,
             fontSize = 12.5.sp, color = LlColor.Ink, modifier = Modifier.weight(1f),
         )
     }
 }
 
-private enum class DocKind(val label: String, val icon: Int, val bg: Color, val fg: Color, val draft: Boolean = false) {
-    DRAFT("Draft — awaiting your approval", R.drawable.ic_ms_draw, LlColor.AmberSoft, LlColor.Amber, draft = true),
-    NOTICE("Legal notice", R.drawable.ic_ms_description, LlColor.ClaretSoft, LlColor.Claret),
-    PROOF("Proof of service", R.drawable.ic_ms_verified, LlColor.VerdantSoft, LlColor.Verdant),
-    RECEIVED("Received notice", R.drawable.ic_ms_mark_email_unread, LlColor.AmberSoft, LlColor.Amber),
-    SUPPORTING("Supporting document", R.drawable.ic_ms_description, LlColor.SlateSoft, LlColor.SlateMid),
+private enum class DocKind(val label: String, val icon: Int, private val tone: (LexColors) -> StatusPalette, val draft: Boolean = false) {
+    DRAFT("Draft — awaiting your approval", R.drawable.ic_ms_draw, { it.warning }, draft = true),
+    NOTICE("Legal notice", R.drawable.ic_ms_description, { it.danger }),
+    PROOF("Proof of service", R.drawable.ic_ms_verified, { it.success }),
+    RECEIVED("Received notice", R.drawable.ic_ms_mark_email_unread, { it.warning }),
+    SUPPORTING("Supporting document", R.drawable.ic_ms_description, { it.blue });
+
+    val bg: Color @Composable get() = tone(Lex.colors).softBg
+    val fg: Color @Composable get() = tone(Lex.colors).softText
 }
 
 /** Classify a notice document — the legal-notice PDF is a DRAFT while the notice is
@@ -470,21 +476,21 @@ private fun docKind(doc: NoticeDocument, draftStage: Boolean): DocKind {
 private fun DocRow(doc: NoticeDocument, draftStage: Boolean, onClick: () -> Unit) {
     val kind = docKind(doc, draftStage)
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(kind.bg), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(kind.bg), contentAlignment = Alignment.Center) {
             Icon(painterResource(kind.icon), null, tint = kind.fg, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(doc.name, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink, maxLines = 1)
+                Text(doc.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink, maxLines = 1)
                 if (kind.draft) {
-                    Box(Modifier.clip(RoundedCornerShape(5.dp)).background(LlColor.Amber).padding(horizontal = 5.dp, vertical = 1.dp)) {
-                        Text("DRAFT", fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 8.sp, letterSpacing = 0.5.sp, color = Color.White)
+                    Box(Modifier.clip(RoundedCornerShape(4.dp)).background(LlColor.Amber).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                        Text("DRAFT", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 8.sp, letterSpacing = 0.5.sp, color = Color.White)
                     }
                 }
             }
             // the document KIND, not the raw tag — differentiates draft / notice / proof / etc.
-            Text(kind.label, fontFamily = SourceSans, fontSize = 10.sp, color = kind.fg)
+            Text(kind.label, fontFamily = Inter, fontSize = 10.sp, color = kind.fg)
         }
         // inline view affordance (eye), not download
         Icon(painterResource(R.drawable.ic_ms_visibility), null, tint = LlColor.SlateMid, modifier = Modifier.size(20.dp))
@@ -494,10 +500,10 @@ private fun DocRow(doc: NoticeDocument, draftStage: Boolean, onClick: () -> Unit
 @Composable
 private fun DraftSheet() {
     Column(
-        Modifier.width(150.dp).height(194.dp).clip(RoundedCornerShape(9.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(9.dp)).padding(16.dp),
+        Modifier.width(150.dp).height(194.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).padding(16.dp),
     ) {
-        Text("LEGAL NOTICE", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LlColor.Ink)
-        Text("Legum Lex", fontFamily = SourceSans, fontSize = 5.5.sp, color = LlColor.InkFaint)
+        Text("LEGAL NOTICE", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LlColor.Ink)
+        Text("Legum Lex", fontFamily = Inter, fontSize = 5.5.sp, color = LlColor.InkFaint)
         Spacer(Modifier.height(10.dp))
         listOf(0.96f, 0.86f, 0.74f, 1f, 0.96f, 0.86f, 0.96f, 0.52f).forEach {
             Box(Modifier.fillMaxWidth(it).height(4.dp).clip(RoundedCornerShape(2.dp)).background(LlColor.Paper2))
@@ -510,13 +516,13 @@ private fun DraftSheet() {
 private fun ResponseRow(n: NoticeSummary, onClick: () -> Unit) {
     val c = dirColors(n.direction)
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(c.soft), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(c.soft), contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_ms_reply), null, tint = c.solid, modifier = Modifier.size(17.dp))
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
-            Text("To " + n.counterparty, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
-            Text(listOfNotNull(n.referenceNumber, n.statusLabel).joinToString("  ·  "), fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint)
+            Text("To " + n.counterparty, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
+            Text(listOfNotNull(n.referenceNumber, n.statusLabel).joinToString("  ·  "), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
         }
         Icon(painterResource(R.drawable.ic_ms_chevron_right), null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
     }
@@ -539,14 +545,14 @@ private fun RailRow(step: RailStep, dir: NoticeDirection, last: Boolean) {
         Spacer(Modifier.width(13.dp))
         Column(Modifier.padding(bottom = if (last) 2.dp else 15.dp)) {
             Text(
-                step.title, fontFamily = SourceSans,
+                step.title, fontFamily = Inter,
                 fontWeight = if (step.state == StepState.TODO) FontWeight.Normal else FontWeight.SemiBold,
                 fontSize = 13.sp,
                 color = when (step.state) { StepState.TODO -> LlColor.InkFaint; StepState.NOW -> c.solid; else -> LlColor.Ink },
             )
             step.desc?.let {
                 Spacer(Modifier.height(3.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint)
+                Text(it, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
             }
         }
     }

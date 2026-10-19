@@ -12,7 +12,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.PillShape
 
 @Composable
@@ -29,7 +29,7 @@ fun ExpiryChip(days: Int, modifier: Modifier = Modifier) {
             Text(
                 "EXPIRES IN ",
                 color = p.softText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Bold,
                 fontSize = 10.sp,
                 letterSpacing = 1.0.sp,
@@ -37,7 +37,7 @@ fun ExpiryChip(days: Int, modifier: Modifier = Modifier) {
             Text(
                 "${days}d",
                 color = p.softText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 10.5.sp,
             )

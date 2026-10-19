@@ -14,16 +14,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.feature.consultations.RiskLevel
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
+import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.theme.PillShape
 
 data class RiskPalette(val solid: Color, val softBg: Color, val softText: Color, val label: String)
 
-val RiskLow      = RiskPalette(Color(0xFF16A34A), Color(0xFFDCFCE7), Color(0xFF15803D), "Low")
-val RiskMedium   = RiskPalette(Color(0xFFD97706), Color(0xFFFEF3C7), Color(0xFF92400E), "Medium")
-val RiskHigh     = RiskPalette(Color(0xFFEA580C), Color(0xFFFFEDD5), Color(0xFF9A3412), "High")
-val RiskCritical = RiskPalette(Color(0xFFDC2626), Color(0xFFFEE2E2), Color(0xFFB91C1C), "Critical")
+// Mylex's status colours. High sits between the warning yellow and the
+// danger red as Tailwind's orange, so the four levels stay distinguishable.
+val RiskLow: RiskPalette      @Composable get() = Lex.colors.success.let { RiskPalette(it.solid, it.softBg, it.softText, "Low") }
+val RiskMedium: RiskPalette   @Composable get() = Lex.colors.warning.let { RiskPalette(it.solid, it.softBg, it.softText, "Medium") }
+val RiskHigh: RiskPalette     @Composable get() =
+    if (Lex.colors.isDark) RiskPalette(Color(0xFFEA580C), Color(0x80431407), Color(0xFFF97316), "High")
+    else RiskPalette(Color(0xFFF97316), Color(0xFFFFEDD5), Color(0xFF9A3412), "High")
+val RiskCritical: RiskPalette @Composable get() = Lex.colors.danger.let { RiskPalette(it.solid, it.softBg, it.softText, "Critical") }
 
+@Composable
 fun RiskLevel.palette(): RiskPalette = when (this) {
     RiskLevel.LOW      -> RiskLow
     RiskLevel.MEDIUM   -> RiskMedium
@@ -60,7 +66,7 @@ fun RiskBadge(
                 Text(
                     text = "$score ·",
                     color = p.solid,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = if (large) 15.sp else 12.5.sp,
                 )
@@ -69,7 +75,7 @@ fun RiskBadge(
             Text(
                 text = p.label.uppercase(),
                 color = p.softText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Bold,
                 fontSize = if (large) 11.sp else 10.sp,
                 letterSpacing = 1.2.sp,

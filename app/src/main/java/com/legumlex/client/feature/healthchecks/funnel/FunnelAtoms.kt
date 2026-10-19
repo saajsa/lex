@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Primary / secondary funnel action button (replicates CLMBtn from the design)
@@ -55,7 +55,7 @@ fun FunnelPrimaryButton(
 ) {
     Surface(
         color = if (enabled) PrimaryText else PrimaryText.copy(alpha = 0.35f),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.fillMaxWidth().height(52.dp),
@@ -72,7 +72,7 @@ fun FunnelPrimaryButton(
             Text(
                 label,
                 color = InverseText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
                 letterSpacing = 0.6.sp,
@@ -90,7 +90,7 @@ fun FunnelSecondaryButton(
 ) {
     Surface(
         color = Surface1,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, BorderColor),
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(52.dp),
@@ -107,7 +107,7 @@ fun FunnelSecondaryButton(
             Text(
                 label,
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
                 letterSpacing = 0.6.sp,
@@ -233,7 +233,7 @@ fun ContractTypeTile(
                 Text(
                     type.label,
                     color = if (selected) InverseText else PrimaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp,
                 )
@@ -250,7 +250,7 @@ fun ContractTypeTile(
 fun DropTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         color = Surface2,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.5.dp, BorderStrong),
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(140.dp),
@@ -270,7 +270,7 @@ fun DropTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
             Text(
                 "Tap to pick a file",
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.5.sp,
             )
@@ -343,7 +343,7 @@ private fun FileRow(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(9.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(if (isError) StatusDanger.softBg else Surface2),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -363,7 +363,7 @@ private fun FileRow(
                     Text(
                         name,
                         color = PrimaryText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontSize = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -372,7 +372,7 @@ private fun FileRow(
                     Text(
                         subtitle,
                         color = if (isError) StatusDanger.softText else SecondaryText,
-                        fontFamily = if (isError) SourceSans else SourceSans,
+                        fontFamily = Inter,
                         fontWeight = if (isError) FontWeight.Bold else FontWeight.Normal,
                         fontSize = if (isError) 10.sp else 10.5.sp,
                         letterSpacing = if (isError) 1.0.sp else 0.2.sp,
@@ -420,7 +420,7 @@ fun AddAnotherDocumentRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
             Text(
                 "Add another document",
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp,
             )
@@ -447,7 +447,7 @@ fun SaveAndExitSheet(
             Text(
                 "Save your progress?",
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp,
                 letterSpacing = (-0.25).sp,

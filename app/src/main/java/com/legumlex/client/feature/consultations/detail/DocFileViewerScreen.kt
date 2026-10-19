@@ -1,5 +1,8 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.ui.theme.Zinc300
+import com.legumlex.client.ui.theme.Zinc400
+import com.legumlex.client.ui.theme.Zinc950
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -87,7 +90,7 @@ fun DocFileViewerScreen(
                             Text(
                                 "$pageCount pages",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFA8A29E),
+                                color = Zinc400,
                             )
                         }
                     }
@@ -97,10 +100,10 @@ fun DocFileViewerScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1C1917)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Zinc950),
             )
         },
-        containerColor = Color(0xFF1C1917),
+        containerColor = Zinc950,
     ) { inner ->
         when (val s = state) {
             DocViewerUiState.Loading -> ViewerLoadingD(inner)
@@ -116,7 +119,7 @@ private fun ViewerLoadingD(inner: PaddingValues) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
             Spacer(Modifier.height(16.dp))
-            Text("Loading document…", color = Color(0xFFA8A29E), style = MaterialTheme.typography.bodyMedium)
+            Text("Loading document…", color = Zinc400, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -128,9 +131,9 @@ private fun ViewerErrorD(inner: PaddingValues, msg: String, onRetry: () -> Unit)
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(Icons.Outlined.ErrorOutline, null, tint = Color(0xFFA8A29E), modifier = Modifier.size(36.dp))
+        Icon(Icons.Outlined.ErrorOutline, null, tint = Zinc400, modifier = Modifier.size(36.dp))
         Spacer(Modifier.height(12.dp))
-        Text(msg, color = Color(0xFFD4D4D8), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        Text(msg, color = Zinc300, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
         OutlinedButton(onClick = onRetry, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
             Text("Retry")
@@ -149,7 +152,7 @@ private fun PagesListD(inner: PaddingValues, pages: List<Bitmap>) {
         modifier = Modifier
             .fillMaxSize()
             .padding(inner)
-            .background(Color(0xFF1C1917))
+            .background(Zinc950)
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(1f, 4f)

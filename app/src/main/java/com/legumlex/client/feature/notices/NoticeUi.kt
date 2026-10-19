@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.notices
 
+import com.legumlex.client.ahc.theme.Mono
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -13,22 +14,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ahc.theme.LlColor
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 /** Direction → colour. Outbound = slate (you're sending), Inbound = amber (needs you). */
 data class DirColors(val solid: Color, val mid: Color, val soft: Color)
 
-fun dirColors(d: NoticeDirection): DirColors = when (d) {
+@androidx.compose.runtime.Composable fun dirColors(d: NoticeDirection): DirColors = when (d) {
     NoticeDirection.OUTBOUND -> DirColors(LlColor.Slate, LlColor.SlateMid, LlColor.SlateSoft)
     NoticeDirection.INBOUND  -> DirColors(LlColor.Amber, LlColor.AmberMid, LlColor.AmberSoft)
 }
 
 @Composable
 fun Chip(text: String, bg: Color, fg: Color, mono: Boolean = false) {
-    Box(Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
+    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 8.dp, vertical = 3.dp)) {
         Text(
             text,
-            fontFamily = if (mono) SourceSans else SourceSans,
+            fontFamily = if (mono) Mono else Inter,
             fontWeight = if (mono) FontWeight.Medium else FontWeight.Bold,
             fontSize = 10.sp,
             color = fg,

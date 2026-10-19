@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.consultations.components
 
+import com.legumlex.client.ahc.theme.LlColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -15,7 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.theme.SecondaryText
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.Surface2
 
 // Smart-section header — eyebrow + count chip. Optional accent variant for the
@@ -28,9 +29,9 @@ fun SectionHeader(
     accent: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val accentOrange    = Color(0xFFEA580C)
-    val accentTextOnSft = Color(0xFF9A3412)
-    val accentSoftBg    = Color(0xFFFFEDD5)
+    val accentOrange    = LlColor.AmberMid
+    val accentTextOnSft = LlColor.Amber
+    val accentSoftBg    = LlColor.AmberSoft
 
     Row(
         modifier = modifier
@@ -49,7 +50,7 @@ fun SectionHeader(
         }
         Text(
             label.uppercase(),
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize = 11.sp,
             letterSpacing = 1.32.sp,

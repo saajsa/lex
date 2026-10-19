@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ahc.theme.LlColor
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.brand.LegumMark
 import com.legumlex.client.ui.theme.AccentInk
 import com.legumlex.client.ui.theme.BorderColor
@@ -97,7 +97,7 @@ fun AppHeader(
                         ) {
                             Text(
                                 text = if (unreadCount > 9) "9+" else unreadCount.toString(),
-                                fontFamily = SourceSans,
+                                fontFamily = Inter,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 9.5.sp,
                                 color = Color.White,

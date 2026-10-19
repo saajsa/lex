@@ -108,7 +108,7 @@ fun MoreScreen(
 private fun MenuGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color  = MaterialTheme.colorScheme.surface,
-        shape  = RoundedCornerShape(14.dp),
+        shape  = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -142,7 +142,7 @@ private fun MenuRow(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(Surface2),
                 contentAlignment = Alignment.Center,
             ) {
@@ -199,7 +199,7 @@ private fun MenuRowDivider() {
 private fun SignOutButton(onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
-        shape   = RoundedCornerShape(14.dp),
+        shape   = RoundedCornerShape(12.dp),
         border  = BorderStroke(1.dp, StatusDanger.softBg),
         colors  = ButtonDefaults.outlinedButtonColors(contentColor = StatusDanger.solid),
         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),

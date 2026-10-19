@@ -54,8 +54,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.data.api.uriToFilePart
 import kotlinx.coroutines.Dispatchers
@@ -81,9 +80,9 @@ import java.time.temporal.ChronoUnit
 // tap-to-open via the system viewer.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix = Color(0xFFBE2E4A)
-private val ClaretSoftFix = Color(0xFFFDF2F4)
-private val ClaretBorderFix = Color(0xFFF4D9DF)
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
 
 sealed interface FilesUiState {
     data object Loading : FilesUiState
@@ -225,17 +224,17 @@ private fun FilesReady(s: FilesUiState.Ready, uploading: Boolean, onUpload: () -
 @Composable
 private fun UploadDropzone(uploading: Boolean, onUpload: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp).clip(RoundedCornerShape(13.dp)).background(LlColor.Paper1)
-            .border(LlDimen.HairlineWidth, LlColor.BorderStrong, RoundedCornerShape(13.dp)).clickable(enabled = !uploading, onClick = onUpload).padding(15.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+            .border(LlDimen.HairlineWidth, LlColor.BorderStrong, RoundedCornerShape(12.dp)).clickable(enabled = !uploading, onClick = onUpload).padding(15.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
             if (uploading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = LlColor.InkMuted)
             else Icon(Icons.Outlined.UploadFile, null, tint = LlColor.InkMuted, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(if (uploading) "Uploading…" else "Upload a file", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
-            Text(if (uploading) "Please wait" else "PDF, image or document", fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.padding(top = 3.dp))
+            Text(if (uploading) "Uploading…" else "Upload a file", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+            Text(if (uploading) "Please wait" else "PDF, image or document", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.padding(top = 3.dp))
         }
     }
 }
@@ -251,15 +250,15 @@ private fun FileCard(files: List<ProjectFile>, today: LocalDate, onOpen: (Projec
                     Icon(kind.icon, null, tint = kind.fg, modifier = Modifier.size(19.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(f.originalFileName ?: f.fileName, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(f.originalFileName ?: f.fileName, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (recent) Text("New", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = ClaretMidFix)
-                        if (recent) Text("·", fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.BorderStrong)
-                        Text(listOfNotNull(f.authorName ?: if (f.fromClient) "You" else null, f.dateAdded?.toLocalDate()?.format(dayFmt)).joinToString("  ·  "), fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (recent) Text("New", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = ClaretMidFix)
+                        if (recent) Text("·", fontFamily = Inter, fontSize = 10.sp, color = LlColor.BorderStrong)
+                        Text(listOfNotNull(f.authorName ?: if (f.fromClient) "You" else null, f.dateAdded?.toLocalDate()?.format(dayFmt)).joinToString("  ·  "), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Box(Modifier.clip(RoundedCornerShape(5.dp)).background(kind.bg).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                    Text(kind.badge, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, letterSpacing = 0.08.em, color = kind.fg)
+                Box(Modifier.clip(RoundedCornerShape(4.dp)).background(kind.bg).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                    Text(kind.badge, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, letterSpacing = 0.08.em, color = kind.fg)
                 }
                 Icon(Icons.Outlined.OpenInNew, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
             }
@@ -270,13 +269,13 @@ private fun FileCard(files: List<ProjectFile>, today: LocalDate, onOpen: (Projec
 
 private data class Kind(val bg: Color, val fg: Color, val border: Color, val icon: ImageVector, val badge: String)
 
-private fun fileKind(f: ProjectFile): Kind {
+@androidx.compose.runtime.Composable private fun fileKind(f: ProjectFile): Kind {
     val s = ((f.fileType ?: "") + " " + (f.originalFileName ?: f.fileName)).lowercase()
     return when {
         s.contains("pdf") -> Kind(ClaretSoftFix, ClaretMidFix, ClaretBorderFix, Icons.Outlined.Description, "PDF")
-        Regex("image|jpg|jpeg|png|gif|webp|svg|heic").containsMatchIn(s) -> Kind(LlColor.SlateSoft, LlColor.SlateMid, Color(0xFFD6E3F3), Icons.Outlined.Image, "IMG")
+        Regex("image|jpg|jpeg|png|gif|webp|svg|heic").containsMatchIn(s) -> Kind(LlColor.SlateSoft, LlColor.SlateMid, LlColor.SlateBorder, Icons.Outlined.Image, "IMG")
         Regex("zip|rar|7z|tar|gz").containsMatchIn(s) -> Kind(LlColor.Paper2, LlColor.InkMuted, LlColor.BorderStrong, Icons.Outlined.FolderZip, "ZIP")
-        Regex("doc|word|rtf|txt|odt|pages").containsMatchIn(s) -> Kind(LlColor.AmberSoft, LlColor.Amber, Color(0xFFF3E3C4), Icons.Outlined.Article, "DOC")
+        Regex("doc|word|rtf|txt|odt|pages").containsMatchIn(s) -> Kind(LlColor.AmberSoft, LlColor.Amber, LlColor.AmberBorder, Icons.Outlined.Article, "DOC")
         else -> Kind(LlColor.Paper2, LlColor.InkMuted, LlColor.BorderStrong, Icons.Outlined.Description, "FILE")
     }
 }
@@ -287,21 +286,21 @@ private fun fileKind(f: ProjectFile): Kind {
 private fun FilesSubBar(count: Int?, contextLine: String?, canUpload: Boolean, onBack: () -> Unit, onUpload: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("Files", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
+            Text("Files", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
             count?.let {
-                Box(Modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(RoundedCornerShape(9.dp)).background(LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
-                    Text("$it", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.InkMuted)
+                Box(Modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
+                    Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.InkMuted)
                 }
             }
             Spacer(Modifier.weight(1f))
             if (canUpload) {
-                Row(Modifier.clip(RoundedCornerShape(10.dp)).background(LlColor.Ink).clickable(onClick = onUpload).padding(horizontal = 13.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onUpload).padding(horizontal = 13.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Outlined.Upload, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
-                    Text("Upload", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.Paper)
+                    Text("Upload", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.Paper)
                 }
             }
         }
-        contextLine?.let { Text(it, fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        contextLine?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
     }
 }
@@ -309,9 +308,9 @@ private fun FilesSubBar(count: Int?, contextLine: String?, canUpload: Boolean, o
 @Composable
 private fun Slabel(name: String, count: Int) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(name.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.15.em, color = LlColor.InkFaint)
+        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = LlColor.InkFaint)
         Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
-            Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LlColor.InkMuted)
+            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LlColor.InkMuted)
         }
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
     }
@@ -320,20 +319,20 @@ private fun Slabel(name: String, count: Int) {
 @Composable
 private fun FilesEmpty() {
     Column(Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 42.dp, bottom = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, Color(0xFFD6E3F3), RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, LlColor.SlateBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.FolderOpen, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("No files yet", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("No files yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text("Documents your chamber shares — drafts, certificates, opinions — will appear here, alongside anything you upload.", fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 20.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 282.dp))
+        Text("Documents your chamber shares — drafts, certificates, opinions — will appear here, alongside anything you upload.", fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 20.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 282.dp))
     }
 }
 
 @Composable
 private fun FilesSkeleton() {
     Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(top = 12.dp)) {
-        Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.BorderStrong, RoundedCornerShape(13.dp)).padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.BorderStrong, RoundedCornerShape(12.dp)).padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SkF(Modifier.size(38.dp), 38.dp, 11.dp); Column(Modifier.weight(1f)) { SkF(Modifier.fillMaxWidth(0.46f), 13.dp); Spacer(Modifier.height(7.dp)); SkF(Modifier.fillMaxWidth(0.66f), 10.dp) }
         }
         Spacer(Modifier.height(18.dp))
@@ -358,17 +357,17 @@ private fun SkF(modifier: Modifier, height: androidx.compose.ui.unit.Dp, radius:
 @Composable
 private fun FilesError(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(horizontal = 30.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load files", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Couldn't load files", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(LlColor.Ink).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }

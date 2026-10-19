@@ -58,8 +58,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.Lora
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.brand.LegumMark
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -78,7 +77,7 @@ private val dayFmt = DateTimeFormatter.ofPattern("d MMM yyyy")
 
 private data class Sev(val accent: Color, val mid: Color, val soft: Color, val border: Color)
 
-private fun sevFor(s: InvoiceStatus): Sev = when (s) {
+@androidx.compose.runtime.Composable private fun sevFor(s: InvoiceStatus): Sev = when (s) {
     InvoiceStatus.OVERDUE   -> Sev(LlColor.Claret, LlColor.ClaretMid, LlColor.ClaretSoft, LlColor.ClaretBorder)
     InvoiceStatus.UNPAID    -> Sev(LlColor.Amber, LlColor.AmberMid, LlColor.AmberSoft, LlColor.AmberBorder)
     InvoiceStatus.PARTIAL   -> Sev(LlColor.Slate, LlColor.SlateMid, LlColor.SlateSoft, LlColor.SlateBorder)
@@ -226,22 +225,22 @@ private fun Letterhead(inv: Invoice) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Ink),
+                        Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Ink),
                         contentAlignment = Alignment.Center,
                     ) { LegumMark(size = 22.dp, fillColor = LlColor.Paper) }
                     Spacer(Modifier.width(11.dp))
                     Column {
-                        Text("Legum Lex", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                        Text("Legum Lex", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
-                        Text("ADVOCATES", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                        Text("ADVOCATES", fontFamily = Inter, fontWeight = FontWeight.Bold,
                             fontSize = 8.5.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("TAX INVOICE", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                    Text("TAX INVOICE", fontFamily = Inter, fontWeight = FontWeight.Bold,
                         fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.Claret)
                     Spacer(Modifier.height(4.dp))
-                    Text(inv.number, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                    Text(inv.number, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp, color = LlColor.Ink)
                 }
             }
@@ -260,10 +259,10 @@ private fun Letterhead(inv: Invoice) {
 @Composable
 private fun DateCol(label: String, value: String, over: Boolean) {
     Column {
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.Bold,
             fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(4.dp))
-        Text(value, fontFamily = SourceSans, fontWeight = FontWeight.Medium,
+        Text(value, fontFamily = Inter, fontWeight = FontWeight.Medium,
             fontSize = 12.5.sp, color = if (over) LlColor.ClaretMid else LlColor.Ink)
     }
 }
@@ -276,15 +275,15 @@ private fun StatusPill(inv: Invoice) {
     Row(Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(sev.soft)
-                .border(LlDimen.HairlineWidth, sev.border, RoundedCornerShape(10.dp))
+                .border(LlDimen.HairlineWidth, sev.border, RoundedCornerShape(8.dp))
                 .padding(horizontal = 13.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Icon(statusIcon(inv.status), null, tint = sev.mid, modifier = Modifier.size(17.dp))
-            Text(statusLabel(inv), fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+            Text(statusLabel(inv), fontFamily = Inter, fontWeight = FontWeight.Bold,
                 fontSize = 12.sp, color = sev.mid)
         }
     }
@@ -304,15 +303,15 @@ private fun MatterBlock(inv: Invoice) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(36.dp).clip(RoundedCornerShape(9.dp)).background(LlColor.SlateSoft),
+                Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Outlined.FolderOpen, null, tint = LlColor.SlateMid, modifier = Modifier.size(19.dp)) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text("FOR MATTER", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                Text("FOR MATTER", fontFamily = Inter, fontWeight = FontWeight.Bold,
                     fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
                 Spacer(Modifier.height(3.dp))
-                Text(inv.projectName ?: "Matter", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                Text(inv.projectName ?: "Matter", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp, color = LlColor.Ink, maxLines = 1)
             }
         }
@@ -331,22 +330,22 @@ private fun BalanceHero(detail: InvoiceDetail) {
 
     Column(
         Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Brush.verticalGradient(listOf(LlColor.Surface, if (settled) LlColor.VerdantSoft else sev.soft)))
-            .border(LlDimen.HairlineWidth, if (settled) LlColor.VerdantBorder else sev.border, RoundedCornerShape(14.dp))
+            .border(LlDimen.HairlineWidth, if (settled) LlColor.VerdantBorder else sev.border, RoundedCornerShape(12.dp))
             .padding(horizontal = 18.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("BALANCE DUE", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+        Text("BALANCE DUE", fontFamily = Inter, fontWeight = FontWeight.Bold,
             fontSize = 10.sp, letterSpacing = 0.14.em, color = LlColor.InkMuted)
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.Top) {
-            Text(sym, fontFamily = SourceSans, fontWeight = FontWeight.Medium,
+            Text(sym, fontFamily = Inter, fontWeight = FontWeight.Medium,
                 fontSize = 22.sp, color = if (settled) LlColor.VerdantMid else LlColor.InkMuted,
                 modifier = Modifier.padding(top = 6.dp, end = 3.dp))
             Text(
                 formatAmountOnly(if (settled) 0.0 else inv.leftToPay),
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 42.sp, letterSpacing = (-0.03).em, lineHeight = 44.sp,
                 color = if (settled) LlColor.Verdant else LlColor.Ink,
             )
@@ -357,7 +356,7 @@ private fun BalanceHero(detail: InvoiceDetail) {
                 Icon(Icons.Outlined.Verified, null, tint = LlColor.Verdant, modifier = Modifier.size(15.dp))
                 val on = detail.payments.mapNotNull { it.date }.maxOrNull()
                 Text("Paid in full" + (on?.let { " · ${it.format(dayFmt)}" } ?: ""),
-                    fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = LlColor.Verdant)
+                    fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, color = LlColor.Verdant)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -374,10 +373,10 @@ private fun BalanceHero(detail: InvoiceDetail) {
 @Composable
 private fun HeroSub(label: String, value: String, valueColor: Color, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold,
             fontSize = 8.5.sp, letterSpacing = 0.08.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(5.dp))
-        Text(value, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = valueColor)
+        Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = valueColor)
     }
 }
 
@@ -400,7 +399,7 @@ private fun ActionStack(
         if (payable) {
             // Editable partial-amount field — prefilled with the full balance.
             val showErr = state.payAmount.isNotBlank() && !state.amountValid
-            Text("AMOUNT TO PAY", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+            Text("AMOUNT TO PAY", fontFamily = Inter, fontWeight = FontWeight.Bold,
                 fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
             Spacer(Modifier.height(7.dp))
             OutlinedTextField(
@@ -410,13 +409,13 @@ private fun ActionStack(
                 isError = showErr,
                 enabled = !state.paying,
                 leadingIcon = {
-                    Text(sym, fontFamily = SourceSans, fontWeight = FontWeight.Medium,
+                    Text(sym, fontFamily = Inter, fontWeight = FontWeight.Medium,
                         fontSize = 16.sp, color = LlColor.InkMuted)
                 },
-                textStyle = TextStyle(fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                textStyle = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp, color = LlColor.Ink),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(11.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor   = LlColor.Claret,
                     unfocusedBorderColor = LlColor.Border,
@@ -430,7 +429,7 @@ private fun ActionStack(
             Spacer(Modifier.height(6.dp))
             Text(
                 if (showErr) (state.amountError ?: "") else "Min ${formatMoney(1.0, sym)} · balance ${formatMoney(inv.leftToPay, sym)}",
-                fontFamily = SourceSans, fontSize = 10.5.sp,
+                fontFamily = Inter, fontSize = 10.5.sp,
                 color = if (showErr) LlColor.ClaretMid else LlColor.InkFaint,
             )
             Spacer(Modifier.height(12.dp))
@@ -451,7 +450,7 @@ private fun ActionStack(
                         verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = LlColor.Paper)
                         Spacer(Modifier.width(10.dp))
-                        Text("Opening secure checkout…", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                        Text("Opening secure checkout…", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp, color = LlColor.Paper)
                     }
                 } else {
@@ -461,11 +460,11 @@ private fun ActionStack(
                             Icon(Icons.Outlined.Lock, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(if (state.isPartial) "Pay partially" else "Pay now",
-                                fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                                fontFamily = Inter, fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
                         }
                         Box(Modifier.width(LlDimen.HairlineWidth).height(22.dp).background(LlColor.Paper.copy(alpha = 0.22f)))
-                        Text(formatMoney(amount, sym), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                        Text(formatMoney(amount, sym), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp, color = LlColor.Paper,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp))
                     }
@@ -476,7 +475,7 @@ private fun ActionStack(
                 verticalAlignment = Alignment.CenterVertically, ) {
                 Icon(Icons.Outlined.Verified, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Secured by Razorpay · in-app checkout", fontFamily = SourceSans,
+                Text("Secured by Razorpay · in-app checkout", fontFamily = Inter,
                     fontSize = 9.5.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint)
             }
             Spacer(Modifier.height(11.dp))
@@ -506,14 +505,14 @@ private fun GhostAction(icon: ImageVector, label: String, onClick: () -> Unit, m
     Surface(
         onClick = onClick,
         color = LlColor.Surface,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         border = BorderStroke(LlDimen.HairlineWidth, LlColor.Border),
         modifier = modifier,
     ) {
         Row(Modifier.padding(11.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = LlColor.Ink, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(6.dp))
-            Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+            Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
         }
     }
 }
@@ -533,7 +532,7 @@ private fun AmountSummary(detail: InvoiceDetail) {
             .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
     ) {
         Box(Modifier.fillMaxWidth().background(LlColor.Paper1).padding(horizontal = 14.dp, vertical = 11.dp)) {
-            Text("AMOUNT SUMMARY", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+            Text("AMOUNT SUMMARY", fontFamily = Inter, fontWeight = FontWeight.Bold,
                 fontSize = 9.5.sp, letterSpacing = 0.1.em, color = LlColor.InkMuted)
         }
         SumRow("Subtotal", formatMoney(detail.subtotal, sym))
@@ -556,11 +555,11 @@ private fun SumRow(label: String, value: String, total: Boolean = false, valueCo
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (total) {
-                    Text(label, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LlColor.Ink)
-                    Text(value, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LlColor.Ink)
+                    Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LlColor.Ink)
+                    Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LlColor.Ink)
                 } else {
-                    Text(label, fontFamily = SourceSans, fontSize = 12.5.sp, color = LlColor.InkMuted)
-                    Text(value, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 12.5.sp, color = valueColor)
+                    Text(label, fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted)
+                    Text(value, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.5.sp, color = valueColor)
                 }
             }
         }
@@ -578,9 +577,9 @@ private fun BalanceRow(value: String, settled: Boolean) {
                 Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("BALANCE DUE", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                Text("BALANCE DUE", fontFamily = Inter, fontWeight = FontWeight.Bold,
                     fontSize = 11.sp, letterSpacing = 0.06.em, color = fg)
-                Text(value, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = fg)
+                Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = fg)
             }
         }
     }
@@ -603,9 +602,9 @@ private fun ExpandableBreakdown(detail: InvoiceDetail) {
         ) {
             Icon(Icons.Outlined.ReceiptLong, null, tint = LlColor.InkFaint, modifier = Modifier.size(17.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Breakdown", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+            Text("Breakdown", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
                 color = LlColor.Ink, modifier = Modifier.weight(1f))
-            Text("${detail.items.size} items", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkFaint)
+            Text("${detail.items.size} items", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkFaint)
             Spacer(Modifier.width(5.dp))
             Icon(Icons.Outlined.ExpandMore, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp).rotate(rot))
         }
@@ -621,7 +620,7 @@ private fun ExpandableBreakdown(detail: InvoiceDetail) {
                 }
                 if (detail.payments.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
-                    Text("PAYMENTS", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                    Text("PAYMENTS", fontFamily = Inter, fontWeight = FontWeight.Bold,
                         fontSize = 9.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
                     Spacer(Modifier.height(8.dp))
                     Column(Modifier.clip(RoundedCornerShape(12.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))) {
@@ -640,20 +639,20 @@ private fun ExpandableBreakdown(detail: InvoiceDetail) {
 private fun BreakdownItem(item: InvoiceItem, symbol: String) {
     Column(Modifier.padding(13.dp)) {
         Row(verticalAlignment = Alignment.Top) {
-            Text(item.description.ifBlank { "—" }, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text(item.description.ifBlank { "—" }, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(10.dp))
-            Text(formatMoney(item.amount, symbol), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text(formatMoney(item.amount, symbol), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp, color = LlColor.Ink)
         }
         item.longDescription?.let {
             Spacer(Modifier.height(4.dp))
-            Text(it, fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted, maxLines = 3)
+            Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted, maxLines = 3)
         }
         val qtyStr = if (item.qty == item.qty.toLong().toDouble()) item.qty.toLong().toString() else item.qty.toString()
         val unitStr = item.unit?.let { " $it" } ?: ""
         Spacer(Modifier.height(5.dp))
-        Text("$qtyStr$unitStr × ${formatMoney(item.rate, symbol)}", fontFamily = SourceSans,
+        Text("$qtyStr$unitStr × ${formatMoney(item.rate, symbol)}", fontFamily = Inter,
             fontSize = 10.5.sp, color = LlColor.InkFaint)
     }
 }
@@ -662,21 +661,21 @@ private fun BreakdownItem(item: InvoiceItem, symbol: String) {
 private fun PaymentItem(p: Payment, symbol: String) {
     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(LlColor.VerdantSoft),
+            Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.VerdantSoft),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(17.dp)) }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
-            Text(p.date?.format(dayFmt) ?: "—", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text(p.date?.format(dayFmt) ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp, color = LlColor.Ink)
             val sub = listOfNotNull(p.method, p.transactionId).joinToString(" · ")
             if (sub.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
-                Text(sub, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint, maxLines = 1)
+                Text(sub, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, maxLines = 1)
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text("+ " + formatMoney(p.amount, symbol), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+        Text("+ " + formatMoney(p.amount, symbol), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 13.sp, color = LlColor.Verdant)
     }
 }
@@ -692,17 +691,17 @@ private fun FirmFooter() {
         Modifier.fillMaxWidth().background(LlColor.Paper1).padding(horizontal = 18.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Legum Lex, Advocates", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+        Text("Legum Lex, Advocates", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
         Spacer(Modifier.height(7.dp))
         Text(
             "Office No. 10 & 11, Casablanca CHS, Jesal Park,\nBhayander (East), Mumbai 401105",
-            fontFamily = SourceSans, fontSize = 10.5.sp, lineHeight = 15.sp,
+            fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 15.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(8.dp))
         Text(
             "+91 98194 64324",
-            fontFamily = SourceSans, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = LlColor.Ink,
+            fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = LlColor.Ink,
             modifier = Modifier.clickable {
                 try { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:+919819464324"))) } catch (_: Exception) {}
             },
@@ -763,7 +762,7 @@ private fun Skeleton() {
                     Spacer(Modifier.height(22.dp))
                     SkBox(120.dp, 30.dp, radius = 10.dp)
                     Spacer(Modifier.height(18.dp))
-                    Box(Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(14.dp)).background(LlColor.Paper2))
+                    Box(Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper2))
                     Spacer(Modifier.height(16.dp))
                     Box(Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper2))
                     Spacer(Modifier.height(11.dp))
@@ -786,15 +785,15 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(66.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(66.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.ErrorOutline, null, tint = LlColor.InkMuted, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("Couldn't open this invoice", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't open this invoice", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 19.sp,
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))
         Surface(
@@ -804,7 +803,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             Row(Modifier.padding(horizontal = 24.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Try again", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
+                Text("Try again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
             }
         }
     }

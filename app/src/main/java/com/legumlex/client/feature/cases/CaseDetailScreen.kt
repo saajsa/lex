@@ -40,8 +40,7 @@ import com.legumlex.client.ahc.components.LlAvatar
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.caseTitleAnnotated
 import com.legumlex.client.ui.formatJudge
 import java.time.LocalDate
@@ -56,12 +55,12 @@ import java.time.temporal.ChronoUnit
 // MainActivity. Cause-titles use the `v.` convention; judges the salutation.
 // -----------------------------------------------------------------------------
 
-private val ClaretSoftFix = Color(0xFFFDF2F4)
-private val ClaretMidFix = Color(0xFFBE2E4A)
-private val ClaretBorderFix = Color(0xFFF4D9DF)
-private val AmberBorderFix = Color(0xFFF3E3C4)
-private val VioletSoftBg = Color(0xFFF5F3FF)
-private val VioletBorderFix = Color(0xFFE6DDFA)
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
+private val VioletSoftBg: Color @androidx.compose.runtime.Composable get() = LlColor.VioletSoft
+private val VioletBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.VioletSoft
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -147,11 +146,11 @@ private fun Masthead(detail: CaseDetail) {
     ) {
         // Back is provided by the app-wide header; no in-content breadcrumb.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("MATTER", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.13.em, color = LlColor.InkFaint)
-            Text("#${s.id}", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.13.em, color = ClaretMidFix)
+            Text("MATTER", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.13.em, color = LlColor.InkFaint)
+            Text("#${s.id}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.13.em, color = ClaretMidFix)
         }
         Spacer(Modifier.height(9.dp))
-        Text(caseTitleAnnotated(s.title, LlColor.InkFaint), fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text(caseTitleAnnotated(s.title, LlColor.InkFaint), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 24.sp, letterSpacing = (-0.022).em, lineHeight = 28.sp, color = LlColor.Ink)
         FlowRowMeta(detail)
     }
@@ -166,13 +165,13 @@ private fun FlowRowMeta(detail: CaseDetail) {
         horizontalArrangement = Arrangement.spacedBy(9.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        if (s.number.isNotBlank()) Text(s.number, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkMuted)
+        if (s.number.isNotBlank()) Text(s.number, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkMuted)
         StatusPill(s.status.label, statusTone(s.status))
         val where = listOfNotNull(detail.court, detail.courtNumber?.let { "Ct. $it" }).joinToString(" · ")
         if (where.isNotBlank()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(Icons.Outlined.AccountBalance, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
-                Text(where, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                Text(where, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
             }
         }
     }
@@ -196,14 +195,14 @@ private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate)
 
     Box(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp)
-            .clip(RoundedCornerShape(16.dp)).background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(16.dp)),
+            .clip(RoundedCornerShape(12.dp)).background(LlColor.Surface)
+            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
     ) {
         Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(5.dp).background(band))
         Column(Modifier.padding(start = 20.dp, end = 18.dp, top = 15.dp, bottom = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(band))
-                Text("NEXT HEARING · ${dayWord.uppercase()}", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.15.em, color = eyebrowColor)
+                Text("NEXT HEARING · ${dayWord.uppercase()}", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = eyebrowColor)
             }
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -213,20 +212,20 @@ private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate)
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (days <= 0L) {
-                        Text("Today", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = numColor)
+                        Text("Today", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = numColor)
                     } else {
-                        Text("$days", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 23.sp, color = numColor)
-                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = SourceSans, fontSize = 8.sp, letterSpacing = 0.12.em, color = band, modifier = Modifier.padding(top = 3.dp))
+                        Text("$days", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 23.sp, color = numColor)
+                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = band, modifier = Modifier.padding(top = 3.dp))
                     }
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(hearingDateTime(h), fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, lineHeight = 18.sp, color = LlColor.Ink)
+                    Text(hearingDateTime(h), fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, lineHeight = 18.sp, color = LlColor.Ink)
                     h.purpose?.let {
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text("FOR", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = ClaretMidFix,
-                                modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(ClaretSoftFix).padding(horizontal = 6.dp, vertical = 2.dp))
-                            Text(it, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("FOR", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = ClaretMidFix,
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(ClaretSoftFix).padding(horizontal = 6.dp, vertical = 2.dp))
+                            Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -240,7 +239,7 @@ private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate)
                     Icon(Icons.Outlined.Gavel, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
                     Text(
                         listOfNotNull(coram, detail.courtNumber?.let { "Court $it" }).joinToString(" · "),
-                        fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -257,8 +256,8 @@ private fun DispositionBanner(detail: CaseDetail) {
     val s = detail.summary
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp)
-            .clip(RoundedCornerShape(16.dp)).background(LlColor.VerdantSoft)
-            .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(16.dp)).padding(16.dp),
+            .clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft)
+            .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(12.dp)).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(13.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -268,15 +267,15 @@ private fun DispositionBanner(detail: CaseDetail) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Filled.Verified, null, tint = LlColor.VerdantMid, modifier = Modifier.size(22.dp)) }
         Column(Modifier.weight(1f)) {
-            Text("DISPOSED · ${(s.disposalType ?: s.status.label).uppercase()}", fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.VerdantMid)
+            Text("DISPOSED · ${(s.disposalType ?: s.status.label).uppercase()}", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.VerdantMid)
             Spacer(Modifier.height(5.dp))
             Text(
                 listOfNotNull(s.disposalType ?: s.status.label, s.disposalDate?.format(dayYearFmt)).joinToString(" · "),
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.01).em, color = LlColor.Verdant, lineHeight = 20.sp,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.01).em, color = LlColor.Verdant, lineHeight = 20.sp,
             )
             detail.disposalReason?.let {
                 Spacer(Modifier.height(7.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+                Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
             }
         }
     }
@@ -298,8 +297,8 @@ private fun Tabs(tab: Int, onTab: (Int) -> Unit, hearings: Int, docs: Int) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (on) LlColor.Ink else LlColor.InkFaint)
-                        if (i > 0 && count > 0) Text("$count", fontFamily = SourceSans, fontSize = 9.sp, color = if (on) ClaretMidFix else LlColor.InkFaint)
+                        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (on) LlColor.Ink else LlColor.InkFaint)
+                        if (i > 0 && count > 0) Text("$count", fontFamily = Inter, fontSize = 9.sp, color = if (on) ClaretMidFix else LlColor.InkFaint)
                     }
                     Spacer(Modifier.height(7.dp))
                     Box(Modifier.fillMaxWidth(0.55f).height(2.dp).clip(RoundedCornerShape(2.dp)).background(if (on) LlColor.Claret else Color.Transparent))
@@ -331,7 +330,7 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                     KdIcon(Icons.Outlined.MenuBook)
                     Column(Modifier.weight(1f)) {
-                        Text("ACTS & SECTIONS", fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
+                        Text("ACTS & SECTIONS", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
                         Spacer(Modifier.height(6.dp))
                         FlowRowChips(detail.acts)
                     }
@@ -361,19 +360,19 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     LlAvatar(initials = initialsOf(detail.advocate), size = 46.dp, avatarUrl = detail.advocateAvatarUrl)
                     Column(Modifier.weight(1f)) {
-                        Text(detail.advocate, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
-                        detail.advocateDesignation?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = SourceSans, fontSize = 11.5.sp, color = LlColor.InkMuted) }
-                        detail.advocateEmail?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint) }
+                        Text(detail.advocate, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
+                        detail.advocateDesignation?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted) }
+                        detail.advocateEmail?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint) }
                     }
                     val origin = detail.originConsultationId
                     Row(
-                        Modifier.clip(RoundedCornerShape(10.dp)).background(LlColor.Ink)
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink)
                             .clickable(enabled = origin != null) { origin?.let(onOpenConsultation) }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Icon(Icons.Outlined.Forum, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
-                        Text("Message", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.04.em, color = LlColor.Paper)
+                        Text("Message", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.04.em, color = LlColor.Paper)
                     }
                 }
             }
@@ -382,23 +381,23 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
         // Origin
         detail.originConsultationId?.let { cid ->
             Row(
-                Modifier.fillMaxWidth().padding(top = 11.dp).clip(RoundedCornerShape(13.dp)).background(VioletSoftBg)
-                    .border(LlDimen.HairlineWidth, VioletBorderFix, RoundedCornerShape(13.dp))
+                Modifier.fillMaxWidth().padding(top = 11.dp).clip(RoundedCornerShape(12.dp)).background(VioletSoftBg)
+                    .border(LlDimen.HairlineWidth, VioletBorderFix, RoundedCornerShape(12.dp))
                     .clickable { onOpenConsultation(cid) }.padding(horizontal = 15.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp),
             ) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color.White).border(LlDimen.HairlineWidth, VioletBorderFix, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(LlDimen.HairlineWidth, VioletBorderFix, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.NorthEast, null, tint = LlColor.Violet, modifier = Modifier.size(18.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text("ORIGIN", fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.1.em, color = Color(0xFF7C5FC0))
+                    Text("ORIGIN", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.1.em, color = LlColor.Violet)
                     Spacer(Modifier.height(3.dp))
                     Row {
-                        Text("Started as Consultation ", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
-                        Text("#$cid", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
+                        Text("Started as Consultation ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
+                        Text("#$cid", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
                     }
                 }
-                Icon(Icons.Outlined.ChevronRight, null, tint = Color(0xFFA48FD6), modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.ChevronRight, null, tint = LlColor.Violet, modifier = Modifier.size(18.dp))
             }
         }
 
@@ -420,14 +419,14 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
 @Composable
 private fun PartyBlock(p: Party, defaultRole: String, opposing: Boolean) {
     Column {
-        Text((p.role ?: defaultRole).uppercase(), fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
+        Text((p.role ?: defaultRole).uppercase(), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(5.dp))
-        Text(p.name, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 19.sp, color = LlColor.Ink)
+        Text(p.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 19.sp, color = LlColor.Ink)
         p.advocateName?.let {
             Spacer(Modifier.height(4.dp))
             Row {
-                Text(if (opposing) "Opposing counsel · " else "Counsel · ", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
-                Text(it, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+                Text(if (opposing) "Opposing counsel · " else "Counsel · ", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
             }
         }
     }
@@ -437,7 +436,7 @@ private fun PartyBlock(p: Party, defaultRole: String, opposing: Boolean) {
 private fun PartyVs() {
     Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
-        Text("v.", fontFamily = Lora, fontStyle = FontStyle.Italic, fontSize = 13.sp, color = LlColor.InkFaint)
+        Text("v.", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = 13.sp, color = LlColor.InkFaint)
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
     }
 }
@@ -454,12 +453,12 @@ private fun TimelineItem(e: TimelineEvent, last: Boolean) {
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f).padding(bottom = if (last) 2.dp else 16.dp)) {
-            Text(e.title, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
-            e.at?.let { Spacer(Modifier.height(3.dp)); Text(it.format(dayYearFmt), fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint) }
+            Text(e.title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
+            e.at?.let { Spacer(Modifier.height(3.dp)); Text(it.format(dayYearFmt), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint) }
             stripHtml(e.description)?.let {
                 Spacer(Modifier.height(5.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.InkMuted,
-                    modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(9.dp)).padding(horizontal = 11.dp, vertical = 8.dp).fillMaxWidth())
+                Text(it, fontFamily = Inter, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.InkMuted,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 8.dp).fillMaxWidth())
             }
         }
     }
@@ -473,9 +472,9 @@ private fun RateCard() {
             .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card).padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("How was your experience?", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
+        Text("How was your experience?", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
         Spacer(Modifier.height(4.dp))
-        Text("This matter is closed. If you'd like, rate how your chamber handled it.", fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
+        Text("This matter is closed. If you'd like, rate how your chamber handled it.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
         Spacer(Modifier.height(13.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             (1..5).forEach { i ->
@@ -535,25 +534,25 @@ private fun HearingCard(h: HearingRow, orders: List<CaseOrder>, detail: CaseDeta
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(h.date?.format(dowFmt) ?: "—", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.01).em, color = if (past) LlColor.InkMuted else LlColor.Ink)
-                h.time?.let { Text(it.format(timeFmt), fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkFaint) }
+                Text(h.date?.format(dowFmt) ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.01).em, color = if (past) LlColor.InkMuted else LlColor.Ink)
+                h.time?.let { Text(it.format(timeFmt), fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkFaint) }
             }
             StatusPill(h.status, hearingTonePill(h.status))
         }
         h.purpose?.let {
             Spacer(Modifier.height(9.dp))
-            Text(it, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+            Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
         }
         // Hearing notes / what happened — sits above the order(s).
         h.description?.let {
             Spacer(Modifier.height(7.dp))
-            Text(it, fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+            Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
         }
         h.adjournmentReason?.let {
             Spacer(Modifier.height(10.dp))
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(LlColor.AmberSoft).border(LlDimen.HairlineWidth, AmberBorderFix, RoundedCornerShape(9.dp)).padding(horizontal = 11.dp, vertical = 9.dp)) {
-                Text(it, fontFamily = SourceSans, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.Amber)
-                h.nextDate?.let { nd -> Spacer(Modifier.height(4.dp)); Text("Next date → ${nd.format(dayYearFmt)}", fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.AmberMid) }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.AmberSoft).border(LlDimen.HairlineWidth, AmberBorderFix, RoundedCornerShape(8.dp)).padding(horizontal = 11.dp, vertical = 9.dp)) {
+                Text(it, fontFamily = Inter, fontSize = 11.sp, lineHeight = 16.sp, color = LlColor.Amber)
+                h.nextDate?.let { nd -> Spacer(Modifier.height(4.dp)); Text("Next date → ${nd.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.sp, color = LlColor.AmberMid) }
             }
         }
         // Order(s) passed at this hearing — summary + verbatim toggle at the bottom.
@@ -570,11 +569,11 @@ private fun HearingOrderBlock(o: CaseOrder, detail: CaseDetail, onOpenOrderDocum
     Spacer(Modifier.height(11.dp))
     val (tagBg, tagFg, tagText) = orderTag(o.type)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(tagText, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = tagFg, modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp))
+        Text(tagText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = tagFg, modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp))
         o.relief?.let {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Icon(Icons.Outlined.Gavel, null, tint = ClaretMidFix, modifier = Modifier.size(12.dp))
-                Text(it, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LlColor.Claret)
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LlColor.Claret)
             }
         }
     }
@@ -584,12 +583,12 @@ private fun HearingOrderBlock(o: CaseOrder, detail: CaseDetail, onOpenOrderDocum
     if (hasBody) {
         Spacer(Modifier.height(10.dp))
         Row(
-            Modifier.clip(RoundedCornerShape(9.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(9.dp))
+            Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
                 .clickable { open = !open }.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = LlColor.InkMuted, modifier = Modifier.size(15.dp))
-            Text(if (open) "Hide order" else "View full order", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
+            Text(if (open) "Hide order" else "View full order", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
         }
         AnimatedVisibility(open) { OrderPaper(o, detail, onOpenOrderDocument) }
     } else {
@@ -601,13 +600,13 @@ private fun HearingOrderBlock(o: CaseOrder, detail: CaseDetail, onOpenOrderDocum
 }
 
 // Tag + accent per order_type (order | interim | final).
-private fun orderTag(type: String): Triple<Color, Color, String> = when (type.lowercase()) {
+@androidx.compose.runtime.Composable private fun orderTag(type: String): Triple<Color, Color, String> = when (type.lowercase()) {
     "interim" -> Triple(AmberSoftFix, LlColor.Amber, "INTERIM ORDER")
     "final"   -> Triple(LlColor.VerdantSoft, LlColor.Verdant, "FINAL ORDER")
     else      -> Triple(LlColor.SlateSoft, LlColor.SlateMid, "ORDER")
 }
 
-private val AmberSoftFix = Color(0xFFFFFBEB)
+private val AmberSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberSoft
 
 @Composable
 private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (CaseOrder) -> Unit) {
@@ -618,9 +617,9 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
             .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card).padding(horizontal = 15.dp, vertical = 14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(o.date?.format(dayYearFmt) ?: "—", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+            Text(o.date?.format(dayYearFmt) ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
             val (tagBg, tagFg, tagText) = orderTag(o.type)
-            Text(tagText, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = tagFg, modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp))
+            Text(tagText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 0.06.em, color = tagFg, modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(tagBg).padding(horizontal = 7.dp, vertical = 2.dp))
             Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
         }
         // Relief badge (e.g. "Stay granted").
@@ -628,7 +627,7 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(Icons.Outlined.Gavel, null, tint = ClaretMidFix, modifier = Modifier.size(13.dp))
-                Text(it, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = LlColor.Claret)
+                Text(it, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.5.sp, color = LlColor.Claret)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -644,7 +643,7 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Icon(if (isFinal) Icons.Outlined.CheckCircle else Icons.AutoMirrored.Outlined.ArrowForward, null, tint = LlColor.InkFaint, modifier = Modifier.size(14.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkMuted)
+                Text(it, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted)
             }
         }
         // Expandable verbatim order. Shown when we have either the OCR'd full
@@ -653,12 +652,12 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
         if (hasBody) {
             Spacer(Modifier.height(12.dp))
             Row(
-                Modifier.clip(RoundedCornerShape(9.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(9.dp))
+                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
                     .clickable { open = !open }.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = LlColor.InkMuted, modifier = Modifier.size(15.dp))
-                Text(if (open) "Hide order" else "View full order", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
+                Text(if (open) "Hide order" else "View full order", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.InkMuted)
             }
             AnimatedVisibility(open) { OrderPaper(o, detail, onOpenOrderDocument) }
         } else {
@@ -683,11 +682,11 @@ private fun OrderSummaryText(
 ) {
     when {
         !o.summary.isNullOrBlank() ->
-            Text(o.summary, fontFamily = Lora, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.Ink)
+            Text(o.summary, fontFamily = Inter, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.Ink)
         o.ocrStatus == "pending" ->
-            Text("Generating summary…", fontFamily = Lora, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkMuted)
+            Text("Generating summary…", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkMuted)
         else ->
-            Text("Summary not available yet.", fontFamily = Lora, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkFaint)
+            Text("Summary not available yet.", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkFaint)
     }
 }
 
@@ -704,7 +703,7 @@ private fun OrderDocStatus(o: CaseOrder, onOpen: (CaseOrder) -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Icon(Icons.Outlined.OpenInNew, null, tint = LlColor.Claret, modifier = Modifier.size(14.dp))
-            Text("Certified copy", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Claret)
+            Text("Certified copy", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Claret)
         }
     } else {
         Row(
@@ -712,7 +711,7 @@ private fun OrderDocStatus(o: CaseOrder, onOpen: (CaseOrder) -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             Icon(Icons.Outlined.FileDownloadOff, null, tint = LlColor.InkFaint, modifier = Modifier.size(14.dp))
-            Text("No certified copy on file", fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkFaint)
+            Text("No certified copy on file", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LlColor.InkFaint)
         }
     }
 }
@@ -723,28 +722,28 @@ private fun OrderPaper(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (C
     val body = (o.fullText ?: o.summary).orEmpty()
     val paragraphs = body.split(Regex("\\n\\s*\\n")).map { it.trim() }.filter { it.isNotEmpty() }
     Column(
-        Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Paper)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp)).padding(15.dp),
+        Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper)
+            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(15.dp),
     ) {
         // Letterhead
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            detail.court?.let { Text(it, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink, textAlign = TextAlign.Center) }
+            detail.court?.let { Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink, textAlign = TextAlign.Center) }
             Spacer(Modifier.height(5.dp))
             Text(listOfNotNull(detail.summary.number.takeIf { it.isNotBlank() }, detail.courtNumber?.let { "Court $it" }).joinToString(" · "),
-                fontFamily = SourceSans, fontSize = 9.5.sp, color = LlColor.InkFaint)
+                fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint)
             coram?.let {
                 Spacer(Modifier.height(7.dp))
-                Row { Text("Coram: ", fontFamily = SourceSans, fontSize = 9.5.sp, color = LlColor.InkMuted); Text(it, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.Ink) }
+                Row { Text("Coram: ", fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkMuted); Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.Ink) }
             }
         }
         Spacer(Modifier.height(11.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
         Spacer(Modifier.height(12.dp))
-        o.date?.let { Text("ORDER · ${it.format(dayYearFmt).uppercase()}", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.1.em, color = ClaretMidFix); Spacer(Modifier.height(8.dp)) }
+        o.date?.let { Text("ORDER · ${it.format(dayYearFmt).uppercase()}", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.1.em, color = ClaretMidFix); Spacer(Modifier.height(8.dp)) }
         // Verbatim body — one block per paragraph.
         paragraphs.forEachIndexed { i, p ->
             if (i > 0) Spacer(Modifier.height(9.dp))
-            Text(p, fontFamily = Lora, fontSize = 12.5.sp, lineHeight = 21.sp, color = LlColor.Ink)
+            Text(p, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 21.sp, color = LlColor.Ink)
         }
         // Signature + certified copy / missing-document state. Always shown so a
         // missing certified copy is surfaced explicitly rather than omitted.
@@ -752,7 +751,7 @@ private fun OrderPaper(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (C
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
         Spacer(Modifier.height(11.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            coram?.let { Text(it, fontFamily = Lora, fontStyle = FontStyle.Italic, fontSize = 11.sp, color = LlColor.InkMuted) }
+            coram?.let { Text(it, fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = 11.sp, color = LlColor.InkMuted) }
             OrderDocStatus(o, onOpenOrderDocument)
         }
     }
@@ -802,13 +801,13 @@ private fun DocCard(docs: List<CaseFile>, onOpen: (CaseFile) -> Unit) {
                     // Relation-type label chip (Order / Docket / Legal Notice …).
                     DocTagChip(f.tag)
                     Spacer(Modifier.height(6.dp))
-                    Text(f.name, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(f.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(4.dp))
                     val meta = listOfNotNull(
                         f.fileType?.uppercase(),
                         (f.hearingDate ?: f.date)?.format(dayFmt)?.let { if (f.relation == "hearing") "Hearing · $it" else it },
                     ).joinToString("  ·  ")
-                    Text(meta, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint)
+                    Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
                 }
                 Icon(Icons.Outlined.OpenInNew, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
             }
@@ -830,7 +829,7 @@ private fun DocTagChip(tag: String) {
     }
     Text(
         tag.uppercase(),
-        fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.08.em, color = fg,
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.08.em, color = fg,
         modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(bg).padding(horizontal = 6.dp, vertical = 2.dp),
     )
 }
@@ -842,10 +841,10 @@ private fun DocTagChip(tag: String) {
 @Composable
 private fun Slabel(name: String, count: Int? = null, accent: Boolean = false, first: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(top = if (first) 14.dp else 18.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(name.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.15.em, color = if (accent) LlColor.Claret else LlColor.InkFaint)
+        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = if (accent) LlColor.Claret else LlColor.InkFaint)
         count?.let {
             Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
-                Text("$it", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LlColor.InkMuted)
+                Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LlColor.InkMuted)
             }
         }
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
@@ -862,17 +861,17 @@ private fun KdRow(icon: ImageVector, key: String, value: String, sub: String?) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
         KdIcon(icon)
         Column(Modifier.weight(1f)) {
-            Text(key.uppercase(), fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
+            Text(key.uppercase(), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
             Spacer(Modifier.height(3.dp))
-            Text(value, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp, color = LlColor.Ink)
-            sub?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkMuted) }
+            Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp, color = LlColor.Ink)
+            sub?.let { Spacer(Modifier.height(3.dp)); Text(it, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted) }
         }
     }
 }
 
 @Composable
 private fun KdIcon(icon: ImageVector) {
-    Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = LlColor.InkMuted, modifier = Modifier.size(16.dp))
     }
 }
@@ -886,11 +885,11 @@ private fun FlowRowChips(acts: List<CaseAct>) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         acts.forEach { a ->
             Row(
-                Modifier.clip(RoundedCornerShape(7.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(7.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
+                Modifier.clip(RoundedCornerShape(6.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(6.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Icon(Icons.Outlined.Bookmark, null, tint = ClaretMidFix, modifier = Modifier.size(12.dp))
-                Text(listOfNotNull(a.name, a.sections).joinToString(" · "), fontFamily = SourceSans, fontSize = 10.sp, color = ClaretMidFix)
+                Text(listOfNotNull(a.name, a.sections).joinToString(" · "), fontFamily = Inter, fontSize = 10.sp, color = ClaretMidFix)
             }
         }
     }
@@ -898,25 +897,25 @@ private fun FlowRowChips(acts: List<CaseAct>) {
 
 @Composable
 private fun StatusPill(label: String, tone: Pair<Color, Color>) {
-    Row(Modifier.clip(RoundedCornerShape(7.dp)).background(tone.first).padding(horizontal = 9.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Row(Modifier.clip(RoundedCornerShape(6.dp)).background(tone.first).padding(horizontal = 9.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(tone.second))
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = tone.second)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = tone.second)
     }
 }
 
 @Composable
 private fun EmptySection(icon: ImageVector, title: String, body: String) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.BorderStrong, LlShape.Card).padding(vertical = 30.dp, horizontal = 26.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.BorderStrong, LlShape.Card).padding(vertical = 30.dp, horizontal = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(46.dp).clip(RoundedCornerShape(13.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = LlColor.InkFaint, modifier = Modifier.size(23.dp))
         }
         Spacer(Modifier.height(13.dp))
-        Text(title, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
+        Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
         Spacer(Modifier.height(6.dp))
-        Text(body, fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
+        Text(body, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
     }
 }
 
@@ -928,7 +927,7 @@ private fun CaseDetailSkeleton() {
             Sk(modifier = Modifier.fillMaxWidth(0.78f), height = 22.dp, radius = 7.dp); Spacer(Modifier.height(13.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Sk(86.dp, 16.dp); Sk(64.dp, 16.dp, 7.dp) }
         }
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(16.dp)).padding(start = 20.dp, end = 18.dp, top = 15.dp, bottom = 16.dp)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(start = 20.dp, end = 18.dp, top = 15.dp, bottom = 16.dp)) {
             Sk(120.dp, 11.dp); Spacer(Modifier.height(13.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Sk(56.dp, 50.dp, 12.dp); Column(Modifier.weight(1f)) { Sk(modifier = Modifier.fillMaxWidth(0.62f), height = 15.dp); Spacer(Modifier.height(8.dp)); Sk(modifier = Modifier.fillMaxWidth(0.42f), height = 11.dp) }
@@ -951,17 +950,17 @@ private fun Sk(width: androidx.compose.ui.unit.Dp? = null, height: androidx.comp
 @Composable
 private fun CaseDetailError(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(horizontal = 30.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load this matter", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Couldn't load this matter", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(LlColor.Ink).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }
@@ -1000,14 +999,14 @@ private fun stripHtml(s: String?): String? {
         .replace("&middot;", "·").replace("&nbsp;", " ").trim().ifBlank { null }
 }
 
-private fun statusTone(s: CaseStatus): Pair<Color, Color> = when (s) {
+@androidx.compose.runtime.Composable private fun statusTone(s: CaseStatus): Pair<Color, Color> = when (s) {
     CaseStatus.ONGOING -> LlColor.SlateSoft to LlColor.SlateMid
     CaseStatus.SETTLED -> LlColor.VerdantSoft to LlColor.Verdant
     CaseStatus.PENDING -> LlColor.AmberSoft to LlColor.Amber
     CaseStatus.CLOSED, CaseStatus.UNKNOWN -> LlColor.Paper2 to LlColor.InkMuted
 }
 
-private fun hearingTonePill(status: String): Pair<Color, Color> = when (status.lowercase()) {
+@androidx.compose.runtime.Composable private fun hearingTonePill(status: String): Pair<Color, Color> = when (status.lowercase()) {
     "completed" -> LlColor.VerdantSoft to LlColor.Verdant
     "adjourned", "postponed", "scheduled" -> LlColor.AmberSoft to LlColor.Amber
     "cancelled", "no appearance" -> LlColor.Paper2 to LlColor.InkMuted
@@ -1015,7 +1014,7 @@ private fun hearingTonePill(status: String): Pair<Color, Color> = when (status.l
     else -> LlColor.SlateSoft to LlColor.SlateMid
 }
 
-private fun timelineTone(type: String?): Color {
+@androidx.compose.runtime.Composable private fun timelineTone(type: String?): Color {
     val t = type?.lowercase().orEmpty()
     return when {
         t.contains("transfer") -> ClaretMidFix

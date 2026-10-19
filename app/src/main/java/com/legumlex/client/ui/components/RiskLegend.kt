@@ -19,7 +19,7 @@ import com.legumlex.client.feature.consultations.RiskLevel
 import com.legumlex.client.ui.theme.BorderColor
 import com.legumlex.client.ui.theme.BorderSubtle
 import com.legumlex.client.ui.theme.SecondaryText
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.Surface1
 
 private val RISK_DESCS = mapOf(
@@ -34,14 +34,14 @@ fun RiskLegend(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Surface1)
-            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
     ) {
         Text(
             text = "RISK LEVELS EXPLAINED",
             color = SecondaryText,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize = 10.sp,
             letterSpacing = 1.4.sp,
@@ -69,7 +69,7 @@ fun RiskLegend(modifier: Modifier = Modifier) {
                     Text(
                         text = p.label.uppercase(),
                         color = p.softText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
                         letterSpacing = 1.0.sp,

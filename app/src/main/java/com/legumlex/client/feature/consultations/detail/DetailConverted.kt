@@ -155,13 +155,13 @@ private fun MatterMasthead(
 
     Card(
         colors   = CardDefaults.cardColors(containerColor = AccentInk),
-        shape    = RoundedCornerShape(16.dp),
+        shape    = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(spacing.s5).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(34.dp).clip(RoundedCornerShape(9.dp))
+                    modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp))
                         .background(Color.White.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -210,7 +210,7 @@ private fun MatterMasthead(
             Spacer(Modifier.height(spacing.s4))
             Button(
                 onClick = onOpen,
-                shape   = RoundedCornerShape(10.dp),
+                shape   = RoundedCornerShape(8.dp),
                 colors  = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = AccentInk),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -267,7 +267,7 @@ private fun NextHearingCard(matter: CaseDetail, spacing: Spacing) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
                     .background(if (date != null) StatusAdjourned.softBg else Surface2),
                 contentAlignment = Alignment.Center,
             ) {
@@ -403,7 +403,7 @@ private fun BasicCaseLink(
 ) {
     Card(
         colors   = CardDefaults.cardColors(containerColor = Surface1),
-        shape    = RoundedCornerShape(16.dp),
+        shape    = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(

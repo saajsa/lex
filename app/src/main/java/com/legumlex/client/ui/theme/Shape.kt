@@ -4,13 +4,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
-// Client app uses softer radii than the lawyer-facing Bizlink CRM.
+// Mylex's radii (Tailwind, --radius 0.5rem): sm 4, md 6, lg 8, xl 12.
 val LegumShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),    // chip outlines
-    small      = RoundedCornerShape(10.dp),   // inline tiles, small chips
-    medium     = RoundedCornerShape(14.dp),   // standard card, button, input
-    large      = RoundedCornerShape(20.dp),   // hero cards, bottom sheets
-    extraLarge = RoundedCornerShape(24.dp),   // splash card, app icon
+    extraSmall = RoundedCornerShape(4.dp),    // rounded-sm: small badges
+    small      = RoundedCornerShape(6.dp),    // rounded-md: badges, chips
+    medium     = RoundedCornerShape(8.dp),    // rounded-lg: buttons, fields, inner tiles
+    large      = RoundedCornerShape(12.dp),   // rounded-xl: cards (kt-card)
+    extraLarge = RoundedCornerShape(12.dp),   // bottom sheets, dialogs
 )
 
 val PillShape = RoundedCornerShape(percent = 50)

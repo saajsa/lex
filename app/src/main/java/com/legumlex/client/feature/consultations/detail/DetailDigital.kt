@@ -189,7 +189,7 @@ private fun SessionStateCard(s: DoSession, spacing: Spacing) {
 
     Card(
         colors  = CardDefaults.cardColors(containerColor = bg),
-        shape   = RoundedCornerShape(16.dp),
+        shape   = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
@@ -329,7 +329,7 @@ private fun SkeletonHero(spacing: Spacing) {
         modifier = Modifier
             .fillMaxWidth()
             .height(180.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Surface1),
     )
 }
@@ -338,7 +338,7 @@ private fun SkeletonHero(spacing: Spacing) {
 private fun NoSessionCard(spacing: Spacing) {
     Card(
         colors  = CardDefaults.cardColors(containerColor = Surface1),
-        shape   = RoundedCornerShape(16.dp),
+        shape   = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(

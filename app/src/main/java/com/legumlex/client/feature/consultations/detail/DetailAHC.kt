@@ -55,7 +55,7 @@ import com.legumlex.client.ahc.components.StatusChip
 import com.legumlex.client.ahc.model.AhcActions
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlText
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ahc.theme.RiskLevel
 import com.legumlex.client.feature.consultations.AhcAnalysis
 import com.legumlex.client.feature.consultations.Consultation
@@ -211,9 +211,9 @@ private fun AhcWarmHeader(
             Modifier
                 .fillMaxWidth()
                 .padding(start = 4.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(LlColor.Surface)
-                .border(1.dp, LlColor.Border, RoundedCornerShape(14.dp)),
+                .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)),
         ) {
             Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
                 // kind chip + context stamp / state badge
@@ -471,14 +471,14 @@ private fun RailRow(content: @Composable androidx.compose.foundation.layout.RowS
 private fun ScorePill(score: Int, band: RiskLevel) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(band.soft)
-            .border(1.dp, band.border, RoundedCornerShape(9.dp))
+            .border(1.dp, band.border, RoundedCornerShape(8.dp))
             .padding(start = 10.dp, end = 11.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("$score", style = LlText.heroVerdict.copy(fontFamily = SourceSans, fontSize = 18.sp, color = band.solid))
+        Text("$score", style = LlText.heroVerdict.copy(fontFamily = Inter, fontSize = 18.sp, color = band.solid))
         Text("/100", style = LlText.mono.copy(fontSize = 9.5.sp, color = band.mid))
         Spacer(Modifier.width(2.dp))
         Text(band.label.substringBefore(" risk"), style = LlText.bodyStrong.copy(fontSize = 11.sp, color = band.solid))
@@ -495,15 +495,15 @@ private fun LiveChip(overdue: Boolean, remaining: Int, overdueMin: Int) {
     val value = if (overdue) "+$overdueMin min" else "%d:%02d".format(remaining / 60, remaining % 60)
     Row(
         Modifier
-            .clip(RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(soft)
-            .border(1.dp, border, RoundedCornerShape(9.dp))
+            .border(1.dp, border, RoundedCornerShape(8.dp))
             .padding(horizontal = 11.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PulsingDot(dot)
-        Text(value, style = LlText.mono.copy(fontFamily = SourceSans, fontSize = 14.sp, color = text))
+        Text(value, style = LlText.mono.copy(fontFamily = Inter, fontSize = 14.sp, color = text))
     }
 }
 
@@ -511,7 +511,7 @@ private fun LiveChip(overdue: Boolean, remaining: Int, overdueMin: Int) {
 @Composable
 private fun StateChip(label: String, soft: Color, text: Color, icon: ImageVector) {
     Row(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(soft).padding(horizontal = 9.dp, vertical = 4.dp),
+        Modifier.clip(RoundedCornerShape(6.dp)).background(soft).padding(horizontal = 9.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

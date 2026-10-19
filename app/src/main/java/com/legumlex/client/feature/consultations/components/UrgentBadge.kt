@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.theme.AccentInk
 import com.legumlex.client.ui.theme.InverseText
 import com.legumlex.client.ui.theme.PillShape
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 @Composable
 fun UrgentBadge(modifier: Modifier = Modifier) {
@@ -33,7 +33,7 @@ fun UrgentBadge(modifier: Modifier = Modifier) {
             Spacer(Modifier.width(4.dp))
             Text(
                 "URGENT",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Bold,
                 fontSize   = 9.5.sp,
                 letterSpacing = 0.76.sp,

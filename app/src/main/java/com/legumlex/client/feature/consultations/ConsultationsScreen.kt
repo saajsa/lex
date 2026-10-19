@@ -39,8 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -57,8 +56,8 @@ import java.time.format.DateTimeFormatter
 
 // LlColor.ClaretSoft / ClaretMid are broken placeholders (white / black); use
 // the design's real claret tints (--claret-s / --claret-m) locally.
-private val ClaretSoftFix = Color(0xFFFDF2F4)
-private val ClaretMidFix = Color(0xFFBE2E4A)
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
 
 private val visibleFilters = listOf(
     ConsultationFilter.ALL,
@@ -211,18 +210,18 @@ private fun PageIntro(filter: ConsultationFilter, sections: SmartSections, showC
         else -> "Everything you've raised with your chamber, in one place."
     }
     Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-        Text("MY CONSULTATIONS", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
+        Text("MY CONSULTATIONS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(9.dp))
-        Text("Consultations", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Consultations", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 28.sp, letterSpacing = (-0.025).em, lineHeight = 30.sp, color = LlColor.Ink)
         Spacer(Modifier.height(8.dp))
-        Text(sub, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted,
+        Text(sub, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted,
             modifier = Modifier.widthIn(max = 330.dp))
         if (showCount) {
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CountFrag(activeCount, "active")
-                Text("·", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.BorderStrong)
+                Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
                 CountFrag(sections.total, "total")
             }
         }
@@ -232,8 +231,8 @@ private fun PageIntro(filter: ConsultationFilter, sections: SmartSections, showC
 @Composable
 private fun CountFrag(n: Int, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$n ", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
-        Text(label, fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+        Text("$n ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
     }
 }
 
@@ -287,7 +286,7 @@ private fun FilterChip(label: String, count: Int, selected: Boolean, claret: Boo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
             color = if (selected) LlColor.Paper else LlColor.InkMuted)
         if (count > 0) {
             val badgeBg = when {
@@ -301,11 +300,11 @@ private fun FilterChip(label: String, count: Int, selected: Boolean, claret: Boo
                 else -> LlColor.InkMuted
             }
             Box(
-                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(9.dp))
+                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(8.dp))
                     .background(badgeBg).padding(horizontal = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = badgeFg)
+                Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = badgeFg)
             }
         }
     }
@@ -322,14 +321,14 @@ private fun SectionHeader(name: String, count: Int, await: Boolean, first: Boole
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(name.uppercase(), fontFamily = SourceSans, fontSize = 10.5.sp, letterSpacing = 0.15.em,
+        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.15.em,
             color = if (await) LlColor.Claret else LlColor.InkFaint)
         Box(
             Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp))
                 .background(if (await) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp,
+            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp,
                 color = if (await) ClaretMidFix else LlColor.InkMuted)
         }
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
@@ -368,7 +367,7 @@ private fun ConsultationRow(c: Consultation, mode: RowMode, onClick: () -> Unit)
             // title
             Text(
                 c.displayTitle(),
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 15.5.sp, letterSpacing = (-0.012).em, lineHeight = 20.sp,
                 color = if (done) LlColor.InkMuted else LlColor.Ink,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -397,16 +396,16 @@ private fun Subline(c: Consultation) {
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         if (c.hasUnreadReplies) PulseDot(ClaretMidFix, 8.dp)
-        if (adv != null) Text(adv, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1)
-        if (adv != null && age != null) Text("·", fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.BorderStrong)
-        if (age != null) Text(age, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1)
+        if (adv != null) Text(adv, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1)
+        if (adv != null && age != null) Text("·", fontFamily = Inter, fontSize = 10.sp, color = LlColor.BorderStrong)
+        if (age != null) Text(age, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint, maxLines = 1)
         if (c.isUrgent) {
             Row(
                 Modifier.clip(RoundedCornerShape(6.dp)).background(ClaretSoftFix).padding(horizontal = 7.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Icon(Icons.Outlined.Schedule, null, tint = ClaretMidFix, modifier = Modifier.size(11.dp))
-                Text("NEEDS RESPONSE", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                Text("NEEDS RESPONSE", fontFamily = Inter, fontWeight = FontWeight.Bold,
                     fontSize = 9.sp, letterSpacing = 0.05.em, color = ClaretMidFix)
             }
         }
@@ -421,7 +420,7 @@ private fun Glance(c: Consultation, mode: RowMode) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             PulseDot(LlColor.VerdantMid, 7.dp)
-            Text("${advShort(c.assignedTo)} is in the room", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+            Text("${advShort(c.assignedTo)} is in the room", fontFamily = Inter, fontWeight = FontWeight.Bold,
                 fontSize = 11.sp, color = LlColor.Verdant)
         }
 
@@ -433,8 +432,8 @@ private fun Glance(c: Consultation, mode: RowMode) {
                     Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(LlColor.Violet))
                 }
                 Row {
-                    Text("$ready of ${c.totalDocCount} ", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.Ink)
-                    Text("ready", fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkMuted)
+                    Text("$ready of ${c.totalDocCount} ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.Ink)
+                    Text("ready", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted)
                 }
             }
         }
@@ -450,14 +449,14 @@ private fun Glance(c: Consultation, mode: RowMode) {
             }
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(dot))
-                Text(label, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkMuted)
+                Text(label, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted)
             }
         }
 
         c.kind == ConsultationKind.DIGITAL_OFFICE && c.scheduledAt() != null -> {
             Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Icon(Icons.Outlined.Event, null, tint = LlColor.Verdant, modifier = Modifier.size(14.dp))
-                Text(scheduledGlance(c), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.Ink)
+                Text(scheduledGlance(c), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.Ink)
             }
         }
     }
@@ -482,7 +481,7 @@ private fun NextActionLine(c: Consultation, mode: RowMode) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(15.dp))
-            Text(text, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = tint)
+            Text(text, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = tint)
         }
     }
 }
@@ -502,7 +501,7 @@ private fun KindBadge(kind: ConsultationKind) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Icon(s.icon, null, tint = s.fg, modifier = Modifier.size(12.dp))
-        Text(s.label.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+        Text(s.label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold,
             fontSize = 9.sp, letterSpacing = 0.06.em, color = s.fg)
     }
 }
@@ -518,11 +517,11 @@ private fun StatusPill(status: ConsultationStatus) {
     }
     val live = status == ConsultationStatus.LIVE_NOW
     Row(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
+        Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         if (live) PulseDot(fg, 6.dp) else Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(fg))
-        Text(status.label, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
+        Text(status.label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
     }
 }
 
@@ -552,7 +551,7 @@ private fun AllCaughtUpNote() {
             Icon(Icons.Outlined.TaskAlt, null, tint = LlColor.Verdant, modifier = Modifier.size(20.dp))
             Text(
                 buildAnnotatedNote(),
-                fontFamily = SourceSans, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted,
+                fontFamily = Inter, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted,
             )
         }
     }
@@ -568,14 +567,14 @@ private fun FilteredEmpty(filter: ConsultationFilter, onFilter: (ConsultationFil
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.VerdantSoft)
-                .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft)
+                .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(18.dp))
         Text(
             if (filter == ConsultationFilter.AWAITING_YOU) "Nothing needs your attention" else "Nothing in this view",
-            fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(9.dp))
@@ -585,7 +584,7 @@ private fun FilteredEmpty(filter: ConsultationFilter, onFilter: (ConsultationFil
                 ConsultationFilter.DONE, ConsultationFilter.CONVERTED -> "No completed or converted matters yet."
                 else -> "No consultations match this view."
             },
-            fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+            fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp),
         )
         Spacer(Modifier.height(22.dp))
@@ -597,7 +596,7 @@ private fun FilteredEmpty(filter: ConsultationFilter, onFilter: (ConsultationFil
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Visibility, null, tint = LlColor.Ink, modifier = Modifier.size(18.dp))
-            Text("VIEW ALL CONSULTATIONS", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text("VIEW ALL CONSULTATIONS", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Ink)
         }
     }
@@ -610,17 +609,17 @@ private fun FirstRunEmpty(onStartNew: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(ClaretSoftFix)
-                .border(LlDimen.HairlineWidth, Color(0xFFF4D9DF), RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(ClaretSoftFix)
+                .border(LlDimen.HairlineWidth, LlColor.ClaretBorder, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.Forum, null, tint = LlColor.Claret, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Your chamber is ready when you are", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Your chamber is ready when you are", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(
             "You haven't raised anything yet. Ask a question, request a document check, or book a call — your advocate and the team are here.",
-            fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+            fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp),
         )
         Spacer(Modifier.height(22.dp))
@@ -630,7 +629,7 @@ private fun FirstRunEmpty(onStartNew: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Add, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("START A CONSULTATION", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text("START A CONSULTATION", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
@@ -686,15 +685,15 @@ private fun ConsultationsError(message: String, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't load", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(
@@ -703,7 +702,7 @@ private fun ConsultationsError(message: String, onRetry: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }

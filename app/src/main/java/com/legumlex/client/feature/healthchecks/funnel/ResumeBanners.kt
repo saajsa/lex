@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.healthchecks.funnel
 
+import com.legumlex.client.ahc.theme.LlColor
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -35,7 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 /**
  * Sticky banner shown on the Home screen above the AHC CTA when there's an
@@ -62,7 +63,7 @@ fun ResumeFunnelBanner(
             Box(
                 modifier = Modifier
                     .size(34.dp)
-                    .clip(RoundedCornerShape(9.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(Surface2),
                 contentAlignment = Alignment.Center,
             ) {
@@ -88,7 +89,7 @@ fun ResumeFunnelBanner(
                     Text(
                         title,
                         color = PrimaryText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.5.sp,
                         maxLines = 1,
@@ -98,7 +99,7 @@ fun ResumeFunnelBanner(
                     Text(
                         "Step ${currentStep.ordinal1based} of 6 · ${currentStep.title}",
                         color = SecondaryText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontSize = 10.5.sp,
                         letterSpacing = 0.3.sp,
                     )
@@ -107,7 +108,7 @@ fun ResumeFunnelBanner(
                 Text(
                     "Resume",
                     color = PrimaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
                 )
@@ -124,7 +125,7 @@ fun ResumeFunnelBanner(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .clickable(onClick = onDiscard),
                 contentAlignment = Alignment.Center,
             ) {
@@ -151,7 +152,7 @@ fun DiscardDraftDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Discard this draft?", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold)
+            Text("Discard this draft?", fontFamily = Inter, fontWeight = FontWeight.SemiBold)
         },
         text = {
             Text(
@@ -163,15 +164,15 @@ fun DiscardDraftDialog(
             TextButton(onClick = onConfirm) {
                 Text(
                     "Discard",
-                    color = Color(0xFFDC2626),
-                    fontFamily = SourceSans,
+                    color = LlColor.ClaretMid,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Keep editing", color = PrimaryText, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold)
+                Text("Keep editing", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
         containerColor = Surface1,
@@ -214,7 +215,7 @@ fun InProgressHomeBanner(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF16A34A))
+                    .background(LlColor.VerdantMid)
                     .alpha(pulse),
             )
             Spacer(Modifier.width(12.dp))
@@ -228,7 +229,7 @@ fun InProgressHomeBanner(
                 Text(
                     title,
                     color = SecondaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize = 10.5.sp,
                     letterSpacing = 0.3.sp,
                     maxLines = 1,
@@ -238,7 +239,7 @@ fun InProgressHomeBanner(
             Text(
                 "Open →",
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
             )
@@ -247,11 +248,15 @@ fun InProgressHomeBanner(
 }
 
 // Thin emerald left edge on the InProgressHomeBanner.
-private fun Modifier.drawLeftEdge(): Modifier = drawBehind {
+@androidx.compose.runtime.Composable
+private fun Modifier.drawLeftEdge(): Modifier {
+    val edge = LlColor.VerdantMid
+    return drawBehind {
     val edgePx = 3 * density
     drawRect(
-        color = Color(0xFF16A34A),
+        color = edge,
         topLeft = Offset(0f, 0f),
         size = Size(edgePx, size.height),
     )
+    }
 }

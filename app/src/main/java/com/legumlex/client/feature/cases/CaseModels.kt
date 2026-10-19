@@ -1,10 +1,10 @@
 package com.legumlex.client.feature.cases
 
-import com.legumlex.client.ui.theme.StatusClosed
-import com.legumlex.client.ui.theme.StatusOngoing
+import com.legumlex.client.ui.theme.LexColors
+import com.legumlex.client.ui.theme.Lex
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Composable
 import com.legumlex.client.ui.theme.StatusPalette
-import com.legumlex.client.ui.theme.StatusPending
-import com.legumlex.client.ui.theme.StatusSettled
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -15,12 +15,14 @@ enum class CaseFilter(val apiValue: String?, val label: String) {
     CLOSED("closed", "Closed"),
 }
 
-enum class CaseStatus(val label: String, val palette: StatusPalette) {
-    ONGOING("Ongoing", StatusOngoing),
-    SETTLED("Settled", StatusSettled),
-    PENDING("On Hold", StatusPending),
-    CLOSED("Closed",  StatusClosed),
-    UNKNOWN("Pending", StatusClosed);
+enum class CaseStatus(val label: String, private val tone: (LexColors) -> StatusPalette) {
+    ONGOING("Ongoing", { it.blue }),
+    SETTLED("Settled", { it.success }),
+    PENDING("On Hold", { it.warning }),
+    CLOSED("Closed",  { it.neutral }),
+    UNKNOWN("Pending", { it.neutral });
+
+    val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
 
     companion object {
         fun from(raw: String?): CaseStatus = when (raw?.lowercase()?.trim()) {

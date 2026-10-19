@@ -1,5 +1,7 @@
 package com.legumlex.client.ahc.theme
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -10,38 +12,26 @@ import androidx.compose.ui.unit.sp
 import com.legumlex.client.R
 
 /* ============================================================================
- *  Typography — TWO families, used with intent:
- *    Serif  · Lora           → titles / headings (traditional legal authority)
- *    Sans   · Source Sans 3  → everything else: UI, body, labels, numbers,
- *                              dates, reference codes (the former "mono" bits)
+ *  Typography — Mylex's: Inter for everything people read, the system
+ *  monospace for reference numbers and codes (CR-110-2023, AHC/2026/72362),
+ *  as the portal sets them. One family, weights doing the work: SemiBold
+ *  headings, Medium labels, Regular body.
  *
- *  Lora + Source Sans 3 are the most-used Google Fonts on lawyer websites
- *  (Source Sans #7, Lora #11) — a legal-conventional, trusted pairing. There is
- *  deliberately NO monospace: law-firm typography doesn't use one, and the mono
- *  (Geist Mono) read as out-of-place on numbers/codes/dates. Those now use
- *  Source Sans so the whole app reads as one coherent, compact type system.
- *
- *  All families ship as STATIC per-weight TTFs bundled in res/font — fonts are
- *  NOT fetched through the Google Fonts downloadable provider, which silently
- *  falls back to the system font on devices without Play Services (that's why
- *  design fonts weren't showing before). Bundling makes them render everywhere.
+ *  Inter ships as static per-weight TTFs in res/font, not through the Google
+ *  Fonts downloadable provider, which falls back to the system font on devices
+ *  without Play Services.
  * ========================================================================== */
 
-val Lora = FontFamily(
-    Font(R.font.lora_regular, FontWeight.Light),               // no lighter static; nearest
-    Font(R.font.lora_regular, FontWeight.Normal),
-    Font(R.font.lora_medium, FontWeight.Medium),
-    Font(R.font.lora_semibold, FontWeight.SemiBold),
-    Font(R.font.lora_bold, FontWeight.Bold),
+val Inter = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Light),               // no lighter static; nearest
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
 )
 
-val SourceSans = FontFamily(
-    Font(R.font.sourcesans3_light, FontWeight.Light),
-    Font(R.font.sourcesans3_regular, FontWeight.Normal),
-    Font(R.font.sourcesans3_medium, FontWeight.Medium),
-    Font(R.font.sourcesans3_semibold, FontWeight.SemiBold),
-    Font(R.font.sourcesans3_bold, FontWeight.Bold),
-)
+/** Reference numbers, case numbers, codes. */
+val Mono = FontFamily.Monospace
 
 private val tightLineHeight = LineHeightStyle(
     alignment = LineHeightStyle.Alignment.Center,
@@ -49,79 +39,80 @@ private val tightLineHeight = LineHeightStyle(
 )
 
 /* Semantic styles consumed directly by the AHC composables. Names map to the
- * HTML classes they replace, so the visual hierarchy is 1:1. */
+ * HTML classes they replace, so the visual hierarchy is 1:1. Each carries its
+ * colour, so each is read in composition (light or dark). */
 object LlText {
 
-    // --- Serif display ---
-    val appBarTitle = TextStyle(            // .appbar-title
-        fontFamily = Lora, fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp, letterSpacing = (-0.02).em, lineHeight = 24.sp,
+    // --- Headings ---
+    val appBarTitle: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(   // .appbar-title
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp, letterSpacing = (-0.01).em, lineHeight = 24.sp,
         color = LlColor.Ink,
     )
-    val heroVerdict = TextStyle(            // .vhero-vt
-        fontFamily = Lora, fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp, letterSpacing = (-0.01).em, color = LlColor.Ink,
+    val heroVerdict: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(   // .vhero-vt
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp, color = LlColor.Ink,
     )
-    val emptyTitle = TextStyle(             // .empty-h / .cd-over-t
-        fontFamily = Lora, fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp, letterSpacing = (-0.01).em, color = LlColor.Ink,
+    val emptyTitle: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(    // .empty-h / .cd-over-t
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp, color = LlColor.Ink,
     )
-    val errorTitle = TextStyle(             // .fserr-h
-        fontFamily = Lora, fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp, letterSpacing = (-0.015).em, lineHeight = 26.sp,
+    val errorTitle: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(    // .fserr-h
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp, letterSpacing = (-0.01).em, lineHeight = 26.sp,
         color = LlColor.Ink,
     )
-    val noteBody = TextStyle(               // .anote-body (advocate's note)
-        fontFamily = Lora, fontWeight = FontWeight.Normal,
-        fontSize = 14.sp, lineHeight = 23.sp, color = LlColor.Ink,
+    val noteBody: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(      // .anote-body (advocate's note)
+        fontFamily = Inter, fontWeight = FontWeight.Normal,
+        fontSize = 14.sp, lineHeight = 22.sp, color = LlColor.Ink,
     )
 
-    // --- Sans UI ---
-    val eyebrow = TextStyle(                // .appbar-eyebrow / kicker
-        fontFamily = SourceSans, fontWeight = FontWeight.Bold,
-        fontSize = 9.5.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint,
+    // --- UI ---
+    val eyebrow: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(       // .appbar-eyebrow / kicker
+        fontFamily = Inter, fontWeight = FontWeight.Medium,
+        fontSize = 11.sp, letterSpacing = 0.08.em, color = LlColor.InkMuted,
     )
-    val sectionHeader = TextStyle(          // .dsec-t
-        fontFamily = SourceSans, fontWeight = FontWeight.Bold,
-        fontSize = 10.5.sp, letterSpacing = 0.1.em, color = LlColor.Ink,
+    val sectionHeader: TextStyle @Composable @ReadOnlyComposable get() = TextStyle( // .dsec-t
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 11.sp, letterSpacing = 0.08.em, color = LlColor.InkMuted,
     )
-    val bodyTitle = TextStyle(              // .finding-t / .advc-n / kv strong
-        fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp, color = LlColor.Ink,
+    val bodyTitle: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(     // .finding-t / .advc-n / kv strong
+        fontFamily = Inter, fontWeight = FontWeight.Medium,
+        fontSize = 14.sp, color = LlColor.Ink,
     )
-    val body = TextStyle(                   // .finding-x / .cd-sub / generic body
-        fontFamily = SourceSans, fontWeight = FontWeight.Normal,
-        fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
+    val body: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(          // .finding-x / .cd-sub / generic body
+        fontFamily = Inter, fontWeight = FontWeight.Normal,
+        fontSize = 13.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
     )
-    val bodyStrong = TextStyle(             // .hero-status / verdict-t
-        fontFamily = SourceSans, fontWeight = FontWeight.Bold,
-        fontSize = 13.5.sp, color = LlColor.Ink,
+    val bodyStrong: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(    // .hero-status / verdict-t
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp, color = LlColor.Ink,
     )
-    val label = TextStyle(                  // .kv-k / step-t / small body
-        fontFamily = SourceSans, fontWeight = FontWeight.Normal,
-        fontSize = 11.5.sp, color = LlColor.InkMuted,
+    val label: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(         // .kv-k / step-t / small body
+        fontFamily = Inter, fontWeight = FontWeight.Normal,
+        fontSize = 12.sp, color = LlColor.InkMuted,
     )
-    val button = TextStyle(                 // .btn
-        fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
-        fontSize = 11.5.sp, letterSpacing = 0.05.em,
+    val button: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(        // .btn
+        fontFamily = Inter, fontWeight = FontWeight.Medium,
+        fontSize = 13.sp,
     )
 
-    // --- Mono metadata ---
-    val mono = TextStyle(                   // .cd-eta / .att-m / .refno
-        fontFamily = SourceSans, fontWeight = FontWeight.Normal,
-        fontSize = 10.5.sp, letterSpacing = 0.03.em, color = LlColor.InkFaint,
+    // --- Reference numbers, codes, stamps ---
+    val mono: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(          // .cd-eta / .att-m / .refno
+        fontFamily = Mono, fontWeight = FontWeight.Normal,
+        fontSize = 12.sp, color = LlColor.InkMuted,
     )
-    val monoStamp = TextStyle(              // .tl-m / docview-pg
-        fontFamily = SourceSans, fontWeight = FontWeight.Normal,
-        fontSize = 10.sp, color = LlColor.InkFaint,
+    val monoStamp: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(     // .tl-m / docview-pg
+        fontFamily = Inter, fontWeight = FontWeight.Normal,
+        fontSize = 11.sp, color = LlColor.InkFaint,
     )
-    val heroScore = TextStyle(              // .vscore (the 0–100 number)
-        fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
-        fontSize = 42.sp, letterSpacing = (-0.03).em, lineHeight = 40.sp,
-    )
-    val countdownNum = TextStyle(           // .cd-num
-        fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+    val heroScore: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(     // .vscore (the 0–100 number)
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
         fontSize = 40.sp, letterSpacing = (-0.02).em, lineHeight = 40.sp,
+    )
+    val countdownNum: TextStyle @Composable @ReadOnlyComposable get() = TextStyle(  // .cd-num
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        fontSize = 36.sp, letterSpacing = (-0.02).em, lineHeight = 40.sp,
         color = LlColor.Ink,
     )
 }

@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.healthchecks.funnel
 
+import com.legumlex.client.ahc.theme.LlColor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
@@ -36,7 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.components.RiskBadge
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step 1 · Upload  (document-first entry point)
@@ -154,7 +155,7 @@ fun StepExtractingScreen(
             Text(
                 "Reading your agreement",
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp,
                 letterSpacing = (-0.4).sp,
@@ -172,12 +173,12 @@ fun StepExtractingScreen(
                 Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Text(
                         "${state.processingSubStep} / ${EXTRACT_LABELS.size} ·",
-                        color = SecondaryText, fontFamily = SourceSans, fontSize = 11.sp,
+                        color = SecondaryText, fontFamily = Inter, fontSize = 11.sp,
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         EXTRACT_LABELS[(state.processingSubStep - 1).coerceIn(0, EXTRACT_LABELS.lastIndex)],
-                        color = PrimaryText, fontFamily = SourceSans, fontSize = 11.sp,
+                        color = PrimaryText, fontFamily = Inter, fontSize = 11.sp,
                     )
                 }
             }
@@ -185,7 +186,7 @@ fun StepExtractingScreen(
             Text(
                 "Run in background",
                 color = SecondaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
                 modifier = Modifier
@@ -333,7 +334,7 @@ fun StepConfirmScreen(
 private fun PreliminaryAnalysisCard(extraction: AhcExtraction) {
     Surface(
         color = Surface2,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -344,7 +345,7 @@ private fun PreliminaryAnalysisCard(extraction: AhcExtraction) {
                 Text(
                     "PRELIMINARY ANALYSIS",
                     color = SecondaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp,
                     letterSpacing = 1.4.sp,
@@ -354,7 +355,7 @@ private fun PreliminaryAnalysisCard(extraction: AhcExtraction) {
                     Text(
                         "${(c * 100).toInt()}% confidence",
                         color = SecondaryText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontSize = 10.sp,
                     )
                 }
@@ -371,7 +372,7 @@ private fun PreliminaryAnalysisCard(extraction: AhcExtraction) {
                     Text(
                         "Initial risk hint",
                         color = SecondaryText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 11.sp,
                     )
@@ -389,7 +390,7 @@ private fun PreFilledPill() {
         Text(
             "PRE-FILLED",
             color = SecondaryText,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize = 9.sp,
             letterSpacing = 1.0.sp,
@@ -427,13 +428,13 @@ fun StepPaymentScreen(
                 FunnelStepHeader(step = AhcStep.PAYMENT, question = "Payment")
                 Spacer(Modifier.height(8.dp))
                 Box(
-                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFFDCFCE7)),
+                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF15803D), modifier = Modifier.size(28.dp))
+                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp))
                 }
                 Spacer(Modifier.height(14.dp))
-                Text("Included in your plan", color = PrimaryText, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, letterSpacing = (-0.25).sp)
+                Text("Included in your plan", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, letterSpacing = (-0.25).sp)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Agreement checks are part of your Starter plan. No payment needed.",
@@ -443,7 +444,7 @@ fun StepPaymentScreen(
                 Spacer(Modifier.height(14.dp))
                 Text(
                     "Advancing in 1.5 s…",
-                    color = TertiaryText, fontFamily = SourceSans, fontSize = 11.sp, letterSpacing = 0.5.sp,
+                    color = TertiaryText, fontFamily = Inter, fontSize = 11.sp, letterSpacing = 0.5.sp,
                 )
             }
         } else {
@@ -474,7 +475,7 @@ fun EdgeExpiredScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(Surface2),
+            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Surface2),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = SecondaryText, modifier = Modifier.size(26.dp))
@@ -482,7 +483,7 @@ fun EdgeExpiredScreen(
         Spacer(Modifier.height(16.dp))
         Text(
             "This draft has been archived",
-            color = PrimaryText, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.4).sp,
         )
         Spacer(Modifier.height(8.dp))

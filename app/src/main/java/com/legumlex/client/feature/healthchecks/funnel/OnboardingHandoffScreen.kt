@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.healthchecks.funnel
 
+import com.legumlex.client.ahc.theme.LlColor
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 /**
  * Final card of the onboarding flow — quiet success state + a single
@@ -46,17 +47,17 @@ fun OnboardingAhcHandoffScreen(
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFDCFCE7)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LlColor.VerdantSoft),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Check, contentDescription = null, tint = Color(0xFF15803D), modifier = Modifier.size(28.dp))
+                Icon(Icons.Outlined.Check, contentDescription = null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "You're all set${userFirstName?.let { ", $it" } ?: ""}.",
                 color = PrimaryText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp,
                 letterSpacing = (-0.5).sp,
@@ -75,7 +76,7 @@ fun OnboardingAhcHandoffScreen(
         // Handoff card
         Surface(
             color = Surface2,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(12.dp),
             border = BorderStroke(1.dp, BorderColor),
             modifier = Modifier
                 .padding(horizontal = 20.dp)
@@ -87,7 +88,7 @@ fun OnboardingAhcHandoffScreen(
                 Text(
                     "Have an agreement worrying you?",
                     color = PrimaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 17.sp,
                     letterSpacing = (-0.25).sp,
@@ -109,7 +110,7 @@ fun OnboardingAhcHandoffScreen(
                 Text(
                     "Maybe later — take me home",
                     color = SecondaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
                     modifier = Modifier

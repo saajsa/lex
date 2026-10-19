@@ -41,8 +41,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.data.api.ApiClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -61,8 +60,8 @@ import java.time.format.DateTimeFormatter
 // claret, discussion violet). Read-only.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix = Color(0xFFBE2E4A)
-private val ClaretSoftFix = Color(0xFFFDF2F4)
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
 
 sealed interface ActivityUiState {
     data object Loading : ActivityUiState
@@ -166,21 +165,21 @@ private fun TimelineItem(a: ProjectActivityItem, last: Boolean) {
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f).padding(bottom = if (last) 4.dp else 16.dp)) {
-            Row(Modifier.clip(RoundedCornerShape(5.dp)).background(kind.bg).padding(horizontal = 7.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.clip(RoundedCornerShape(4.dp)).background(kind.bg).padding(horizontal = 7.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(kind.icon, null, tint = kind.color, modifier = Modifier.size(11.dp))
-                Text(kind.label.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, letterSpacing = 0.1.em, color = kind.color)
+                Text(kind.label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, letterSpacing = 0.1.em, color = kind.color)
             }
             Spacer(Modifier.height(7.dp))
-            Text(humanize(a.descriptionKey), fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 18.sp, color = LlColor.Ink)
+            Text(humanize(a.descriptionKey), fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp, color = LlColor.Ink)
             val meta = listOfNotNull(a.actorName, a.dateAdded?.format(timeFmt)).joinToString(" · ")
-            if (meta.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(meta, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint) }
+            if (meta.isNotBlank()) { Spacer(Modifier.height(5.dp)); Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint) }
         }
     }
 }
 
 private data class ActKind(val color: Color, val bg: Color, val icon: ImageVector, val label: String)
 
-private fun activityKind(key: String): ActKind {
+@androidx.compose.runtime.Composable private fun activityKind(key: String): ActKind {
     val k = key.lowercase()
     return when {
         k.contains("milestone") -> ActKind(ClaretMidFix, ClaretSoftFix, Icons.Outlined.Flag, "Milestone")
@@ -196,9 +195,9 @@ private fun activityKind(key: String): ActKind {
 private fun SubBar(contextLine: String?, onBack: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Activity", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
+            Text("Activity", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
         }
-        contextLine?.takeIf { it.isNotBlank() }?.let { Text(it, fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        contextLine?.takeIf { it.isNotBlank() }?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
     }
 }
@@ -206,7 +205,7 @@ private fun SubBar(contextLine: String?, onBack: () -> Unit) {
 @Composable
 private fun DayHeader(label: String, today: Boolean, first: Boolean) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = if (first) 14.dp else 18.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.14.em, color = if (today) LlColor.Claret else LlColor.InkFaint)
+        Text(label.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.14.em, color = if (today) LlColor.Claret else LlColor.InkFaint)
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
     }
 }
@@ -214,13 +213,13 @@ private fun DayHeader(label: String, today: Boolean, first: Boolean) {
 @Composable
 private fun ActEmpty() {
     Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, Color(0xFFD6E3F3), RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, LlColor.SlateBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.History, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("Nothing logged yet", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Nothing logged yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text("As work begins — tasks created, files shared, milestones reached — every step is recorded here, newest first, in plain language.", fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
+        Text("As work begins — tasks created, files shared, milestones reached — every step is recorded here, newest first, in plain language.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }
 }
 
@@ -250,23 +249,23 @@ private fun ActSkeleton() {
 
 @Composable
 private fun SkA(modifier: Modifier, height: androidx.compose.ui.unit.Dp) {
-    Box(modifier.height(height).clip(RoundedCornerShape(5.dp)).background(LlColor.Paper2))
+    Box(modifier.height(height).clip(RoundedCornerShape(4.dp)).background(LlColor.Paper2))
 }
 
 @Composable
 private fun ActError(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(horizontal = 30.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load activity", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Couldn't load activity", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(LlColor.Ink).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }

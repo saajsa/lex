@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.brand.LegumMark
 import com.legumlex.client.ui.theme.AccentInk
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.Zinc300
 import com.legumlex.client.ui.theme.Zinc500
 import com.legumlex.client.ui.theme.Zinc50
@@ -53,7 +53,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(88.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Zinc50),
                 contentAlignment = Alignment.Center,
             ) {
@@ -65,7 +65,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
             Spacer(Modifier.height(22.dp))
             Text(
                 text = "Legum Lex",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 30.sp,
                 letterSpacing = (-0.9).sp,

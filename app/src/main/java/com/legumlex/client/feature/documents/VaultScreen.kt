@@ -55,7 +55,7 @@ import com.legumlex.client.ui.components.LegumPrimaryButton
 import com.legumlex.client.ui.components.LegumSecondaryButton
 import com.legumlex.client.ui.theme.BorderColor
 import com.legumlex.client.ui.theme.BorderSubtle
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
@@ -233,7 +233,7 @@ private fun IntentTile(
     Surface(
         onClick = onClick,
         color   = MaterialTheme.colorScheme.surface,
-        shape   = RoundedCornerShape(16.dp),
+        shape   = RoundedCornerShape(12.dp),
         border  = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -296,7 +296,7 @@ private fun PickerStep(step: VaultStep.Picker, onPick: (PickerItem) -> Unit) {
                 Surface(
                     onClick = { onPick(item) },
                     color   = MaterialTheme.colorScheme.surface,
-                    shape   = RoundedCornerShape(14.dp),
+                    shape   = RoundedCornerShape(12.dp),
                     border  = BorderStroke(1.dp, BorderColor),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -446,7 +446,7 @@ private fun DocumentCard(doc: Document, isDownloading: Boolean, onClick: () -> U
     Surface(
         onClick = onClick,
         color   = MaterialTheme.colorScheme.surface,
-        shape   = RoundedCornerShape(14.dp),
+        shape   = RoundedCornerShape(12.dp),
         border  = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -455,7 +455,7 @@ private fun DocumentCard(doc: Document, isDownloading: Boolean, onClick: () -> U
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Surface2),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -511,7 +511,7 @@ private fun DocumentCard(doc: Document, isDownloading: Boolean, onClick: () -> U
                     doc.uploadedAt?.let {
                         Text(
                             relativeAgo(it),
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 11.sp),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 11.sp),
                             color = TertiaryText,
                         )
                     }

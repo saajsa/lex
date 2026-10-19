@@ -23,7 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 /**
  * 6-dot progress ribbon. Past = small filled, current = larger filled,
@@ -71,7 +71,7 @@ fun FunnelStepHeader(
         Text(
             text = "Step ${step.ordinal1based} of 6 · ${step.title}",
             color = SecondaryText,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize = 11.sp,
             letterSpacing = 0.5.sp,
         )
@@ -79,7 +79,7 @@ fun FunnelStepHeader(
         Text(
             text = question,
             color = PrimaryText,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize = 22.sp,
             letterSpacing = (-0.5).sp,
@@ -136,7 +136,7 @@ fun FunnelScreen(
                     Text(
                         text = "Step ${step.ordinal1based} of 6",
                         color = SecondaryText,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontSize = 10.sp,
                         letterSpacing = 0.4.sp,
                     )
@@ -145,7 +145,7 @@ fun FunnelScreen(
                 Text(
                     text = "Save & exit",
                     color = SecondaryText,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp,
                     modifier = Modifier

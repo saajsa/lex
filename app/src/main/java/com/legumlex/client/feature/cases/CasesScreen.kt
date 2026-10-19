@@ -40,8 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -58,10 +57,10 @@ import java.time.temporal.ChronoUnit
 // -----------------------------------------------------------------------------
 
 // LlColor.ClaretSoft / ClaretMid are broken placeholders; use the real tints.
-private val ClaretSoftFix = Color(0xFFFDF2F4)
-private val ClaretMidFix = Color(0xFFBE2E4A)
-private val ClaretBorderFix = Color(0xFFF4D9DF)
-private val AmberBorderFix = Color(0xFFF3E3C4)
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -197,12 +196,12 @@ private fun PageIntro(filter: CaseFilter, active: Int, closed: Int, total: Int, 
         CaseFilter.CLOSED -> "Cases your chamber has closed out."
     }
     Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-        Text("MATTERS", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
+        Text("MATTERS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(9.dp))
-        Text("Your Cases", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Your Cases", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 28.sp, letterSpacing = (-0.025).em, lineHeight = 30.sp, color = LlColor.Ink)
         Spacer(Modifier.height(8.dp))
-        Text(sub, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted, modifier = Modifier.widthIn(max = 330.dp))
+        Text(sub, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted, modifier = Modifier.widthIn(max = 330.dp))
         if (showCount) {
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -211,7 +210,7 @@ private fun PageIntro(filter: CaseFilter, active: Int, closed: Int, total: Int, 
                     CaseFilter.ACTIVE -> CountFrag(active, "active")
                     else -> {
                         CountFrag(active, "active")
-                        Text("·", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.BorderStrong)
+                        Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
                         CountFrag(total, "total")
                     }
                 }
@@ -223,8 +222,8 @@ private fun PageIntro(filter: CaseFilter, active: Int, closed: Int, total: Int, 
 @Composable
 private fun CountFrag(n: Int, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$n ", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
-        Text(label, fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+        Text("$n ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
     }
 }
 
@@ -253,26 +252,26 @@ private fun Spotlight(c: CaseSummary, today: LocalDate, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(16.dp))
+            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
     ) {
         Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(5.dp).background(band))
         Column(Modifier.padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 if (soon) PulseDot(accentMid, 7.dp) else Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                Text(eyebrow.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.15.em, color = accent)
+                Text(eyebrow.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = accent)
             }
             Spacer(Modifier.height(11.dp))
             Text(com.legumlex.client.ui.caseTitleAnnotated(c.title, LlColor.InkFaint),
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 19.sp, letterSpacing = (-0.015).em, lineHeight = 24.sp, color = LlColor.Ink)
             c.nextHearingPurpose?.let {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Outlined.Gavel, null, tint = accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
-                    Text("For $it", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 16.sp, color = accent, modifier = Modifier.weight(1f))
+                    Text("For $it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 16.sp, color = accent, modifier = Modifier.weight(1f))
                 }
             }
             c.courtName?.let {
@@ -281,7 +280,7 @@ private fun Spotlight(c: CaseSummary, today: LocalDate, onClick: () -> Unit) {
                     Icon(Icons.Outlined.AccountBalance, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp).padding(top = 1.dp))
                     Text(
                         it + (c.courtNo?.let { n -> " · Ct. $n" } ?: ""),
-                        fontFamily = SourceSans, fontSize = 11.sp, lineHeight = 15.sp, color = LlColor.InkFaint, modifier = Modifier.weight(1f),
+                        fontFamily = Inter, fontSize = 11.sp, lineHeight = 15.sp, color = LlColor.InkFaint, modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -291,25 +290,25 @@ private fun Spotlight(c: CaseSummary, today: LocalDate, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // countdown chip
                 Column(
-                    Modifier.widthIn(min = 52.dp).clip(RoundedCornerShape(11.dp)).background(boxBg)
-                        .border(LlDimen.HairlineWidth, boxBorder, RoundedCornerShape(11.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
+                    Modifier.widthIn(min = 52.dp).clip(RoundedCornerShape(8.dp)).background(boxBg)
+                        .border(LlDimen.HairlineWidth, boxBorder, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (days == 0L) {
-                        Text("Today", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = accent)
+                        Text("Today", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = accent)
                     } else {
-                        Text("$days", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = accent)
-                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = SourceSans, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
+                        Text("$days", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = accent)
+                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
                     }
                 }
                 Column(Modifier.weight(1f)) {
                     Text("$dateLabel · ${c.nextHearingDate!!.format(dowFmt)}",
-                        fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
+                        fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
                     Spacer(Modifier.height(3.dp))
-                    Text(spotlightMeta(c), fontFamily = SourceSans, fontSize = 11.sp, lineHeight = 15.sp, color = LlColor.InkMuted)
+                    Text(spotlightMeta(c), fontFamily = Inter, fontSize = 11.sp, lineHeight = 15.sp, color = LlColor.InkMuted)
                 }
                 Box(
-                    Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(LlColor.Paper1),
+                    Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = LlColor.InkMuted, modifier = Modifier.size(19.dp)) }
             }
@@ -350,14 +349,14 @@ private fun FilterChip(label: String, count: Int, selected: Boolean, onClick: ()
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (selected) LlColor.Paper else LlColor.InkMuted)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (selected) LlColor.Paper else LlColor.InkMuted)
         if (count > 0) {
             Box(
-                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(9.dp))
+                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(8.dp))
                     .background(if (selected) LlColor.Paper.copy(alpha = 0.2f) else LlColor.Paper2).padding(horizontal = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
+                Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
                     color = if (selected) LlColor.Paper else LlColor.InkMuted)
             }
         }
@@ -374,14 +373,14 @@ private fun SectionHeader(name: String, count: Int, hearing: Boolean, first: Boo
         Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = if (first) 16.dp else 18.dp, bottom = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(name.uppercase(), fontFamily = SourceSans, fontSize = 10.5.sp, letterSpacing = 0.15.em,
+        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.15.em,
             color = if (hearing) LlColor.Claret else LlColor.InkFaint)
         Box(
             Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp))
                 .background(if (hearing) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = if (hearing) ClaretMidFix else LlColor.InkMuted)
+            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = if (hearing) ClaretMidFix else LlColor.InkMuted)
         }
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
     }
@@ -407,12 +406,12 @@ private fun MatterRow(c: CaseSummary, today: LocalDate, hearingBand: Boolean, on
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 // weight(1f) so a long case number wraps onto extra lines instead
                 // of pushing the status pill off the card / truncating.
-                Text(c.number.ifBlank { "—" }, fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.1.em,
+                Text(c.number.ifBlank { "—" }, fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.1.em,
                     color = LlColor.InkFaint, modifier = Modifier.weight(1f).padding(top = 3.dp))
                 StatusPill(c.status)
             }
             Text(com.legumlex.client.ui.caseTitleAnnotated(c.title, LlColor.InkFaint),
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 21.sp,
                 color = if (done) LlColor.InkMuted else LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 11.dp))
@@ -423,7 +422,7 @@ private fun MatterRow(c: CaseSummary, today: LocalDate, hearingBand: Boolean, on
                     Icon(Icons.Outlined.AccountBalance, null, tint = LlColor.InkFaint, modifier = Modifier.size(12.dp).padding(top = 1.dp))
                     // weight(1f) + no maxLines: a long court · courtroom string wraps
                     // to a second line inside the card rather than being ellipsised.
-                    Text(whereText, fontFamily = SourceSans, fontSize = 10.5.sp, lineHeight = 15.sp, color = LlColor.InkFaint, modifier = Modifier.weight(1f))
+                    Text(whereText, fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 15.sp, color = LlColor.InkFaint, modifier = Modifier.weight(1f))
                 }
             }
             HearingLine(c, today, done)
@@ -443,7 +442,7 @@ private fun HistoryFooter(c: CaseSummary) {
     if (parts.isEmpty()) return
     Text(
         parts.joinToString("  ·  "),
-        fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint,
+        fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint,
         modifier = Modifier.padding(top = 9.dp),
     )
 }
@@ -486,7 +485,7 @@ private fun HearingLine(c: CaseSummary, today: LocalDate, done: Boolean) {
             // second line within the card instead of overflowing horizontally.
             Text(
                 text,
-                fontFamily = if (tone == HearTone.NORMAL || tone == HearTone.QUIET) SourceSans else SourceSans,
+                fontFamily = Inter,
                 fontWeight = if (tone == HearTone.QUIET) FontWeight.Normal else FontWeight.SemiBold,
                 fontSize = if (tone == HearTone.QUIET || tone == HearTone.NORMAL) 11.sp else 11.5.sp,
                 color = color, lineHeight = 16.sp,
@@ -526,11 +525,11 @@ private fun StatusPill(status: CaseStatus) {
         CaseStatus.CLOSED, CaseStatus.UNKNOWN -> LlColor.Paper2 to LlColor.InkMuted
     }
     Row(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
+        Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(fg))
-        Text(status.label, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
+        Text(status.label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
     }
 }
 
@@ -560,27 +559,27 @@ private fun CasesEmpty() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.SlateSoft)
-                .border(LlDimen.HairlineWidth, Color(0xFFD6E3F3), RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.SlateSoft)
+                .border(LlDimen.HairlineWidth, LlColor.SlateBorder, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.Gavel, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("No cases filed yet", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("No cases filed yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
             "When your advocate opens a case for you, it'll appear here — with its court, judge and every hearing date kept up to date.",
-            fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+            fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp),
         )
         Spacer(Modifier.height(22.dp))
         Row(
-            Modifier.clip(RoundedCornerShape(11.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp)).padding(horizontal = 16.dp, vertical = 11.dp),
+            Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Forum, null, tint = LlColor.InkFaint, modifier = Modifier.size(16.dp))
-            Text("Have a question? Raise it in Consultations", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+            Text("Have a question? Raise it in Consultations", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
         }
     }
 }
@@ -592,8 +591,8 @@ private fun FilteredEmpty(filter: CaseFilter) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.FolderOpen, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
@@ -603,11 +602,11 @@ private fun FilteredEmpty(filter: CaseFilter) {
                 CaseFilter.CLOSED -> "No closed matters"
                 else -> "No matters"
             },
-            fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(9.dp))
-        Text("Nothing in this view right now.", fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp,
+        Text("Nothing in this view right now.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
     }
 }
@@ -620,8 +619,8 @@ private fun CasesSkeleton() {
         }
         // spotlight skeleton
         Column(
-            Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(16.dp)).padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp),
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp),
         ) {
             Sk(88.dp, 11.dp); Spacer(Modifier.height(13.dp)); Sk(modifier = Modifier.fillMaxWidth(0.82f), height = 18.dp); Spacer(Modifier.height(9.dp)); Sk(modifier = Modifier.fillMaxWidth(0.58f), height = 11.dp)
             Spacer(Modifier.height(14.dp)); Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2)); Spacer(Modifier.height(13.dp))
@@ -660,15 +659,15 @@ private fun CasesError(message: String, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load your matters", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't load your matters", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(
@@ -676,7 +675,7 @@ private fun CasesError(message: String, onRetry: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }

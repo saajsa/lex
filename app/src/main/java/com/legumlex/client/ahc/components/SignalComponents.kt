@@ -209,7 +209,7 @@ fun SubmittedDocRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(LlColor.Paper2),
+                Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2),
                 contentAlignment = Alignment.Center,
             ) { DocGlyph(LlColor.InkMuted) }
             Column(Modifier.weight(1f)) {

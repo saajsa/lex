@@ -1,5 +1,8 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.ui.theme.Zinc300
+import com.legumlex.client.ui.theme.Zinc400
+import com.legumlex.client.ui.theme.Zinc950
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
@@ -94,7 +97,7 @@ fun AhcDocumentViewerScreen(
                             Text(
                                 "$pageCount page${if (pageCount == 1) "" else "s"}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFA8A29E),
+                                color = Zinc400,
                             )
                         }
                     }
@@ -110,11 +113,11 @@ fun AhcDocumentViewerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1C1917),
+                    containerColor = Zinc950,
                 ),
             )
         },
-        containerColor = Color(0xFF1C1917),
+        containerColor = Zinc950,
     ) { inner ->
         when (val s = state) {
             AhcViewerUiState.Loading -> ViewerLoading(inner)
@@ -137,7 +140,7 @@ private fun ViewerLoading(inner: PaddingValues) {
             Spacer(Modifier.height(16.dp))
             Text(
                 "Loading document…",
-                color = Color(0xFFA8A29E),
+                color = Zinc400,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -151,11 +154,11 @@ private fun ViewerError(inner: PaddingValues, msg: String, onRetry: () -> Unit) 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(Icons.Outlined.ErrorOutline, null, tint = Color(0xFFA8A29E), modifier = Modifier.size(36.dp))
+        Icon(Icons.Outlined.ErrorOutline, null, tint = Zinc400, modifier = Modifier.size(36.dp))
         Spacer(Modifier.height(12.dp))
         Text(
             msg,
-            color = Color(0xFFD4D4D8),
+            color = Zinc300,
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -182,7 +185,7 @@ private fun PdfPagesList(inner: PaddingValues, pages: List<Bitmap>) {
         modifier = Modifier
             .fillMaxSize()
             .padding(inner)
-            .background(Color(0xFF1C1917))
+            .background(Zinc950)
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     val newScale = (scale * zoom).coerceIn(1f, 4f)

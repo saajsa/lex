@@ -30,8 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ahc.theme.LlColor
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.feature.digital_office.DoSessionStatus
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -288,7 +287,7 @@ private fun DeclineDocRequestDialog(
         Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 22.dp)) {
             Text(
                 "I don’t have this",
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink,
             )
             Spacer(Modifier.height(8.dp))
@@ -300,12 +299,12 @@ private fun DeclineDocRequestDialog(
                     }
                     append(" as unavailable. Your advocate will see your reason and can waive it or suggest an alternative.")
                 },
-                fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
+                fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
             )
             Spacer(Modifier.height(16.dp))
             Text(
                 "REASON",
-                fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                fontFamily = Inter, fontWeight = FontWeight.Bold,
                 fontSize = 10.5.sp, letterSpacing = 0.07.em, color = LlColor.InkFaint,
             )
             Spacer(Modifier.height(8.dp))
@@ -314,11 +313,11 @@ private fun DeclineDocRequestDialog(
                 onValueChange = { reason = it.take(500) },
                 placeholder = {
                     Text("lost, doesn’t exist, applied for…",
-                        fontFamily = SourceSans, fontSize = 14.sp, color = LlColor.InkFaint)
+                        fontFamily = Inter, fontSize = 14.sp, color = LlColor.InkFaint)
                 },
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = SourceSans, fontSize = 14.sp, color = LlColor.Ink),
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Inter, fontSize = 14.sp, color = LlColor.Ink),
                 minLines = 3,
-                shape = RoundedCornerShape(9.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = LlColor.BorderStrong,
                     unfocusedBorderColor = LlColor.Border,
@@ -332,7 +331,7 @@ private fun DeclineDocRequestDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(11.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(if (canSubmit) LlColor.Ink else LlColor.Paper2)
                     .clickable(enabled = canSubmit) { onSubmit(reason) }
                     .padding(vertical = 14.dp),
@@ -347,7 +346,7 @@ private fun DeclineDocRequestDialog(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "MARK AS DON’T HAVE",
-                    fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                    fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp, letterSpacing = 0.05.em,
                     color = if (canSubmit) LlColor.Paper else LlColor.InkFaint,
                 )

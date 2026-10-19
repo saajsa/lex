@@ -41,8 +41,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.Lora
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -125,19 +124,19 @@ private fun ListHead(count: Int, outstanding: Double, outstandingCount: Int, sym
         verticalAlignment = Alignment.Bottom,
     ) {
         Column {
-            Text("Invoices", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+            Text("Invoices", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 23.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
             Spacer(Modifier.height(3.dp))
             Text("$count ${if (count == 1) "invoice" else "invoices"}",
-                fontFamily = SourceSans, fontSize = 12.sp, color = LlColor.InkMuted)
+                fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("OUTSTANDING", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+            Text("OUTSTANDING", fontFamily = Inter, fontWeight = FontWeight.Bold,
                 fontSize = 9.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
             Spacer(Modifier.height(3.dp))
             Text(
                 formatMoney(outstanding, symbol),
-                fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp,
                 color = if (outstandingCount == 0) LlColor.VerdantMid else LlColor.ClaretMid,
             )
         }
@@ -166,9 +165,9 @@ private fun FChip(filter: InvFilter, active: InvFilter, onSelect: (InvFilter) ->
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        Text(filter.label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
+        Text(filter.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
             color = if (on) LlColor.Paper else LlColor.InkMuted)
-        Text("$count", fontFamily = SourceSans, fontSize = 10.sp,
+        Text("$count", fontFamily = Inter, fontSize = 10.sp,
             color = if (on) LlColor.Paper.copy(alpha = 0.75f) else LlColor.InkFaint)
     }
 }
@@ -190,7 +189,7 @@ private fun Ledger(invoices: List<Invoice>, onOpenInvoice: (String) -> Unit) {
 
 private data class LSev(val mid: Color, val soft: Color)
 
-private fun lsev(s: InvoiceStatus): LSev = when (s) {
+@androidx.compose.runtime.Composable private fun lsev(s: InvoiceStatus): LSev = when (s) {
     InvoiceStatus.OVERDUE -> LSev(LlColor.ClaretMid, LlColor.ClaretSoft)
     InvoiceStatus.UNPAID  -> LSev(LlColor.AmberMid, LlColor.AmberSoft)
     InvoiceStatus.PARTIAL -> LSev(LlColor.SlateMid, LlColor.SlateSoft)
@@ -241,27 +240,27 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
         Box(Modifier.width(3.dp).height(56.dp).background(sev.mid))
         Spacer(Modifier.width(11.dp))
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(sev.soft),
+            Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(sev.soft),
             contentAlignment = Alignment.Center,
         ) { Icon(rowIcon(inv.status), null, tint = sev.mid, modifier = Modifier.size(20.dp)) }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f).padding(vertical = 13.dp)) {
-            Text(inv.number, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text(inv.number, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             inv.projectName?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(3.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 12.sp, color = LlColor.InkMuted,
+                Text(it, fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.height(5.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 inv.date?.let {
-                    Text("Issued ${it.format(listDayFmt)}", fontFamily = SourceSans,
+                    Text("Issued ${it.format(listDayFmt)}", fontFamily = Inter,
                         fontSize = 10.5.sp, color = LlColor.InkFaint)
                 }
                 rowHint(inv)?.let { h ->
-                    if (inv.date != null) Text(" · ", fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint)
-                    Text(h, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 10.5.sp, color = sev.mid)
+                    if (inv.date != null) Text(" · ", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                    Text(h, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 10.5.sp, color = sev.mid)
                 }
             }
         }
@@ -269,7 +268,7 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
         Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 14.dp)) {
             Text(
                 formatMoney(amount, inv.currencySymbol),
-                fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                 color = if (paid) LlColor.InkFaint else LlColor.Ink,
                 textDecoration = if (paid) TextDecoration.LineThrough else null,
             )
@@ -283,9 +282,9 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
 private fun StatusChip(label: String, sev: LSev) {
     Text(
         label,
-        fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.04.em,
+        fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.04.em,
         color = sev.mid,
-        modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(sev.soft).padding(horizontal = 8.dp, vertical = 3.dp),
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(sev.soft).padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
@@ -305,13 +304,13 @@ private fun EmptyState(filter: InvFilter) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(LlColor.VerdantSoft),
+            Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.Verified, null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp)) }
         Spacer(Modifier.height(16.dp))
-        Text(title, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
+        Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
         Spacer(Modifier.height(7.dp))
-        Text(body, fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 19.sp,
+        Text(body, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
     }
 }
@@ -367,15 +366,15 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(66.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(66.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("Can't load your invoices", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Can't load your invoices", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 19.sp,
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))
         Surface(
@@ -385,7 +384,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             Row(Modifier.padding(horizontal = 24.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Try again", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
+                Text("Try again", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Paper)
             }
         }
     }

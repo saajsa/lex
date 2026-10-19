@@ -53,8 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import coil.compose.AsyncImage
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.data.api.ApiClient
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -177,7 +176,7 @@ private fun LobbyTopBar(consultationId: String, enabled: Boolean, onBack: () -> 
     ) {
         Box(
             Modifier
-                .size(38.dp).clip(RoundedCornerShape(11.dp))
+                .size(38.dp).clip(RoundedCornerShape(8.dp))
                 .clickable(enabled = enabled, onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
@@ -188,9 +187,9 @@ private fun LobbyTopBar(consultationId: String, enabled: Boolean, onBack: () -> 
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Icon(Icons.Outlined.Videocam, null, tint = LobbyC.Faint, modifier = Modifier.size(13.dp))
-            Text("VIDEO SESSION", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.15.em, color = LobbyC.Faint)
+            Text("VIDEO SESSION", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = LobbyC.Faint)
             Box(Modifier.size(4.dp).clip(CircleShape).background(LobbyC.Faint))
-            Text("#$consultationId", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.1.em, color = LobbyC.Faint)
+            Text("#$consultationId", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.1.em, color = LobbyC.Faint)
         }
     }
 }
@@ -352,7 +351,7 @@ private fun HeroAvatar(name: String, avatarUrl: String?, tone: Tone, badge: Imag
                 .border(1.dp, Color(0x14F5F1EA), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(initialsOf(name), fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 42.sp, color = Color(0xFFDFE7F2))
+            Text(initialsOf(name), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 42.sp, color = Color(0xFFDFE7F2))
             if (!avatarUrl.isNullOrBlank()) {
                 AsyncImage(model = avatarUrl, contentDescription = null, modifier = Modifier.matchParentSize().clip(CircleShape))
             }
@@ -409,11 +408,11 @@ private fun PulseRing(color: Color, delayMs: Int) {
 // ── Text bits ────────────────────────────────────────────────────────────────
 
 @Composable private fun AdvName(text: String) =
-    Text(text, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 27.sp,
+    Text(text, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 27.sp,
         letterSpacing = (-0.02).em, lineHeight = 30.sp, color = LobbyC.Paper, textAlign = TextAlign.Center)
 
 @Composable private fun Desig(text: String) =
-    Text(text, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 12.sp,
+    Text(text, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.sp,
         letterSpacing = 0.02.em, color = LobbyC.Muted, textAlign = TextAlign.Center)
 
 @Composable
@@ -429,7 +428,7 @@ private fun PresenceChip(text: String, tone: Tone, live: Boolean = true, spinner
             live -> LiveDot(tone.accent)
             else -> Box(Modifier.size(8.dp).clip(CircleShape).background(tone.accent))
         }
-        Text(text, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = LobbyC.Paper)
+        Text(text, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = LobbyC.Paper)
     }
 }
 
@@ -447,12 +446,12 @@ private fun LiveDot(color: Color) {
 private fun QueuePosition(position: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.Top) {
-            Text("$position", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 60.sp,
+            Text("$position", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 60.sp,
                 letterSpacing = (-0.03).em, color = LobbyC.Paper)
-            Text(ordinal(position), fontFamily = Lora, fontWeight = FontWeight.Medium, fontSize = 22.sp,
+            Text(ordinal(position), fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 22.sp,
                 color = LobbyC.Muted, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
         }
-        Text("IN LINE", fontFamily = SourceSans, fontSize = 10.5.sp, letterSpacing = 0.16.em, color = LobbyC.Faint)
+        Text("IN LINE", fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.16.em, color = LobbyC.Faint)
     }
 }
 
@@ -478,18 +477,18 @@ private fun Countdown(secondsLeft: Int) {
         while (left > 0) { delay(1000); left -= 1 }
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Text("%d:%02d".format(left / 60, left % 60), fontFamily = SourceSans, fontWeight = FontWeight.Medium,
+        Text("%d:%02d".format(left / 60, left % 60), fontFamily = Inter, fontWeight = FontWeight.Medium,
             fontSize = 46.sp, letterSpacing = 0.02.em, color = LobbyC.Paper)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Icon(Icons.Outlined.HourglassTop, null, tint = LobbyC.Amber, modifier = Modifier.size(15.dp))
-            Text("Joining window closes soon", fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = LobbyC.Amber)
+            Text("Joining window closes soon", fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = LobbyC.Amber)
         }
     }
 }
 
 @Composable
 private fun Reassure(text: String) {
-    Text(text, fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 19.sp, color = LobbyC.Muted,
+    Text(text, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LobbyC.Muted,
         textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp))
 }
 
@@ -506,7 +505,7 @@ private fun ReassureStrip(handing: Boolean = false) {
 private fun StripItem(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         Icon(icon, null, tint = LobbyC.Faint, modifier = Modifier.size(15.dp))
-        Text(text, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LobbyC.Faint)
+        Text(text, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LobbyC.Faint)
     }
 }
 
@@ -515,7 +514,7 @@ private fun StripItem(icon: ImageVector, text: String) {
 @Composable
 private fun JoinButton(label: String, busy: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .background(if (busy || !enabled) LobbyC.Raised else LobbyC.Verdant)
             .clickable(enabled = enabled && !busy, onClick = onClick)
             .padding(vertical = 19.dp),
@@ -524,7 +523,7 @@ private fun JoinButton(label: String, busy: Boolean = false, enabled: Boolean = 
         if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.5.dp, color = LobbyC.Paper)
         else Icon(Icons.Outlined.Videocam, null, tint = if (enabled) Color.White else LobbyC.Muted, modifier = Modifier.size(23.dp))
         Spacer(Modifier.width(11.dp))
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp,
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp,
             color = if (busy || !enabled) LobbyC.Muted else Color.White)
     }
 }
@@ -532,34 +531,34 @@ private fun JoinButton(label: String, busy: Boolean = false, enabled: Boolean = 
 @Composable
 private fun SolidButton(label: String, icon: ImageVector, busy: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(LobbyC.Paper)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LobbyC.Paper)
             .clickable(enabled = !busy, onClick = onClick).padding(vertical = 18.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         if (busy) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = LobbyC.Deep)
         else Icon(icon, null, tint = LobbyC.Deep, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(9.dp))
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LobbyC.Deep)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LobbyC.Deep)
     }
 }
 
 @Composable
 private fun GhostButton(label: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).border(1.dp, LobbyC.Line, RoundedCornerShape(17.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, LobbyC.Line, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick).padding(vertical = 17.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = LobbyC.Paper, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(9.dp))
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LobbyC.Paper)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LobbyC.Paper)
     }
 }
 
 @Composable
 private fun LeaveText(label: String, busy: Boolean, onClick: () -> Unit) {
     Box(Modifier.fillMaxWidth().clickable(enabled = !busy, onClick = onClick).padding(top = 16.dp, bottom = 6.dp), contentAlignment = Alignment.Center) {
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.Medium, fontSize = 12.5.sp, letterSpacing = 0.02.em, color = LobbyC.Faint)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.5.sp, letterSpacing = 0.02.em, color = LobbyC.Faint)
     }
 }
 
@@ -578,14 +577,14 @@ private fun CameraToggle(on: Boolean, onClick: () -> Unit) {
             tint = if (on) LobbyC.Verdant else LobbyC.Muted, modifier = Modifier.size(17.dp),
         )
         Text(if (on) "Camera preview on" else "Preview your camera",
-            fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LobbyC.Paper)
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LobbyC.Paper)
     }
 }
 
 @Composable
 private fun CameraMirror(modifier: Modifier) {
     val owner = LocalLifecycleOwner.current
-    Box(modifier.clip(RoundedCornerShape(18.dp)).border(1.dp, LobbyC.Line, RoundedCornerShape(18.dp)).background(LobbyC.Raised)) {
+    Box(modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, LobbyC.Line, RoundedCornerShape(12.dp)).background(LobbyC.Raised)) {
         AndroidView(
             factory = { c ->
                 val pv = PreviewView(c).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
@@ -603,12 +602,12 @@ private fun CameraMirror(modifier: Modifier) {
             modifier = Modifier.matchParentSize(),
         )
         Row(
-            Modifier.align(Alignment.BottomStart).padding(12.dp).clip(RoundedCornerShape(7.dp))
+            Modifier.align(Alignment.BottomStart).padding(12.dp).clip(RoundedCornerShape(6.dp))
                 .background(Color(0xA8120F0D)).padding(horizontal = 9.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(Icons.Outlined.Visibility, null, tint = LobbyC.Muted, modifier = Modifier.size(13.dp))
-            Text("PREVIEW · MIRROR ONLY", fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.08.em, color = LobbyC.Muted)
+            Text("PREVIEW · MIRROR ONLY", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.08.em, color = LobbyC.Muted)
         }
     }
 }

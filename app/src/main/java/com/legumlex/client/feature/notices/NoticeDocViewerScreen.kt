@@ -1,5 +1,8 @@
 package com.legumlex.client.feature.notices
 
+import com.legumlex.client.ui.theme.Zinc300
+import com.legumlex.client.ui.theme.Zinc400
+import com.legumlex.client.ui.theme.Zinc950
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -71,16 +74,16 @@ fun NoticeDocViewerScreen(
                     Column {
                         Text(fileName?.takeIf { it.isNotBlank() } ?: "Document", style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1)
                         val pages = (state as? NoticeDocViewerUiState.Ready)?.pages?.size
-                        if (pages != null && pages > 1) Text("$pages pages", style = MaterialTheme.typography.labelSmall, color = Color(0xFFA8A29E))
+                        if (pages != null && pages > 1) Text("$pages pages", style = MaterialTheme.typography.labelSmall, color = Zinc400)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = Color.White) }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1C1917)),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Zinc950),
             )
         },
-        containerColor = Color(0xFF1C1917),
+        containerColor = Zinc950,
     ) { inner ->
         when (val s = state) {
             NoticeDocViewerUiState.Loading -> Loading(inner)
@@ -96,7 +99,7 @@ private fun Loading(inner: PaddingValues) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
             Spacer(Modifier.height(16.dp))
-            Text("Loading document…", color = Color(0xFFA8A29E), style = MaterialTheme.typography.bodyMedium)
+            Text("Loading document…", color = Zinc400, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -107,9 +110,9 @@ private fun ErrorView(inner: PaddingValues, msg: String, onRetry: () -> Unit) {
         Modifier.fillMaxSize().padding(inner).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        Icon(Icons.Outlined.ErrorOutline, null, tint = Color(0xFFA8A29E), modifier = Modifier.size(36.dp))
+        Icon(Icons.Outlined.ErrorOutline, null, tint = Zinc400, modifier = Modifier.size(36.dp))
         Spacer(Modifier.height(12.dp))
-        Text(msg, color = Color(0xFFD4D4D8), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        Text(msg, color = Zinc300, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
         OutlinedButton(onClick = onRetry, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("Retry") }
     }
@@ -122,7 +125,7 @@ private fun Pages(inner: PaddingValues, pages: List<Bitmap>) {
     var panY by remember { mutableStateOf(0f) }
     val listState = rememberLazyListState()
     Box(
-        Modifier.fillMaxSize().padding(inner).background(Color(0xFF1C1917))
+        Modifier.fillMaxSize().padding(inner).background(Zinc950)
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     val ns = (scale * zoom).coerceIn(1f, 4f)

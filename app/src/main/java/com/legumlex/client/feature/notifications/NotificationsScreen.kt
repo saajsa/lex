@@ -61,14 +61,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.ahc.theme.LlColor
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.brand.LegumMark
 import com.legumlex.client.ui.theme.AccentInk
 
 private data class SevColors(val stripe: Color, val tileBg: Color, val tileTint: Color)
 
-private fun colorsFor(s: NotifSeverity): SevColors = when (s) {
+@androidx.compose.runtime.Composable private fun colorsFor(s: NotifSeverity): SevColors = when (s) {
     NotifSeverity.CRITICAL -> SevColors(LlColor.Claret, LlColor.ClaretSoft, LlColor.Claret)
     NotifSeverity.WARNING  -> SevColors(LlColor.AmberMid, LlColor.AmberSoft, LlColor.Amber)
     NotifSeverity.INFO     -> SevColors(LlColor.SlateMid, LlColor.SlateSoft, LlColor.Slate)
@@ -140,7 +139,7 @@ private fun Header(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
                 .align(Alignment.CenterStart)
                 .padding(start = 6.dp)
                 .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
@@ -157,7 +156,7 @@ private fun Header(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
         val enabled = unread > 0
         Text(
             text = "Mark all read",
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize = 11.5.sp,
             color = if (enabled) LlColor.Claret else LlColor.InkFaint,
@@ -183,9 +182,9 @@ private fun SubBar(filter: NotifFilter, unread: Int, onFilter: (NotifFilter) -> 
     ) {
         Row(
             Modifier
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(LlColor.Paper1)
-                .border(1.dp, LlColor.Border, RoundedCornerShape(10.dp))
+                .border(1.dp, LlColor.Border, RoundedCornerShape(8.dp))
                 .padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -195,12 +194,12 @@ private fun SubBar(filter: NotifFilter, unread: Int, onFilter: (NotifFilter) -> 
         if (unread > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.size(8.dp).clip(CircleShape).background(LlColor.Claret))
-                Text("$unread unread", fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                Text("$unread unread", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(14.dp))
-                Text("No unread", fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint)
+                Text("No unread", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
             }
         }
     }
@@ -211,7 +210,7 @@ private fun SubBar(filter: NotifFilter, unread: Int, onFilter: (NotifFilter) -> 
 private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(7.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(if (on) Color.White else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -220,7 +219,7 @@ private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Uni
     ) {
         Text(
             label,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize = 11.5.sp,
             color = if (on) LlColor.Ink else LlColor.InkMuted,
@@ -229,7 +228,7 @@ private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Uni
             Box(
                 Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Claret).padding(horizontal = 5.dp, vertical = 1.dp),
             ) {
-                Text("$pill", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = Color.White)
+                Text("$pill", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = Color.White)
             }
         }
     }
@@ -269,13 +268,13 @@ private fun BandHeader(band: NotifBand) {
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(band.title, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
+        Text(band.title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
         Text(
             buildString {
                 if (band.newCount > 0) append("${band.newCount} new · ")
                 append("${band.items.size} total")
             },
-            fontFamily = SourceSans, fontSize = 10.5.sp,
+            fontFamily = Inter, fontSize = 10.5.sp,
             color = if (band.newCount > 0) LlColor.ClaretMid else LlColor.InkFaint,
         )
     }
@@ -308,7 +307,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
             Box(
                 Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(11.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(c.tileBg)
                     .alpha(if (read) 0.7f else 1f),
                 contentAlignment = Alignment.Center,
@@ -321,7 +320,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(
                         n.title,
-                        fontFamily = Lora,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.5.sp,
                         color = if (read) LlColor.InkMuted else LlColor.Ink,
@@ -332,7 +331,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             n.cta.uppercase(),
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
                             fontSize = 9.5.sp,
                             color = if (read) LlColor.InkFaint else LlColor.Claret,
@@ -349,7 +348,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
                     Spacer(Modifier.height(3.dp))
                     Text(
                         n.subtitle,
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontSize = 11.5.sp,
                         color = if (read) LlColor.InkFaint else LlColor.InkMuted,
                         maxLines = 1,
@@ -361,7 +360,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
             // meta — unread dot + time
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 if (!read) Box(Modifier.size(8.dp).clip(CircleShape).background(LlColor.Claret))
-                Text(n.timeLabel, fontFamily = SourceSans, fontSize = 10.5.sp, color = if (read) LlColor.InkFaint else LlColor.InkMuted)
+                Text(n.timeLabel, fontFamily = Inter, fontSize = 10.5.sp, color = if (read) LlColor.InkFaint else LlColor.InkMuted)
             }
         }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(LlColor.Paper2))
@@ -381,7 +380,7 @@ private fun SwipeBackground() {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(20.dp))
-            Text("Dismiss", fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color.White)
+            Text("Dismiss", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color.White)
         }
     }
 }
@@ -394,24 +393,24 @@ private fun EmptyState() {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
-                .border(1.dp, LlColor.Border, RoundedCornerShape(14.dp))
+                .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))
                 .padding(vertical = 40.dp, horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
-                Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(LlColor.VerdantSoft),
+                Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text("You're all caught up", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
+            Text("You're all caught up", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
             Spacer(Modifier.height(7.dp))
             Text(
                 "No new alerts about your cases, invoices, hearings or documents. Anything that needs you will arrive here.",
-                fontFamily = SourceSans, fontSize = 12.5.sp, color = LlColor.InkMuted,
+                fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted,
                 modifier = Modifier.fillMaxWidth(0.85f),
             )
         }
@@ -424,23 +423,23 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
-                .border(1.dp, LlColor.Border, RoundedCornerShape(14.dp))
+                .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.AmberSoft),
+                Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.AmberSoft),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Outlined.WifiOff, null, tint = LlColor.Amber, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("Couldn't load notifications", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+                Text("Couldn't load notifications", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
                 Spacer(Modifier.height(2.dp))
-                Text(message, fontFamily = SourceSans, fontSize = 11.5.sp, color = LlColor.InkMuted)
+                Text(message, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted)
             }
             Row(
                 Modifier
@@ -452,7 +451,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Icon(Icons.Outlined.Refresh, null, tint = LlColor.Ink, modifier = Modifier.size(15.dp))
-                Text("Retry", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+                Text("Retry", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
             }
         }
     }

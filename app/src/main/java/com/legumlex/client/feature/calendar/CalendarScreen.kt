@@ -326,7 +326,7 @@ private fun SheetHearingCard(h: Hearing, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         color   = MaterialTheme.colorScheme.surface,
-        shape   = RoundedCornerShape(14.dp),
+        shape   = RoundedCornerShape(12.dp),
         border  = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -364,9 +364,9 @@ private fun SheetHearingCard(h: Hearing, onClick: () -> Unit) {
 private fun CalendarSkeleton() {
     val spacing = LocalSpacing.current
     Column(modifier = Modifier.fillMaxSize().padding(spacing.s4)) {
-        Box(Modifier.size(width = 160.dp, height = 22.dp).clip(RoundedCornerShape(11.dp)).background(BorderColor))
+        Box(Modifier.size(width = 160.dp, height = 22.dp).clip(RoundedCornerShape(8.dp)).background(BorderColor))
         Spacer(Modifier.height(spacing.s4))
-        Box(Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(14.dp)).background(BorderColor))
+        Box(Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(12.dp)).background(BorderColor))
     }
 }
 

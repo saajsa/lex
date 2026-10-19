@@ -58,6 +58,7 @@ private fun CountingBody(
     val animated by animateFloatAsState(targetValue = ringFraction, label = "ring")
     // Ring color: verdant while comfortably on time, amber in the last ~5 min.
     val ringColor = if (ringFraction <= 0.16f) LlColor.AmberMid else LlColor.Verdant
+    val trackColor = LlColor.Paper2
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text("REPORT READY IN", style = LlText.eyebrow.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified))
@@ -70,7 +71,7 @@ private fun CountingBody(
                 val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
                 // track (--paper2)
                 drawArc(
-                    color = LlColor.Paper2, startAngle = -90f, sweepAngle = 360f,
+                    color = trackColor, startAngle = -90f, sweepAngle = 360f,
                     useCenter = false, topLeft = topLeft, size = arcSize,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = StrokeCap.Round),
                 )

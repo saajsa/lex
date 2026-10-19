@@ -51,7 +51,7 @@ import coil.compose.AsyncImage
 import com.legumlex.client.feature.home.ChamberAdvocate
 import com.legumlex.client.feature.home.ChamberState
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 // Lexcore palette tokens that the global theme doesn't carry one-to-one. Kept
 // file-private so the rest of the app keeps using the BizLink palette unless
@@ -214,7 +214,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
             Spacer(Modifier.height(12.dp))
             Text(
                 text       = "YOUR ADVOCATE",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 10.sp,
                 letterSpacing = 1.6.sp,
                 color      = LexSlateFog,
@@ -222,7 +222,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
             Spacer(Modifier.height(7.dp))
             Text(
                 text       = advocate?.let { "Adv. ${it.name}" } ?: "Your advocate",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 25.sp,
                 letterSpacing = (-0.5).sp,
@@ -233,7 +233,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
                 Spacer(Modifier.height(5.dp))
                 Text(
                     text       = it,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 12.5.sp,
                     color      = LexSlateMid,
@@ -246,7 +246,7 @@ private fun SlateHero(chamber: ChamberState, advocate: ChamberAdvocate?, onBack:
             Text(
                 text       = if (chamber.isOpen) "We usually connect you in under 2 minutes"
                              else "Opens ${chamber.hours.ifBlank { "9:00 AM" }}",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 10.5.sp,
                 color      = LexSlateFog,
             )
@@ -281,7 +281,7 @@ private fun HeroPortrait(advocate: ChamberAdvocate?) {
         } else {
             Text(
                 text       = initials,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 40.sp,
                 color      = LexPaper,
@@ -307,7 +307,7 @@ private fun HeroStatus(open: Boolean, busy: Boolean, advocate: ChamberAdvocate?)
         Spacer(Modifier.width(8.dp))
         Text(
             text       = label.uppercase(),
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize   = 11.sp,
             letterSpacing = 0.77.sp,
@@ -366,7 +366,7 @@ private fun LivePip(color: Color, animate: Boolean) {
 private fun SectionEyebrow(text: String) {
     Text(
         text       = text,
-        fontFamily = SourceSans,
+        fontFamily = Inter,
         fontSize   = 10.sp,
         letterSpacing = 1.5.sp,
         color      = LexInkFaint,
@@ -381,7 +381,7 @@ private fun BenefitsBlock() {
         Surface(
             color  = Color.White,
             border = BorderStroke(1.dp, LexBorder),
-            shape  = RoundedCornerShape(14.dp),
+            shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -429,7 +429,7 @@ private fun BenefitRow(icon: ImageVector, title: String, sub: String, first: Boo
         Column {
             Text(
                 text       = title,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 13.sp,
                 color      = PrimaryText,
@@ -437,7 +437,7 @@ private fun BenefitRow(icon: ImageVector, title: String, sub: String, first: Boo
             Spacer(Modifier.height(2.dp))
             Text(
                 text       = sub,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 11.5.sp,
                 lineHeight = 16.sp,
                 color      = LexInkMuted,
@@ -453,7 +453,7 @@ private fun WalkInStepsBlock() {
         Surface(
             color  = Color.White,
             border = BorderStroke(1.dp, LexBorder),
-            shape  = RoundedCornerShape(14.dp),
+            shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -476,13 +476,13 @@ private fun StepRow(n: String, title: String, sub: String, trailing: ImageVector
         Box(
             modifier = Modifier
                 .size(28.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(LexClaretSoft),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text       = n,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 12.sp,
                 color      = LexClaret,
@@ -492,7 +492,7 @@ private fun StepRow(n: String, title: String, sub: String, trailing: ImageVector
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text       = title,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 13.sp,
                 color      = PrimaryText,
@@ -500,7 +500,7 @@ private fun StepRow(n: String, title: String, sub: String, trailing: ImageVector
             Spacer(Modifier.height(1.dp))
             Text(
                 text       = sub,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 11.5.sp,
                 lineHeight = 16.sp,
                 color      = LexInkMuted,
@@ -518,14 +518,14 @@ private fun AboutAdvocateBlock(advocate: ChamberAdvocate?, chamber: ChamberState
         Surface(
             color  = Color.White,
             border = BorderStroke(1.dp, LexBorder),
-            shape  = RoundedCornerShape(14.dp),
+            shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text       = buildAboutLine(advocate, chamber),
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 13.sp,
                     lineHeight = 21.sp,
                     color      = LexInkMuted,
@@ -543,7 +543,7 @@ private fun AboutAdvocateBlock(advocate: ChamberAdvocate?, chamber: ChamberState
                         Spacer(Modifier.width(7.dp))
                         Text(
                             text       = "Bar Council ID · ${advocate.barCouncilId}",
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontSize   = 10.5.sp,
                             color      = LexInkMuted,
                         )
@@ -569,7 +569,7 @@ private fun WhenYouCanWalkInBlock(chamber: ChamberState) {
         Surface(
             color  = Color.White,
             border = BorderStroke(1.dp, LexBorder),
-            shape  = RoundedCornerShape(14.dp),
+            shape  = RoundedCornerShape(12.dp),
             shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -591,7 +591,7 @@ private fun ScheduleRow(day: String, hours: String, today: Boolean = false, clos
     ) {
         Text(
             text       = day,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize   = 12.5.sp,
             color      = if (today) LexClaret else PrimaryText,
@@ -599,7 +599,7 @@ private fun ScheduleRow(day: String, hours: String, today: Boolean = false, clos
         )
         Text(
             text       = hours,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize   = 11.5.sp,
             color      = when {
                 today  -> LexClaret
@@ -647,7 +647,7 @@ private fun WalkInActionBar(
             Spacer(Modifier.width(7.dp))
             Text(
                 text       = hint,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 11.5.sp,
                 color      = LexInkMuted,
                 textAlign  = TextAlign.Center,
@@ -657,7 +657,7 @@ private fun WalkInActionBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(13.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(if (ctaEnabled) LexClaret else LexInkMuted)
                 .clickable(enabled = ctaEnabled, onClick = onWalkIn)
                 .padding(vertical = 16.dp),
@@ -666,7 +666,7 @@ private fun WalkInActionBar(
         ) {
             Text(
                 text       = ctaText.uppercase(),
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 13.sp,
                 letterSpacing = 0.5.sp,

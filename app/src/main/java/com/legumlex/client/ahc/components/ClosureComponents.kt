@@ -47,6 +47,7 @@ import com.legumlex.client.ahc.theme.LlText
 
 private data class ClosurePalette(val bg: Color, val fg: Color, val icon: ImageVector)
 
+@androidx.compose.runtime.Composable
 private fun closurePalette(kind: ClosureKind): ClosurePalette = when (kind) {
     ClosureKind.COMPLETED               -> ClosurePalette(LlColor.VerdantSoft, LlColor.Verdant, Icons.Default.CheckCircle)
     ClosureKind.RESOLVED_VIA_CONSULTATION -> ClosurePalette(LlColor.SlateSoft, LlColor.SlateMid, Icons.Default.Handshake)
@@ -70,7 +71,7 @@ fun CloseHero(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(58.dp).clip(RoundedCornerShape(16.dp)).background(p.bg),
+            Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(p.bg),
             contentAlignment = Alignment.Center,
         ) { Icon(p.icon, null, Modifier.size(29.dp), tint = p.fg) }
         Spacer(Modifier.height(16.dp))
@@ -129,7 +130,7 @@ fun LinkCard(link: ClosureLink, onClick: () -> Unit, modifier: Modifier = Modifi
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Paper2),
+                Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2),
                 contentAlignment = Alignment.Center,
             ) {
                 val icon = if (link.target == ClosureLinkTarget.CASE) Icons.Default.Gavel else Icons.Default.Forum

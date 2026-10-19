@@ -1,5 +1,18 @@
 package com.legumlex.client.feature.home
 
+import com.legumlex.client.ui.theme.PrimaryText
+import com.legumlex.client.ui.theme.SecondaryText
+import com.legumlex.client.ui.theme.TertiaryText
+import com.legumlex.client.ui.theme.BorderColor
+import com.legumlex.client.ui.theme.BorderSubtle
+import com.legumlex.client.ui.theme.Surface1
+import com.legumlex.client.ui.theme.Surface2
+import com.legumlex.client.ui.theme.AccentInk
+import com.legumlex.client.ui.theme.StatusDanger
+import com.legumlex.client.ui.theme.StatusPending
+import com.legumlex.client.ui.theme.StatusOngoing
+import com.legumlex.client.ui.theme.StatusSettled
+import com.legumlex.client.ui.theme.Lex
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -90,8 +103,7 @@ import com.legumlex.client.R
 import com.legumlex.client.ui.components.LegumSecondaryButton
 import com.legumlex.client.ui.theme.StatusPalette
 import com.legumlex.client.ahc.theme.LlColor
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import kotlin.math.PI
 import kotlin.math.sin
 import java.time.Duration
@@ -107,31 +119,14 @@ import java.util.Calendar
 // Balance → Chamber. Severity stripes live on the leading edge so the queue
 // scans by colour before reading a word.
 
-// Lexcore (warm-paper) design language — the home screen now speaks the same
-// claret / Source Serif 4 / IBM Plex / warm-paper system as the AHC screens.
-// These same-named aliases repoint every existing call site at the Lexcore
-// tokens without rewiring the layout. Font split follows the design: SERIF for
-// headings, SANS for UI labels/buttons/chips, MONO for numerics/eyebrows.
-private val PrimaryText   = LlColor.Ink        // --ink
-private val SecondaryText = LlColor.InkMuted   // --ink-m
-private val TertiaryText  = LlColor.InkFaint   // --ink-f
-private val BorderColor   = LlColor.Border     // --b
-private val BorderSubtle  = LlColor.Paper2     // --p2 (hairline inside cards)
-private val Surface1      = LlColor.Surface    // card white on paper
-private val Surface2      = LlColor.Paper1     // --p1 inset fill
-private val AccentInk     = LlColor.Ink        // ink button fill
-private val StatusDanger  = StatusPalette(LlColor.Claret,     LlColor.ClaretSoft,  LlColor.ClaretMid)
-private val StatusPending = StatusPalette(LlColor.AmberMid,   LlColor.AmberSoft,   LlColor.Amber)
-private val StatusOngoing = StatusPalette(LlColor.SlateMid,   LlColor.SlateSoft,   LlColor.SlateMid)
-private val StatusSettled = StatusPalette(LlColor.VerdantMid, LlColor.VerdantSoft, LlColor.Verdant)
-
-// Solid surfaces that carry meaning (event top-strips, chamber portrait, CTAs).
-private val SlateSolid   = LlColor.Slate       // "hearing" strip + portrait plinth
-private val VerdantSolid = LlColor.Verdant     // "appointment" strip + free-now
-private val VerdantSoft   = LlColor.VerdantSoft
-private val Claret        = LlColor.Claret     // chamber hero primary CTA
-private val ClaretDeep    = Color(0xFF5E1124)  // pressed-state for Claret
-private val InkMuted      = LlColor.InkMuted   // chamber hero body
+// Colours come from the Mylex palette (ui/theme): monochrome, with status
+// colours for the queue's severity stripes and the event strips.
+private val SlateSolid: Color   @Composable get() = LlColor.Slate        // "hearing" strip
+private val VerdantSolid: Color @Composable get() = LlColor.Verdant      // "appointment" strip + free-now
+private val VerdantSoft: Color  @Composable get() = LlColor.VerdantSoft
+private val Claret: Color       @Composable get() = AccentInk            // chamber hero primary CTA (monochrome)
+private val ClaretDeep: Color   @Composable get() = Lex.colors.secondaryForeground // pressed state
+private val InkMuted: Color     @Composable get() = LlColor.InkMuted     // chamber hero body
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
@@ -380,7 +375,7 @@ private fun GreetingRow(
             Text(
                 text  = todayDateLabel(),
                 style = MaterialTheme.typography.labelSmall.copy(
-                    fontFamily    = SourceSans,
+                    fontFamily    = Inter,
                     fontWeight    = FontWeight.Medium,
                     fontSize      = 10.5.sp,
                     letterSpacing = 1.5.sp,
@@ -390,7 +385,7 @@ private fun GreetingRow(
             Spacer(Modifier.height(5.dp))
             Text(
                 text       = "${greetingForNow()}, ${firstName.ifBlank { "there" }}",
-                fontFamily = Lora,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 22.sp,
                 letterSpacing = (-0.44).sp,
@@ -416,7 +411,7 @@ private fun IconSquare(
     onClick: () -> Unit,
     filled: Boolean = false,
 ) {
-    val shape = RoundedCornerShape(11.dp)
+    val shape = RoundedCornerShape(8.dp)
     Box(
         modifier = Modifier
             .size(42.dp)
@@ -534,7 +529,7 @@ private fun ServiceCard(
     Surface(
         color  = LlColor.Surface,                          // .svc-card · #fff
         border = BorderStroke(1.dp, LlColor.Border),
-        shape  = RoundedCornerShape(14.dp),                // clips overflowing FX
+        shape  = RoundedCornerShape(12.dp),                // clips overflowing FX
         modifier = modifier.clickable(onClick = onClick),
     ) {
         Box {
@@ -580,7 +575,7 @@ private fun ServiceCard(
                         .padding(top = 15.dp, start = 15.dp)
                         .graphicsLayer { scaleX = pingScale; scaleY = pingScale; alpha = pingA }
                         .size(38.dp)
-                        .border(1.5.dp, accent, RoundedCornerShape(11.dp)),
+                        .border(1.5.dp, accent, RoundedCornerShape(8.dp)),
                 )
             }
 
@@ -589,7 +584,7 @@ private fun ServiceCard(
                 Box(
                     modifier = Modifier
                         .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(iconBg),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -603,7 +598,7 @@ private fun ServiceCard(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text       = title,
-                    fontFamily = Lora,                  // .svc-title · serif
+                    fontFamily = Inter,                  // .svc-title · serif
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 15.5.sp,
                     letterSpacing = (-0.15).sp,
@@ -612,7 +607,7 @@ private fun ServiceCard(
                 Spacer(Modifier.height(5.dp))
                 Text(
                     text  = desc,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 16.5.sp),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.5.sp),
                     color = LlColor.InkMuted,
                 )
                 Spacer(Modifier.height(14.dp))
@@ -630,7 +625,7 @@ private fun ServiceCard(
                     ) {
                         Text(
                             text       = ctaLabel.uppercase(),
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontWeight = FontWeight.Bold,
                             fontSize   = 10.5.sp,
                             letterSpacing = 0.63.sp,
@@ -698,7 +693,7 @@ private fun ActionQueueBlock(
         ) {
             Text(
                 text       = "Action queue",
-                fontFamily = Lora,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 17.sp,
                 letterSpacing = (-0.26).sp,
@@ -718,7 +713,7 @@ private fun ActionQueueBlock(
             Surface(
                 color  = Surface1,
                 border = BorderStroke(1.dp, BorderColor),
-                shape  = RoundedCornerShape(14.dp),
+                shape  = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column {
@@ -778,7 +773,7 @@ private fun CountDot(color: Color, count: Int) {
         Spacer(Modifier.width(4.dp))
         Text(
             text       = count.toString(),
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize   = 11.sp,
             fontWeight = FontWeight.Medium,
             color      = SecondaryText,
@@ -799,7 +794,7 @@ private fun CountsClear() {
         Spacer(Modifier.width(4.dp))
         Text(
             text       = "Clear",
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize   = 10.5.sp,
             color      = StatusSettled.softText,
@@ -848,7 +843,7 @@ private fun ActionRow(item: ActionItem, onClick: () -> Unit) {
             modifier = Modifier
                 .padding(vertical = 12.dp)
                 .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(iconBg),
             contentAlignment = Alignment.Center,
         ) {
@@ -858,7 +853,7 @@ private fun ActionRow(item: ActionItem, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f).padding(vertical = 12.dp)) {
             Text(
                 text       = item.title,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 13.5.sp,
                 letterSpacing = (-0.07).sp,
@@ -870,7 +865,7 @@ private fun ActionRow(item: ActionItem, onClick: () -> Unit) {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text  = item.subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 11.5.sp),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 11.5.sp),
                     color = SecondaryText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -933,7 +928,7 @@ private fun DismissBackground(direction: SwipeToDismissBoxValue) {
         Spacer(Modifier.width(8.dp))
         Text(
             text          = "Dismiss",
-            fontFamily    = SourceSans,
+            fontFamily    = Inter,
             fontWeight    = FontWeight.Bold,
             fontSize      = 11.sp,
             letterSpacing = 0.5.sp,
@@ -972,14 +967,14 @@ private fun ActionMetaChip(item: ActionItem) {
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(7.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(palette.softBg)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text       = label,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize   = 10.sp,
             letterSpacing = 0.4.sp,
@@ -1009,7 +1004,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
     Surface(
         color  = Surface1,
         border = BorderStroke(1.dp, BorderColor),
-        shape  = RoundedCornerShape(14.dp),
+        shape  = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
@@ -1019,7 +1014,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(StatusSettled.softBg),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1028,7 +1023,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             Spacer(Modifier.height(15.dp))
             Text(
                 text       = "You're all caught up",
-                fontFamily = Lora,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 18.sp,
                 letterSpacing = (-0.18).sp,
@@ -1038,7 +1033,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(
                 text  = "No invoices, signatures or requests need you right now. We'll surface anything new here.",
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 18.sp),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp),
                 color = SecondaryText,
                 textAlign = TextAlign.Center,
                 modifier  = Modifier.widthIn(max = 260.dp),
@@ -1046,7 +1041,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             Spacer(Modifier.height(16.dp))
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(AccentInk)
                     .clickable(onClick = onAskNew)
                     .padding(horizontal = 16.dp, vertical = 11.dp),
@@ -1054,7 +1049,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             ) {
                 Text(
                     text       = "Ask your advocate",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 11.5.sp,
                     letterSpacing = 0.46.sp,
@@ -1089,7 +1084,7 @@ private fun NextEventBlock(
     Surface(
         color  = Surface1,
         border = BorderStroke(1.dp, BorderColor),
-        shape  = RoundedCornerShape(14.dp),
+        shape  = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) {
         Column {
@@ -1110,7 +1105,7 @@ private fun NextEventBlock(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text       = if (isHearing) "HEARING" else "APPOINTMENT",
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
                         fontSize   = 11.sp,
                         letterSpacing = 1.1.sp,
@@ -1124,7 +1119,7 @@ private fun NextEventBlock(
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text       = formatEventDate(event.date),
-                        fontFamily = Lora,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 21.sp,
                         letterSpacing = (-0.32).sp,
@@ -1134,7 +1129,7 @@ private fun NextEventBlock(
                         Spacer(Modifier.width(9.dp))
                         Text(
                             text       = event.time!!.format(DateTimeFormatter.ofPattern("h:mm a")),
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontWeight = FontWeight.Medium,
                             fontSize   = 14.sp,
                             color      = SecondaryText,
@@ -1143,7 +1138,7 @@ private fun NextEventBlock(
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text       = "IST",
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontSize   = 10.sp,
                             letterSpacing = 0.8.sp,
                             color      = TertiaryText,
@@ -1154,7 +1149,7 @@ private fun NextEventBlock(
                 Spacer(Modifier.height(10.dp))
                 Text(
                     text       = eventTitle(event),
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 13.5.sp,
                     color      = PrimaryText,
@@ -1171,7 +1166,7 @@ private fun NextEventBlock(
                     Spacer(Modifier.width(7.dp))
                     Text(
                         text  = eventLocation(event),
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 12.sp),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 12.sp),
                         color = SecondaryText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -1245,7 +1240,7 @@ private fun CountdownChip(daysOut: Int, event: NextEvent) {
     }
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(7.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(Color.White.copy(alpha = 0.16f))
             .padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1254,7 +1249,7 @@ private fun CountdownChip(daysOut: Int, event: NextEvent) {
         Spacer(Modifier.width(5.dp))
         Text(
             text       = label,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize   = 11.sp,
             fontWeight = FontWeight.Medium,
             color      = Color.White,
@@ -1277,11 +1272,11 @@ private fun EventActionButton(
         else    -> Surface1
     }
     val fg = if (primary || verdant) Color.White else PrimaryText
-    val borderMod = if (!primary && !verdant) Modifier.border(1.dp, BorderColor, RoundedCornerShape(9.dp)) else Modifier
+    val borderMod = if (!primary && !verdant) Modifier.border(1.dp, BorderColor, RoundedCornerShape(8.dp)) else Modifier
     Row(
         modifier = modifier
             .height(40.dp)
-            .clip(RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .then(borderMod)
             .clickable(onClick = onClick)
@@ -1295,7 +1290,7 @@ private fun EventActionButton(
         }
         Text(
             text       = label.uppercase(),
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize   = 11.sp,
             letterSpacing = 0.55.sp,
@@ -1309,13 +1304,13 @@ private fun NextEventEmptyCard() {
     Surface(
         color    = Surface2,
         border   = BorderStroke(1.dp, BorderSubtle),
-        shape    = RoundedCornerShape(14.dp),
+        shape    = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) {
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp)) {
             Text(
                 text       = "No hearings scheduled.",
-                fontFamily = Lora,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 16.sp,
                 letterSpacing = (-0.15).sp,
@@ -1324,7 +1319,7 @@ private fun NextEventEmptyCard() {
             Spacer(Modifier.height(4.dp))
             Text(
                 text  = "Your advocate will set one when needed.",
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans, fontSize = 12.5.sp),
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 12.5.sp),
                 color = SecondaryText,
             )
         }
@@ -1429,7 +1424,7 @@ private fun ChamberSectionHeading(label: String, meta: String) {
     ) {
         Text(
             text       = label,
-            fontFamily = Lora,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize   = 18.sp,
             letterSpacing = (-0.27).sp,
@@ -1438,7 +1433,7 @@ private fun ChamberSectionHeading(label: String, meta: String) {
         )
         Text(
             text       = meta,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize   = 10.5.sp,
             letterSpacing = 0.5.sp,
             color      = TertiaryText,
@@ -1469,7 +1464,7 @@ private fun ChamberHeroCard(
     Surface(
         color    = Surface1,
         border   = BorderStroke(1.dp, BorderColor),
-        shape    = RoundedCornerShape(20.dp),
+        shape    = RoundedCornerShape(12.dp),
         shadowElevation = 2.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -1485,7 +1480,7 @@ private fun ChamberHeroCard(
             ) {
                 Text(
                     text       = "DIGITAL OFFICE",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 10.sp,
                     letterSpacing = 1.4.sp,
                     color      = TertiaryText,
@@ -1509,7 +1504,7 @@ private fun ChamberHeroCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text       = welcome,
-                        fontFamily = Lora,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 20.sp,
                         letterSpacing = (-0.4).sp,
@@ -1525,7 +1520,7 @@ private fun ChamberHeroCard(
                                 }
                                 append(" · your advocate")
                             },
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontSize   = 12.sp,
                             color      = InkMuted,
                             lineHeight = 16.sp,
@@ -1544,7 +1539,7 @@ private fun ChamberHeroCard(
                         }
                         Text(
                             text       = availability,
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontWeight = FontWeight.SemiBold,
                             fontSize   = 11.sp,
                             color      = availColor,
@@ -1556,7 +1551,7 @@ private fun ChamberHeroCard(
             Spacer(Modifier.height(14.dp))
             Text(
                 text       = reassure,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 12.5.sp,
                 lineHeight = 19.sp,
                 color      = InkMuted,
@@ -1569,7 +1564,7 @@ private fun ChamberHeroCard(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(if (primaryIsClaret) Claret else AccentInk)
                     .clickable(enabled = !closed || !primaryIsClaret, onClick = onPrimary)
                     .padding(vertical = 16.dp),
@@ -1582,7 +1577,7 @@ private fun ChamberHeroCard(
                 }
                 Text(
                     text       = primaryLabel.uppercase(),
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 13.sp,
                     letterSpacing = 0.5.sp,
@@ -1598,7 +1593,7 @@ private fun ChamberHeroCard(
                 Spacer(Modifier.height(10.dp))
                 Text(
                     text       = "+ $extraAdvocates more on your panel — tap Chamber",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 11.sp,
                     color      = TertiaryText,
                     modifier   = Modifier.padding(horizontal = 16.dp),
@@ -1616,13 +1611,13 @@ private fun ChamberHeroPortrait(advocate: ChamberAdvocate?, closed: Boolean) {
         val l = advocate.lastName.firstOrNull()?.toString().orEmpty()
         (f + l).uppercase().ifBlank { "AD" }
     }
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
             .size(width = 88.dp, height = 106.dp)
             .border(3.dp, Color.White, shape)
             .clip(shape)
-            .background(if (closed) Color(0xFF34598A) else SlateSolid),
+            .background(if (closed) LlColor.SlateMid else SlateSolid),
         contentAlignment = Alignment.Center,
     ) {
         if (!advocate?.avatarUrl.isNullOrBlank()) {
@@ -1635,7 +1630,7 @@ private fun ChamberHeroPortrait(advocate: ChamberAdvocate?, closed: Boolean) {
         } else {
             Text(
                 text       = initials,
-                fontFamily = Lora,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 30.sp,
                 color      = Color.White,
@@ -1660,7 +1655,7 @@ private fun ChamberStatusPill(text: String, color: Color, live: Boolean) {
         Spacer(Modifier.width(7.dp))
         Text(
             text       = text.uppercase(),
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.Bold,
             fontSize   = 10.5.sp,
             letterSpacing = 0.65.sp,
@@ -1730,7 +1725,7 @@ private fun SectionHeader(
     ) {
         Text(
             text       = title,
-            fontFamily = Lora,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize   = 17.sp,
             letterSpacing = (-0.26).sp,
@@ -1744,7 +1739,7 @@ private fun SectionHeader(
             ) {
                 Text(
                     text       = actionLabel,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 11.5.sp,
                     letterSpacing = 0.46.sp,
@@ -1810,7 +1805,7 @@ private fun LiveSessionBanner(
         Text(
             text  = "LIVE",
             style = MaterialTheme.typography.labelSmall.copy(
-                fontFamily    = SourceSans,
+                fontFamily    = Inter,
                 fontWeight    = FontWeight.Bold,
                 fontSize      = 10.sp,
                 letterSpacing = 1.4.sp,
@@ -1826,7 +1821,7 @@ private fun LiveSessionBanner(
             Text(
                 text  = headerName,
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 13.5.sp,
                 ),
@@ -1836,7 +1831,7 @@ private fun LiveSessionBanner(
             )
             Text(
                 text  = " $tailCopy",
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SourceSans, fontSize = 13.5.sp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = Inter, fontSize = 13.5.sp),
                 color = Color.White.copy(alpha = 0.65f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1845,7 +1840,7 @@ private fun LiveSessionBanner(
         Spacer(Modifier.width(12.dp))
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(Color.White)
                 .clickable {
                     val link = ev?.meetLink
@@ -1874,7 +1869,7 @@ private fun LiveSessionBanner(
             Text(
                 text  = "Join now",
                 style = MaterialTheme.typography.labelLarge.copy(
-                    fontFamily    = SourceSans,
+                    fontFamily    = Inter,
                     fontWeight    = FontWeight.SemiBold,
                     fontSize      = 12.sp,
                     letterSpacing = 0.48.sp,
@@ -1909,7 +1904,7 @@ private fun HomeSkeleton() {
                 ShimmerBlock(width = 200.dp, height = 22.dp)
             }
             repeat(3) { i ->
-                ShimmerBlock(width = 42.dp, height = 42.dp, shape = RoundedCornerShape(11.dp))
+                ShimmerBlock(width = 42.dp, height = 42.dp, shape = RoundedCornerShape(8.dp))
                 if (i < 2) Spacer(Modifier.width(8.dp))
             }
         }
@@ -1923,11 +1918,11 @@ private fun HomeSkeleton() {
                 Surface(
                     color = Surface1,
                     border = BorderStroke(1.dp, BorderColor),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f),
                 ) {
                     Column(modifier = Modifier.padding(15.dp)) {
-                        ShimmerBlock(width = 38.dp, height = 38.dp, shape = RoundedCornerShape(10.dp))
+                        ShimmerBlock(width = 38.dp, height = 38.dp, shape = RoundedCornerShape(8.dp))
                         Spacer(Modifier.height(12.dp))
                         ShimmerBlock(modifier = Modifier.fillMaxWidth(0.8f), height = 14.dp)
                         Spacer(Modifier.height(8.dp))
@@ -1949,7 +1944,7 @@ private fun HomeSkeleton() {
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ShimmerBlock(width = 38.dp, height = 38.dp, shape = RoundedCornerShape(10.dp))
+                    ShimmerBlock(width = 38.dp, height = 38.dp, shape = RoundedCornerShape(8.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         ShimmerBlock(modifier = Modifier.fillMaxWidth(0.7f), height = 12.dp)
@@ -1957,7 +1952,7 @@ private fun HomeSkeleton() {
                         ShimmerBlock(modifier = Modifier.fillMaxWidth(0.5f), height = 10.dp)
                     }
                     Spacer(Modifier.width(8.dp))
-                    ShimmerBlock(width = 46.dp, height = 18.dp, shape = RoundedCornerShape(7.dp))
+                    ShimmerBlock(width = 46.dp, height = 18.dp, shape = RoundedCornerShape(6.dp))
                 }
             }
         }
@@ -1972,7 +1967,7 @@ private fun HomeSkeleton() {
                 Spacer(Modifier.height(8.dp))
                 ShimmerBlock(modifier = Modifier.fillMaxWidth(0.6f), height = 11.dp)
                 Spacer(Modifier.height(14.dp))
-                ShimmerBlock(modifier = Modifier.fillMaxWidth(), height = 40.dp, shape = RoundedCornerShape(9.dp))
+                ShimmerBlock(modifier = Modifier.fillMaxWidth(), height = 40.dp, shape = RoundedCornerShape(8.dp))
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -2000,7 +1995,7 @@ private fun SkSectionCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         color = Surface1,
         border = BorderStroke(1.dp, BorderColor),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
     ) { Column(content = content) }
 }
@@ -2032,15 +2027,15 @@ private fun HomeError(message: String, onRetry: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            modifier = Modifier.size(66.dp).clip(RoundedCornerShape(18.dp)).background(Surface2).border(1.dp, BorderColor, RoundedCornerShape(18.dp)),
+            modifier = Modifier.size(66.dp).clip(RoundedCornerShape(12.dp)).background(Surface2).border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.Outlined.CloudOff, null, tint = SecondaryText, modifier = Modifier.size(34.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("We can't reach Legum Lex right now", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = Lora, fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = PrimaryText, textAlign = TextAlign.Center)
+        Text("We can't reach Legum Lex right now", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = PrimaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        Text(message, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = SourceSans), color = SecondaryText, textAlign = TextAlign.Center)
+        Text(message, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = Inter), color = SecondaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))
         LegumSecondaryButton(text = "Try again", leadingIcon = Icons.Outlined.Refresh, onClick = onRetry, modifier = Modifier.widthIn(max = 280.dp))
     }

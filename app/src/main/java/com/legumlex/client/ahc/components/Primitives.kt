@@ -264,7 +264,7 @@ fun IconButtonSquare(
     Box(
         modifier
             .size(LlDimen.TouchTarget)                       // 44dp hit target (visual 38)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

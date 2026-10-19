@@ -110,7 +110,7 @@ fun NoIssuesCard(modifier: Modifier = Modifier) {
     LlCardBody(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
-                Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.VerdantSoft),
+                Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.VerdantSoft),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Default.CheckCircle, null, Modifier.size(20.dp), tint = LlColor.Verdant) }
             Column {
@@ -227,7 +227,7 @@ fun ContextStrip(text: String, modifier: Modifier = Modifier, neutral: Boolean =
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(11.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .padding(horizontal = 14.dp, vertical = 11.dp),
         horizontalArrangement = Arrangement.spacedBy(9.dp),
@@ -255,7 +255,7 @@ fun PartialFailureBlock(section: String, onRetry: () -> Unit, modifier: Modifier
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.AmberSoft),
+            Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.AmberSoft),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Default.Info, null, Modifier.size(21.dp), tint = LlColor.Amber) }
         Column(Modifier.weight(1f)) {

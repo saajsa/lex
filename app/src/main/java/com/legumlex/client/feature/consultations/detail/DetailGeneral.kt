@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.ahc.theme.Mono
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -36,8 +37,7 @@ import com.legumlex.client.ahc.components.LlAvatar
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.feature.consultations.Consultation
 import com.legumlex.client.feature.consultations.ConsultationAttachment
 import com.legumlex.client.feature.consultations.ConsultationDetailUiState
@@ -221,19 +221,19 @@ private fun Masthead(c: Consultation, onOpenSpec: () -> Unit) {
                     )
                     Text(
                         if (isNotice) "LEGAL NOTICE" else "GENERAL",
-                        fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+                        fontFamily = Inter, fontWeight = FontWeight.Bold,
                         fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkMuted,
                     )
                 }
                 Text(
                     "#${c.id}",
-                    fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint,
+                    fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint,
                 )
             }
             Spacer(Modifier.height(9.dp))
             Text(
                 c.tag?.takeIf { it.isNotBlank() } ?: c.kind.label,
-                fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 21.sp, letterSpacing = (-0.02).em, lineHeight = 25.sp, color = LlColor.Ink,
             )
         }
@@ -241,7 +241,7 @@ private fun Masthead(c: Consultation, onOpenSpec: () -> Unit) {
             Modifier
                 .padding(top = 4.dp)
                 .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .clickable(onClick = onOpenSpec),
             contentAlignment = Alignment.Center,
         ) {
@@ -297,7 +297,7 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(spec.icon, null, tint = LlColor.Ink, modifier = Modifier.size(19.dp))
-                    Text(spec.title, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = LlColor.Ink)
+                    Text(spec.title, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = LlColor.Ink)
                 }
                 if (c.isUrgent && (phase == GenPhase.AWAITING || phase == GenPhase.ACTIVE)) UrgentPill()
             }
@@ -307,14 +307,14 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
             if (question != null) {
                 Text(
                     "“$question”",
-                    fontFamily = Lora, fontWeight = FontWeight.Medium,
+                    fontFamily = Inter, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, lineHeight = 22.sp, color = LlColor.Ink,
                     modifier = Modifier.padding(top = 11.dp),
                 )
             }
 
             if (spec.hint != null && (phase != GenPhase.ACTIVE)) {
-                Text(spec.hint, fontFamily = SourceSans, fontSize = 12.sp, lineHeight = 18.sp,
+                Text(spec.hint, fontFamily = Inter, fontSize = 12.sp, lineHeight = 18.sp,
                     color = LlColor.InkMuted, modifier = Modifier.padding(top = 9.dp))
             }
 
@@ -347,11 +347,11 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
 @Composable
 private fun MetaItem(key: String, value: String, mono: Boolean) {
     Column {
-        Text(key.uppercase(), fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.08.em, color = LlColor.InkFaint)
+        Text(key.uppercase(), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.08.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(3.dp))
         Text(
             value,
-            fontFamily = if (mono) SourceSans else SourceSans,
+            fontFamily = if (mono) Mono else Inter,
             fontWeight = if (mono) FontWeight.Normal else FontWeight.SemiBold,
             fontSize = if (mono) 11.sp else 12.sp,
             color = LlColor.Ink,
@@ -367,7 +367,7 @@ private fun UrgentPill() {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(Icons.Outlined.PriorityHigh, null, tint = ClaretMidFix, modifier = Modifier.size(12.dp))
-        Text("URGENT", fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+        Text("URGENT", fontFamily = Inter, fontWeight = FontWeight.Bold,
             fontSize = 9.sp, letterSpacing = 0.06.em, color = ClaretMidFix)
     }
 }
@@ -390,18 +390,18 @@ private fun LinkedMatterCard(c: Consultation, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Paper2),
+            Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.FolderOpen, null, tint = LlColor.InkMuted, modifier = Modifier.size(21.dp)) }
         Column(Modifier.weight(1f)) {
-            Text("LINKED MATTER", fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
+            Text("LINKED MATTER", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
             Spacer(Modifier.height(3.dp))
             Text(com.legumlex.client.ui.caseTitleAnnotated(c.linkedCaseTitle ?: "Linked case", LlColor.InkFaint),
-                fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp, color = LlColor.Ink, maxLines = 1)
             c.linkedCaseNumber?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(2.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkMuted)
+                Text(it, fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkMuted)
             }
         }
         Icon(Icons.Outlined.ChevronRight, null, tint = LlColor.InkFaint, modifier = Modifier.size(20.dp))
@@ -441,7 +441,7 @@ private fun Thread(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Icon(Icons.Outlined.ExpandLess, null, tint = LlColor.InkMuted, modifier = Modifier.size(15.dp))
-                    Text("View earlier messages", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                    Text("View earlier messages", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                         fontSize = 11.sp, color = LlColor.InkMuted)
                 }
             }
@@ -474,7 +474,7 @@ private fun DaySeparator(date: LocalDate) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
-        Text(label.uppercase(), fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
+        Text(label.uppercase(), fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint)
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
     }
 }
@@ -519,10 +519,10 @@ private fun BubbleColumn(r: Reply, me: Boolean, continuation: Boolean, sending: 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(
                     if (me) "You" else advName(r.authorName),
-                    fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LlColor.Ink,
+                    fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = LlColor.Ink,
                 )
                 r.createdAt?.let {
-                    Text(it.format(timeFmt), fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.02.em, color = LlColor.InkFaint)
+                    Text(it.format(timeFmt), fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.02.em, color = LlColor.InkFaint)
                 }
             }
             Spacer(Modifier.height(5.dp))
@@ -545,7 +545,7 @@ private fun BubbleColumn(r: Reply, me: Boolean, continuation: Boolean, sending: 
         ) {
             Text(
                 r.message,
-                fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 19.sp,
+                fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp,
                 color = if (me) LlColor.Paper else LlColor.Ink,
             )
         }
@@ -556,11 +556,11 @@ private fun BubbleColumn(r: Reply, me: Boolean, continuation: Boolean, sending: 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (sending) {
                     Icon(Icons.Outlined.Schedule, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
-                    Text("Sending…", fontFamily = SourceSans, fontSize = 9.5.sp, color = LlColor.InkFaint)
+                    Text("Sending…", fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint)
                 } else {
                     Icon(Icons.Outlined.DoneAll, null, tint = LlColor.SlateMid, modifier = Modifier.size(13.dp))
                     Text("Sent${r.createdAt?.let { " · ${it.format(timeFmt)}" } ?: ""}",
-                        fontFamily = SourceSans, fontSize = 9.5.sp, color = LlColor.InkFaint)
+                        fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint)
                 }
             }
         }
@@ -580,15 +580,15 @@ private fun ResolvedBanner(c: Consultation) {
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
         Box(
-            Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(LlColor.Verdant),
+            Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Verdant),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.TaskAlt, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
         Column {
-            Text("Marked resolved by ${advName(c.assignedTo)}", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text("Marked resolved by ${advName(c.assignedTo)}", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp, lineHeight = 16.sp, color = LlColor.Ink)
             c.closedAt?.let {
                 Spacer(Modifier.height(2.dp))
-                Text(it.format(stampFmt), fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.Verdant)
+                Text(it.format(stampFmt), fontFamily = Inter, fontSize = 10.sp, color = LlColor.Verdant)
             }
         }
     }
@@ -601,21 +601,21 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)).background(LlColor.AmberSoft)
-                .border(LlDimen.HairlineWidth, LlColor.AmberSoft, RoundedCornerShape(16.dp)),
+            Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.AmberSoft)
+                .border(LlDimen.HairlineWidth, LlColor.AmberSoft, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.MarkEmailUnread, null, tint = LlColor.AmberMid, modifier = Modifier.size(27.dp)) }
         Spacer(Modifier.height(15.dp))
         Text(
             if (phase == GenPhase.CLOSED) "This inquiry is closed" else "Your question is with ${advName(c.assignedTo)}",
-            fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
             letterSpacing = (-0.01).em, color = LlColor.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(7.dp))
         Text(
             if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
             else "${advName(c.assignedTo)} will respond shortly — we usually reply within a day. You'll get a notification the moment there's an answer.",
-            fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
+            fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
@@ -630,9 +630,9 @@ private fun SharedFileRow(att: ConsultationAttachment, onOpen: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(10.dp))
+            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
             .clickable(onClick = onOpen)
             .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -651,12 +651,12 @@ private fun SharedFileRow(att: ConsultationAttachment, onOpen: () -> Unit) {
             )
         }
         Column(Modifier.weight(1f)) {
-            Text(att.displayName, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+            Text(att.displayName, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp, color = LlColor.Ink, maxLines = 1)
             Spacer(Modifier.height(2.dp))
             Text(
                 listOfNotNull(att.uploadedBy.takeIf { it.isNotBlank() }, att.uploadedAt?.format(daySepFmt)).joinToString(" · "),
-                fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint,
+                fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint,
             )
         }
         Icon(Icons.Outlined.OpenInNew, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
@@ -676,16 +676,16 @@ private fun AdvocateCard(c: Consultation, phase: GenPhase) {
     ) {
         LlAvatar(initials = initialsOf(c.assignedTo), size = 44.dp, avatarUrl = c.assignedToAvatarUrl)
         Column(Modifier.weight(1f)) {
-            Text(advName(c.assignedTo), fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+            Text(advName(c.assignedTo), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
             c.assignedToDesignation?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(2.dp))
-                Text(it, fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+                Text(it, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
             }
             if (phase != GenPhase.CLOSED && phase != GenPhase.DECLINED) {
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(LlColor.Verdant))
-                    Text("Usually replies within a day", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+                    Text("Usually replies within a day", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
                 }
             }
         }
@@ -717,8 +717,8 @@ private fun Composer(
         if (locked) {
             Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 16.dp)) {
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(LlColor.Paper1)
-                        .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1)
+                        .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
                         .padding(horizontal = 13.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -726,19 +726,19 @@ private fun Composer(
                     Icon(Icons.Outlined.Lock, null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
                     Text(
                         "This inquiry is closed. Start a new consultation to continue.",
-                        fontFamily = SourceSans, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted,
+                        fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted,
                     )
                 }
                 Spacer(Modifier.height(11.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(LlColor.Ink)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Ink)
                         .clickable(onClick = onNewConsultation).padding(vertical = 13.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.Add, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("NEW CONSULTATION", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold,
+                    Text("NEW CONSULTATION", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
                 }
             }
@@ -751,25 +751,25 @@ private fun Composer(
             horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Paper)
-                    .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp))
+                Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper)
+                    .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
                     .clickable(onClick = onAttach),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Outlined.AttachFile, null, tint = LlColor.InkMuted, modifier = Modifier.size(20.dp)) }
 
             Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(LlColor.Paper1)
-                    .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(14.dp))
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                    .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))
                     .padding(horizontal = 14.dp, vertical = 11.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 if (value.isEmpty()) {
-                    Text("Reply to $advocate…", fontFamily = SourceSans, fontSize = 13.sp, color = LlColor.InkFaint)
+                    Text("Reply to $advocate…", fontFamily = Inter, fontSize = 13.sp, color = LlColor.InkFaint)
                 }
                 BasicTextField(
                     value = value,
                     onValueChange = onChange,
-                    textStyle = TextStyle(fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 18.sp, color = LlColor.Ink),
+                    textStyle = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp, color = LlColor.Ink),
                     cursorBrush = SolidColor(LlColor.Claret),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                     maxLines = 5,
@@ -800,8 +800,8 @@ private fun Composer(
 
 // LlColor.ClaretSoft / ClaretMid are broken placeholders (white / black); use the
 // design's real claret tints (--claret-s #fdf2f4 / --claret-m #be2e4a) locally.
-private val ClaretSoftFix = Color(0xFFFDF2F4)
-private val ClaretMidFix = Color(0xFFBE2E4A)
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
 
 private val stampFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM, h:mm a")
 private val timeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
@@ -826,7 +826,7 @@ private fun advName(name: String?): String {
 
 @Composable
 private fun SectionHead(text: String) {
-    Text(text.uppercase(), fontFamily = SourceSans, fontWeight = FontWeight.Bold,
+    Text(text.uppercase(), fontFamily = Inter, fontWeight = FontWeight.Bold,
         fontSize = 10.5.sp, letterSpacing = 0.1.em, color = LlColor.Ink, modifier = Modifier.padding(start = 2.dp))
 }
 

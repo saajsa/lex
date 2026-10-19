@@ -1,11 +1,10 @@
 package com.legumlex.client.feature.projects
 
-import com.legumlex.client.ui.theme.StatusAdjourned
-import com.legumlex.client.ui.theme.StatusClosed
-import com.legumlex.client.ui.theme.StatusOngoing
+import com.legumlex.client.ui.theme.LexColors
+import com.legumlex.client.ui.theme.Lex
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Composable
 import com.legumlex.client.ui.theme.StatusPalette
-import com.legumlex.client.ui.theme.StatusPending
-import com.legumlex.client.ui.theme.StatusSettled
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -15,26 +14,30 @@ enum class ProjectFilter(val apiValue: String?, val label: String) {
     CLOSED("closed", "Closed"),
 }
 
-enum class ProjectStatus(val code: Int, val label: String, val palette: StatusPalette) {
-    NotStarted(1, "Not Started", StatusClosed),
-    InProgress(2, "In Progress", StatusOngoing),
-    OnHold(3,     "On Hold",     StatusAdjourned),
-    Finished(4,   "Finished",    StatusSettled),
-    Cancelled(5,  "Cancelled",   StatusClosed),
-    Unknown(0,    "Unknown",     StatusClosed);
+enum class ProjectStatus(val code: Int, val label: String, private val tone: (LexColors) -> StatusPalette) {
+    NotStarted(1, "Not Started", { it.neutral }),
+    InProgress(2, "In Progress", { it.blue }),
+    OnHold(3,     "On Hold",     { it.info }),
+    Finished(4,   "Finished",    { it.success }),
+    Cancelled(5,  "Cancelled",   { it.neutral }),
+    Unknown(0,    "Unknown",     { it.neutral });
+
+    val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
 
     companion object {
         fun from(code: Int?): ProjectStatus = entries.firstOrNull { it.code == code } ?: Unknown
     }
 }
 
-enum class TaskStatus(val code: Int, val label: String, val palette: StatusPalette) {
-    NotStarted(1,       "Not Started",       StatusClosed),
-    AwaitingFeedback(2, "Awaiting Feedback", StatusPending),
-    Testing(3,          "Testing",           StatusOngoing),
-    InProgress(4,       "In Progress",       StatusOngoing),
-    Complete(5,         "Complete",          StatusSettled),
-    Unknown(0,          "Unknown",           StatusClosed);
+enum class TaskStatus(val code: Int, val label: String, private val tone: (LexColors) -> StatusPalette) {
+    NotStarted(1,       "Not Started",       { it.neutral }),
+    AwaitingFeedback(2, "Awaiting Feedback", { it.warning }),
+    Testing(3,          "Testing",           { it.blue }),
+    InProgress(4,       "In Progress",       { it.blue }),
+    Complete(5,         "Complete",          { it.success }),
+    Unknown(0,          "Unknown",           { it.neutral });
+
+    val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
 
     companion object {
         fun from(code: Int?): TaskStatus = entries.firstOrNull { it.code == code } ?: Unknown

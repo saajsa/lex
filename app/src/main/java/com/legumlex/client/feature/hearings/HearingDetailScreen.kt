@@ -36,7 +36,7 @@ import com.legumlex.client.ui.theme.AccentInk
 import com.legumlex.client.ui.theme.BorderColor
 import com.legumlex.client.ui.theme.BorderSubtle
 import com.legumlex.client.ui.theme.InverseText
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
@@ -170,7 +170,7 @@ private fun DateBlock(h: Hearing) {
         }
         Text(
             text = h.date?.format(DateTimeFormatter.ofPattern("EEE, d MMM")) ?: "Date TBA",
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize = 36.sp,
             letterSpacing = (-1.08).sp,
@@ -190,7 +190,7 @@ private fun LinkedCaseCard(h: Hearing, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         color   = MaterialTheme.colorScheme.surface,
-        shape   = RoundedCornerShape(14.dp),
+        shape   = RoundedCornerShape(12.dp),
         border  = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -198,7 +198,7 @@ private fun LinkedCaseCard(h: Hearing, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(Surface2),
                 contentAlignment = Alignment.Center,
             ) {
@@ -218,7 +218,7 @@ private fun LinkedCaseCard(h: Hearing, onClick: () -> Unit) {
                     Spacer(Modifier.height(2.dp))
                     Text(
                         h.caseNumber,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter),
                         color = SecondaryText,
                     )
                 }
@@ -232,7 +232,7 @@ private fun LinkedCaseCard(h: Hearing, onClick: () -> Unit) {
 private fun CourtCard(h: Hearing) {
     Surface(
         color  = MaterialTheme.colorScheme.surface,
-        shape  = RoundedCornerShape(14.dp),
+        shape  = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -250,7 +250,7 @@ private fun CourtCard(h: Hearing) {
 private fun StatusCard(h: Hearing) {
     Surface(
         color  = MaterialTheme.colorScheme.surface,
-        shape  = RoundedCornerShape(14.dp),
+        shape  = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -293,7 +293,7 @@ private fun HistoryRow(entry: HearingHistoryEntry) {
         Spacer(Modifier.width(10.dp))
         Text(
             text = "${entry.status.label} · ${entry.date?.format(DateTimeFormatter.ofPattern("d MMM yyyy")) ?: "—"}",
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = SourceSans),
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter),
             color = SecondaryText,
         )
     }
@@ -362,15 +362,15 @@ private fun HearingDetailSkeleton() {
             .padding(horizontal = spacing.s4)
             .padding(top = spacing.s4),
     ) {
-        Box(Modifier.size(width = 80.dp, height = 22.dp).clip(RoundedCornerShape(11.dp)).background(BorderColor))
+        Box(Modifier.size(width = 80.dp, height = 22.dp).clip(RoundedCornerShape(8.dp)).background(BorderColor))
         Spacer(Modifier.height(spacing.s3))
         Box(Modifier.size(width = 240.dp, height = 36.dp).clip(RoundedCornerShape(8.dp)).background(BorderColor))
         Spacer(Modifier.height(spacing.s2))
         Box(Modifier.size(width = 140.dp, height = 16.dp).clip(RoundedCornerShape(8.dp)).background(BorderColor))
         Spacer(Modifier.height(spacing.s5))
-        Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(14.dp)).background(BorderColor))
+        Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(12.dp)).background(BorderColor))
         Spacer(Modifier.height(spacing.s5))
-        Box(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(14.dp)).background(BorderColor))
+        Box(Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(12.dp)).background(BorderColor))
     }
 }
 

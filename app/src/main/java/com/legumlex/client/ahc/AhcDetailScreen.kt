@@ -55,21 +55,19 @@ fun AhcDetailScreen(
     modifier: Modifier = Modifier,
     showTopBar: Boolean = true,
 ) {
-    LegumLexTheme {
-        Box(
-            modifier
-                .fillMaxSize()
-                .background(LlColor.Paper),                 // --paper screen bg
-        ) {
-            when (state) {
-                is AhcUiState.Loading   -> LoadingScreen(actions, showTopBar)
-                is AhcUiState.Pending   -> PendingScreen(state, actions, showTopBar)
-                is AhcUiState.Released  -> ReleasedScreen(state, actions, showTopBar)
-                is AhcUiState.Escalated -> EscalatedScreen(state, actions, showTopBar)
-                is AhcUiState.Empty     -> EmptyScreen(state, actions, showTopBar)
-                is AhcUiState.Error     -> ErrorScreen(state, actions, showTopBar)
-                is AhcUiState.Closed    -> ClosedScreen(state, actions, showTopBar)
-            }
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(LlColor.Paper),                 // --paper screen bg
+    ) {
+        when (state) {
+            is AhcUiState.Loading   -> LoadingScreen(actions, showTopBar)
+            is AhcUiState.Pending   -> PendingScreen(state, actions, showTopBar)
+            is AhcUiState.Released  -> ReleasedScreen(state, actions, showTopBar)
+            is AhcUiState.Escalated -> EscalatedScreen(state, actions, showTopBar)
+            is AhcUiState.Empty     -> EmptyScreen(state, actions, showTopBar)
+            is AhcUiState.Error     -> ErrorScreen(state, actions, showTopBar)
+            is AhcUiState.Closed    -> ClosedScreen(state, actions, showTopBar)
         }
     }
 }
@@ -441,7 +439,7 @@ private fun EscalatedScreen(state: AhcUiState.Escalated, actions: AhcActions, sh
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(
-                                Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.SlateSoft),
+                                Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft),
                                 contentAlignment = Alignment.Center,
                             ) { Icon(Icons.Default.Forum, null, Modifier.size(20.dp), tint = LlColor.SlateMid) }
                             Column(Modifier.weight(1f)) {
@@ -548,7 +546,7 @@ private fun EmptyScreen(state: AhcUiState.Empty, actions: AhcActions, showTopBar
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
-                Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(LlColor.Paper1),
+                Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Default.Description, null, Modifier.size(27.dp), tint = LlColor.InkMuted) }
             Spacer(Modifier.height(16.dp))
@@ -575,7 +573,7 @@ private fun ErrorScreen(state: AhcUiState.Error, actions: AhcActions, showTopBar
             verticalArrangement = Arrangement.Center,
         ) {
             Box(
-                Modifier.size(66.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1),
+                Modifier.size(66.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Default.Refresh, null, Modifier.size(34.dp), tint = LlColor.InkMuted) }
             Spacer(Modifier.height(22.dp))

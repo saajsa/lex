@@ -126,7 +126,7 @@ private fun SlideContent(slide: Slide, pageNumber: Int, total: Int) {
         Spacer(Modifier.height(spacing.s6))
         // Legal-themed line illustration, one per slide.
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(12.dp),
             color = Surface2,
             border = BorderStroke(1.dp, BorderSubtle),
             modifier = Modifier.size(280.dp),

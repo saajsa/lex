@@ -54,7 +54,7 @@ import com.legumlex.client.feature.payment.openRazorpayCheckout
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.components.LegumSecondaryButton
 import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 /**
  * Single-step booking screen — the client lands here from the Home chamber
@@ -201,7 +201,7 @@ private fun WaitingContent(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text       = if (state.verifyingPayment) "CONFIRMING PAYMENT" else "IN THE QUEUE",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 10.sp,
                     letterSpacing = 1.5.sp,
                     color      = if (state.verifyingPayment) LexAmber else LexVerdant,
@@ -212,7 +212,7 @@ private fun WaitingContent(
             Text(
                 text       = if (state.verifyingPayment) "Confirming your payment…"
                              else "You're next in line",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 26.sp,
                 lineHeight = 30.sp,
@@ -227,7 +227,7 @@ private fun WaitingContent(
                 else
                     "Adv. ${state.advocate.name} is reviewing your brief. They have 2 minutes to " +
                     "respond — we'll update this screen the moment they do.",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 13.sp,
                 lineHeight = 20.sp,
                 color      = LexInkMuted,
@@ -240,14 +240,14 @@ private fun WaitingContent(
                 Surface(
                     color    = Color.White,
                     border   = BorderStroke(1.dp, LexBorder),
-                    shape    = RoundedCornerShape(13.dp),
+                    shape    = RoundedCornerShape(12.dp),
                     shadowElevation = 1.dp,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
                             text       = "YOUR BRIEF",
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontSize   = 9.sp,
                             letterSpacing = 1.4.sp,
                             color      = LexInkFaint,
@@ -255,7 +255,7 @@ private fun WaitingContent(
                         Spacer(Modifier.height(7.dp))
                         Text(
                             text       = state.briefSummary,
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontSize   = 12.5.sp,
                             lineHeight = 19.sp,
                             color      = LexInk,
@@ -271,12 +271,12 @@ private fun WaitingContent(
                 onClick  = onCancel,
                 enabled  = !state.cancelling && !state.verifyingPayment,
                 modifier = Modifier.fillMaxWidth(),
-                shape    = RoundedCornerShape(11.dp),
+                shape    = RoundedCornerShape(8.dp),
                 border   = BorderStroke(1.dp, LexBorderStrong),
             ) {
                 Text(
                     text       = if (state.cancelling) "Cancelling…" else "Cancel this request",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 12.5.sp,
                     color      = LexInkMuted,
@@ -332,7 +332,7 @@ private fun WaitingRings(initial: String, avatarUrl: String?, ringColor: Color) 
             } else {
                 Text(
                     text       = initial,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 30.sp,
                     color      = Color.White,
@@ -410,7 +410,7 @@ private fun TerminalStateBlock(
         ) {
             Text(
                 text       = eyebrowText,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 10.sp,
                 letterSpacing = 1.5.sp,
                 color      = eyebrowColor,
@@ -418,7 +418,7 @@ private fun TerminalStateBlock(
             Spacer(Modifier.height(12.dp))
             Text(
                 text       = headline,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 25.sp,
                 lineHeight = 29.sp,
@@ -429,7 +429,7 @@ private fun TerminalStateBlock(
             Spacer(Modifier.height(12.dp))
             Text(
                 text       = body,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 13.sp,
                 lineHeight = 20.sp,
                 color      = LexInkMuted,
@@ -441,7 +441,7 @@ private fun TerminalStateBlock(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(LexClaret)
                     .clickable(onClick = onBack)
                     .padding(vertical = 16.dp),
@@ -450,7 +450,7 @@ private fun TerminalStateBlock(
             ) {
                 Text(
                     text       = "BACK TO CHAMBER",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 13.sp,
                     letterSpacing = 0.5.sp,
@@ -522,7 +522,7 @@ private fun ReadyContent(
             // Section eyebrow + serif headline
             Text(
                 text       = "BEFORE YOU WALK IN",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 10.sp,
                 letterSpacing = 1.5.sp,
                 color      = LexInkFaint,
@@ -530,7 +530,7 @@ private fun ReadyContent(
             Spacer(Modifier.height(7.dp))
             Text(
                 text       = "Tell us about your matter",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 24.sp,
                 lineHeight = 28.sp,
@@ -542,7 +542,7 @@ private fun ReadyContent(
                 text       = "Adv. ${state.advocate.firstName.ifBlank { state.advocate.name }} " +
                              "reads this before the call, so you spend less time explaining " +
                              "and more time getting answers.",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize   = 12.5.sp,
                 lineHeight = 19.sp,
                 color      = LexInkMuted,
@@ -581,7 +581,7 @@ private fun ReadyContent(
             ) {
                 Text(
                     text       = "${brief.length} / $maxBriefChars",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 10.sp,
                     color      = if (charLeft == 0) LexClaret else LexInkFaint,
                 )
@@ -589,7 +589,7 @@ private fun ReadyContent(
             if (briefLen in 1..19) {
                 Text(
                     text       = "${20 - briefLen} more character${if (20 - briefLen == 1) "" else "s"} so your advocate gets enough context.",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 11.sp,
                     color      = LexAmber,
                     modifier   = Modifier.padding(top = 4.dp),
@@ -628,7 +628,7 @@ private fun packIntake(area: String?, urgency: String?, brief: String): String {
 private fun IntakeFieldLabel(label: String, help: String? = null) {
     Text(
         text       = label,
-        fontFamily = SourceSans,
+        fontFamily = Inter,
         fontWeight = FontWeight.SemiBold,
         fontSize   = 13.sp,
         color      = LexInk,
@@ -637,7 +637,7 @@ private fun IntakeFieldLabel(label: String, help: String? = null) {
     if (help != null) {
         Text(
             text       = help,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize   = 11.5.sp,
             lineHeight = 16.sp,
             color      = LexInkMuted,
@@ -684,9 +684,9 @@ private fun AreaChip(
     val border = if (selected) LexInk else LexBorder
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .border(BorderStroke(1.dp, border), RoundedCornerShape(10.dp))
+            .border(BorderStroke(1.dp, border), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -696,7 +696,7 @@ private fun AreaChip(
         Spacer(Modifier.width(6.dp))
         Text(
             text       = label,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontWeight = FontWeight.SemiBold,
             fontSize   = 12.sp,
             color      = fg,
@@ -716,9 +716,9 @@ private fun UrgencySegmentedControl(selected: String?, onSelect: (String) -> Uni
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(bg)
-                    .border(BorderStroke(1.dp, border), RoundedCornerShape(10.dp))
+                    .border(BorderStroke(1.dp, border), RoundedCornerShape(8.dp))
                     .clickable { onSelect(u.key) }
                     .padding(vertical = 13.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -726,7 +726,7 @@ private fun UrgencySegmentedControl(selected: String?, onSelect: (String) -> Uni
             ) {
                 Text(
                     text       = u.label,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 12.sp,
                     color      = fg,
@@ -750,7 +750,7 @@ private fun IntakeTextarea(
                 "e.g. My landlord changed the locks on our shop and is refusing access " +
                 "despite a valid lease until 2027. I want to know how to regain possession quickly.",
                 color = LexInkFaint,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontSize = 12.5.sp,
                 lineHeight = 18.sp,
             )
@@ -809,7 +809,7 @@ private fun ConsentCheckbox(checked: Boolean, onToggle: () -> Unit) {
                 append("I understand this is a preliminary consultation and that an advocate–client ")
                 append("relationship begins only once expressly agreed. ")
             },
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize   = 11.5.sp,
             lineHeight = 16.sp,
             color      = LexInkMuted,
@@ -831,7 +831,7 @@ private fun IntakeActionBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(if (canSubmit) LexClaret else LexInkFaint)
                     .clickable(enabled = canSubmit, onClick = onSubmit)
                     .padding(vertical = 16.dp),
@@ -847,7 +847,7 @@ private fun IntakeActionBar(
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text       = "ENTERING THE QUEUE…",
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 13.sp,
                         letterSpacing = 0.5.sp,
@@ -857,7 +857,7 @@ private fun IntakeActionBar(
                     Text(
                         text       = if (sessionFee > 0) "ENTER THE QUEUE · ₹${"%,d".format(sessionFee.toLong())}"
                                      else "ENTER THE QUEUE",
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 13.sp,
                         letterSpacing = 0.5.sp,

@@ -1,21 +1,17 @@
 package com.legumlex.client.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.legumlex.client.ui.theme.PillShape
 import com.legumlex.client.ui.theme.StatusPalette
 
-// Soft-tinted pill with a colored dot. Used everywhere a status is shown:
-// case cards, case detail header, hearing cards, etc.
+// Mylex's status chip (kt-badge kt-badge-light): tinted fill, deep text, 6dp
+// corners, the label as written — Title Case ("Active", "Awaiting The Firm").
+// Used everywhere a status is shown: case cards, headers, hearing rows.
 @Composable
 fun StatusBadge(
     label: String,
@@ -25,25 +21,14 @@ fun StatusBadge(
     Surface(
         color = palette.softBg,
         contentColor = palette.softText,
-        shape = PillShape,
+        shape = MaterialTheme.shapes.small,
         modifier = modifier,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(palette.solid),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = palette.softText,
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = palette.softText,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+        )
     }
 }

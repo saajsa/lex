@@ -44,8 +44,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.data.api.ApiClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -66,8 +65,8 @@ import java.time.temporal.ChronoUnit
 // the client reads and replies. Same message idiom as the task conversation.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix = Color(0xFFBE2E4A)
-private val ClaretSoftFix = Color(0xFFFDF2F4)
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
 
 sealed interface DiscUiState {
     data object Loading : DiscUiState
@@ -215,20 +214,20 @@ private fun DiscList(discussions: List<DiscussionSummary>, onOpen: (String) -> U
 @Composable
 private fun ThreadRow(d: DiscussionSummary, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(start = 15.dp, end = 15.dp, top = 14.dp, bottom = 14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(start = 15.dp, end = 15.dp, top = 14.dp, bottom = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.Forum, null, tint = LlColor.InkMuted, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Top) {
-                Text(d.subject, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, letterSpacing = (-0.012).em, lineHeight = 20.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                (d.lastActivity ?: d.dateCreated)?.let { Text(relativeAgo(it), fontFamily = SourceSans, fontSize = 9.5.sp, color = LlColor.InkFaint, modifier = Modifier.padding(start = 8.dp, top = 2.dp)) }
+                Text(d.subject, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, letterSpacing = (-0.012).em, lineHeight = 20.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                (d.lastActivity ?: d.dateCreated)?.let { Text(relativeAgo(it), fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint, modifier = Modifier.padding(start = 8.dp, top = 2.dp)) }
             }
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val meta = listOfNotNull(d.authorName, "${d.totalComments} ${if (d.totalComments == 1) "reply" else "replies"}").joinToString(" · ")
-                Text(meta, fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Icon(Icons.Outlined.ChevronRight, null, tint = LlColor.BorderStrong, modifier = Modifier.size(19.dp))
@@ -243,14 +242,14 @@ private fun ThreadRow(d: DiscussionSummary, onClick: () -> Unit) {
 private fun ThreadContent(d: DiscussionDetail) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 10.dp)) {
         // opening card
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp).clip(RoundedCornerShape(13.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(13.dp)).padding(15.dp)) {
-            Text("STARTED" + (d.dateCreated?.let { " · ${relativeAgo(it)}" } ?: ""), fontFamily = SourceSans, fontSize = 9.sp, letterSpacing = 0.13.em, color = LlColor.InkFaint)
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(15.dp)) {
+            Text("STARTED" + (d.dateCreated?.let { " · ${relativeAgo(it)}" } ?: ""), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.13.em, color = LlColor.InkFaint)
             Spacer(Modifier.height(6.dp))
-            Text(stripHtmlD(d.description) ?: d.subject, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 21.sp, color = LlColor.Ink)
+            Text(stripHtmlD(d.description) ?: d.subject, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 21.sp, color = LlColor.Ink)
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             if (d.comments.isEmpty()) {
-                Text("No replies yet.", fontFamily = SourceSans, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 16.dp))
+                Text("No replies yet.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 16.dp))
             } else {
                 d.comments.forEachIndexed { i, c ->
                     Message(c)
@@ -258,7 +257,7 @@ private fun ThreadContent(d: DiscussionDetail) {
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.width(26.dp).height(1.dp).background(LlColor.Paper2))
-                    Text("Replies are shared with your chamber", fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
+                    Text("Replies are shared with your chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
                     Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
                 }
             }
@@ -270,18 +269,18 @@ private fun ThreadContent(d: DiscussionDetail) {
 private fun Message(c: DiscussionComment) {
     val you = c.authorType == "contact"
     Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(if (you) LlColor.Claret else LlColor.Slate), contentAlignment = Alignment.Center) {
-            Text(initialsOfD(c.authorName, you), fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(if (you) LlColor.Claret else LlColor.Slate), contentAlignment = Alignment.Center) {
+            Text(initialsOfD(c.authorName, you), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(c.authorName?.takeIf { it.isNotBlank() } ?: if (you) "You" else "Staff", fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = LlColor.Ink)
-                Text(if (you) "YOU" else "ADVOCATE", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.06.em, color = if (you) ClaretMidFix else LlColor.SlateMid,
-                    modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(if (you) ClaretSoftFix else LlColor.SlateSoft).padding(horizontal = 6.dp, vertical = 1.dp))
+                Text(c.authorName?.takeIf { it.isNotBlank() } ?: if (you) "You" else "Staff", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = LlColor.Ink)
+                Text(if (you) "YOU" else "ADVOCATE", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.06.em, color = if (you) ClaretMidFix else LlColor.SlateMid,
+                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (you) ClaretSoftFix else LlColor.SlateSoft).padding(horizontal = 6.dp, vertical = 1.dp))
                 Spacer(Modifier.weight(1f))
-                c.created?.let { Text(relativeAgo(it), fontFamily = SourceSans, fontSize = 9.5.sp, color = LlColor.InkFaint) }
+                c.created?.let { Text(relativeAgo(it), fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint) }
             }
-            Text(stripHtmlD(c.content) ?: c.content, fontFamily = SourceSans, fontSize = 12.5.sp, lineHeight = 18.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 6.dp))
+            Text(stripHtmlD(c.content) ?: c.content, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }
@@ -293,9 +292,9 @@ private fun Composer(posting: Boolean, onSend: (String) -> Unit) {
     Column {
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
         Row(Modifier.fillMaxWidth().background(LlColor.Paper).padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 11.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Write a reply…", fontFamily = SourceSans, fontSize = 13.sp, color = LlColor.InkFaint) }, modifier = Modifier.weight(1f), maxLines = 4, shape = RoundedCornerShape(13.dp))
+            OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("Write a reply…", fontFamily = Inter, fontSize = 13.sp, color = LlColor.InkFaint) }, modifier = Modifier.weight(1f), maxLines = 4, shape = RoundedCornerShape(12.dp))
             Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(if (text.isBlank() || posting) LlColor.BorderStrong else LlColor.Ink).clickable(enabled = !posting && text.isNotBlank()) { onSend(text); text = "" },
+                Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (text.isBlank() || posting) LlColor.BorderStrong else LlColor.Ink).clickable(enabled = !posting && text.isNotBlank()) { onSend(text); text = "" },
                 contentAlignment = Alignment.Center,
             ) {
                 if (posting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = LlColor.Paper)
@@ -311,14 +310,14 @@ private fun Composer(posting: Boolean, onSend: (String) -> Unit) {
 private fun Heading(title: String, count: Int?, contextLine: String?) {
     Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(title, fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             count?.let {
-                Box(Modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(RoundedCornerShape(9.dp)).background(LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
-                    Text("$it", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.InkMuted)
+                Box(Modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
+                    Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.InkMuted)
                 }
             }
         }
-        contextLine?.takeIf { it.isNotBlank() }?.let { Text(it, fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        contextLine?.takeIf { it.isNotBlank() }?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
     }
 }
@@ -326,13 +325,13 @@ private fun Heading(title: String, count: Int?, contextLine: String?) {
 @Composable
 private fun DiscEmpty() {
     Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, Color(0xFFD6E3F3), RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, LlColor.SlateBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.Forum, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("No discussions yet", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("No discussions yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text("When your chamber needs your input — a clause to confirm, a document to send — they'll open a thread here. You'll be notified, and you can reply right away.", fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
+        Text("When your chamber needs your input — a clause to confirm, a document to send — they'll open a thread here. You'll be notified, and you can reply right away.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }
 }
 
@@ -340,7 +339,7 @@ private fun DiscEmpty() {
 private fun DiscSkeleton() {
     Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(start = 16.dp, end = 16.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         repeat(3) {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(14.dp)).padding(15.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(15.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SkD(Modifier.size(38.dp), 38.dp, 11.dp)
                 Column(Modifier.weight(1f)) { SkD(Modifier.fillMaxWidth(0.72f), 15.dp, 6.dp); Spacer(Modifier.height(10.dp)); SkD(Modifier.fillMaxWidth(0.5f), 10.dp) }
             }
@@ -356,17 +355,17 @@ private fun SkD(modifier: Modifier, height: androidx.compose.ui.unit.Dp, radius:
 @Composable
 private fun DiscError(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize().background(LlColor.Paper).padding(horizontal = 30.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load discussions", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Couldn't load discussions", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(Modifier.clip(RoundedCornerShape(12.dp)).background(LlColor.Ink).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }

@@ -20,7 +20,7 @@ import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.theme.AccentInk
 import com.legumlex.client.ui.theme.InverseText
 import com.legumlex.client.ui.theme.LocalSpacing
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.StatusDanger
 import com.legumlex.client.ui.theme.StatusOngoing
 import com.legumlex.client.ui.theme.StatusPending
@@ -43,7 +43,7 @@ fun NextHearingHero(
     Surface(
         color = AccentInk,
         contentColor = InverseText,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
@@ -62,7 +62,7 @@ fun NextHearingHero(
             // Row 2: date/time + case title
             Text(
                 text = "${hearing.date} · ${hearing.time}",
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 24.sp,
                 letterSpacing = (-0.48).sp,
@@ -180,7 +180,7 @@ private fun LocationPill(text: String, bg: Color) {
 fun NoHearingCard(modifier: Modifier = Modifier) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         modifier = modifier.fillMaxWidth(),
     ) {

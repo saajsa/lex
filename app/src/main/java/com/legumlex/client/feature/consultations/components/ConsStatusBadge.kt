@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.feature.consultations.ConsultationStatus
 import com.legumlex.client.ui.theme.PillShape
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 
 // Matches the cons.jsx <StatusPill /> exactly: tinted soft-bg pill with a
 // 6dp leading dot in the solid color and uppercase tracked Space-Grotesk text.
@@ -47,7 +47,7 @@ fun ConsStatusBadge(
             Spacer(Modifier.width(6.dp))
             Text(
                 text = status.label.uppercase(),
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Bold,
                 fontSize   = if (compact) 9.5.sp else 10.sp,
                 letterSpacing = 0.8.sp,

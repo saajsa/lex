@@ -1,20 +1,21 @@
 package com.legumlex.client.feature.finance
 
-import com.legumlex.client.ui.theme.StatusClosed
-import com.legumlex.client.ui.theme.StatusDanger
-import com.legumlex.client.ui.theme.StatusOngoing
+import com.legumlex.client.ui.theme.LexColors
+import com.legumlex.client.ui.theme.Lex
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.Composable
 import com.legumlex.client.ui.theme.StatusPalette
-import com.legumlex.client.ui.theme.StatusPending
-import com.legumlex.client.ui.theme.StatusSettled
 import java.time.LocalDate
 
-enum class InvoiceStatus(val label: String, val palette: StatusPalette) {
-    DRAFT     ("Draft",     StatusClosed),
-    UNPAID    ("Unpaid",    StatusPending),
-    PARTIAL   ("Partial",   StatusOngoing),
-    PAID      ("Paid",      StatusSettled),
-    OVERDUE   ("Overdue",   StatusDanger),
-    CANCELLED ("Cancelled", StatusClosed);
+enum class InvoiceStatus(val label: String, private val tone: (LexColors) -> StatusPalette) {
+    DRAFT     ("Draft",     { it.neutral }),
+    UNPAID    ("Unpaid",    { it.warning }),
+    PARTIAL   ("Partial",   { it.blue }),
+    PAID      ("Paid",      { it.success }),
+    OVERDUE   ("Overdue",   { it.danger }),
+    CANCELLED ("Cancelled", { it.neutral });
+
+    val palette: StatusPalette @Composable @ReadOnlyComposable get() = tone(Lex.colors)
 
     companion object {
         // Combine the raw Perfex status code with a due-date check so a still-

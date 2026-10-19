@@ -216,7 +216,7 @@ private fun TypeCard(opt: TypeOption, isSelected: Boolean, onClick: () -> Unit) 
             Box(
                 modifier         = Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(if (isSelected) Color.White.copy(alpha = 0.15f) else Surface2),
                 contentAlignment = Alignment.Center,
             ) {
@@ -554,7 +554,7 @@ private fun IntakeHint(text: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(Surface2)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top,
@@ -652,7 +652,7 @@ private fun StepReview(form: NewConsultationForm) {
                 horizontalArrangement = Arrangement.spacedBy(spacing.s3),
             ) {
                 Box(
-                    modifier         = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(Surface2),
+                    modifier         = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(Surface2),
                     contentAlignment = Alignment.Center,
                 ) { Icon(typeOpt.icon, null, tint = PrimaryText, modifier = Modifier.size(22.dp)) }
                 Column {

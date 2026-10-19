@@ -26,7 +26,7 @@ import com.legumlex.client.ui.theme.BorderColor
 import com.legumlex.client.ui.theme.BorderSubtle
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.StatusDanger
 import com.legumlex.client.ui.theme.Surface1
 import com.legumlex.client.ui.theme.TertiaryText
@@ -78,7 +78,7 @@ fun CloseConsultationSheet(
             Row(verticalAlignment = Alignment.Top) {
                 Text(
                     text       = copy.title,
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 19.sp,
                     letterSpacing = (-0.19).sp,
@@ -107,7 +107,7 @@ fun CloseConsultationSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(11.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(StatusDanger.softBg)
                         .padding(horizontal = 13.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.Top,
@@ -128,7 +128,7 @@ fun CloseConsultationSheet(
                 Spacer(Modifier.height(18.dp))
                 Text(
                     text       = "REASON (OPTIONAL)",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.Bold,
                     fontSize   = 10.sp,
                     letterSpacing = 1.2.sp,
@@ -143,7 +143,7 @@ fun CloseConsultationSheet(
                     minLines      = 2,
                     maxLines      = 4,
                     modifier      = Modifier.fillMaxWidth(),
-                    shape         = RoundedCornerShape(11.dp),
+                    shape         = RoundedCornerShape(8.dp),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     enabled       = !submitting,
                     colors        = OutlinedTextFieldDefaults.colors(
@@ -155,7 +155,7 @@ fun CloseConsultationSheet(
                 )
                 Text(
                     text       = "${reason.length} / 500",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontSize   = 10.sp,
                     color      = TertiaryText,
                     modifier   = Modifier.align(Alignment.End).padding(top = 5.dp),
@@ -172,15 +172,15 @@ fun CloseConsultationSheet(
                     modifier = Modifier
                         .weight(1f)
                         .height(46.dp)
-                        .clip(RoundedCornerShape(11.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Surface1)
-                        .border(1.dp, BorderColor, RoundedCornerShape(11.dp))
+                        .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
                         .clickable(enabled = !submitting, onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text       = "CANCEL",
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 12.sp,
                         letterSpacing = 0.6.sp,
@@ -192,7 +192,7 @@ fun CloseConsultationSheet(
                     modifier = Modifier
                         .weight(1.4f)
                         .height(46.dp)
-                        .clip(RoundedCornerShape(11.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(if (canConfirm) AccentInk else AccentInk.copy(alpha = 0.35f))
                         .clickable(enabled = canConfirm) {
                             onConfirm(reason.trim().ifBlank { null })
@@ -208,7 +208,7 @@ fun CloseConsultationSheet(
                     } else {
                         Text(
                             text       = copy.confirmLabel,
-                            fontFamily = SourceSans,
+                            fontFamily = Inter,
                             fontWeight = FontWeight.SemiBold,
                             fontSize   = 12.sp,
                             letterSpacing = 0.6.sp,

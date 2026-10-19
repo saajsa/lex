@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.consultations.components
 
+import com.legumlex.client.ahc.theme.LlColor
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,7 +27,7 @@ import com.legumlex.client.feature.consultations.RiskLevel
 import com.legumlex.client.feature.consultations.displayTitle
 import com.legumlex.client.feature.consultations.scheduledAt
 import com.legumlex.client.ui.theme.BorderColor
-import com.legumlex.client.ahc.theme.SourceSans
+import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.theme.PillShape
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
@@ -40,7 +41,7 @@ import java.time.temporal.ChronoUnit
 // Type-aware card variants for the Sessions Home hub. Each variant uses the
 // same outer 16dp-radius card with a different inner layout per kind.
 
-private val accentBorder = Color(0xFFFED7AA) // matches Card accent in cons.jsx
+private val accentBorder: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder // matches Card accent in cons.jsx
 
 @Composable
 fun SessionCard(
@@ -51,7 +52,7 @@ fun SessionCard(
     Surface(
         onClick = onClick,
         color   = MaterialTheme.colorScheme.surface,
-        shape   = RoundedCornerShape(16.dp),
+        shape   = RoundedCornerShape(12.dp),
         border  = BorderStroke(1.dp, if (accent) accentBorder else BorderColor),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -76,7 +77,7 @@ private fun CardGeneralBody(c: Consultation) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     c.assignedTo?.takeIf { it.isNotBlank() } ?: c.displayTitle(),
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp,
                     color = PrimaryText,
@@ -112,7 +113,7 @@ private fun CardAHCBody(c: Consultation) {
             Spacer(Modifier.height(3.dp))
             Text(
                 c.displayTitle(),
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp,
                 color = PrimaryText,
@@ -150,7 +151,7 @@ private fun CardDocReqBody(c: Consultation) {
             Spacer(Modifier.height(3.dp))
             Text(
                 c.displayTitle(),
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp,
                 color = PrimaryText,
@@ -173,7 +174,7 @@ private fun CardDocReqBody(c: Consultation) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "$uploaded of ${total.coerceAtLeast(1)} uploaded",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 11.sp,
                     color = PrimaryText,
@@ -181,7 +182,7 @@ private fun CardDocReqBody(c: Consultation) {
                 )
                 Text(
                     "Upload now →",
-                    fontFamily = SourceSans,
+                    fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 11.sp,
                     color = PrimaryText,
@@ -214,7 +215,7 @@ private fun CardDigitalBody(c: Consultation) {
             Spacer(Modifier.height(3.dp))
             Text(
                 c.displayTitle(),
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.5.sp,
                 color = PrimaryText,
@@ -229,7 +230,7 @@ private fun CardDigitalBody(c: Consultation) {
                 ) {
                     Text(
                         countdown.uppercase(),
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
                         letterSpacing = 0.8.sp,
@@ -241,7 +242,7 @@ private fun CardDigitalBody(c: Consultation) {
                 sched?.let {
                     Text(
                         it.format(DateTimeFormatter.ofPattern("EEE d MMM · h:mm a")),
-                        fontFamily = SourceSans,
+                        fontFamily = Inter,
                         fontSize = 11.sp,
                         color = SecondaryText,
                     )
@@ -270,7 +271,7 @@ private fun IconTile(icon: ImageVector) {
 private fun Eyebrow(text: String) {
     Text(
         text,
-        fontFamily = SourceSans,
+        fontFamily = Inter,
         fontWeight = FontWeight.Bold,
         fontSize = 10.sp,
         letterSpacing = 1.0.sp,
@@ -285,7 +286,7 @@ private fun MetaRow(status: Consultation, date: String, replies: Int) {
         Dot()
         Text(
             date,
-            fontFamily = SourceSans,
+            fontFamily = Inter,
             fontSize = 11.sp,
             color = SecondaryText,
         )
@@ -331,7 +332,7 @@ private fun RiskMiniChip(level: RiskLevel) {
             Spacer(Modifier.width(5.dp))
             Text(
                 level.name,
-                fontFamily = SourceSans,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Bold,
                 fontSize = 10.sp,
                 letterSpacing = 0.8.sp,
@@ -363,11 +364,11 @@ private fun RiskThumbnail(level: RiskLevel) {
     }
 }
 
-internal fun riskColors(level: RiskLevel): Triple<Color, Color, Color> = when (level) {
-    RiskLevel.LOW      -> Triple(Color(0xFFD1FAE5), Color(0xFF059669), Color(0xFF065F46))
-    RiskLevel.MEDIUM   -> Triple(Color(0xFFFEF3C7), Color(0xFFD97706), Color(0xFF92400E))
-    RiskLevel.HIGH     -> Triple(Color(0xFFFFEDD5), Color(0xFFEA580C), Color(0xFF9A3412))
-    RiskLevel.CRITICAL -> Triple(Color(0xFFFEE2E2), Color(0xFFDC2626), Color(0xFF991B1B))
+@androidx.compose.runtime.Composable internal fun riskColors(level: RiskLevel): Triple<Color, Color, Color> = when (level) {
+    RiskLevel.LOW      -> Triple(LlColor.VerdantSoft, LlColor.VerdantMid, LlColor.Verdant)
+    RiskLevel.MEDIUM   -> Triple(LlColor.AmberSoft, LlColor.AmberMid, LlColor.Amber)
+    RiskLevel.HIGH     -> Triple(LlColor.AmberSoft, LlColor.AmberMid, LlColor.Amber)
+    RiskLevel.CRITICAL -> Triple(LlColor.ClaretSoft, LlColor.ClaretMid, LlColor.Claret)
 }
 
 private fun relativeAgoShort(ts: LocalDateTime): String {

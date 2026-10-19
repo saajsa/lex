@@ -10,15 +10,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.legumlex.client.ui.theme.BorderColor
 import com.legumlex.client.ui.theme.BorderStrong
 import com.legumlex.client.ui.theme.PrimaryText
 import com.legumlex.client.ui.theme.SecondaryText
 import com.legumlex.client.ui.theme.Surface1
 import com.legumlex.client.ui.theme.TertiaryText
 
-// Outlined input shaped to match the handoff: 14dp radius, monochrome borders,
-// leading icon at 20dp, optional trailing slot for show/hide etc.
+// Outlined input, as Mylex's kt-input: 8dp radius, the field border, focus
+// darkens it; leading icon at 20dp, optional trailing slot for show/hide etc.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LegumTextField(
@@ -53,8 +52,8 @@ fun LegumTextField(
         isError = isError,
         supportingText = supportingText?.let { { Text(it) } },
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor   = BorderStrong,
-            unfocusedBorderColor = BorderColor,
+            focusedBorderColor   = PrimaryText,
+            unfocusedBorderColor = BorderStrong,
             focusedLabelColor    = PrimaryText,
             unfocusedLabelColor  = SecondaryText,
             focusedTextColor     = PrimaryText,

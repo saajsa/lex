@@ -48,8 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ahc.theme.LlDimen
 import com.legumlex.client.ahc.theme.LlShape
-import com.legumlex.client.ahc.theme.SourceSans
-import com.legumlex.client.ahc.theme.Lora
+import com.legumlex.client.ahc.theme.Inter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -66,10 +65,10 @@ import java.time.temporal.ChronoUnit
 // -----------------------------------------------------------------------------
 
 // LlColor.ClaretSoft / ClaretMid are broken placeholders; use the real tints.
-private val ClaretSoftFix = Color(0xFFFDF2F4)
-private val ClaretMidFix = Color(0xFFBE2E4A)
-private val ClaretBorderFix = Color(0xFFF4D9DF)
-private val AmberBorderFix = Color(0xFFF3E3C4)
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -210,12 +209,12 @@ private fun PageIntro(filter: ProjectFilter, active: Int, finished: Int, total: 
         ProjectFilter.CLOSED -> "Work your chamber has closed out."
     }
     Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-        Text("PROJECTS", fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
+        Text("PROJECTS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
         Spacer(Modifier.height(9.dp))
-        Text("Your Projects", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Your Projects", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 28.sp, letterSpacing = (-0.025).em, lineHeight = 30.sp, color = LlColor.Ink)
         Spacer(Modifier.height(8.dp))
-        Text(sub, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted, modifier = Modifier.widthIn(max = 330.dp))
+        Text(sub, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted, modifier = Modifier.widthIn(max = 330.dp))
         if (showCount) {
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -224,7 +223,7 @@ private fun PageIntro(filter: ProjectFilter, active: Int, finished: Int, total: 
                     ProjectFilter.ACTIVE -> CountFrag(active, "active")
                     else -> {
                         CountFrag(active, "active")
-                        Text("·", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.BorderStrong)
+                        Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
                         CountFrag(total, "total")
                     }
                 }
@@ -236,8 +235,8 @@ private fun PageIntro(filter: ProjectFilter, active: Int, finished: Int, total: 
 @Composable
 private fun CountFrag(n: Int, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$n ", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
-        Text(label, fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+        Text("$n ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
     }
 }
 
@@ -267,36 +266,36 @@ private fun Spotlight(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) 
         Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(16.dp))
+            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
     ) {
         Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(5.dp).background(band))
         Column(Modifier.padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 if (soon) PulseDot(accentMid, 7.dp) else Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                Text(eyebrow.uppercase(), fontFamily = SourceSans, fontSize = 10.sp, letterSpacing = 0.15.em, color = accent)
+                Text(eyebrow.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = accent)
             }
             Spacer(Modifier.height(11.dp))
-            Text(p.name, fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+            Text(p.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 19.sp, letterSpacing = (-0.015).em, lineHeight = 24.sp, color = LlColor.Ink,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
             milestone?.let {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Outlined.Flag, null, tint = accent, modifier = Modifier.size(13.dp))
-                    Text(it, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             // progress meter row
             Spacer(Modifier.height(13.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                Text("${p.tasksDone()}/${p.tasksTotal} tasks", fontFamily = SourceSans, fontSize = 10.sp, color = LlColor.InkFaint)
+                Text("${p.tasksDone()}/${p.tasksTotal} tasks", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
                 Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(LlColor.Paper2)) {
                     Box(Modifier.fillMaxWidth(p.progress.coerceIn(0, 100) / 100f).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(p.status.meterColor()))
                 }
-                Text("${p.progress}%", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink)
+                Text("${p.progress}%", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink)
             }
             Spacer(Modifier.height(14.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
@@ -304,25 +303,25 @@ private fun Spotlight(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // countdown chip
                 Column(
-                    Modifier.widthIn(min = 52.dp).clip(RoundedCornerShape(11.dp)).background(boxBg)
-                        .border(LlDimen.HairlineWidth, boxBorder, RoundedCornerShape(11.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
+                    Modifier.widthIn(min = 52.dp).clip(RoundedCornerShape(8.dp)).background(boxBg)
+                        .border(LlDimen.HairlineWidth, boxBorder, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (days == 0L) {
-                        Text("Today", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = accent)
+                        Text("Today", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = accent)
                     } else {
-                        Text("$days", fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = accent)
-                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = SourceSans, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
+                        Text("$days", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = accent)
+                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
                     }
                 }
                 Column(Modifier.weight(1f)) {
                     Text("$dateLabel · ${p.pacingDate()!!.format(dowFmt)}",
-                        fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
+                        fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
                     Spacer(Modifier.height(3.dp))
-                    Text(milestone?.let { "Milestone · $it" } ?: "Deadline", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(milestone?.let { "Milestone · $it" } ?: "Deadline", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box(
-                    Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(LlColor.Paper1),
+                    Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = LlColor.InkMuted, modifier = Modifier.size(19.dp)) }
             }
@@ -362,14 +361,14 @@ private fun FilterChip(label: String, count: Int, selected: Boolean, onClick: ()
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Text(label, fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (selected) LlColor.Paper else LlColor.InkMuted)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (selected) LlColor.Paper else LlColor.InkMuted)
         if (count > 0) {
             Box(
-                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(9.dp))
+                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(8.dp))
                     .background(if (selected) LlColor.Paper.copy(alpha = 0.2f) else LlColor.Paper2).padding(horizontal = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
+                Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
                     color = if (selected) LlColor.Paper else LlColor.InkMuted)
             }
         }
@@ -386,14 +385,14 @@ private fun SectionHeader(name: String, count: Int, due: Boolean, first: Boolean
         Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = if (first) 16.dp else 18.dp, bottom = 11.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(name.uppercase(), fontFamily = SourceSans, fontSize = 10.5.sp, letterSpacing = 0.15.em,
+        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.15.em,
             color = if (due) LlColor.Claret else LlColor.InkFaint)
         Box(
             Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp))
                 .background(if (due) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("$count", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = if (due) ClaretMidFix else LlColor.InkMuted)
+            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = if (due) ClaretMidFix else LlColor.InkMuted)
         }
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
     }
@@ -417,18 +416,18 @@ private fun ProjectRow(p: ProjectSummary, today: LocalDate, dueBand: Boolean, on
         if (dueBand) Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(LlDimen.HeroStripeWidth).background(LlColor.Claret))
         Column(Modifier.padding(start = if (dueBand) 18.dp else 15.dp, end = 15.dp, top = 14.dp, bottom = 14.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Text("PRJ-${p.id}", fontFamily = SourceSans, fontSize = 9.5.sp, letterSpacing = 0.1.em,
+                Text("PRJ-${p.id}", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.1.em,
                     color = LlColor.InkFaint, modifier = Modifier.padding(top = 3.dp))
                 StatusPill(p.status)
             }
-            Text(p.name, fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+            Text(p.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 21.sp,
                 color = if (done) LlColor.InkMuted else LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 11.dp))
             // sub: tasks done / total
             Text(
                 if (p.tasksTotal == 0) "No tasks yet" else "${p.tasksDone()}/${p.tasksTotal} tasks",
-                fontFamily = SourceSans, fontSize = 10.5.sp, color = LlColor.InkFaint,
+                fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint,
                 modifier = Modifier.padding(top = 8.dp),
             )
             // progress meter
@@ -438,7 +437,7 @@ private fun ProjectRow(p: ProjectSummary, today: LocalDate, dueBand: Boolean, on
                 }
                 Text(
                     if (p.status == ProjectStatus.Cancelled) "—" else "${p.progress}%",
-                    fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.InkMuted,
+                    fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.InkMuted,
                 )
             }
             DeadlineLine(p, today, done)
@@ -491,7 +490,7 @@ private fun DeadlineLine(p: ProjectSummary, today: LocalDate, done: Boolean) {
             Icon(icon, null, tint = color, modifier = Modifier.size(16.dp).alpha(iconAlpha))
             Text(
                 text,
-                fontFamily = if (tone == DueTone.NORMAL || tone == DueTone.QUIET) SourceSans else SourceSans,
+                fontFamily = Inter,
                 fontWeight = if (tone == DueTone.QUIET) FontWeight.Normal else FontWeight.SemiBold,
                 fontSize = if (tone == DueTone.QUIET || tone == DueTone.NORMAL) 11.sp else 11.5.sp,
                 color = color, lineHeight = 16.sp,
@@ -511,15 +510,15 @@ private fun StatusPill(status: ProjectStatus) {
         ProjectStatus.NotStarted, ProjectStatus.Cancelled, ProjectStatus.Unknown -> LlColor.Paper2 to LlColor.InkMuted
     }
     Row(
-        Modifier.clip(RoundedCornerShape(7.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
+        Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(fg))
-        Text(status.label, fontFamily = SourceSans, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
+        Text(status.label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
     }
 }
 
-private fun ProjectStatus.meterColor(): Color = when (this) {
+@androidx.compose.runtime.Composable private fun ProjectStatus.meterColor(): Color = when (this) {
     ProjectStatus.InProgress -> LlColor.SlateMid
     ProjectStatus.OnHold     -> LlColor.AmberMid
     ProjectStatus.Finished   -> LlColor.VerdantMid
@@ -552,27 +551,27 @@ private fun ProjectsEmpty() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.SlateSoft)
-                .border(LlDimen.HairlineWidth, Color(0xFFD6E3F3), RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.SlateSoft)
+                .border(LlDimen.HairlineWidth, LlColor.SlateBorder, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.WorkOutline, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("No projects yet", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("No projects yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
             "When your chamber opens a piece of transactional work — a filing, a contract, a compliance retainer — it'll appear here, with its tasks, milestones and progress kept up to date.",
-            fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+            fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp),
         )
         Spacer(Modifier.height(22.dp))
         Row(
-            Modifier.clip(RoundedCornerShape(11.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(11.dp)).padding(horizontal = 16.dp, vertical = 11.dp),
+            Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(horizontal = 16.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Forum, null, tint = LlColor.InkFaint, modifier = Modifier.size(16.dp))
-            Text("Need something done? Raise it in Consultations", fontFamily = SourceSans, fontSize = 11.sp, color = LlColor.InkMuted)
+            Text("Need something done? Raise it in Consultations", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
         }
     }
 }
@@ -584,8 +583,8 @@ private fun FilteredEmpty(filter: ProjectFilter) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.WorkOutline, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
@@ -595,11 +594,11 @@ private fun FilteredEmpty(filter: ProjectFilter) {
                 ProjectFilter.CLOSED -> "No finished projects"
                 else -> "No projects"
             },
-            fontFamily = Lora, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp,
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(9.dp))
-        Text("Nothing in this view right now.", fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp,
+        Text("Nothing in this view right now.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
     }
 }
@@ -612,8 +611,8 @@ private fun ProjectsSkeleton() {
         }
         // spotlight skeleton (with its progress-meter line)
         Column(
-            Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(16.dp)).padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp),
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp),
         ) {
             Sk(96.dp, 11.dp); Spacer(Modifier.height(13.dp)); Sk(modifier = Modifier.fillMaxWidth(0.82f), height = 18.dp); Spacer(Modifier.height(9.dp)); Sk(modifier = Modifier.fillMaxWidth(0.58f), height = 11.dp)
             Spacer(Modifier.height(13.dp))
@@ -659,15 +658,15 @@ private fun ProjectsError(message: String, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(LlColor.Paper1)
-                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(18.dp)),
+            Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1)
+                .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load your projects", fontFamily = Lora, fontWeight = FontWeight.SemiBold,
+        Text("Couldn't load your projects", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text(message, fontFamily = SourceSans, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
+        Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
         Row(
@@ -675,7 +674,7 @@ private fun ProjectsError(message: String, onRetry: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(Icons.Outlined.Refresh, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-            Text("TRY AGAIN", fontFamily = SourceSans, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
+            Text("TRY AGAIN", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, letterSpacing = 0.05.em, color = LlColor.Paper)
         }
     }
 }
