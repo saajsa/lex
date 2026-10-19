@@ -131,6 +131,9 @@ data class Consultation(
     val funnelLabel: String? = null,
     val funnelAction: String? = null,
     val funnelDetail: String? = null,
+    /** The client's own words for an enquiry (the funnel's), and a video session's brief. */
+    val enquiryText: String? = null,
+    val brief: String? = null,
 )
 
 /** Funnel actions that wait on the client, as the portal's board counts them. */

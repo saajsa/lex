@@ -57,13 +57,20 @@ import com.legumlex.client.ui.theme.Lex
  *  workspace entrances (swiped, not stacked), and the consultations' four figures.
  * ========================================================================== */
 
-/** "MONDAY, 19 OCTOBER 2026" over "Good afternoon, Saaj". */
+/**
+ * As the owner's reference heads a day: the weekday large, in the page
+ * titles' heavy condensed capitals, and beneath it one quiet line with the
+ * date and the greeting — "TUESDAY" over "20 October 2026 · Hello, Saaj".
+ */
 @Composable
 internal fun HomeHeader(dateLabel: String, greeting: String) {
+    val today = java.time.LocalDate.now()
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Eyebrow(dateLabel)
-        Spacer(Modifier.height(4.dp))
-        Text(greeting, style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground,
+        Text(today.format(java.time.format.DateTimeFormatter.ofPattern("EEEE")).uppercase(),
+            fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            fontSize = 34.sp, lineHeight = 36.sp, letterSpacing = 0.3.sp, color = Lex.colors.foreground)
+        Text("${today.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy"))} · $greeting",
+            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

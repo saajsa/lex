@@ -313,6 +313,8 @@ private fun parse(m: Map<String, Any?>): Consultation {
         funnelLabel          = ((m["funnel_view"] as? Map<*, *>)?.get("label") as? String)?.takeIf { it.isNotBlank() },
         funnelAction         = ((m["funnel_view"] as? Map<*, *>)?.get("action") as? String)?.takeIf { it.isNotBlank() },
         funnelDetail         = ((m["funnel_view"] as? Map<*, *>)?.get("detail") as? String)?.takeIf { it.isNotBlank() },
+        enquiryText          = (m["enquiry_text"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+        brief                = (m["brief"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         paymentStatus        = (m["payment_status"] as? String)?.takeIf { it.isNotBlank() },
         feeInvoiceId         = m["fee_invoice_id"].asLongOrNull()?.takeIf { it > 0 }?.toString(),
         unreadCount          = m["unread_count"].asIntOrNull() ?: if (unreadReplies) 1 else 0,

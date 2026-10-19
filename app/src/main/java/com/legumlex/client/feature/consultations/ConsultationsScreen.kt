@@ -298,7 +298,12 @@ private val railTime = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
 private fun Consultation.when_(): LocalDateTime? =
     (if (kind == ConsultationKind.DIGITAL_OFFICE) scheduledAt() else null) ?: createdAt ?: lastUpdatedAt
 
-/** A consultation on the timeline: the advocate's photo, title, status, next step. */
+/**
+ * A consultation on the timeline. Each card says each thing once: the rail
+ * has the date; the card the status, what it is about (the client's own words
+ * when the tag only names the type), the type, and the next step. No photo,
+ * and no advocate name — the same on every card; the detail page has them.
+ */
 @Composable
 private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consultation?, onClick: () -> Unit) {
     val at = c.when_()
@@ -316,21 +321,28 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
         ConsultationKind.DOC_REQUEST -> "Documents"
         ConsultationKind.DIGITAL_OFFICE -> "Video Session"
     }
-    val adv = c.assignedTo?.takeIf { it.isNotBlank() }
+    // A tag that only names the type says nothing the subtitle does not.
+    val genericTags = setOf(kind.lowercase(), "agreement health check", "legal enquiry", "general", "agreement check", "consultation")
+    val tag = c.tag?.trim()?.takeIf { it.isNotBlank() && it.lowercase().trimEnd('.') !in genericTags }
+    val words = c.note?.lineSequence()?.map { it.trim() }?.firstOrNull { it.isNotBlank() }
+        ?.let { if (it.length > 90) it.take(88).trimEnd() + "…" else it }
+    val heading = tag ?: words ?: kind
+    val updatedOtherDay = c.lastUpdatedAt != null && c.createdAt != null &&
+        c.lastUpdatedAt.toLocalDate() != c.createdAt.toLocalDate()
     val meta = when {
         mode == RowMode.LIVE -> "Your session is live — tap to join"
         mode == RowMode.AWAIT -> c.nextActionLabel() ?: "Open to continue"
         c.kind == ConsultationKind.DIGITAL_OFFICE && c.scheduledAt() != null -> scheduledGlance(c)
-        else -> relativeAge(c.lastUpdatedAt ?: c.createdAt)?.replaceFirstChar { it.uppercase() }
+        updatedOtherDay -> relativeAge(c.lastUpdatedAt)?.replaceFirstChar { it.uppercase() }
+        else -> null
     }
     TimelineEntry(
         rail = at?.format(railDay) ?: "—",
         railSub = at?.format(railTime)?.lowercase(),
         gapToNext = gapLabel(at?.toLocalDate(), next?.when_()?.toLocalDate()),
         isLast = next == null,
-        leading = { AdvocateTile(adv, c.assignedToAvatarUrl) },
-        title = c.displayTitle(),
-        subtitle = listOfNotNull(kind, adv).joinToString(" · "),
+        title = heading,
+        subtitle = kind.takeIf { it != heading },
         status = statusLabel to statusColor,
         meta = meta,
         metaIcon = when {
@@ -342,27 +354,14 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
         muted = done,
         stripe = when (mode) { RowMode.AWAIT -> Lex.colors.danger.solid; RowMode.LIVE -> Lex.colors.success.solid; else -> null },
         onClick = onClick,
-        extra = { if (c.kind == ConsultationKind.AHC || c.kind == ConsultationKind.DOC_REQUEST) Glance(c, mode) },
+        // Only what the status line does not already say: a released risk
+        // level, or how many requested documents are in.
+        extra = {
+            if (c.kind == ConsultationKind.DOC_REQUEST || (c.kind == ConsultationKind.AHC && c.riskLevel != null)) Glance(c, mode)
+        },
     )
 }
 
-/** The advocate's photo in a rounded tile, or their initials. */
-@Composable
-private fun AdvocateTile(name: String?, photo: String?) {
-    Box(
-        Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(Lex.colors.muted)
-            .border(1.dp, Lex.colors.border, RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (name != null) Text(name.split(' ').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase(),
-            style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-        else Icon(Icons.Outlined.Forum, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(22.dp))
-        photo?.let {
-            AsyncImage(model = it, contentDescription = name, contentScale = ContentScale.Crop,
-                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)))
-        }
-    }
-}
 
 /** The advocate — their photo, or initials — and how long ago it moved. */
 @Composable
