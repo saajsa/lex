@@ -2,6 +2,8 @@ package com.legumlex.client.feature.healthchecks.funnel
 
 import com.legumlex.client.data.api.ApiService
 import com.legumlex.client.feature.consultations.RiskLevel
+import com.legumlex.client.feature.payment.RazorpayOptions
+import com.legumlex.client.feature.payment.razorpayOptionsFrom
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -44,8 +46,18 @@ class AhcFunnelRepository(private val api: ApiService) {
             ?: error("Server returned an empty session")
     }
 
-    suspend fun payInit(): Result<AhcFunnelSession> = runCatching {
-        parse(api.ahcPayInit()) ?: error("Server returned an empty session")
+    /** The session, and the checkout to open when the check has a fee. */
+    suspend fun payInit(): Result<Pair<AhcFunnelSession, RazorpayOptions?>> = runCatching {
+        val response = api.ahcPayInit()
+        val session = parse(response) ?: error("Server returned an empty session")
+        @Suppress("UNCHECKED_CAST")
+        val checkout = ((response["data"] as? Map<String, Any?>)?.get("checkout") as? Map<String, Any?>)
+            ?.let { razorpayOptionsFrom(it, "Agreement Check") }
+        session to checkout
+    }
+
+    suspend fun payVerify(orderId: String, paymentId: String, signature: String): Result<AhcFunnelSession> = runCatching {
+        parse(api.ahcPayVerify(orderId, paymentId, signature)) ?: error("Server returned an empty session")
     }
 
     suspend fun status(): Result<AhcFunnelSession?> = runCatching { parse(api.ahcStatus()) }
@@ -86,7 +98,8 @@ class AhcFunnelRepository(private val api: ApiService) {
             status         = data["status"]?.toString().orEmpty(),
             consultationId = data["consultation_id"]?.toString()?.takeIf { it.isNotBlank() && it != "null" },
             paymentStatus  = data["payment_status"]?.toString().orEmpty(),
-            amountPaid     = (data["amount_paid"]?.toString()?.toIntOrNull()) ?: 0,
+            amountPaid     = (data["amount_paid"]?.toString()?.toDoubleOrNull()?.toInt()) ?: 0,
+            pricePaise     = (data["price_paise"]?.toString()?.toDoubleOrNull()?.toInt()) ?: 0,
             documents      = docsRaw.map { d ->
                 AhcDocument(
                     id        = d["id"]?.toString().orEmpty(),

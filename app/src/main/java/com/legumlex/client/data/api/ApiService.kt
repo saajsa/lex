@@ -464,6 +464,15 @@ interface ApiService {
     @POST("ahc/pay/init")
     suspend fun ahcPayInit(): Map<String, Any?>
 
+    /** The Agreement Check fee, paid: verified the site's way, then sent to the advocate. */
+    @FormUrlEncoded
+    @POST("ahc/pay/verify")
+    suspend fun ahcPayVerify(
+        @Field("razorpay_order_id") orderId: String,
+        @Field("razorpay_payment_id") paymentId: String,
+        @Field("razorpay_signature") signature: String,
+    ): Map<String, Any?>
+
     @GET("ahc/status")
     suspend fun ahcStatus(): Map<String, Any?>
 
@@ -622,6 +631,26 @@ interface ApiService {
     @Multipart
     @POST("desk/enquiry")
     suspend fun deskEnquiry(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    /** The fee for a written enquiry (Funnel_orchestrator::create_payment): {is_free, step, consultation_id} or the checkout block. */
+    @FormUrlEncoded
+    @POST("desk/pay")
+    suspend fun deskPay(@Field("session_hash") sessionHash: String): Map<String, Any?>
+
+    /** {step, consultation_id}: the enquiry is with the advocates once the payment is confirmed. */
+    @FormUrlEncoded
+    @POST("desk/pay/verify")
+    suspend fun deskPayVerify(
+        @Field("session_hash") sessionHash: String,
+        @Field("razorpay_order_id") orderId: String,
+        @Field("razorpay_payment_id") paymentId: String,
+        @Field("razorpay_signature") signature: String,
+    ): Map<String, Any?>
+
+    /** An unpaid enquiry set aside (Funnel_orchestrator::discard_unpaid). */
+    @FormUrlEncoded
+    @POST("desk/discard")
+    suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
 
     /** The Legum Lex site's public notice tracker (cases/landing/ajax_track), by its own URL. */
     @FormUrlEncoded

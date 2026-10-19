@@ -1,5 +1,7 @@
 package com.legumlex.client.feature.desk
 
+import com.legumlex.client.feature.payment.RazorpayOptions
+import com.legumlex.client.feature.payment.razorpayOptionsFrom
 import android.content.Context
 import android.net.Uri
 import com.legumlex.client.BuildConfig
@@ -72,9 +74,14 @@ data class DeskReading(
 /** A file the client has chosen, read into memory as the page holds a File. */
 class DeskFile(val name: String, val size: Long, val mime: String, val bytes: ByteArray)
 
+sealed interface PayStart {
+    data class Sent(val consultationId: Int?) : PayStart
+    data class Checkout(val options: RazorpayOptions) : PayStart
+}
+
 sealed interface Sent {
     data class Delivered(val consultationId: Int?, val email: String) : Sent
-    data class Saved(val displayPrice: String, val email: String) : Sent
+    data class Saved(val displayPrice: String, val email: String, val sessionHash: String) : Sent
     data class Refused(val message: String, val errors: Map<String, String>, val sessionHash: String?) : Sent
     data class Failed(val message: String, val timedOut: Boolean) : Sent
 }
@@ -195,7 +202,7 @@ class DeskRepository(context: Context) {
             val d = withTimeoutOrNull(ms) { api.deskEnquiry(parts)["data"] as? Map<String, Any?> }
                 ?: return Sent.Failed("", timedOut = true)
             val email = (d["email"] as? String).orEmpty()
-            if (d["require_payment"] == true) Sent.Saved(terms.displayPrice, email)
+            if (d["require_payment"] == true) Sent.Saved(terms.displayPrice, email, d["session_hash"]?.toString().orEmpty())
             else Sent.Delivered(d["consultation_id"].int().takeIf { it > 0 }, email)
         } catch (e: HttpException) {
             val body = runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()) }.getOrNull()
@@ -209,6 +216,31 @@ class DeskRepository(context: Context) {
         } catch (e: Exception) {
             Sent.Failed("", timedOut = false)
         }
+    }
+
+    /**
+     * The enquiry's fee, the site's way (desk/pay → Funnel_orchestrator::create_payment):
+     * the checkout to open, or — the price having been removed meanwhile — the
+     * enquiry already sent.
+     */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun pay(sessionHash: String): Result<PayStart> = runCatching {
+        val d = api.deskPay(sessionHash)["data"] as? Map<String, Any?> ?: error("No answer")
+        if (d["is_free"] == true || d["already_processed"] == true) PayStart.Sent(d["consultation_id"].int().takeIf { it > 0 })
+        else PayStart.Checkout(razorpayOptionsFrom(d, "Legal enquiry"))
+    }.recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "Could not start the payment. Please try again.") }
+
+    /** The consultation it opened, once the payment is confirmed. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun payVerify(sessionHash: String, orderId: String, paymentId: String, signature: String): Result<Int?> = runCatching {
+        val d = api.deskPayVerify(sessionHash, orderId, paymentId, signature)["data"] as? Map<String, Any?> ?: error("No answer")
+        d["consultation_id"].int().takeIf { it > 0 }
+    }
+
+    suspend fun discard(sessionHash: String): Boolean = runCatching { api.deskDiscard(sessionHash); true }.getOrDefault(false)
+
+    private fun serverMessage(e: Throwable): String? = (e as? HttpException)?.let {
+        runCatching { JSONObject(it.response()?.errorBody()?.string().orEmpty()).optString("message") }.getOrNull()?.takeIf { m -> m.isNotBlank() }
     }
 
     /** The Legum Lex site's tracker, at its own address beside the API's. */

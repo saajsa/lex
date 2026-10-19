@@ -87,6 +87,8 @@ data class AhcFunnelSession(
     val consultationId: String?,
     val paymentStatus: String,
     val amountPaid: Int,
+    /** The Agreement Check's fee in paise, as the site charges it; 0 = free. */
+    val pricePaise: Int = 0,
     val documents: List<AhcDocument>,
     val extraction: AhcExtraction?,
     val confirmed: AhcConfirmed?,

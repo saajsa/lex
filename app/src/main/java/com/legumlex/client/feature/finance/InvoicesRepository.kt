@@ -33,22 +33,7 @@ class InvoicesRepository(private val api: ApiService) {
         @Suppress("UNCHECKED_CAST")
         val data = response["data"] as? Map<String, Any?>
             ?: error(response["message"]?.toString() ?: "Could not start payment")
-        @Suppress("UNCHECKED_CAST")
-        val prefill = data["prefill"] as? Map<String, Any?>
-        RazorpayOptions(
-            keyId          = data["key_id"]?.toString()    ?: error("Missing key_id"),
-            orderId        = data["order_id"]?.toString()  ?: error("Missing order_id"),
-            // JSON numbers arrive as Double via the converter (300 -> 300.0), so
-            // "300.0".toIntOrNull() is null. Parse via Number/Double, not toInt.
-            amountPaise    = (data["amount_paise"] as? Number)?.toInt()
-                ?: data["amount_paise"]?.toString()?.toDoubleOrNull()?.toInt()
-                ?: error("Missing amount"),
-            currency       = (data["currency"]  as? String) ?: "INR",
-            name           = (data["name"]      as? String)?.takeIf { it.isNotBlank() } ?: "Legum Lex",
-            description    = (data["description"] as? String)?.takeIf { it.isNotBlank() } ?: "Invoice payment",
-            prefillEmail   = (prefill?.get("email")   as? String)?.takeIf { it.isNotBlank() },
-            prefillContact = (prefill?.get("contact") as? String)?.takeIf { it.isNotBlank() },
-        )
+        com.legumlex.client.feature.payment.razorpayOptionsFrom(data, "Invoice payment")
     }
 
     /** Verify after the SDK reports success. Throws on signature failure. */

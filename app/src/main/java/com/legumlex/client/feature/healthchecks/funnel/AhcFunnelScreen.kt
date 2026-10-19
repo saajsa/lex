@@ -31,6 +31,8 @@ fun AhcFunnelScreen(
     val vm: AhcFunnelViewModel = viewModel()
     val state by vm.state.collectAsState()
     var showSaveExit by rememberSaveable { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val razorpayResults = com.legumlex.client.feature.payment.LocalRazorpayResults.current
 
     // Bridge ViewModel events
     LaunchedEffect(Unit) {
@@ -40,9 +42,16 @@ fun AhcFunnelScreen(
                     onResultReady(state.session?.consultationId)
                 AhcFunnelViewModel.Event.NavigateToHome -> onExit()
                 is AhcFunnelViewModel.Event.Toast -> { /* handled by host snackbar if needed */ }
+                is AhcFunnelViewModel.Event.LaunchCheckout ->
+                    (context as? android.app.Activity)?.let {
+                        com.legumlex.client.feature.payment.openRazorpayCheckout(it, event.options)
+                    }
             }
         }
     }
+    // The checkout answers through the Activity; the view model keeps only
+    // the result for the order it opened.
+    LaunchedEffect(vm) { razorpayResults.collect { vm.handlePaymentResult(it) } }
 
     // Start a session once when the host launched us at the empty state. A
     // failed start shows its error with Try Again; it is not retried forever.

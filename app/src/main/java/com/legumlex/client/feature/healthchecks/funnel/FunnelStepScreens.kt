@@ -400,7 +400,7 @@ private fun PreFilledPill() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Step 4 · Payment  (server auto-skips today)
+// Step 4 · Payment — the site's fee (tblfunnel_modules), through Razorpay
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -410,46 +410,65 @@ fun StepPaymentScreen(
     onBack: () -> Unit,
     onSaveAndExit: () -> Unit,
 ) {
-    val skipped = state.session?.paymentStatus == "skipped"
-
-    LaunchedEffect(Unit) { if (!skipped) vm.startPayment() }
+    val price = state.session?.pricePaise ?: 0
+    // No fee: nothing to ask; the document goes to the advocate at once.
+    LaunchedEffect(price) { if (price <= 0) vm.startPayment() }
 
     FunnelScreen(
         step = AhcStep.PAYMENT,
         onBack = onBack,
         onSaveAndExit = onSaveAndExit,
-        action = null,
-    ) {
-        if (skipped) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                FunnelStepHeader(step = AhcStep.PAYMENT, question = "Payment")
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp))
-                }
-                Spacer(Modifier.height(14.dp))
-                Text("Included in your plan", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, letterSpacing = (-0.25).sp)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Agreement checks are part of your Starter plan. No payment needed.",
-                    color = SecondaryText, style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp),
-                )
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    "Advancing in 1.5 s…",
-                    color = TertiaryText, fontFamily = Inter, fontSize = 11.sp, letterSpacing = 0.5.sp,
+        action = if (price > 0) {
+            {
+                FunnelPrimaryButton(
+                    label = if (state.paying) "Opening the Payment…" else "Pay ${com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00")}",
+                    onClick = { vm.startPayment() },
+                    enabled = !state.paying,
                 )
             }
-        } else {
-            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-                Text("Preparing payment…", color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+        } else null,
+    ) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 24.dp)) {
+            FunnelStepHeader(step = AhcStep.PAYMENT, question = if (price > 0) "The Agreement Check Fee" else "Sending to Your Advocate")
+            Spacer(Modifier.height(16.dp))
+            if (price > 0) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp), color = Lex.colors.card,
+                    border = BorderStroke(1.dp, BorderColor), modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        EyebrowText("Agreement Check")
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00"),
+                            color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, letterSpacing = (-0.5).sp,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "The fee covers an advocate's review of your agreement and the written report. Your document goes to the advocate once the payment is confirmed.",
+                            color = SecondaryText, style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Payments are taken by Razorpay. You can save and pay later; your agreement stays here.",
+                    color = TertiaryText, style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(color = PrimaryText, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("There is no fee for this check. Your agreement is going to the advocate.", color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            state.payError?.let {
+                Spacer(Modifier.height(14.dp))
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                if (price <= 0) {
+                    Spacer(Modifier.height(10.dp))
+                    FunnelSecondaryButton(label = "Try Again", onClick = { vm.startPayment() })
+                }
             }
         }
     }

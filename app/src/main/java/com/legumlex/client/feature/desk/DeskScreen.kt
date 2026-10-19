@@ -147,12 +147,18 @@ fun DeskScreen(
     val vm: DeskViewModel = viewModel()
     val ui by vm.ui.collectAsState()
     var tracking by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val razorpayResults = com.legumlex.client.feature.payment.LocalRazorpayResults.current
+    LaunchedEffect(vm) { razorpayResults.collect { vm.handlePaymentResult(it) } }
 
     LaunchedEffect(vm) {
         vm.events.collect { e ->
             when (e) {
                 DeskEvent.OpenMatters -> onOpenMatters()
                 is DeskEvent.OpenConsultation -> onOpenConsultation(e.id)
+                is DeskEvent.LaunchCheckout -> (context as? android.app.Activity)?.let {
+                    com.legumlex.client.feature.payment.openRazorpayCheckout(it, e.options)
+                }
             }
         }
     }
