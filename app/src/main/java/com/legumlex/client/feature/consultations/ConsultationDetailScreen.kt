@@ -189,6 +189,8 @@ fun ConsultationDetailScreen(
                         onOpenLinkedConsultation = onOpenConsultation,
                         onMessageAdvocate  = { onOpenThread(c.id) },
                         onRequestClose     = { ahcCloseOpen = true },
+                        onRetry            = { vm.load() },
+                        onBookConsultation = onNewConsultation,
                         attachmentsSlot    = { com.legumlex.client.feature.consultations.detail.AttachmentsCardForVM(vm) },
                         topBarActions      = actionsMenu,
                         onBack             = onBack,

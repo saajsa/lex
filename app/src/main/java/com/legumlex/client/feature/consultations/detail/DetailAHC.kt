@@ -86,6 +86,8 @@ fun DetailAHC(
     onOpenLinkedConsultation: (String) -> Unit = {},
     onMessageAdvocate: () -> Unit = {},
     onRequestClose: () -> Unit = {},
+    onRetry: () -> Unit = {},
+    onBookConsultation: () -> Unit = onMessageAdvocate,
     attachmentsSlot: @Composable () -> Unit = {},
     topBarActions: @Composable () -> Unit = {},
     onBack: () -> Unit,
@@ -112,11 +114,11 @@ fun DetailAHC(
         onDownloadReport = onDownloadDocument,
         onMessageAdvocate = onMessageAdvocate,
         onTalkToAdvocate = onMessageAdvocate,
-        onBookConsultation = onMessageAdvocate,
+        onBookConsultation = onBookConsultation,
         onGoToConsultation = { consultation.linkedConsultationId?.let(onOpenLinkedConsultation) },
         onFindingClick = {},
-        onRetry = {},
-        onRetrySection = {},
+        onRetry = onRetry,
+        onRetrySection = { onRetry() },
         onClose = onRequestClose,
     )
 
