@@ -5,5 +5,5 @@
     <color name="snow">#FAFAFA</color>
     <color name="paper">#FFFFFF</color>
     <color name="mist">#F4F4F5</color>
-    <color name="icon_bg">#F5F4F0</color>
+    <color name="icon_bg">#000000</color>
 </resources>

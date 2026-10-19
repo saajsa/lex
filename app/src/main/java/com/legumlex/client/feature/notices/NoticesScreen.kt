@@ -84,9 +84,9 @@ fun NoticesScreen(
                 Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onNew).padding(horizontal = 13.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.ic_ms_add), null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("New", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color.White)
+                Text("New", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
             }
         }
 
@@ -183,7 +183,7 @@ private fun SortBar(sort: NoticeSort, state: NoticesUiState, onSort: () -> Unit)
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
-            Modifier.clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp))
+            Modifier.clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp))
                 .clickable(onClick = onSort).padding(horizontal = 11.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -264,7 +264,7 @@ private fun Toggle(on: Boolean, onToggle: () -> Unit) {
     ) {
         Box(
             Modifier.align(if (on) Alignment.CenterEnd else Alignment.CenterStart).padding(horizontal = 2.dp)
-                .size(20.dp).clip(CircleShape).background(Color.White),
+                .size(20.dp).clip(CircleShape).background(com.legumlex.client.ui.theme.Lex.colors.card),
         )
     }
 }
@@ -306,7 +306,7 @@ private fun NoticeRow(n: NoticeSummary, nested: Boolean = false, onClick: () -> 
     val stripe = if (n.isClosed) LlColor.BorderStrong else c.mid
     val tileBg = if (n.isClosed) LlColor.Paper2 else c.soft
     val tileFg = if (n.isClosed) LlColor.InkMuted else c.solid
-    Box(Modifier.fillMaxWidth().background(if (nested) LlColor.Paper else Color.White).clickable(onClick = onClick)) {
+    Box(Modifier.fillMaxWidth().background(if (nested) LlColor.Paper else com.legumlex.client.ui.theme.Lex.colors.card).clickable(onClick = onClick)) {
         Row(
             Modifier.fillMaxWidth().padding(start = if (nested) 14.dp else 0.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.Top,
@@ -451,7 +451,7 @@ private fun relTime(dt: LocalDateTime?): String {
 private fun Empty(onNew: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)).padding(vertical = 38.dp, horizontal = 24.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)).padding(vertical = 38.dp, horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Paper1), contentAlignment = Alignment.Center) {
@@ -466,9 +466,9 @@ private fun Empty(onNew: () -> Unit) {
                 Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onNew).padding(horizontal = 16.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.ic_ms_add), null, tint = Color.White, modifier = Modifier.size(17.dp))
+                Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(7.dp))
-                Text("Start a notice", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color.White)
+                Text("Start a notice", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
             }
         }
     }
@@ -478,7 +478,7 @@ private fun Empty(onNew: () -> Unit) {
 private fun ErrorBlock(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)).padding(16.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.AmberSoft), contentAlignment = Alignment.Center) {
@@ -503,7 +503,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
 private fun Skeleton() {
     Column(Modifier.fillMaxSize().padding(top = 6.dp)) {
         repeat(5) {
-            Row(Modifier.fillMaxWidth().background(Color.White).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(com.legumlex.client.ui.theme.Lex.colors.card).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {

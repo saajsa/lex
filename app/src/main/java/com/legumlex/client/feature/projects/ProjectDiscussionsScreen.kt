@@ -82,6 +82,8 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
     private val _thread = MutableStateFlow<DiscussionDetail?>(null)
     val thread: StateFlow<DiscussionDetail?> = _thread.asStateFlow()
+    /** The thread that failed to load, so the screen stops waiting for it. */
+    val _failed = MutableStateFlow<String?>(null)
     private val _threadLoading = MutableStateFlow(false)
     val threadLoading: StateFlow<Boolean> = _threadLoading.asStateFlow()
     private val _posting = MutableStateFlow(false)
@@ -118,7 +120,7 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
     fun openThread(id: String) {
         viewModelScope.launch {
             _threadLoading.value = true
-            repo.discussion(id).onSuccess { _thread.value = it }.onFailure { _toast.value = "Couldn't open the discussion." }
+            repo.discussion(id).onSuccess { _thread.value = it }.onFailure { _toast.value = "Couldn't open the discussion."; _failed.value = id }
             _threadLoading.value = false
         }
     }
@@ -161,6 +163,7 @@ fun ProjectDiscussionsScreen(
     val isRefreshing by vm.isRefreshing.collectAsState()
     val thread by vm.thread.collectAsState()
     val threadLoading by vm.threadLoading.collectAsState()
+    val failedThread by vm._failed.collectAsState()
     val posting by vm.posting.collectAsState()
     val toast by vm.toast.collectAsState()
 
@@ -177,6 +180,13 @@ fun ProjectDiscussionsScreen(
                     Heading(thread?.subject ?: "Discussion", null, "Discussion · ${ready?.projectRef ?: ""} · ${thread?.comments?.size ?: 0} messages")
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when {
+                            !threadLoading && thread == null && failedThread == discussionId ->
+                                com.legumlex.client.ui.components.LexEmpty(
+                                    "The Discussion Could Not Be Opened",
+                                    "Please check your connection and try again.",
+                                    action = { androidx.compose.material3.TextButton(onClick = { vm._failed.value = null; vm.openThread(discussionId) }) {
+                                        androidx.compose.material3.Text("Try Again", color = LlColor.Ink) } },
+                                )
                             threadLoading || thread == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = LlColor.InkMuted) }
                             else -> ThreadContent(thread!!)
                         }

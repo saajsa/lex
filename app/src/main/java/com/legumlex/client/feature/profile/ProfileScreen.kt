@@ -102,7 +102,7 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
             palette = Lex.colors.info,
         )
 
-        LexCard(title = "Your Profile") {
+        LexCard(title = "Your Details") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Photo", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground, modifier = Modifier.weight(1f))
                 Box(

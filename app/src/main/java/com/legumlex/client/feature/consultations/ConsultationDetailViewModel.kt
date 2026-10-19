@@ -82,7 +82,7 @@ class ConsultationDetailViewModel(
     private val _isSending = MutableStateFlow(false)
     val isSending: StateFlow<Boolean> = _isSending.asStateFlow()
 
-    private val _events = MutableSharedFlow<ReplyEvent>()
+    private val _events = MutableSharedFlow<ReplyEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<ReplyEvent> = _events.asSharedFlow()
 
     /**
@@ -90,7 +90,7 @@ class ConsultationDetailViewModel(
      * Kept separate from ReplyEvent because consumers must hold a Context to
      * act on it — the snackbar consumer can ignore these and vice versa.
      */
-    private val _attachmentEvents = MutableSharedFlow<AttachmentEvent>()
+    private val _attachmentEvents = MutableSharedFlow<AttachmentEvent>(extraBufferCapacity = 8)
     val attachmentEvents: SharedFlow<AttachmentEvent> = _attachmentEvents.asSharedFlow()
 
     private val _lifecycleEvents = MutableSharedFlow<DetailLifecycleEvent>()

@@ -158,7 +158,7 @@ private fun TimelineItem(a: ProjectActivityItem, last: Boolean) {
     val kind = activityKind(a.descriptionKey)
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(14.dp)) {
-            Box(Modifier.padding(top = 2.dp).size(14.dp).clip(RoundedCornerShape(50)).background(Color.White).border(2.dp, kind.color, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+            Box(Modifier.padding(top = 2.dp).size(14.dp).clip(RoundedCornerShape(50)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(2.dp, kind.color, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(5.dp).clip(RoundedCornerShape(50)).background(kind.color))
             }
             if (!last) Box(Modifier.width(1.5.dp).weight(1f).background(LlColor.Paper2))

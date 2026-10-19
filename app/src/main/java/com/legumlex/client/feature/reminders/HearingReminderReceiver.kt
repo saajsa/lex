@@ -53,7 +53,7 @@ class HearingReminderReceiver : BroadcastReceiver() {
         }
 
         val notif = NotificationCompat.Builder(context, HEARING_REMINDER_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(title.ifBlank { "Upcoming hearing" })
             .setContentText(body.ifBlank { "Tap to view hearing details." })
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

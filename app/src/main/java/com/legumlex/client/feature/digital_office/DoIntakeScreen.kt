@@ -792,7 +792,7 @@ private fun ConsentCheckbox(checked: Boolean, onToggle: () -> Unit) {
                 .padding(top = 1.dp)
                 .size(20.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (checked) LexVerdant else Color.White)
+                .background(if (checked) LexVerdant else com.legumlex.client.ui.theme.Lex.colors.card)
                 .border(
                     BorderStroke(1.5.dp, if (checked) LexVerdant else LexBorderStrong),
                     RoundedCornerShape(6.dp),

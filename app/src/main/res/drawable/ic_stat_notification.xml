@@ -1,20 +1,11 @@
-<!--
-  Status-bar notification icon. Must be a white silhouette on transparent
-  per Android's notification icon contract — Android tints the silhouette
-  to match the system theme. A solid colour fill would just appear as
-  a white square on older API levels.
-
-  The mark is a notched square matching the brand's "tab" mark in the
-  launcher icon so the lockscreen notification reads as ours at a glance.
--->
+<!-- Status-bar icon: the Legum Lex mark (two interlocking L forms) as a white
+     silhouette on transparent, as Android's notification icon contract asks. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorControlNormal">
-
+    android:viewportHeight="24">
     <path
-        android:fillColor="@android:color/white"
-        android:pathData="M5,3h14a2,2 0,0 1,2 2v14a2,2 0,0 1,-2 2H5a2,2 0,0 1,-2 -2V5a2,2 0,0 1,2 -2zM7,7v10h6v-3h4V7H7z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M3.88,2.62 H7.32 V16.03 H3.88 Z M3.88,13.08 H11.57 V16.03 H3.88 Z M15.26,2.62 H20.12 V21.38 H15.26 Z M9.42,17.26 H20.12 V21.38 H9.42 Z" />
 </vector>

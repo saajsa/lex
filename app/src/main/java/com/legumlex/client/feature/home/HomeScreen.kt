@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Directions
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.EventNote
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.HourglassTop
@@ -145,6 +146,7 @@ fun HomeScreen(
     onOpenNotice: (String) -> Unit = {},
     onOpenTask: (String) -> Unit = {},
     onOpenProject: (String) -> Unit = {},
+    onOpenAgreement: (String) -> Unit = {},
     onAskNew: () -> Unit = {},
     onWalkInDigitalOffice: () -> Unit = {},
     /**
@@ -230,6 +232,7 @@ fun HomeScreen(
                 onOpenNotice        = onOpenNotice,
                 onOpenTask          = onOpenTask,
                 onOpenProject       = onOpenProject,
+                onOpenAgreement = onOpenAgreement,
                 onAskNew            = onAskNew,
                 onWalkInDigitalOffice = onWalkInDigitalOffice,
                 onOpenChamberLanding  = onOpenChamberLanding,
@@ -276,6 +279,7 @@ private fun HomeContent(
     onOpenNotice: (String) -> Unit,
     onOpenTask: (String) -> Unit,
     onOpenProject: (String) -> Unit,
+    onOpenAgreement: (String) -> Unit,
     onAskNew: () -> Unit,
     onWalkInDigitalOffice: () -> Unit,
     onOpenChamberLanding: (Int?) -> Unit,
@@ -349,6 +353,7 @@ private fun HomeContent(
                     onOpenNotice       = onOpenNotice,
                     onOpenTask         = onOpenTask,
                     onOpenProject      = onOpenProject,
+                onOpenAgreement = onOpenAgreement,
                     onOpenAhcFunnel    = onStartAgreementHealthCheckup,
                     onAskNew           = onAskNew,
                     onDismiss          = onDismissAction,
@@ -692,6 +697,7 @@ private fun ActionQueueBlock(
     onOpenNotice: (String) -> Unit,
     onOpenTask: (String) -> Unit,
     onOpenProject: (String) -> Unit,
+    onOpenAgreement: (String) -> Unit,
     onOpenAhcFunnel: () -> Unit,
     onAskNew: () -> Unit,
     onDismiss: (ActionItem) -> Unit,
@@ -755,6 +761,7 @@ private fun ActionQueueBlock(
                                     DeepLinkType.Task         -> onOpenTask(item.deepLink.id)
                                     DeepLinkType.Project      -> onOpenProject(item.deepLink.id)
                                     DeepLinkType.AhcFunnel    -> onOpenAhcFunnel()
+                                    DeepLinkType.Agreement    -> if (item.deepLink.id.isNotBlank()) onOpenAgreement(item.deepLink.id)
                                     DeepLinkType.Unknown      -> Unit
                                 }
                             },
@@ -1007,6 +1014,7 @@ private fun kindIcon(kind: ActionKind): androidx.compose.ui.graphics.vector.Imag
     ActionKind.AhcDraftInProgress                       -> Icons.Outlined.Description
     ActionKind.AhcReviewPending                         -> Icons.Outlined.HourglassTop
     ActionKind.AhcReportReady                           -> Icons.Outlined.VerifiedUser
+    ActionKind.RegisterObligationDue                    -> Icons.Outlined.EventNote
     ActionKind.Unknown                                  -> Icons.Outlined.ChevronRight
 }
 
@@ -1855,7 +1863,7 @@ private fun LiveSessionBanner(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(com.legumlex.client.ui.theme.Lex.colors.card)
                 .clickable {
                     val link = ev?.meetLink
                     when {

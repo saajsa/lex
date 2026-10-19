@@ -262,7 +262,7 @@ private fun DispositionBanner(detail: CaseDetail) {
         verticalAlignment = Alignment.Top,
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color.White)
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card)
                 .border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Filled.Verified, null, tint = LlColor.VerdantMid, modifier = Modifier.size(22.dp)) }
@@ -386,7 +386,7 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                     .clickable { onOpenConsultation(cid) }.padding(horizontal = 15.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp),
             ) {
-                Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(LlDimen.HairlineWidth, VioletBorderFix, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(LlDimen.HairlineWidth, VioletBorderFix, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Outlined.NorthEast, null, tint = LlColor.Violet, modifier = Modifier.size(18.dp))
                 }
                 Column(Modifier.weight(1f)) {
@@ -446,7 +446,7 @@ private fun TimelineItem(e: TimelineEvent, last: Boolean) {
     val tone = timelineTone(e.type)
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(13.dp)) {
-            Box(Modifier.padding(top = 3.dp).size(13.dp).clip(RoundedCornerShape(50)).background(Color.White).border(2.dp, tone, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+            Box(Modifier.padding(top = 3.dp).size(13.dp).clip(RoundedCornerShape(50)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(2.dp, tone, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(5.dp).clip(RoundedCornerShape(50)).background(tone))
             }
             if (!last) Box(Modifier.width(1.5.dp).weight(1f).background(LlColor.Paper2))
@@ -804,7 +804,8 @@ private fun DocCard(docs: List<CaseFile>, onOpen: (CaseFile) -> Unit) {
                     Text(f.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(4.dp))
                     val meta = listOfNotNull(
-                        f.fileType?.uppercase(),
+                        f.fileType?.substringAfterLast('/')?.substringAfterLast('.')?.uppercase()
+                            ?.let { if (it.startsWith("VND.OPENXMLFORMATS") || it == "MSWORD") "Word" else it },
                         (f.hearingDate ?: f.date)?.format(dayFmt)?.let { if (f.relation == "hearing") "Hearing · $it" else it },
                     ).joinToString("  ·  ")
                     Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)

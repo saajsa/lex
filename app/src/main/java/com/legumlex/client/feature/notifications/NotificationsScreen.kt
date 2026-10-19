@@ -131,7 +131,7 @@ private fun Header(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .background(LlColor.Paper)
-            .statusBarsPadding()
+
             .height(52.dp),
     ) {
         Box(
@@ -211,7 +211,7 @@ private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Uni
     Row(
         Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(if (on) Color.White else Color.Transparent)
+            .background(if (on) com.legumlex.client.ui.theme.Lex.colors.card else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -287,7 +287,7 @@ private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(if (read) LlColor.Paper else Color.White)
+            .background(if (read) LlColor.Paper else com.legumlex.client.ui.theme.Lex.colors.card)
             .clickable(onClick = onClick),
     ) {
         Row(
@@ -394,7 +394,7 @@ private fun EmptyState() {
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
+                .background(com.legumlex.client.ui.theme.Lex.colors.card)
                 .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))
                 .padding(vertical = 40.dp, horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -424,7 +424,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
+                .background(com.legumlex.client.ui.theme.Lex.colors.card)
                 .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -466,7 +466,7 @@ private fun SkeletonList() {
             }
             repeat(if (band == 0) 3 else 1) {
                 Row(
-                    Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 1.dp).background(Color.White).padding(vertical = 13.dp),
+                    Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 1.dp).background(com.legumlex.client.ui.theme.Lex.colors.card).padding(vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Spacer(Modifier.width(15.dp))

@@ -286,7 +286,7 @@ fun showAppHeader(route: String?): Boolean {
 /** Back arrow shows on any non-tab screen that has somewhere to return to. */
 fun showHeaderBack(route: String?, canPop: Boolean): Boolean {
     val b = routeBase(route) ?: return false
-    return canPop && b !in mainShellRoutes
+    return canPop && bottomTabs.none { it.route.path == b }
 }
 
 /** Footer nav shows on tabs + content screens, never on auth/funnels/modals. */

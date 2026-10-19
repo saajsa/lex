@@ -128,7 +128,7 @@ private fun Body(
                     Modifier.fillMaxWidth().background(LlColor.AmberSoft).clickable { onOpen(p.id) }.padding(horizontal = 16.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.AmberSoft, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.AmberSoft, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_reply), null, tint = LlColor.Amber, modifier = Modifier.size(17.dp))
                     }
                     Spacer(Modifier.width(11.dp))
@@ -262,7 +262,7 @@ private fun Body(
                         .background(LlColor.VioletSoft).padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
                     }
                     Spacer(Modifier.width(11.dp))
@@ -277,7 +277,7 @@ private fun Body(
                     Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VioletSoft).padding(13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card), contentAlignment = Alignment.Center) {
                         Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
                     }
                     Spacer(Modifier.width(11.dp))
@@ -336,7 +336,7 @@ private fun Footer(
 @Composable
 private fun GhostIconBtn(label: String, icon: Painter, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = LlColor.Ink, modifier = Modifier.size(16.dp))
@@ -364,7 +364,7 @@ private fun PrimaryBtn(label: String, icon: Painter, color: Color, loading: Bool
 @Composable
 private fun GhostBtn(label: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
@@ -432,7 +432,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 
 @Composable
 private fun Panel(content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))) { content() }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))) { content() }
 }
 
 @Composable
@@ -500,7 +500,7 @@ private fun DocRow(doc: NoticeDocument, draftStage: Boolean, onClick: () -> Unit
 @Composable
 private fun DraftSheet() {
     Column(
-        Modifier.width(150.dp).height(194.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).padding(16.dp),
+        Modifier.width(150.dp).height(194.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).padding(16.dp),
     ) {
         Text("LEGAL NOTICE", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LlColor.Ink)
         Text("Legum Lex", fontFamily = Inter, fontSize = 5.5.sp, color = LlColor.InkFaint)

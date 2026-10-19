@@ -44,9 +44,12 @@ fun AhcFunnelScreen(
         }
     }
 
-    // Auto-start a session when the host launched us at the empty state.
+    // Start a session once when the host launched us at the empty state. A
+    // failed start shows its error with Try Again; it is not retried forever.
+    var autoStarted by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     LaunchedEffect(state.loading, state.session) {
-        if (!state.loading && state.session == null && !state.expired) {
+        if (!autoStarted && !state.loading && state.session == null && !state.expired) {
+            autoStarted = true
             vm.startNew()
         }
     }
@@ -56,6 +59,14 @@ fun AhcFunnelScreen(
             EdgeExpiredScreen(
                 onStartNew = { vm.startNew() },
                 onBackToHealthChecks = onExit,
+            )
+        }
+        !state.loading && state.session == null && state.error != null -> {
+            com.legumlex.client.ui.components.LexEmpty(
+                "The Agreement Check Could Not Start",
+                state.error ?: "Please check your connection and try again.",
+                modifier = Modifier.fillMaxSize().background(Surface1),
+                action = { androidx.compose.material3.TextButton(onClick = { vm.startNew() }) { androidx.compose.material3.Text("Try Again", color = PrimaryText) } },
             )
         }
         state.loading || state.session == null -> {

@@ -264,7 +264,7 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
     val spec = when (phase) {
         GenPhase.AWAITING -> Spec(
             LlColor.AmberMid, Icons.Outlined.HourglassTop, "Awaiting your advocate",
-            "Submitted just now. $adv will see this shortly — we usually reply within a day.",
+            "Submitted ${c.createdAt?.let { com.legumlex.client.feature.consultations.relativeAgo(it) } ?: "recently"}. $adv will see it shortly — we usually reply within a day.",
         )
         GenPhase.ACTIVE -> Spec(LlColor.SlateMid, Icons.Outlined.Forum, "With your advocate", null)
         GenPhase.RESOLVED -> Spec(

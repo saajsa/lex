@@ -113,7 +113,7 @@ private fun Fork(vm: NewNoticeViewModel) {
 private fun BigCard(dir: NoticeDirection, title: String, desc: String, onClick: () -> Unit) {
     val c = dirColors(dir)
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card)
             .border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(18.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -148,7 +148,7 @@ private fun OutProblem(s: NewNoticeState, vm: NewNoticeViewModel) {
             s.problems.forEach { card ->
                 val sel = card.key == s.selectedProblemKey
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card)
                         .border(if (sel) 2.dp else 1.dp, if (sel) LlColor.SlateMid else LlColor.Border, RoundedCornerShape(12.dp))
                         .clickable { vm.selectProblem(card) }.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -225,7 +225,7 @@ private fun InUpload(vm: NewNoticeViewModel) {
                 .clickable { picker.launch("*/*") }.padding(vertical = 36.dp, horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(58.dp).clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_ms_cloud_upload), null, tint = LlColor.Amber, modifier = Modifier.size(30.dp))
             }
             Spacer(Modifier.height(12.dp))

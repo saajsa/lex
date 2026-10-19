@@ -154,7 +154,8 @@ private fun MatterMasthead(
     val number = matter.summary.number.takeIf { it.isNotBlank() } ?: fallbackNumber
 
     Card(
-        colors   = CardDefaults.cardColors(containerColor = AccentInk),
+        // A dark card in both themes: its text is white.
+        colors   = CardDefaults.cardColors(containerColor = Color(0xFF18181B)),
         shape    = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -414,7 +415,7 @@ private fun BasicCaseLink(
                 modifier = Modifier.size(40.dp).clip(CircleShape).background(AccentInk),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Gavel, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.Gavel, null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(spacing.s3))
             Column(Modifier.weight(1f)) {

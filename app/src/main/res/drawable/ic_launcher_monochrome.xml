@@ -1,0 +1,13 @@
+<!-- Themed-icon layer: the same mark, tinted by the system. Legum Lex launcher mark: the company's two interlocking L forms (the
+     geometry of cases/views/public/site/partials/mark.php, from
+     cases/assets/images/legum-lex-logo.png), white on the black tile, as the
+     logo file itself is. Centred within the adaptive icon's safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M36.13,33.35 H43.71 V62.87 H36.13 Z M36.13,56.37 H53.05 V62.87 H36.13 Z M61.18,33.35 H71.87 V74.65 H61.18 Z M48.31,65.58 H71.87 V74.65 H48.31 Z" />
+</vector>

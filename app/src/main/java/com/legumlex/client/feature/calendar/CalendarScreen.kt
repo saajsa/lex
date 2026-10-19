@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.calendar
 
+import androidx.compose.foundation.verticalScroll
 import android.app.Application
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -101,8 +102,10 @@ fun CalendarScreen(
     )
     val state by vm.state.collectAsState()
 
+    // The app shell already pads for the system bars.
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
     ) { inner ->
         Column(Modifier.fillMaxSize().padding(inner)) {
             DetailHeading(
@@ -145,6 +148,7 @@ private fun CalendarBody(hearings: List<Hearing>, onOpenHearing: (String) -> Uni
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(androidx.compose.foundation.rememberScrollState())
             .padding(horizontal = spacing.s4),
     ) {
         // Month nav
@@ -191,6 +195,34 @@ private fun CalendarBody(hearings: List<Hearing>, onOpenHearing: (String) -> Uni
                 }
             }
         }
+
+        // The month's hearings, listed under the grid, so a month with dates in
+        // it says what they are without tapping each day.
+        val inMonth = remember(hearings, visibleMonth) {
+            hearings.filter { it.date?.let { d -> YearMonth.from(d) == visibleMonth } == true }
+                .sortedWith(compareBy({ it.date }, { it.time }))
+        }
+        Spacer(Modifier.height(spacing.s4))
+        Text(
+            "Hearings In ${visibleMonth.format(DateTimeFormatter.ofPattern("MMMM"))}",
+            style = MaterialTheme.typography.titleSmall,
+            color = PrimaryText,
+        )
+        Spacer(Modifier.height(spacing.s2))
+        if (inMonth.isEmpty()) {
+            Text("No hearings are listed for this month.", style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+        } else {
+            inMonth.forEach { h ->
+                Text(
+                    h.date!!.format(DateTimeFormatter.ofPattern("EEE, d MMM")),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = SecondaryText,
+                    modifier = Modifier.padding(top = spacing.s2, bottom = 4.dp),
+                )
+                SheetHearingCard(h) { onOpenHearing(h.id) }
+            }
+        }
+        Spacer(Modifier.height(spacing.s5))
     }
 
     selected?.let { day ->
@@ -308,7 +340,7 @@ private fun SheetContent(day: LocalDate, hearings: List<Hearing>, onOpen: (Strin
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            if (hearings.isEmpty()) "No hearings"
+            if (hearings.isEmpty()) "No hearings on this day."
             else "${hearings.size} ${if (hearings.size == 1) "hearing" else "hearings"}",
             style = MaterialTheme.typography.bodySmall,
             color = SecondaryText,

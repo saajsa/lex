@@ -93,7 +93,7 @@ fun MoreScreen(
             MenuRow(Icons.Outlined.ReceiptLong, "Invoices", "Your balance, what is due and what you have paid", onOpenInvoices)
         }
         Group("Ask") {
-            MenuRow(Icons.Outlined.QuestionAnswer, "Ask Your Advocate", "Start a new consultation", onAskAdvocate)
+            MenuRow(Icons.Outlined.QuestionAnswer, "Consult", "Ask the advocates a new question, have an agreement read, or track a notice", onAskAdvocate)
         }
         Group("Litigation") {
             MenuRow(Icons.Outlined.MarkEmailUnread, "Notices", "Legal notices sent for you, and received", onOpenNotices)

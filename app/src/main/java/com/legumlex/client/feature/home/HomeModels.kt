@@ -38,10 +38,12 @@ enum class ActionKind {
     ProjectMilestoneApproaching,
     // Agreement Health Checkup states — surface alongside everything else.
     AhcDraftInProgress, AhcReviewPending, AhcReportReady,
+    // A date an agreement on the Register sets (renewal notice, payment, expiry).
+    RegisterObligationDue,
     Unknown,
 }
 
-enum class DeepLinkType { Invoice, Contract, Consultation, Case, Notice, Task, Project, AhcFunnel, Unknown }
+enum class DeepLinkType { Invoice, Contract, Consultation, Case, Notice, Task, Project, AhcFunnel, Agreement, Unknown }
 
 data class ActionItemDeepLink(val type: DeepLinkType, val id: String)
 

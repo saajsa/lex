@@ -123,7 +123,9 @@ private fun parseActionItems(data: Map<String, Any?>?): ActionItemsBundle {
         @Suppress("UNCHECKED_CAST")
         val linkRaw  = item["deep_link"] as? Map<String, Any?>
         val linkType = linkRaw?.get("type") as? String
-        val linkId   = linkRaw?.get("id") as? String ?: ""
+        // A Register obligation opens its agreement, where its dates are listed.
+        val linkId   = (if (linkType == "obligation") linkRaw?.get("agreement_id") as? String else null)
+            ?: linkRaw?.get("id") as? String ?: ""
 
         ActionItem(
             kind     = parseActionKind(kindStr),
@@ -157,6 +159,7 @@ private fun parseActionKind(s: String): ActionKind = when (s) {
     "ahc_draft_in_progress"         -> ActionKind.AhcDraftInProgress
     "ahc_review_pending"            -> ActionKind.AhcReviewPending
     "ahc_report_ready"              -> ActionKind.AhcReportReady
+    "register_obligation_due"       -> ActionKind.RegisterObligationDue
     else                            -> ActionKind.Unknown
 }
 
@@ -175,6 +178,7 @@ private fun parseDeepLinkType(s: String?): DeepLinkType = when (s) {
     "task"         -> DeepLinkType.Task
     "project"      -> DeepLinkType.Project
     "ahc_funnel"   -> DeepLinkType.AhcFunnel
+    "obligation", "agreement" -> DeepLinkType.Agreement
     else           -> DeepLinkType.Unknown
 }
 

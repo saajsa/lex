@@ -104,7 +104,7 @@ private fun RegistryBody(d: RegistryOverview, onOpenAgreement: (String) -> Unit)
             } else {
                 d.upcoming.forEachIndexed { i, o ->
                     if (i > 0) HorizontalDivider(color = Lex.colors.border)
-                    DeadlineRow(o, showAgreement = true, onClick = { onOpenAgreement(o.agreementId) })
+                    DeadlineRow(o, showAgreement = true, onClick = { if (o.agreementId.isNotBlank()) onOpenAgreement(o.agreementId) })
                 }
             }
         }

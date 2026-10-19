@@ -158,7 +158,7 @@ private fun CompletedBanner(task: TaskDetail) {
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VerdantSoft).border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(12.dp)).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(LlDimen.HairlineWidth, LlColor.VerdantBorder, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Verified, null, tint = LlColor.VerdantMid, modifier = Modifier.size(21.dp))
         }
         Column {
@@ -177,7 +177,7 @@ private fun NeedsYou() {
     ) {
         Box(Modifier.width(4.dp).fillMaxHeight().background(LlColor.Claret))
         Row(Modifier.padding(start = 14.dp, end = 16.dp, top = 15.dp, bottom = 15.dp), horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(Color.White).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.PriorityHigh, null, tint = LlColor.Claret, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f)) {

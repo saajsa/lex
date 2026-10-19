@@ -326,7 +326,14 @@ fun KeyValueRow(
 
 /** An empty state whose heading says what is empty ("No Hearings Scheduled"). */
 @Composable
-fun LexEmpty(title: String, body: String, modifier: Modifier = Modifier, icon: ImageVector? = null) {
+fun LexEmpty(
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    /** A way out of the empty or failed state: "Try Again", "Start One". */
+    action: (@Composable () -> Unit)? = null,
+) {
     Column(modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         icon?.let {
             Box(Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted), contentAlignment = Alignment.Center) {
@@ -338,5 +345,6 @@ fun LexEmpty(title: String, body: String, modifier: Modifier = Modifier, icon: I
         Spacer(Modifier.height(4.dp))
         Text(body, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        action?.let { Spacer(Modifier.height(8.dp)); it() }
     }
 }
