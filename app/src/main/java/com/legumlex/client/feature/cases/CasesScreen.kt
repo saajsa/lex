@@ -1,5 +1,22 @@
 package com.legumlex.client.feature.cases
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.withStyle
+import com.legumlex.client.ahc.theme.Mono
+import com.legumlex.client.ui.theme.Lex
+import com.legumlex.client.ui.components.Eyebrow
+import com.legumlex.client.ui.components.SegmentedToggle
+import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.StatusBadge
+import com.legumlex.client.ui.components.StatusChip
+import com.legumlex.client.ui.components.StatCard
+import com.legumlex.client.ui.components.PageHeader
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -64,7 +81,7 @@ private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = L
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun CasesScreen(onOpenCase: (String) -> Unit) {
+fun CasesScreen(onOpenCase: (String) -> Unit, onOpenNotices: () -> Unit = {}) {
     val vm: CasesViewModel = viewModel()
     val state by vm.state.collectAsState()
     val isRefreshing by vm.isRefreshing.collectAsState()
@@ -86,7 +103,7 @@ fun CasesScreen(onOpenCase: (String) -> Unit) {
                     onRefresh    = vm::refresh,
                     modifier     = Modifier.fillMaxSize(),
                 ) {
-                    CasesReady(s.cases, filter, { filter = it }, onOpenCase)
+                    CasesReady(s.cases, filter, { filter = it }, onOpenCase, onOpenNotices)
                 }
             }
         }
@@ -106,124 +123,153 @@ private fun CaseSummary.upcomingHearingDays(today: LocalDate): Long? {
     return ChronoUnit.DAYS.between(today, d)
 }
 
-private data class Band(val name: String, val hearing: Boolean, val items: List<CaseSummary>)
-
 @Composable
 private fun CasesReady(
     cases: List<CaseSummary>,
     filter: CaseFilter,
     onFilter: (CaseFilter) -> Unit,
     onOpenCase: (String) -> Unit,
+    onOpenNotices: () -> Unit,
 ) {
     val today = remember { LocalDate.now() }
     val active = remember(cases) { cases.filterNot { it.isClosedCase() } }
     val closed = remember(cases) { cases.filter { it.isClosedCase() } }
-
-    val hearingWeek = remember(active, today) {
-        active.filter { (it.upcomingHearingDays(today) ?: Long.MAX_VALUE) <= 7 }
-            .sortedBy { it.nextHearingDate }
-    }
-    val activeRest = remember(active, hearingWeek) {
-        (active - hearingWeek.toSet()).sortedByDescending { it.lastActivityAt }
-    }
-    // Spotlight: nearest upcoming hearing across all active matters.
-    val spotlight = remember(active, today) {
-        active.filter { it.upcomingHearingDays(today) != null }.minByOrNull { it.nextHearingDate!! }
-    }
-
-    val bands = remember(filter, hearingWeek, activeRest, closed) {
+    val scheduled = remember(active, today) { active.count { it.upcomingHearingDays(today) != null } }
+    val shown = remember(filter, cases) {
         when (filter) {
-            CaseFilter.ALL -> listOf(
-                Band("Hearing this week", true, hearingWeek),
-                Band("Active", false, activeRest),
-                Band("Closed", false, closed),
-            )
-            CaseFilter.ACTIVE -> listOf(
-                Band("Hearing this week", true, hearingWeek),
-                Band("Active", false, activeRest),
-            )
-            CaseFilter.CLOSED -> listOf(Band("Closed", false, closed))
-        }.filter { it.items.isNotEmpty() }
-    }
-
-    if (cases.isEmpty()) {
-        LazyColumn(Modifier.fillMaxSize()) {
-            item("intro") { PageIntro(filter, active.size, closed.size, cases.size, showCount = false) }
-            item("empty") { CasesEmpty() }
+            CaseFilter.ALL -> active.sortedBy { it.nextHearingDate ?: LocalDate.MAX } + closed
+            CaseFilter.ACTIVE -> active.sortedBy { it.nextHearingDate ?: LocalDate.MAX }
+            CaseFilter.CLOSED -> closed
         }
-        return
     }
 
-    val showSpotlight = filter != CaseFilter.CLOSED && spotlight != null
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item("intro") { PageIntro(filter, active.size, closed.size, cases.size, showCount = true) }
-
-        if (showSpotlight) {
-            item("spotlight") {
-                Spotlight(spotlight!!, today) { onOpenCase(spotlight.id) }
+    LazyColumn(
+        Modifier.fillMaxSize().background(Lex.colors.background),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item("head") {
+            PageHeader(eyebrow = "Litigation", title = "Cases", actions = {
+                LexOutlineChip("Notices", Icons.Outlined.MarkEmailUnread, onOpenNotices)
+            })
+        }
+        item("figures") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard("Matters On Record", "${cases.size}", "Every case the firm holds for you", Modifier.weight(1f).fillMaxHeight())
+                    StatCard("Active", "${active.size}", "Cases still before a court or authority", Modifier.weight(1f).fillMaxHeight(),
+                        chip = { if (active.isNotEmpty()) StatusChip("In Progress", Lex.colors.neutral) })
+                }
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard("Hearings Scheduled", "$scheduled", "Dates fixed across all your matters", Modifier.weight(1f).fillMaxHeight(),
+                        chip = { if (scheduled == 0) StatusChip("None Listed", Lex.colors.success, Icons.Outlined.CheckCircle) })
+                    StatCard("Hearings Held", "${cases.sumOf { it.hearingCount }}", "Hearings on record across your matters",
+                        Modifier.weight(1f).fillMaxHeight())
+                }
             }
         }
-
-        item("filters") {
-            FilterBar(all = cases.size, active = active.size, closed = closed.size, selected = filter, onSelect = onFilter)
+        if (cases.isEmpty()) {
+            item("empty") { LexCard { CasesEmpty() } }
+            return@LazyColumn
         }
+        item("filter") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SegmentedToggle(
+                    options = listOf(CaseFilter.ALL to "All", CaseFilter.ACTIVE to "Active", CaseFilter.CLOSED to "Closed"),
+                    selected = filter, onSelect = onFilter,
+                )
+                Spacer(Modifier.weight(1f))
+                Text("${shown.size} ${if (shown.size == 1) "Matter" else "Matters"}",
+                    style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
+            }
+        }
+        if (shown.isEmpty()) {
+            item("empty-filter") { LexCard { FilteredEmpty(filter) } }
+        }
+        items(shown, key = { it.id }) { c -> CaseCard(c, today) { onOpenCase(c.id) } }
+    }
+}
 
-        if (bands.isEmpty()) {
-            item("empty-filter") { FilteredEmpty(filter) }
-        } else {
-            bands.forEachIndexed { bi, band ->
-                item("head-${band.name}") { SectionHeader(band.name, band.items.size, band.hearing, first = bi == 0) }
-                items(band.items, key = { it.id }) { c ->
-                    Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, bottom = 10.dp)) {
-                        MatterRow(c, today, band.hearing) { onOpenCase(c.id) }
+/** A matter, as Mylex's case card: stripe, number · court, parties, court · judge, the facts. */
+@Composable
+private fun CaseCard(c: CaseSummary, today: LocalDate, onClick: () -> Unit) {
+    val closed = c.isClosedCase()
+    LexCard(onClick = onClick) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+            Box(Modifier.width(4.dp).height(56.dp).clip(RoundedCornerShape(2.dp))
+                .background(if (closed) Lex.colors.faint else Lex.colors.success.solid))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.number, fontFamily = Mono, style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
+                    c.courtName?.let {
+                        Text("  •  ${it.uppercase()}", style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     }
                 }
+                Spacer(Modifier.height(4.dp))
+                Text(partiesText(c.title), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+                val where = listOfNotNull(c.courtName, c.judgeName).joinToString(" · ")
+                if (where.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(where, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            StatusBadge(c.status.label, c.status.palette)
+        }
+        HorizontalDivider(color = Lex.colors.border)
+        // The facts, two by two on a phone (four across on the portal).
+        Column(Modifier.background(Lex.colors.muted.copy(alpha = 0.5f))) {
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                Fact("Next Hearing", c.nextHearingDate?.takeIf { !it.isBefore(today) }?.let { fmtDate(it) }
+                    ?: if (closed) closedGlance(c).second else "No Hearing Date Fixed", Modifier.weight(1f))
+                Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
+                Fact("Hearings", "${c.hearingCount}", Modifier.weight(1f))
+            }
+            HorizontalDivider(color = Lex.colors.border)
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                Fact("Filed", c.filedDate?.let { fmtDate(it) } ?: "Not Recorded", Modifier.weight(1f))
+                Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
+                Fact("Last Update", c.lastActivityAt?.let { relativeAgo(it) } ?: "None Yet", Modifier.weight(1f))
             }
         }
     }
 }
 
-// =============================================================================
-// Page intro
-// =============================================================================
-
 @Composable
-private fun PageIntro(filter: CaseFilter, active: Int, closed: Int, total: Int, showCount: Boolean) {
-    val sub = when (filter) {
-        CaseFilter.ALL -> "Your active litigation and closed matters."
-        CaseFilter.ACTIVE -> "The cases still in front of the courts."
-        CaseFilter.CLOSED -> "Cases your chamber has closed out."
-    }
-    Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-        Text("MATTERS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
-        Spacer(Modifier.height(9.dp))
-        Text("Your Cases", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-            fontSize = 28.sp, letterSpacing = (-0.025).em, lineHeight = 30.sp, color = LlColor.Ink)
-        Spacer(Modifier.height(8.dp))
-        Text(sub, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted, modifier = Modifier.widthIn(max = 330.dp))
-        if (showCount) {
-            Spacer(Modifier.height(11.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                when (filter) {
-                    CaseFilter.CLOSED -> CountFrag(closed, "closed")
-                    CaseFilter.ACTIVE -> CountFrag(active, "active")
-                    else -> {
-                        CountFrag(active, "active")
-                        Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
-                        CountFrag(total, "total")
-                    }
-                }
-            }
-        }
+private fun Fact(label: String, value: String, modifier: Modifier) {
+    Column(modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Eyebrow(label)
+        Spacer(Modifier.height(3.dp))
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, maxLines = 2)
     }
 }
 
+/** "Rajesh Sharma v. Apex Industries" with the v. set quiet, as the portal does. */
 @Composable
-private fun CountFrag(n: Int, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$n ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
-        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
+private fun partiesText(title: String) = androidx.compose.ui.text.buildAnnotatedString {
+    val parts = title.split(Regex("\\s+(?:v/s\\.?|v\\.|vs\\.?|versus)\\s+", RegexOption.IGNORE_CASE), limit = 2)
+    append(parts[0])
+    if (parts.size == 2) {
+        withStyle(androidx.compose.ui.text.SpanStyle(color = Lex.colors.mutedForeground, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Normal)) { append(" v. ") }
+        append(parts[1])
+    }
+}
+
+private fun fmtDate(d: LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
+
+/** A small outline button for a page header's actions (kt-btn-outline kt-btn-sm). */
+@Composable
+private fun LexOutlineChip(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = MaterialTheme.shapes.medium, color = Lex.colors.card,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Lex.colors.input)) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Lex.colors.foreground, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground)
+        }
     }
 }
 
@@ -231,160 +277,9 @@ private fun CountFrag(n: Int, label: String) {
 // Next-hearing spotlight
 // =============================================================================
 
-@Composable
-private fun Spotlight(c: CaseSummary, today: LocalDate, onClick: () -> Unit) {
-    val days = c.upcomingHearingDays(today) ?: 0L
-    val soon = days <= 3
-    val band = if (soon) ClaretMidFix else LlColor.AmberMid
-    val boxBg = if (soon) ClaretSoftFix else LlColor.AmberSoft
-    val boxBorder = if (soon) ClaretBorderFix else AmberBorderFix
-    val accent = if (soon) LlColor.Claret else LlColor.Amber
-    val accentMid = if (soon) ClaretMidFix else LlColor.AmberMid
-
-    val dateLabel = when (days) {
-        0L -> "Today"
-        1L -> "Tomorrow"
-        else -> "In $days days"
-    }
-    val eyebrow = if (days == 1L) "Next hearing · Tomorrow" else "Next hearing"
-
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-    ) {
-        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(5.dp).background(band))
-        Column(Modifier.padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                if (soon) PulseDot(accentMid, 7.dp) else Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                Text(eyebrow.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = accent)
-            }
-            Spacer(Modifier.height(11.dp))
-            Text(com.legumlex.client.ui.caseTitleAnnotated(c.title, LlColor.InkFaint),
-                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                fontSize = 19.sp, letterSpacing = (-0.015).em, lineHeight = 24.sp, color = LlColor.Ink)
-            c.nextHearingPurpose?.let {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.Gavel, null, tint = accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
-                    Text("For $it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 16.sp, color = accent, modifier = Modifier.weight(1f))
-                }
-            }
-            c.courtName?.let {
-                Spacer(Modifier.height(7.dp))
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.AccountBalance, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp).padding(top = 1.dp))
-                    Text(
-                        it + (c.courtNo?.let { n -> " · Ct. $n" } ?: ""),
-                        fontFamily = Inter, fontSize = 11.sp, lineHeight = 15.sp, color = LlColor.InkFaint, modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-            Spacer(Modifier.height(13.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // countdown chip
-                Column(
-                    Modifier.widthIn(min = 52.dp).clip(RoundedCornerShape(8.dp)).background(boxBg)
-                        .border(LlDimen.HairlineWidth, boxBorder, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (days == 0L) {
-                        Text("Today", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = accent)
-                    } else {
-                        Text("$days", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = accent)
-                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
-                    }
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("$dateLabel · ${c.nextHearingDate!!.format(dowFmt)}",
-                        fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
-                    Spacer(Modifier.height(3.dp))
-                    Text(spotlightMeta(c), fontFamily = Inter, fontSize = 11.sp, lineHeight = 15.sp, color = LlColor.InkMuted)
-                }
-                Box(
-                    Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = LlColor.InkMuted, modifier = Modifier.size(19.dp)) }
-            }
-        }
-    }
-}
-
-private fun spotlightMeta(c: CaseSummary): String = buildList {
-    c.nextHearingTime?.let { add("${it.format(timeFmt)} IST") }
-    com.legumlex.client.ui.formatJudge(c.judgeName, c.courtName)?.let { add("before $it") }
-}.joinToString(" · ").ifEmpty { "Hearing scheduled" }
-
-// =============================================================================
-// Filter bar
-// =============================================================================
-
-@Composable
-private fun FilterBar(all: Int, active: Int, closed: Int, selected: CaseFilter, onSelect: (CaseFilter) -> Unit) {
-    val counts = mapOf(CaseFilter.ALL to all, CaseFilter.ACTIVE to active, CaseFilter.CLOSED to closed)
-    Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CaseFilter.entries.forEach { f ->
-                FilterChip(f.label, counts[f] ?: 0, selected == f) { onSelect(f) }
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
-    }
-}
-
-@Composable
-private fun FilterChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(if (selected) LlColor.Ink else LlColor.Paper)
-            .border(LlDimen.HairlineWidth, if (selected) LlColor.Ink else LlColor.Border, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (selected) LlColor.Paper else LlColor.InkMuted)
-        if (count > 0) {
-            Box(
-                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(8.dp))
-                    .background(if (selected) LlColor.Paper.copy(alpha = 0.2f) else LlColor.Paper2).padding(horizontal = 5.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
-                    color = if (selected) LlColor.Paper else LlColor.InkMuted)
-            }
-        }
-    }
-}
-
 // =============================================================================
 // Section header
 // =============================================================================
-
-@Composable
-private fun SectionHeader(name: String, count: Int, hearing: Boolean, first: Boolean) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = if (first) 16.dp else 18.dp, bottom = 11.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.15.em,
-            color = if (hearing) LlColor.Claret else LlColor.InkFaint)
-        Box(
-            Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp))
-                .background(if (hearing) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = if (hearing) ClaretMidFix else LlColor.InkMuted)
-        }
-        Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
-    }
-}
 
 // =============================================================================
 // Matter row
@@ -392,120 +287,7 @@ private fun SectionHeader(name: String, count: Int, hearing: Boolean, first: Boo
 
 private enum class HearTone { IMMINENT, WEEK, NORMAL, QUIET }
 
-@Composable
-private fun MatterRow(c: CaseSummary, today: LocalDate, hearingBand: Boolean, onClick: () -> Unit) {
-    val done = c.isClosedCase()
-    Box(
-        Modifier.fillMaxWidth().clip(LlShape.Card)
-            .background(if (done) LlColor.Paper1 else LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card)
-            .clickable(onClick = onClick),
-    ) {
-        if (hearingBand) Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(LlDimen.HeroStripeWidth).background(LlColor.Claret))
-        Column(Modifier.padding(start = if (hearingBand) 18.dp else 15.dp, end = 15.dp, top = 14.dp, bottom = 14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                // weight(1f) so a long case number wraps onto extra lines instead
-                // of pushing the status pill off the card / truncating.
-                Text(c.number.ifBlank { "—" }, fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.1.em,
-                    color = LlColor.InkFaint, modifier = Modifier.weight(1f).padding(top = 3.dp))
-                StatusPill(c.status)
-            }
-            Text(com.legumlex.client.ui.caseTitleAnnotated(c.title, LlColor.InkFaint),
-                fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 21.sp,
-                color = if (done) LlColor.InkMuted else LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 11.dp))
-            // sub: where — court · courtroom (the number already sits top-left)
-            val whereText = listOfNotNull(c.courtName, c.courtNo?.let { "Ct. $it" }).joinToString(" · ")
-            if (whereText.isNotBlank()) {
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.AccountBalance, null, tint = LlColor.InkFaint, modifier = Modifier.size(12.dp).padding(top = 1.dp))
-                    // weight(1f) + no maxLines: a long court · courtroom string wraps
-                    // to a second line inside the card rather than being ellipsised.
-                    Text(whereText, fontFamily = Inter, fontSize = 10.5.sp, lineHeight = 15.sp, color = LlColor.InkFaint, modifier = Modifier.weight(1f))
-                }
-            }
-            HearingLine(c, today, done)
-            HistoryFooter(c)
-        }
-    }
-}
-
-// A consistent context footer on every card: how old the matter is and how
-// many times it has been before the court — distinct from the "what's next" line.
-@Composable
-private fun HistoryFooter(c: CaseSummary) {
-    val parts = buildList {
-        c.filedDate?.let { add("Filed ${it.format(monthYearFmt)}") }
-        if (c.hearingCount > 0) add("${c.hearingCount} hearing${if (c.hearingCount == 1) "" else "s"}")
-    }
-    if (parts.isEmpty()) return
-    Text(
-        parts.joinToString("  ·  "),
-        fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint,
-        modifier = Modifier.padding(top = 9.dp),
-    )
-}
-
-@Composable
-private fun HearingLine(c: CaseSummary, today: LocalDate, done: Boolean) {
-    val days = c.upcomingHearingDays(today)
-    val tone = when {
-        done -> HearTone.QUIET
-        days == null -> HearTone.QUIET
-        days <= 3 -> HearTone.IMMINENT
-        days <= 7 -> HearTone.WEEK
-        else -> HearTone.NORMAL
-    }
-    val (icon, text, color, filled) = when (tone) {
-        HearTone.IMMINENT -> Quad(
-            Icons.Filled.Event,
-            if (days == 0L) "Today · ${hearingWhen(c)}" else if (days == 1L) "Tomorrow · ${hearingWhen(c)}" else "Next hearing · ${hearingWhen(c)}",
-            ClaretMidFix, true,
-        )
-        HearTone.WEEK -> Quad(Icons.Filled.Event, "Next hearing · ${hearingWhen(c)}", LlColor.AmberMid, true)
-        HearTone.NORMAL -> Quad(Icons.Filled.Event, "Next hearing · ${hearingWhen(c)}", LlColor.Ink, false)
-        HearTone.QUIET -> {
-            if (done) {
-                val (qi, qt) = closedGlance(c)
-                Quad(qi, qt, LlColor.InkFaint, false)
-            } else {
-                Quad(Icons.Outlined.History, quietActive(c), LlColor.InkFaint, false)
-            }
-        }
-    }
-
-    Column(Modifier.padding(top = 12.dp)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-        Row(Modifier.padding(top = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val pa = pulseAlpha()
-            val iconAlpha = if (tone == HearTone.IMMINENT) pa else 1f
-            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp).alpha(iconAlpha))
-            // weight(1f) so the hearing line (date · time · purpose) wraps onto a
-            // second line within the card instead of overflowing horizontally.
-            Text(
-                text,
-                fontFamily = Inter,
-                fontWeight = if (tone == HearTone.QUIET) FontWeight.Normal else FontWeight.SemiBold,
-                fontSize = if (tone == HearTone.QUIET || tone == HearTone.NORMAL) 11.sp else 11.5.sp,
-                color = color, lineHeight = 16.sp,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
 private data class Quad(val icon: ImageVector, val text: String, val color: Color, val filled: Boolean)
-
-private fun hearingWhen(c: CaseSummary): String {
-    val d = c.nextHearingDate ?: return ""
-    val base = c.nextHearingTime?.let { "${d.format(dowFmt)} · ${it.format(timeFmt)}" } ?: d.format(dowFmt)
-    // The purpose turns a bare date into meaning — "24 Jun · 11:00 AM · Admission".
-    return c.nextHearingPurpose?.let { "$base · $it" } ?: base
-}
-
-private fun quietActive(c: CaseSummary): String =
-    c.lastActivityAt?.let { "Awaiting next date · updated ${relativeAgo(it)}" } ?: "Awaiting next hearing date"
 
 private fun closedGlance(c: CaseSummary): Pair<ImageVector, String> {
     // Prefer the real disposition (how the matter ended) over generic activity.
@@ -514,38 +296,6 @@ private fun closedGlance(c: CaseSummary): Pair<ImageVector, String> {
     val settled = c.status == CaseStatus.SETTLED || label.equals("settled", ignoreCase = true)
     val icon = if (settled) Icons.Outlined.CheckCircle else Icons.Outlined.Gavel
     return icon to listOfNotNull(label, date).joinToString(" · ")
-}
-
-@Composable
-private fun StatusPill(status: CaseStatus) {
-    val (bg, fg) = when (status) {
-        CaseStatus.ONGOING -> LlColor.SlateSoft to LlColor.SlateMid
-        CaseStatus.SETTLED -> LlColor.VerdantSoft to LlColor.Verdant
-        CaseStatus.PENDING -> LlColor.AmberSoft to LlColor.Amber
-        CaseStatus.CLOSED, CaseStatus.UNKNOWN -> LlColor.Paper2 to LlColor.InkMuted
-    }
-    Row(
-        Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(fg))
-        Text(status.label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
-    }
-}
-
-@Composable
-private fun PulseDot(color: Color, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size).alpha(pulseAlpha()).clip(RoundedCornerShape(50)).background(color))
-}
-
-@Composable
-private fun pulseAlpha(): Float {
-    val t = rememberInfiniteTransition(label = "pulse")
-    val a by t.animateFloat(
-        initialValue = 1f, targetValue = 0.4f,
-        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "pulseAlpha",
-    )
-    return a
 }
 
 // =============================================================================

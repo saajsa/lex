@@ -17,15 +17,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.legumlex.client.ui.theme.AccentInk
-import com.legumlex.client.ui.theme.InverseText
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.Surface1
-import com.legumlex.client.ui.theme.TertiaryText
 
-// Icon-only bottom nav. Active tab gets a black circular background; inactive
-// tabs are a quiet outlined glyph. Label text is dropped — icons carry the
-// meaning (per direct UX feedback that the labels were redundant).
+// Icon-only bottom nav (labels were judged redundant). The active tab is drawn
+// as Mylex's sidebar draws its current item: a soft grey rounded block with the
+// glyph in full ink; the rest are quiet. A hairline separates it from the page.
 @Composable
 fun LegumBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -37,10 +36,13 @@ fun LegumBottomBar(navController: NavHostController) {
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
     ) {
+        Column {
+        HorizontalDivider(color = Lex.colors.border)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = spacing.s4, vertical = spacing.s3),
+                .navigationBarsPadding()
+                .padding(horizontal = spacing.s4, vertical = spacing.s2),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -61,6 +63,7 @@ fun LegumBottomBar(navController: NavHostController) {
                 )
             }
         }
+        }
     }
 }
 
@@ -71,29 +74,27 @@ private fun NavGlyph(
     onClick: () -> Unit,
 ) {
     val bg by animateColorAsState(
-        targetValue = if (selected) AccentInk else Color.Transparent,
+        targetValue = if (selected) Lex.colors.muted else Color.Transparent,
         animationSpec = tween(durationMillis = 200),
         label = "navBg",
     )
     val fg by animateColorAsState(
-        targetValue = if (selected) InverseText else TertiaryText,
+        targetValue = if (selected) Lex.colors.foreground else Lex.colors.mutedForeground,
         animationSpec = tween(durationMillis = 200),
         label = "navFg",
     )
 
-    // 48dp touch target wraps a 44dp visual circle — keeps tap area within Material
-    // guidance even when the circle itself is smaller for visual density.
     Surface(
         onClick = onClick,
         color = Color.Transparent,
-        shape = CircleShape,
-        modifier = Modifier.size(48.dp),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.size(width = 60.dp, height = 44.dp),
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
+                    .size(width = 56.dp, height = 40.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(bg),
                 contentAlignment = Alignment.Center,
             ) {

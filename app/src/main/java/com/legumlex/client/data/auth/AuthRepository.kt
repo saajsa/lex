@@ -64,6 +64,7 @@ class AuthRepository(
         // Drop Beams interests before clearing local credentials so an
         // already-queued push doesn't fire after sign-out. Idempotent.
         PushSetup.clear()
+        com.legumlex.client.feature.profile.ProfileHub.clear()
         tokens.clear()
     }
 

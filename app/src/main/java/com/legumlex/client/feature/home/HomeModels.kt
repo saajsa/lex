@@ -146,9 +146,22 @@ data class ChamberState(
     val advocates: List<ChamberAdvocate>,
 )
 
+/** How much the client has in each workspace, and the consultations' figures (dashboard/workspaces). */
+data class Workspaces(
+    val litigation: Int = 0,
+    val projects: Int = 0,
+    val registry: Int = 0,
+    val offered: Set<String> = emptySet(),   // "litigation" | "projects" | "registry"
+    val consultations: Int = 0,
+    val awaiting: Int = 0,
+    val resolved: Int = 0,
+    val reports: Int = 0,
+)
+
 data class HomeData(
     val firstName: String,
     val unreadCount: Int,
+    val workspaces: Workspaces = Workspaces(),
     val actionItems: ActionItemsBundle,
     val nextEvent: NextEvent?,
     val chamber: ChamberState?,

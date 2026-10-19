@@ -4,7 +4,8 @@
 
     <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
-    <string name="nav_matters">Case Matters</string>
+    <string name="nav_matters">Litigation</string>
+    <string name="nav_registry">Registry</string>
     <string name="nav_hearings">Hearings</string>
     <string name="nav_consultations">Sessions</string>
     <string name="nav_vault">Vault</string>

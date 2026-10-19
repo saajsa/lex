@@ -40,16 +40,19 @@ class HomeRepository(private val api: ApiService) {
             val nextDeferred    = async { runCatching { api.dashboardNextEvent()       }.getOrNull() }
             val chamberDeferred = async { runCatching { api.dashboardChamber()         }.getOrNull() }
             val unreadDeferred  = async { runCatching { api.notificationsUnreadCount() }.getOrNull() }
+            val spacesDeferred  = async { runCatching { api.workspaces()               }.getOrNull() }
 
             val profile = profileDeferred.await().data()  // throw → Error state
             val actions = actionsDeferred.await().data()
             val next    = nextDeferred.await().data()
             val chamber = chamberDeferred.await().data()
             val unread  = unreadDeferred.await().data()
+            val spaces  = spacesDeferred.await().data()
 
             HomeData(
                 firstName    = (profile?.get("firstname") as? String).orEmpty(),
                 unreadCount  = (unread?.get("unread_count") as? Number)?.toInt() ?: 0,
+                workspaces   = parseWorkspaces(spaces),
                 actionItems  = parseActionItems(actions),
                 nextEvent    = parseNextEvent(next),
                 chamber      = parseChamber(chamber),
@@ -59,6 +62,23 @@ class HomeRepository(private val api: ApiService) {
 }
 
 // ── Response unwrappers ──────────────────────────────────────────────────────
+
+private fun parseWorkspaces(d: Map<String, Any?>?): Workspaces {
+    if (d == null) return Workspaces()
+    val t = d["tracks"] as? Map<*, *>
+    val f = d["figures"] as? Map<*, *>
+    fun n(m: Map<*, *>?, k: String) = (m?.get(k) as? Number)?.toInt() ?: 0
+    return Workspaces(
+        litigation    = n(t, "litigation"),
+        projects      = n(t, "projects"),
+        registry      = n(t, "registry"),
+        offered       = (d["offered"] as? List<*>)?.mapNotNull { it as? String }?.toSet().orEmpty(),
+        consultations = n(f, "total"),
+        awaiting      = n(f, "awaiting"),
+        resolved      = n(f, "resolved"),
+        reports       = n(f, "reports"),
+    )
+}
 
 private fun Map<String, Any?>?.data(): Map<String, Any?>? {
     if (this == null) return null

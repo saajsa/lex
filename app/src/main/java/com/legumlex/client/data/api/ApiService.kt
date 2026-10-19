@@ -73,6 +73,32 @@ interface ApiService {
         @Field("code") code: String,
     ): Map<String, Any?>
 
+    // --- Workspaces, profile, registry (as Mylex shows them) ---
+
+    /** {tracks{litigation,projects,registry}, offered[], figures{total,awaiting,resolved,reports}} */
+    @GET("dashboard/workspaces")
+    suspend fun workspaces(): Map<String, Any?>
+
+    @GET("profile")
+    suspend fun profile(): Map<String, Any?>
+
+    /** Verify one's own mobile: step = request|status|sms|verify|updates|remove. */
+    @FormUrlEncoded
+    @POST("profile/phone/{step}")
+    suspend fun profilePhone(
+        @Path("step") step: String,
+        @Field("number") number: String? = null,
+        @Field("ref") ref: String? = null,
+        @Field("code") code: String? = null,
+        @Field("on") on: String? = null,
+    ): Map<String, Any?>
+
+    @GET("registry")
+    suspend fun registry(): Map<String, Any?>
+
+    @GET("registry/{id}")
+    suspend fun registryAgreement(@Path("id") id: String): Map<String, Any?>
+
     // --- Dashboard ---
 
     @GET("dashboard/stats")

@@ -2,210 +2,143 @@ package com.legumlex.client.feature.more
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Receipt
-import androidx.compose.material.icons.outlined.SupportAgent
-import androidx.compose.material3.*
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.QuestionAnswer
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.legumlex.client.ui.components.EyebrowText
-import com.legumlex.client.ui.theme.BorderColor
-import com.legumlex.client.ui.theme.BorderSubtle
-import com.legumlex.client.ui.theme.LocalSpacing
-import com.legumlex.client.ui.theme.PrimaryText
-import com.legumlex.client.ui.theme.SecondaryText
-import com.legumlex.client.ui.theme.StatusDanger
-import com.legumlex.client.ui.theme.Surface2
-import com.legumlex.client.ui.theme.TertiaryText
+import com.legumlex.client.ui.components.Eyebrow
+import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.PageHeader
+import com.legumlex.client.ui.theme.Lex
 
+/**
+ * Everything beyond the three workspaces, grouped as Mylex's sidebar groups
+ * it: your file (documents, invoices), consultations, litigation's extras,
+ * and your account — then Sign Out.
+ */
 @Composable
 fun MoreScreen(
     onOpenVault: () -> Unit,
     onOpenInvoices: () -> Unit,
     onSignOut: () -> Unit,
+    onOpenConsultations: () -> Unit = {},
+    onAskAdvocate: () -> Unit = {},
+    onOpenNotices: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
 ) {
-    val spacing = LocalSpacing.current
     Column(
-        modifier = Modifier
+        Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = spacing.s4)
-            .padding(top = spacing.s4, bottom = spacing.s5),
+            .background(Lex.colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        EyebrowText("More")
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "Workspace",
-            style = MaterialTheme.typography.headlineMedium,
-            color = PrimaryText,
-        )
+        PageHeader(eyebrow = "More", title = "Everything Else")
+        Spacer(Modifier.height(4.dp))
 
-        Spacer(Modifier.height(spacing.s6))
-
-        EyebrowText("Your Stuff")
-        Spacer(Modifier.height(spacing.s2))
-        MenuGroup {
-            MenuRow(
-                icon  = Icons.Outlined.Folder,
-                label = "Vault",
-                sub   = "Documents shared with you, and what you've uploaded",
-                onClick = onOpenVault,
-            )
-            MenuRowDivider()
-            MenuRow(
-                icon    = Icons.Outlined.Notifications,
-                label   = "Notifications",
-                sub     = "Updates, reminders, hearing changes",
-                comingSoon = true,
-            )
-            MenuRowDivider()
-            MenuRow(
-                icon    = Icons.Outlined.Receipt,
-                label   = "Invoices",
-                sub     = "Outstanding balance and payment history",
-                onClick = onOpenInvoices,
-            )
+        Group("Your File") {
+            MenuRow(Icons.Outlined.Description, "Documents", "Papers shared with you, and what you have uploaded", onOpenVault)
+            Divider()
+            MenuRow(Icons.Outlined.ReceiptLong, "Invoices", "Your balance, what is due and what you have paid", onOpenInvoices)
+        }
+        Group("Consultations") {
+            MenuRow(Icons.Outlined.Forum, "Consultations", "Every session you have raised with us", onOpenConsultations)
+            Divider()
+            MenuRow(Icons.Outlined.QuestionAnswer, "Ask Your Advocate", "Start a new consultation", onAskAdvocate)
+        }
+        Group("Litigation") {
+            MenuRow(Icons.Outlined.MarkEmailUnread, "Notices", "Legal notices sent for you, and received", onOpenNotices)
+            Divider()
+            MenuRow(Icons.Outlined.CalendarMonth, "Calendar", "Hearings and appointments by date", onOpenCalendar)
+        }
+        Group("Your Account") {
+            MenuRow(Icons.Outlined.Person, "Profile", "Your details, your mobile number, your account", onOpenProfile)
+            Divider()
+            MenuRow(Icons.Outlined.Notifications, "Notifications", "Updates from the firm on your matters", onOpenNotifications)
         }
 
-        Spacer(Modifier.height(spacing.s6))
-
-        EyebrowText("Account")
-        Spacer(Modifier.height(spacing.s2))
-        MenuGroup {
-            MenuRow(
-                icon    = Icons.Outlined.AccountCircle,
-                label   = "Profile",
-                sub     = "Your details, identity, security",
-                comingSoon = true,
-            )
-            MenuRowDivider()
-            MenuRow(
-                icon    = Icons.Outlined.SupportAgent,
-                label   = "Help & support",
-                sub     = "Get in touch with our team",
-                comingSoon = true,
-            )
-        }
-
-        Spacer(Modifier.height(spacing.s6))
-
-        SignOutButton(onClick = onSignOut)
-    }
-}
-
-@Composable
-private fun MenuGroup(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        color  = MaterialTheme.colorScheme.surface,
-        shape  = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, BorderColor),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(content = content)
-    }
-}
-
-@Composable
-private fun MenuRow(
-    icon: ImageVector,
-    label: String,
-    sub: String,
-    onClick: (() -> Unit)? = null,
-    comingSoon: Boolean = false,
-) {
-    val enabled = onClick != null && !comingSoon
-    val modifier = Modifier.fillMaxWidth()
-
-    Surface(
-        onClick = onClick ?: {},
-        enabled = enabled,
-        color   = MaterialTheme.colorScheme.surface,
-        contentColor = PrimaryText,
-        shape   = RoundedCornerShape(0.dp),
-        modifier = modifier,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Spacer(Modifier.height(4.dp))
+        OutlinedButton(
+            onClick = onSignOut,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            shape = MaterialTheme.shapes.medium,
+            border = BorderStroke(1.dp, Lex.colors.input),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Lex.colors.card, contentColor = Lex.colors.danger.softText),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Surface2),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, null,
-                    tint = if (comingSoon) TertiaryText else PrimaryText,
-                    modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (comingSoon) SecondaryText else PrimaryText,
-                    )
-                    if (comingSoon) {
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            color = Surface2,
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, BorderSubtle),
-                        ) {
-                            Text(
-                                "SOON",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TertiaryText,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    sub,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SecondaryText,
-                    maxLines = 2,
-                )
-            }
-            if (enabled) {
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.Outlined.ChevronRight, null, tint = TertiaryText, modifier = Modifier.size(20.dp))
-            }
+            Icon(Icons.AutoMirrored.Outlined.Logout, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Sign Out", style = MaterialTheme.typography.labelLarge)
         }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
-private fun MenuRowDivider() {
-    HorizontalDivider(color = BorderSubtle)
+private fun Group(label: String, content: @Composable () -> Unit) {
+    Column {
+        Eyebrow(label, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+        LexCard { content() }
+    }
 }
 
 @Composable
-private fun SignOutButton(onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        shape   = RoundedCornerShape(12.dp),
-        border  = BorderStroke(1.dp, StatusDanger.softBg),
-        colors  = ButtonDefaults.outlinedButtonColors(contentColor = StatusDanger.solid),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+private fun Divider() = HorizontalDivider(color = Lex.colors.border)
+
+@Composable
+private fun MenuRow(icon: ImageVector, title: String, description: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.AutoMirrored.Outlined.Logout, null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
-        Text("Sign Out", style = MaterialTheme.typography.labelLarge)
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = Lex.colors.foreground, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+        }
+        Icon(Icons.Outlined.ChevronRight, null, tint = Lex.colors.faint, modifier = Modifier.size(20.dp))
     }
 }

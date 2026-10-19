@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -119,6 +120,10 @@ fun LegumNavGraph(navController: NavHostController) {
         // --- Main shell (bottom-nav tabs) ---
         composable(Route.Home.path) {
             HomeScreen(
+                onOpenLitigation   = { navController.navigateTab(Route.Matters.path) },
+                onOpenProjects     = { navController.navigateTab(Route.Projects.path) },
+                onOpenRegistry     = { navController.navigateTab(Route.Registry.path) },
+                onOpenConsultations = { navController.navigate(Route.Consultations.path) },
                 onOpenCalendar     = { navController.navigate(Route.Calendar.path) },
                 onOpenInvoice      = { id -> navController.navigate(Route.InvoiceDetail.build(id)) },
                 onOpenContract     = { _  -> navController.navigate(Route.Vault.path) },
@@ -140,6 +145,7 @@ fun LegumNavGraph(navController: NavHostController) {
         composable(Route.Matters.path) {
             CasesScreen(
                 onOpenCase = { id -> navController.navigate(Route.CaseDetail.build(id)) },
+                onOpenNotices = { navController.navigate(Route.Notices.path) },
             )
         }
         composable(Route.Notices.path) {
@@ -261,6 +267,20 @@ fun LegumNavGraph(navController: NavHostController) {
                 presetKind = presetKind,
             )
         }
+        composable(Route.Registry.path) {
+            com.legumlex.client.feature.registry.RegistryScreen(
+                onOpenAgreement = { id -> navController.navigate(Route.RegistryAgreement.build(id)) },
+            )
+        }
+        composable(
+            route     = Route.RegistryAgreement.path,
+            arguments = listOf(navArgument(Route.RegistryAgreement.ARG) { type = NavType.StringType }),
+        ) {
+            com.legumlex.client.feature.registry.RegistryAgreementScreen()
+        }
+        composable(Route.Profile.path) {
+            com.legumlex.client.feature.profile.ProfileScreen()
+        }
         composable(Route.More.path) {
             val context = LocalContext.current
             val auth    = remember(context) {
@@ -270,6 +290,12 @@ fun LegumNavGraph(navController: NavHostController) {
             MoreScreen(
                 onOpenVault    = { navController.navigate(Route.Vault.path) },
                 onOpenInvoices = { navController.navigate(Route.Invoices.path) },
+                onOpenConsultations = { navController.navigate(Route.Consultations.path) },
+                onAskAdvocate  = { navController.navigate(Route.NewConsultation.build()) },
+                onOpenNotices  = { navController.navigate(Route.Notices.path) },
+                onOpenCalendar = { navController.navigate(Route.Calendar.path) },
+                onOpenProfile  = { navController.navigate(Route.Profile.path) },
+                onOpenNotifications = { navController.navigate(Route.Notifications.path) },
                 onSignOut      = {
                     scope.launch {
                         auth.signOut()
@@ -620,4 +646,11 @@ fun LegumNavGraph(navController: NavHostController) {
             )
         }
     }
+}
+
+/** Go to a bottom-bar tab as the bar itself does, so its state is kept. */
+private fun NavHostController.navigateTab(path: String) = navigate(path) {
+    popUpTo(graph.findStartDestination().id) { saveState = true }
+    launchSingleTop = true
+    restoreState = true
 }

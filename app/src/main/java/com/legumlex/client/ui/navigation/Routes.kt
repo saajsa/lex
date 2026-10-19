@@ -1,16 +1,16 @@
 package com.legumlex.client.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material.icons.outlined.Gavel
-import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.WorkOutline
-import androidx.compose.material.icons.rounded.Forum
-import androidx.compose.material.icons.rounded.Gavel
-import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Work
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.legumlex.client.R
 
@@ -26,6 +26,10 @@ sealed class Route(val path: String) {
     data object Matters       : Route("matters")
     data object Consultations : Route("consultations")
     data object More          : Route("more")
+    data object Registry      : Route("registry")
+
+    // Account
+    data object Profile       : Route("profile")
 
     // Nested destinations.
     data object CaseDetail : Route("matters/{caseId}") {
@@ -85,6 +89,10 @@ sealed class Route(val path: String) {
         fun build(id: String) = "invoices/d/$id"
     }
     data object Projects       : Route("projects")
+    data object RegistryAgreement : Route("registry/{agreementId}") {
+        const val ARG = "agreementId"
+        fun build(id: String) = "registry/$id"
+    }
     data object ProjectDetail  : Route("projects/{projectId}") {
         const val ARG = "projectId"
         fun build(id: String) = "projects/$id"
@@ -192,9 +200,9 @@ sealed class Route(val path: String) {
 // The five top-level tabs — the only routes that never show a back arrow.
 val mainShellRoutes = setOf(
     Route.Home.path,
-    Route.Consultations.path,
     Route.Matters.path,
     Route.Projects.path,
+    Route.Registry.path,
     Route.More.path,
 )
 
@@ -291,10 +299,13 @@ data class BottomTab(
     val iconActive: ImageVector,
 )
 
+// Mylex's workspaces: Home, then Litigation, Projects and Registry, then the
+// rest (documents, invoices, consultations, profile) under More. The icons are
+// the portal's: a court building, stacked layers, an archive box.
 val bottomTabs = listOf(
-    BottomTab(Route.Home,          R.string.nav_home,          Icons.Outlined.Home,        Icons.Rounded.Home),
-    BottomTab(Route.Consultations, R.string.nav_consultations, Icons.Outlined.Forum,       Icons.Rounded.Forum),
-    BottomTab(Route.Matters,       R.string.nav_matters,       Icons.Outlined.Gavel,       Icons.Rounded.Gavel),
-    BottomTab(Route.Projects,      R.string.nav_projects,      Icons.Outlined.WorkOutline, Icons.Rounded.Work),
-    BottomTab(Route.More,          R.string.nav_more,          Icons.Outlined.MoreHoriz,   Icons.Rounded.MoreHoriz),
+    BottomTab(Route.Home,     R.string.nav_home,       Icons.Outlined.GridView,        Icons.Rounded.GridView),
+    BottomTab(Route.Matters,  R.string.nav_matters,    Icons.Outlined.AccountBalance,  Icons.Rounded.AccountBalance),
+    BottomTab(Route.Projects, R.string.nav_projects,   Icons.Outlined.Layers,          Icons.Rounded.Layers),
+    BottomTab(Route.Registry, R.string.nav_registry,   Icons.Outlined.Inventory2,      Icons.Rounded.Inventory2),
+    BottomTab(Route.More,     R.string.nav_more,       Icons.Outlined.MoreHoriz,       Icons.Rounded.MoreHoriz),
 )

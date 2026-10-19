@@ -133,6 +133,10 @@ private val InkMuted: Color     @Composable get() = LlColor.InkMuted     // cham
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    onOpenLitigation: () -> Unit = {},
+    onOpenProjects: () -> Unit = {},
+    onOpenRegistry: () -> Unit = {},
+    onOpenConsultations: () -> Unit = {},
     onOpenCalendar: () -> Unit = {},
     onOpenInvoice: (String) -> Unit = {},
     onOpenContract: (String) -> Unit = {},
@@ -214,6 +218,10 @@ fun HomeScreen(
         ) {
             HomeContent(
                 data                = s.data,
+                onOpenLitigation    = onOpenLitigation,
+                onOpenProjects      = onOpenProjects,
+                onOpenRegistry      = onOpenRegistry,
+                onOpenConsultations = onOpenConsultations,
                 onOpenCalendar      = onOpenCalendar,
                 onOpenInvoice       = onOpenInvoice,
                 onOpenContract      = onOpenContract,
@@ -256,6 +264,10 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     data: HomeData,
+    onOpenLitigation: () -> Unit,
+    onOpenProjects: () -> Unit,
+    onOpenRegistry: () -> Unit,
+    onOpenConsultations: () -> Unit,
     onOpenCalendar: () -> Unit,
     onOpenInvoice: (String) -> Unit,
     onOpenContract: (String) -> Unit,
@@ -305,24 +317,28 @@ private fun HomeContent(
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            GreetingRow(
-                firstName       = data.firstName,
-                onCalendarClick = onOpenCalendar,
+            HomeHeader(
+                dateLabel        = todayDateLabel(),
+                greeting         = "${greetingForNow()}, ${data.firstName.ifBlank { "there" }}",
+                onCheckAgreement = onStartAgreementHealthCheckup,
+                onAskAdvocate    = onAskNew,
             )
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 16.dp),
+                    .padding(top = 12.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // 0. Service highlights — entry to the two core funnels.
-                // Ongoing instances of either funnel still surface in the
-                // Action Queue below as tracked items.
-                ServiceHighlightsBlock(
-                    onStartAgreementCheck = onStartAgreementHealthCheckup,
-                    onStartLegalNotice    = onStartLegalNotice,
+                // 0. The workspaces, and the consultations' four figures — the
+                // top of Mylex's home.
+                WorkspaceEntrances(
+                    ws           = data.workspaces,
+                    onLitigation = onOpenLitigation,
+                    onProjects   = onOpenProjects,
+                    onRegistry   = onOpenRegistry,
                 )
+                ConsultationFigures(data.workspaces, onOpenConsultations)
 
                 // 1. Action queue
                 ActionQueueBlock(
@@ -2054,7 +2070,7 @@ private fun greetingForNow(): String {
 }
 
 private fun todayDateLabel(): String =
-    LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE · d MMMM"))
+    LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", java.util.Locale.ENGLISH))
 
 // Opens the system "new calendar event" sheet (Google Calendar etc.),
 // pre-filled from a NextEvent. Used by Hearing → "Directions" (no alarm).

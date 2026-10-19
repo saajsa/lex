@@ -1,5 +1,17 @@
 package com.legumlex.client.feature.finance
 
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import com.legumlex.client.ui.theme.Lex
+import com.legumlex.client.ui.components.Eyebrow
+import com.legumlex.client.ui.components.SegmentedToggle
+import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.StatusBadge
+import com.legumlex.client.ui.components.StatCard
+import com.legumlex.client.ui.components.PageHeader
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -86,101 +98,100 @@ fun InvoicesScreen(onBack: () -> Unit, onOpenInvoice: (String) -> Unit) {
     }
 }
 
+/**
+ * Billing › Invoices, as Mylex's /mylex/invoices lays it out: four figures,
+ * the outstanding balance on a dark card with what is paid against what is
+ * billed, and the invoices with an All | Outstanding | Paid toggle.
+ */
 @Composable
 private fun Ready(state: InvoicesUiState.Ready, onOpenInvoice: (String) -> Unit) {
     var filter by rememberSaveable { mutableStateOf(InvFilter.ALL) }
     val all = state.invoices
-    val paidCount = all.count { it.status == InvoiceStatus.PAID }
+    val sym = state.currencySymbol
     val shown = when (filter) {
         InvFilter.ALL         -> all
         InvFilter.OUTSTANDING -> all.filter { it.status in OUTSTANDING_STATES }
         InvFilter.PAID        -> all.filter { it.status == InvoiceStatus.PAID }
     }
+    val billable = all.filter { it.status != InvoiceStatus.DRAFT && it.status != InvoiceStatus.CANCELLED }
+    // A paid invoice owes nothing, whatever its left-to-pay field says.
+    fun Invoice.owed() = if (status == InvoiceStatus.PAID) 0.0 else leftToPay
+    val billed = billable.sumOf { it.total }
+    val paidTotal = billable.sumOf { it.total - it.owed() }
+    val overdue = all.filter { it.status == InvoiceStatus.OVERDUE }
+    val year = java.time.LocalDate.now().year
+    val paidThisYear = billable.filter { it.date?.year == year }.sumOf { it.total - it.owed() }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 28.dp),
+        Modifier.fillMaxSize().background(Lex.colors.background),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item("head") {
-            ListHead(all.size, state.outstandingTotal, state.outstandingCount, state.currencySymbol)
-            Spacer(Modifier.height(14.dp))
+        item("head") { PageHeader(eyebrow = "Billing", title = "Invoices") }
+        item("figures") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard("Outstanding Balance", formatMoney(state.outstandingTotal, sym),
+                        "Unpaid invoices on your account: ${state.outstandingCount}", Modifier.weight(1f).fillMaxHeight())
+                    StatCard("Overdue", formatMoney(overdue.sumOf { it.leftToPay }, sym), "Past the date they were due to be settled",
+                        Modifier.weight(1f).fillMaxHeight(),
+                        valueColor = if (overdue.isNotEmpty()) Lex.colors.danger.solid else Lex.colors.foreground,
+                        chip = null)
+                }
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard("Paid This Year", formatMoney(paidThisYear, sym), "Settled since 1 January", Modifier.weight(1f).fillMaxHeight())
+                    StatCard("Billed In Total", formatMoney(billed, sym), "Every invoice raised on your account", Modifier.weight(1f).fillMaxHeight())
+                }
+            }
         }
-        item("filters") {
-            FilterBar(filter, { filter = it }, all.size, state.outstandingCount, paidCount)
-            Spacer(Modifier.height(12.dp))
-        }
-        item("ledger") {
-            if (shown.isEmpty()) EmptyState(filter)
-            else Ledger(shown, onOpenInvoice)
-            Spacer(Modifier.height(14.dp))
+        item("balance") { BalanceCard(state.outstandingTotal, paidTotal, billed, sym, overdue.isEmpty()) }
+        item("list") {
+            LexCard(title = "${all.size} ${if (all.size == 1) "Invoice" else "Invoices"}") {
+                Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    SegmentedToggle(
+                        options = listOf(InvFilter.ALL to "All", InvFilter.OUTSTANDING to "Outstanding", InvFilter.PAID to "Paid"),
+                        selected = filter, onSelect = { filter = it },
+                    )
+                }
+                HorizontalDivider(color = Lex.colors.border)
+                if (shown.isEmpty()) EmptyState(filter)
+                shown.forEachIndexed { i, inv ->
+                    if (i > 0) HorizontalDivider(color = Lex.colors.border)
+                    InvoiceRow(inv) { onOpenInvoice(inv.id) }
+                }
+            }
         }
     }
 }
 
+/** The dark balance card: what is owed, and a bar of what is paid against what is billed. */
 @Composable
-private fun ListHead(count: Int, outstanding: Double, outstandingCount: Int, symbol: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Column {
-            Text("Invoices", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                fontSize = 23.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
-            Spacer(Modifier.height(3.dp))
-            Text("$count ${if (count == 1) "invoice" else "invoices"}",
-                fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text("OUTSTANDING", fontFamily = Inter, fontWeight = FontWeight.Bold,
-                fontSize = 9.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                formatMoney(outstanding, symbol),
-                fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp,
-                color = if (outstandingCount == 0) LlColor.VerdantMid else LlColor.ClaretMid,
-            )
-        }
-    }
-}
-
-@Composable
-private fun FilterBar(active: InvFilter, onSelect: (InvFilter) -> Unit, all: Int, outstanding: Int, paid: Int) {
-    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        FChip(InvFilter.ALL, active, onSelect, all)
-        FChip(InvFilter.OUTSTANDING, active, onSelect, outstanding)
-        FChip(InvFilter.PAID, active, onSelect, paid)
-    }
-}
-
-@Composable
-private fun FChip(filter: InvFilter, active: InvFilter, onSelect: (InvFilter) -> Unit, count: Int) {
-    val on = filter == active
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (on) LlColor.Ink else LlColor.Surface)
-            .border(LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.Border, RoundedCornerShape(8.dp))
-            .clickable { onSelect(filter) }
-            .padding(horizontal = 11.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Text(filter.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
-            color = if (on) LlColor.Paper else LlColor.InkMuted)
-        Text("$count", fontFamily = Inter, fontSize = 10.sp,
-            color = if (on) LlColor.Paper.copy(alpha = 0.75f) else LlColor.InkFaint)
-    }
-}
-
-@Composable
-private fun Ledger(invoices: List<Invoice>, onOpenInvoice: (String) -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(LlShape.Card).background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card),
-    ) {
-        invoices.forEachIndexed { i, inv ->
-            if (i > 0) Box(Modifier.fillMaxWidth().height(LlDimen.HairlineWidth).background(LlColor.Paper2))
-            InvoiceRow(inv) { onOpenInvoice(inv.id) }
+private fun BalanceCard(outstanding: Double, paid: Double, billed: Double, sym: String, nothingOverdue: Boolean) {
+    androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.theme.LocalLexColors provides com.legumlex.client.ui.theme.DarkLexColors) {
+        LexCard(container = androidx.compose.ui.graphics.Color(0xFF09090B), borderColor = Lex.colors.border) {
+            Column(Modifier.padding(16.dp)) {
+                Eyebrow("Outstanding Balance")
+                Spacer(Modifier.height(6.dp))
+                Text(formatMoney(outstanding, sym), style = MaterialTheme.typography.headlineMedium, color = Lex.colors.foreground)
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Lex.colors.secondary)) {
+                    Box(Modifier.fillMaxWidth(if (billed > 0) (paid / billed).toFloat().coerceIn(0f, 1f) else 0f).height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)).background(Lex.colors.foreground))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    Text("${formatMoney(paid, sym)} Paid To Date", style = MaterialTheme.typography.bodySmall,
+                        color = Lex.colors.mutedForeground, modifier = Modifier.weight(1f))
+                    Text("${formatMoney(billed, sym)} Billed", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                }
+                if (outstanding <= 0.0 && nothingOverdue) {
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted).padding(12.dp),
+                        contentAlignment = Alignment.Center) {
+                        Text("All Settled — Nothing Due", style = MaterialTheme.typography.labelLarge, color = Lex.colors.secondaryForeground)
+                    }
+                }
+            }
         }
     }
 }
@@ -273,19 +284,9 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
                 textDecoration = if (paid) TextDecoration.LineThrough else null,
             )
             Spacer(Modifier.height(7.dp))
-            StatusChip(inv.status.label, sev)
+            StatusBadge(inv.status.label, inv.status.palette)
         }
     }
-}
-
-@Composable
-private fun StatusChip(label: String, sev: LSev) {
-    Text(
-        label,
-        fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.04.em,
-        color = sev.mid,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(sev.soft).padding(horizontal = 8.dp, vertical = 3.dp),
-    )
 }
 
 // --- empty / loading / error -------------------------------------------------

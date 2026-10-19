@@ -1,5 +1,18 @@
 package com.legumlex.client.feature.projects
 
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import com.legumlex.client.ahc.theme.Mono
+import com.legumlex.client.ui.theme.Lex
+import com.legumlex.client.ui.components.Eyebrow
+import com.legumlex.client.ui.components.SegmentedToggle
+import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.StatusBadge
+import com.legumlex.client.ui.components.StatusChip
+import com.legumlex.client.ui.components.StatCard
+import com.legumlex.client.ui.components.PageHeader
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -121,213 +134,131 @@ private fun ProjectSummary.tasksDone(): Int = (tasksTotal - tasksOpen).coerceAtL
 
 private data class Band(val name: String, val due: Boolean, val items: List<ProjectSummary>)
 
+/**
+ * Projects, as Mylex's projects screen lays it out: the eyebrow and title,
+ * four figures, an All | Active | Finished toggle, and a card per project —
+ * a status stripe, its reference, the name, progress, and the dates.
+ */
 @Composable
 private fun ProjectsReady(
     projects: List<ProjectSummary>,
     filter: ProjectFilter,
     onFilter: (ProjectFilter) -> Unit,
-    onOpen: (String) -> Unit,
+    onOpenProject: (String) -> Unit,
 ) {
     val today = remember { LocalDate.now() }
     val active = remember(projects) { projects.filterNot { it.isFinished() } }
     val finished = remember(projects) { projects.filter { it.isFinished() } }
-
-    val dueWeek = remember(active, today) {
-        active.filter { (it.deadlineDays(today) ?: Long.MAX_VALUE) <= 7 }
-            .sortedBy { it.pacingDate() }
-    }
-    val activeRest = remember(active, dueWeek) {
-        (active - dueWeek.toSet()).sortedWith(
-            compareBy({ it.pacingDate() == null }, { it.pacingDate() }),
-        )
-    }
-    // Spotlight: nearest upcoming deadline across all active projects.
-    val spotlight = remember(active, today) {
-        active.filter { it.deadlineDays(today) != null }.minByOrNull { it.pacingDate()!! }
-    }
-
-    val bands = remember(filter, dueWeek, activeRest, finished) {
+    val shown = remember(filter, projects) {
+        val byPace = active.sortedBy { it.pacingDate() ?: LocalDate.MAX }
         when (filter) {
-            ProjectFilter.ALL -> listOf(
-                Band("Due this week", true, dueWeek),
-                Band("Active", false, activeRest),
-                Band("Finished", false, finished),
-            )
-            ProjectFilter.ACTIVE -> listOf(
-                Band("Due this week", true, dueWeek),
-                Band("Active", false, activeRest),
-            )
-            ProjectFilter.CLOSED -> listOf(Band("Finished", false, finished))
-        }.filter { it.items.isNotEmpty() }
+            ProjectFilter.ALL -> byPace + finished
+            ProjectFilter.ACTIVE -> byPace
+            ProjectFilter.CLOSED -> finished
+        }
     }
 
-    if (projects.isEmpty()) {
-        LazyColumn(Modifier.fillMaxSize()) {
-            item("intro") { PageIntro(filter, active.size, finished.size, projects.size, showCount = false) }
-            item("empty") { ProjectsEmpty() }
-        }
-        return
-    }
-
-    val showSpotlight = filter != ProjectFilter.CLOSED && spotlight != null
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item("intro") { PageIntro(filter, active.size, finished.size, projects.size, showCount = true) }
-
-        if (showSpotlight) {
-            item("spotlight") { Spotlight(spotlight!!, today) { onOpen(spotlight.id) } }
-        }
-
-        item("filters") {
-            FilterBar(all = projects.size, active = active.size, finished = finished.size, selected = filter, onSelect = onFilter)
-        }
-
-        if (bands.isEmpty()) {
-            item("empty-filter") { FilteredEmpty(filter) }
-        } else {
-            bands.forEachIndexed { bi, band ->
-                item("head-${band.name}") { SectionHeader(band.name, band.items.size, band.due, first = bi == 0) }
-                items(band.items, key = { it.id }) { p ->
-                    Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, bottom = 10.dp)) {
-                        ProjectRow(p, today, band.due) { onOpen(p.id) }
-                    }
+    LazyColumn(
+        Modifier.fillMaxSize().background(Lex.colors.background),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item("head") { PageHeader(eyebrow = "Your Work With Us", title = "Projects") }
+        item("figures") {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard("Projects", "${projects.size}", "Every project the firm runs for you", Modifier.weight(1f).fillMaxHeight())
+                    StatCard("Active", "${active.size}", "Projects still being worked on", Modifier.weight(1f).fillMaxHeight(),
+                        chip = { if (active.isNotEmpty()) StatusChip("In Progress", Lex.colors.neutral) })
                 }
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val open = projects.sumOf { it.tasksOpen }
+                    StatCard("Open Tasks", "$open", "Tasks not yet done across your projects", Modifier.weight(1f).fillMaxHeight(),
+                        chip = { if (open == 0) StatusChip("None Open", Lex.colors.success, Icons.Outlined.CheckCircle) })
+                    StatCard("Finished", "${finished.size}", "Projects completed or closed", Modifier.weight(1f).fillMaxHeight())
+                }
+            }
+        }
+        if (projects.isEmpty()) {
+            item("empty") { LexCard { ProjectsEmpty() } }
+            return@LazyColumn
+        }
+        item("filter") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SegmentedToggle(
+                    options = listOf(ProjectFilter.ALL to "All", ProjectFilter.ACTIVE to "Active", ProjectFilter.CLOSED to "Finished"),
+                    selected = filter, onSelect = onFilter,
+                )
+                Spacer(Modifier.weight(1f))
+                Text("${shown.size} ${if (shown.size == 1) "Project" else "Projects"}",
+                    style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
+            }
+        }
+        if (shown.isEmpty()) item("empty-filter") { LexCard { FilteredEmpty(filter) } }
+        items(shown, key = { it.id }) { pr -> ProjectCard(pr, today) { onOpenProject(pr.id) } }
+    }
+}
+
+@Composable
+private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) {
+    val done = p.isFinished()
+    LexCard(onClick = onClick) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+            Box(Modifier.width(4.dp).height(48.dp).clip(RoundedCornerShape(2.dp)).background(p.status.palette.solid))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("PRJ-${p.id}", fontFamily = Mono, style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground)
+                Spacer(Modifier.height(4.dp))
+                Text(p.name, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Lex.colors.secondary)) {
+                        Box(Modifier.fillMaxWidth(p.progress.coerceIn(0, 100) / 100f).fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp)).background(Lex.colors.primary))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(if (p.status == ProjectStatus.Cancelled) "—" else "${p.progress}%",
+                        style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            StatusBadge(p.status.label, p.status.palette)
+        }
+        HorizontalDivider(color = Lex.colors.border)
+        Column(Modifier.background(Lex.colors.muted.copy(alpha = 0.5f))) {
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                PFact("Next Milestone",
+                    p.nextMilestone?.let { m -> listOfNotNull(m.name, m.dueDate?.let { pdate(it) }).joinToString(" · ") } ?: "No Milestone Set",
+                    Modifier.weight(1f))
+                Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
+                PFact("Tasks", if (p.tasksTotal == 0) "No Tasks Yet" else "${p.tasksDone()} Of ${p.tasksTotal} Done", Modifier.weight(1f))
+            }
+            HorizontalDivider(color = Lex.colors.border)
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                PFact("Started", p.startDate?.let { pdate(it) } ?: "Not Recorded", Modifier.weight(1f))
+                Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
+                PFact("Deadline", p.deadline?.let { pdate(it) } ?: "No Deadline Set", Modifier.weight(1f),
+                    alarm = !done && p.deadline?.isBefore(today) == true)
             }
         }
     }
 }
 
-// =============================================================================
-// Page intro
-// =============================================================================
-
 @Composable
-private fun PageIntro(filter: ProjectFilter, active: Int, finished: Int, total: Int, showCount: Boolean) {
-    val sub = when (filter) {
-        ProjectFilter.ALL -> "Your transactional & advisory work."
-        ProjectFilter.ACTIVE -> "The work still in flight."
-        ProjectFilter.CLOSED -> "Work your chamber has closed out."
-    }
-    Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 6.dp)) {
-        Text("PROJECTS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.16.em, color = LlColor.InkFaint)
-        Spacer(Modifier.height(9.dp))
-        Text("Your Projects", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-            fontSize = 28.sp, letterSpacing = (-0.025).em, lineHeight = 30.sp, color = LlColor.Ink)
-        Spacer(Modifier.height(8.dp))
-        Text(sub, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = LlColor.InkMuted, modifier = Modifier.widthIn(max = 330.dp))
-        if (showCount) {
-            Spacer(Modifier.height(11.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                when (filter) {
-                    ProjectFilter.CLOSED -> CountFrag(finished, "finished")
-                    ProjectFilter.ACTIVE -> CountFrag(active, "active")
-                    else -> {
-                        CountFrag(active, "active")
-                        Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
-                        CountFrag(total, "total")
-                    }
-                }
-            }
-        }
+private fun PFact(label: String, value: String, modifier: Modifier, alarm: Boolean = false) {
+    Column(modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Eyebrow(label)
+        Spacer(Modifier.height(3.dp))
+        Text(value, style = MaterialTheme.typography.bodyMedium,
+            color = if (alarm) Lex.colors.danger.solid else Lex.colors.foreground, maxLines = 2)
     }
 }
 
-@Composable
-private fun CountFrag(n: Int, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$n ", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
-        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
-    }
-}
+private fun pdate(d: LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
 
 // =============================================================================
 // Nearest-deadline spotlight
 // =============================================================================
-
-@Composable
-private fun Spotlight(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) {
-    val days = p.deadlineDays(today) ?: 0L
-    val soon = days <= 3
-    val band = if (soon) ClaretMidFix else LlColor.AmberMid
-    val boxBg = if (soon) ClaretSoftFix else LlColor.AmberSoft
-    val boxBorder = if (soon) ClaretBorderFix else AmberBorderFix
-    val accent = if (soon) LlColor.Claret else LlColor.Amber
-    val accentMid = if (soon) ClaretMidFix else LlColor.AmberMid
-
-    val dateLabel = when (days) {
-        0L -> "Today"
-        1L -> "Tomorrow"
-        else -> "In $days days"
-    }
-    val eyebrow = if (days == 1L) "Nearest deadline · Tomorrow" else "Nearest deadline"
-    val milestone = p.nextMilestone?.name
-
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-    ) {
-        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(5.dp).background(band))
-        Column(Modifier.padding(start = 20.dp, end = 18.dp, top = 16.dp, bottom = 17.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                if (soon) PulseDot(accentMid, 7.dp) else Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                Text(eyebrow.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = accent)
-            }
-            Spacer(Modifier.height(11.dp))
-            Text(p.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                fontSize = 19.sp, letterSpacing = (-0.015).em, lineHeight = 24.sp, color = LlColor.Ink,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
-            milestone?.let {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Outlined.Flag, null, tint = accent, modifier = Modifier.size(13.dp))
-                    Text(it, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            // progress meter row
-            Spacer(Modifier.height(13.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                Text("${p.tasksDone()}/${p.tasksTotal} tasks", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
-                Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(LlColor.Paper2)) {
-                    Box(Modifier.fillMaxWidth(p.progress.coerceIn(0, 100) / 100f).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(p.status.meterColor()))
-                }
-                Text("${p.progress}%", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink)
-            }
-            Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-            Spacer(Modifier.height(13.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // countdown chip
-                Column(
-                    Modifier.widthIn(min = 52.dp).clip(RoundedCornerShape(8.dp)).background(boxBg)
-                        .border(LlDimen.HairlineWidth, boxBorder, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    if (days == 0L) {
-                        Text("Today", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = accent)
-                    } else {
-                        Text("$days", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = accent)
-                        Text(if (days == 1L) "DAY" else "DAYS", fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
-                    }
-                }
-                Column(Modifier.weight(1f)) {
-                    Text("$dateLabel · ${p.pacingDate()!!.format(dowFmt)}",
-                        fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, lineHeight = 17.sp, color = LlColor.Ink)
-                    Spacer(Modifier.height(3.dp))
-                    Text(milestone?.let { "Milestone · $it" } ?: "Deadline", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Box(
-                    Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = LlColor.InkMuted, modifier = Modifier.size(19.dp)) }
-            }
-        }
-    }
-}
 
 // =============================================================================
 // Filter bar
@@ -335,210 +266,15 @@ private fun Spotlight(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) 
 
 // Display order All · Active · Finished; CLOSED renders as "Finished".
 private val filterOrder = listOf(ProjectFilter.ALL, ProjectFilter.ACTIVE, ProjectFilter.CLOSED)
-private fun ProjectFilter.barLabel(): String = if (this == ProjectFilter.CLOSED) "Finished" else label
-
-@Composable
-private fun FilterBar(all: Int, active: Int, finished: Int, selected: ProjectFilter, onSelect: (ProjectFilter) -> Unit) {
-    val counts = mapOf(ProjectFilter.ALL to all, ProjectFilter.ACTIVE to active, ProjectFilter.CLOSED to finished)
-    Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            filterOrder.forEach { f ->
-                FilterChip(f.barLabel(), counts[f] ?: 0, selected == f) { onSelect(f) }
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
-    }
-}
-
-@Composable
-private fun FilterChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(if (selected) LlColor.Ink else LlColor.Paper)
-            .border(LlDimen.HairlineWidth, if (selected) LlColor.Ink else LlColor.Border, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (selected) LlColor.Paper else LlColor.InkMuted)
-        if (count > 0) {
-            Box(
-                Modifier.heightIn(min = 17.dp).widthIn(min = 17.dp).clip(RoundedCornerShape(8.dp))
-                    .background(if (selected) LlColor.Paper.copy(alpha = 0.2f) else LlColor.Paper2).padding(horizontal = 5.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp,
-                    color = if (selected) LlColor.Paper else LlColor.InkMuted)
-            }
-        }
-    }
-}
-
 // =============================================================================
 // Section header
 // =============================================================================
-
-@Composable
-private fun SectionHeader(name: String, count: Int, due: Boolean, first: Boolean) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = if (first) 16.dp else 18.dp, bottom = 11.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.5.sp, letterSpacing = 0.15.em,
-            color = if (due) LlColor.Claret else LlColor.InkFaint)
-        Box(
-            Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp))
-                .background(if (due) ClaretSoftFix else LlColor.Paper2).padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("$count", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = if (due) ClaretMidFix else LlColor.InkMuted)
-        }
-        Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
-    }
-}
 
 // =============================================================================
 // Project row
 // =============================================================================
 
 private enum class DueTone { IMMINENT, WEEK, NORMAL, QUIET }
-
-@Composable
-private fun ProjectRow(p: ProjectSummary, today: LocalDate, dueBand: Boolean, onClick: () -> Unit) {
-    val done = p.isFinished()
-    Box(
-        Modifier.fillMaxWidth().clip(LlShape.Card)
-            .background(if (done) LlColor.Paper1 else LlColor.Surface)
-            .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card)
-            .clickable(onClick = onClick),
-    ) {
-        if (dueBand) Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(LlDimen.HeroStripeWidth).background(LlColor.Claret))
-        Column(Modifier.padding(start = if (dueBand) 18.dp else 15.dp, end = 15.dp, top = 14.dp, bottom = 14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Text("PRJ-${p.id}", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.1.em,
-                    color = LlColor.InkFaint, modifier = Modifier.padding(top = 3.dp))
-                StatusPill(p.status)
-            }
-            Text(p.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 21.sp,
-                color = if (done) LlColor.InkMuted else LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 11.dp))
-            // sub: tasks done / total
-            Text(
-                if (p.tasksTotal == 0) "No tasks yet" else "${p.tasksDone()}/${p.tasksTotal} tasks",
-                fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            // progress meter
-            Row(Modifier.padding(top = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Box(Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)).background(LlColor.Paper2)) {
-                    Box(Modifier.fillMaxWidth(p.progress.coerceIn(0, 100) / 100f).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(p.status.meterColor()))
-                }
-                Text(
-                    if (p.status == ProjectStatus.Cancelled) "—" else "${p.progress}%",
-                    fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, color = LlColor.InkMuted,
-                )
-            }
-            DeadlineLine(p, today, done)
-        }
-    }
-}
-
-@Composable
-private fun DeadlineLine(p: ProjectSummary, today: LocalDate, done: Boolean) {
-    val days = p.deadlineDays(today)
-    val tone = when {
-        done -> DueTone.QUIET
-        days == null -> DueTone.QUIET
-        days <= 3 -> DueTone.IMMINENT
-        days <= 7 -> DueTone.WEEK
-        else -> DueTone.NORMAL
-    }
-    val (icon, text, color) = when (tone) {
-        DueTone.IMMINENT -> Triple(
-            Icons.Filled.Flag,
-            when (days) {
-                0L -> "${dueLabel(p)} · Today"
-                1L -> "${dueLabel(p)} · Tomorrow"
-                else -> "${dueLabel(p)} · due ${p.pacingDate()!!.format(dowFmt)}"
-            },
-            ClaretMidFix,
-        )
-        DueTone.WEEK -> Triple(Icons.Filled.Flag, "${dueLabel(p)} · due ${p.pacingDate()!!.format(dowFmt)}", LlColor.AmberMid)
-        DueTone.NORMAL -> Triple(Icons.Outlined.Flag, "${dueLabel(p)} · due ${p.pacingDate()!!.format(dowFmt)}", LlColor.Ink)
-        DueTone.QUIET -> {
-            if (done) {
-                val finished = p.status == ProjectStatus.Finished
-                Triple(
-                    if (finished) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
-                    if (finished) "Completed" else "Cancelled",
-                    LlColor.InkFaint,
-                )
-            } else if (p.status == ProjectStatus.OnHold) {
-                Triple(Icons.Outlined.History, "On hold", LlColor.InkFaint)
-            } else {
-                Triple(Icons.Outlined.Schedule, "In progress", LlColor.InkFaint)
-            }
-        }
-    }
-
-    Column(Modifier.padding(top = 12.dp)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-        Row(Modifier.padding(top = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val iconAlpha = if (tone == DueTone.IMMINENT) pulseAlpha() else 1f
-            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp).alpha(iconAlpha))
-            Text(
-                text,
-                fontFamily = Inter,
-                fontWeight = if (tone == DueTone.QUIET) FontWeight.Normal else FontWeight.SemiBold,
-                fontSize = if (tone == DueTone.QUIET || tone == DueTone.NORMAL) 11.sp else 11.5.sp,
-                color = color, lineHeight = 16.sp,
-            )
-        }
-    }
-}
-
-private fun dueLabel(p: ProjectSummary): String = p.nextMilestone?.name ?: "Deadline"
-
-@Composable
-private fun StatusPill(status: ProjectStatus) {
-    val (bg, fg) = when (status) {
-        ProjectStatus.InProgress -> LlColor.SlateSoft to LlColor.SlateMid
-        ProjectStatus.OnHold     -> LlColor.AmberSoft to LlColor.Amber
-        ProjectStatus.Finished   -> LlColor.VerdantSoft to LlColor.Verdant
-        ProjectStatus.NotStarted, ProjectStatus.Cancelled, ProjectStatus.Unknown -> LlColor.Paper2 to LlColor.InkMuted
-    }
-    Row(
-        Modifier.clip(RoundedCornerShape(6.dp)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(fg))
-        Text(status.label, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.02.em, color = fg)
-    }
-}
-
-@androidx.compose.runtime.Composable private fun ProjectStatus.meterColor(): Color = when (this) {
-    ProjectStatus.InProgress -> LlColor.SlateMid
-    ProjectStatus.OnHold     -> LlColor.AmberMid
-    ProjectStatus.Finished   -> LlColor.VerdantMid
-    ProjectStatus.NotStarted, ProjectStatus.Cancelled, ProjectStatus.Unknown -> LlColor.InkFaint
-}
-
-@Composable
-private fun PulseDot(color: Color, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size).alpha(pulseAlpha()).clip(RoundedCornerShape(50)).background(color))
-}
-
-@Composable
-private fun pulseAlpha(): Float {
-    val t = rememberInfiniteTransition(label = "pulse")
-    val a by t.animateFloat(
-        initialValue = 1f, targetValue = 0.4f,
-        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "pulseAlpha",
-    )
-    return a
-}
 
 // =============================================================================
 // Empty / loading / error

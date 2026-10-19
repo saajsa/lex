@@ -165,6 +165,14 @@ private fun AppShell(deepLinkIntent: Intent?) {
     LaunchedEffect(currentRoute) {
         com.legumlex.client.feature.notifications.NotificationHub.refresh(context)
     }
+    // The signed-in contact, for the header's initials: fetched once a
+    // signed-in screen is reached, and again after a fresh sign-in.
+    val profile by com.legumlex.client.feature.profile.ProfileHub.profile.collectAsState()
+    LaunchedEffect(currentRoute, profile) {
+        if (profile == null && showAppFooter(currentRoute)) {
+            com.legumlex.client.feature.profile.ProfileHub.refresh(context)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -174,6 +182,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     onBack = { navController.popBackStack() },
                     onNotifications = { navController.navigate(Route.Notifications.path) },
                     unreadCount = unreadCount,
+                    initials = profile?.initials,
+                    onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                 )
             }
         },
