@@ -1,7 +1,5 @@
 package com.legumlex.client.feature.desk
 
-import com.legumlex.client.feature.payment.RazorpayOptions
-import com.legumlex.client.feature.payment.RazorpayResult
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -96,7 +94,7 @@ data class DeskUi(
 sealed interface DeskEvent {
     data object OpenMatters : DeskEvent
     data class OpenConsultation(val id: Int) : DeskEvent
-    data class LaunchCheckout(val options: RazorpayOptions) : DeskEvent
+    data class OpenUrl(val url: String) : DeskEvent
 }
 
 class DeskViewModel(app: Application) : AndroidViewModel(app) {
@@ -127,8 +125,8 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     /** A saved enquiry waiting for its fee: where to reply, and what it costs. */
     private var savedEmail = ""
     private var savedPrice = ""
-    /** The order this desk opened; a checkout result for any other is not ours. */
-    private var openOrderId: String? = null
+    /** The fee's invoice is open in the browser: look again on coming back. */
+    private var awaitingInvoice = false
     private val offered = mutableSetOf<String>()
     private val said = mutableSetOf<String>()
     private var again = false
@@ -517,6 +515,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
             "seen" -> _events.tryEmit(consultationId?.let { DeskEvent.OpenConsultation(it) } ?: DeskEvent.OpenMatters)
             "again" -> go { restart() }
             "pay" -> go { pay() }
+            "paid" -> go { checkPaid(asked = true) }
             "discard" -> go { discard() }
         }
     }
@@ -613,36 +612,37 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun pay() {
         val hash = sessionHash ?: return
-        dock(Dock.Waiting("Opening the payment…"))
+        dock(Dock.Waiting("Opening the invoice…"))
         repo.pay(hash)
             .onSuccess { p ->
                 when (p) {
                     is PayStart.Sent -> { consultationId = p.consultationId; delivered(savedEmail) }
-                    is PayStart.Checkout -> { openOrderId = p.options.orderId; _events.tryEmit(DeskEvent.LaunchCheckout(p.options)) }
+                    is PayStart.Invoice -> {
+                        awaitingInvoice = true
+                        _events.tryEmit(DeskEvent.OpenUrl(p.url))
+                        if (!said.contains("invoice")) {
+                            said += "invoice"
+                            say(Para.Text("The fee is an invoice from the firm, open in your browser. Pay it there, and your enquiry goes to the advocates as soon as the payment is confirmed."))
+                        }
+                        dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open the Invoice Again"), Action("discard", "Set It Aside"))))
+                    }
                 }
             }
-            .onFailure { say(Para.Text(it.message ?: "Could not start the payment. Please try again."), note = true, warn = true); payActions() }
+            .onFailure { say(Para.Text(it.message ?: "The invoice could not be opened. Please try again."), note = true, warn = true); payActions() }
     }
 
-    fun handlePaymentResult(result: RazorpayResult) = go {
-        val mine = openOrderId ?: return@go
-        val hash = sessionHash ?: return@go
-        when (result) {
-            is RazorpayResult.Failed -> {
-                openOrderId = null
-                say(Para.Text("The payment was not completed. Your enquiry is still saved; pay whenever you are ready."), note = true, warn = true)
-                payActions()
-            }
-            is RazorpayResult.Success -> {
-                if (result.orderId.isNotBlank() && result.orderId != mine) return@go
-                openOrderId = null
-                dock(Dock.Waiting("Confirming the payment…"))
-                repo.payVerify(hash, mine, result.paymentId, result.signature)
-                    .onSuccess { id -> consultationId = id; delivered(savedEmail) }
-                    .onFailure {
-                        say(Para.Text("We could not confirm the payment yet. If money left your account, your enquiry will still be filed once the bank confirms it. Look in your matters in a few minutes before paying again."), note = true, warn = true)
-                        dock(Dock.Actions(listOf(Action("matters", "See Your Matters", main = true), Action("pay", "Pay Again"))))
-                    }
+    /** Back from the browser: if the invoice is paid, the enquiry has gone. */
+    fun resumed() { if (awaitingInvoice) go { checkPaid(asked = false) } }
+
+    private suspend fun checkPaid(asked: Boolean) {
+        val hash = sessionHash ?: return
+        repo.pay(hash).onSuccess { p ->
+            if (p is PayStart.Sent) {
+                awaitingInvoice = false
+                consultationId = p.consultationId
+                delivered(savedEmail)
+            } else if (asked) {
+                say(Para.Text("The payment has not reached us yet. If you have just paid, give it a minute and try again."), note = true)
             }
         }
     }
@@ -682,7 +682,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun restart() {
         text = ""; more = null; vetted = null; ask = ""; area = ""; read = null; reading = ""; qFiles = 0; docs = null
         route = null; entity = null; country = null; countryOther = ""; phone = null; sessionHash = null; consultationId = null
-        savedEmail = ""; savedPrice = ""; openOrderId = null
+        savedEmail = ""; savedPrice = ""; awaitingInvoice = false
         offered.clear(); said.clear(); again = true; gibs = 0; vetRun++; reread = null
         _ui.update { it.copy(lines = emptyList(), files = emptyList(), locked = false, error = "", opened = true) }
         next()

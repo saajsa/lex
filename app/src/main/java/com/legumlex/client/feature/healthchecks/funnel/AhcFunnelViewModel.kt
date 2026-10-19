@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import com.legumlex.client.feature.payment.RazorpayOptions
-import com.legumlex.client.feature.payment.RazorpayResult
 
 /**
  * Document-first AHC funnel state owner.
@@ -44,8 +42,10 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
         val processingSubStep: Int = 1,
         val error: String? = null,
         val expired: Boolean = false,
-        /** Between Pay and the payment's confirmation. */
+        /** Opening the fee's invoice. */
         val paying: Boolean = false,
+        /** The fee's invoice has been opened in the browser; not paid yet. */
+        val invoiceOpen: Boolean = false,
         /** Why the last payment did not go through, in the client's words. */
         val payError: String? = null,
     )
@@ -63,7 +63,7 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
         data object NavigateToResult : Event
         data object NavigateToHome   : Event
         data class  Toast(val message: String) : Event
-        data class  LaunchCheckout(val options: RazorpayOptions) : Event
+        data class  OpenUrl(val url: String) : Event
     }
 
     private val _state = MutableStateFlow(State())
@@ -205,55 +205,37 @@ class AhcFunnelViewModel(app: Application) : AndroidViewModel(app) {
     // Step 4 — Payment (stubbed → server auto-skips to pending_review)
     // -------------------------------------------------------------------------
 
-    /** The order this screen opened; results for any other order are not ours. */
-    private var openOrderId: String? = null
-
     /**
      * Free: the document goes straight to the advocate (the step moves on and
-     * the funnel hands over to the consultation). Priced: the site's order is
-     * opened and the checkout launched; [handlePaymentResult] finishes it.
+     * the funnel hands over to the consultation). Priced: the fee is an
+     * invoice, paid on its page on the website (the app takes no payments
+     * itself); paying it moves the check on, which [checkPaid] sees.
      */
     fun startPayment() = viewModelScope.launch {
         if (_state.value.paying) return@launch
         _state.update { it.copy(paying = true, payError = null) }
         repo.payInit()
-            .onSuccess { (sess, checkout) ->
+            .onSuccess { (sess, url) ->
                 hydrate(sess)
-                if (checkout != null) {
-                    openOrderId = checkout.orderId
-                    _events.tryEmit(Event.LaunchCheckout(checkout))
-                    return@launch      // still paying until the sheet answers
+                if (url != null) {
+                    _state.update { it.copy(invoiceOpen = true) }
+                    _events.tryEmit(Event.OpenUrl(url))
                 }
             }
             .onFailure { e ->
-                _state.update { it.copy(payError = e.message ?: "The payment could not be started. Please try again.") }
+                _state.update { it.copy(payError = e.message ?: "The invoice could not be opened. Please try again.") }
             }
         _state.update { it.copy(paying = false) }
     }
 
-    fun handlePaymentResult(result: RazorpayResult) = viewModelScope.launch {
-        val mine = openOrderId ?: return@launch
-        when (result) {
-            is RazorpayResult.Failed -> {
-                openOrderId = null
-                _state.update { it.copy(paying = false, payError = "The payment was not completed. Nothing has been charged; you can try again.") }
-            }
-            is RazorpayResult.Success -> {
-                if (result.orderId.isNotBlank() && result.orderId != mine) return@launch
-                openOrderId = null
-                repo.payVerify(mine, result.paymentId, result.signature)
-                    .onSuccess { hydrate(it) }
-                    .onFailure {
-                        // The bank may confirm later; Razorpay's notice to the
-                        // site then sends the document on. Look again shortly.
-                        delay(4000)
-                        repo.status().onSuccess { s -> s?.let(::hydrate) }
-                        if (_state.value.session?.currentStep == AhcStep.PAYMENT) {
-                            _state.update { st -> st.copy(payError = "We could not confirm the payment yet. If money left your account, your check will go to the advocate once the bank confirms it. Look again in a few minutes before paying again.") }
-                        }
-                    }
-                _state.update { it.copy(paying = false) }
-            }
+    /** Back from the browser, or "I Have Paid": read the check again. */
+    fun checkPaid(asked: Boolean = false) = viewModelScope.launch {
+        if (!_state.value.invoiceOpen) return@launch
+        repo.status().onSuccess { s -> s?.let(::hydrate) }
+        if (_state.value.session?.currentStep == AhcStep.PAYMENT) {
+            if (asked) _state.update { it.copy(payError = "The payment has not reached us yet. If you have just paid, give it a minute and try again.") }
+        } else {
+            _state.update { it.copy(invoiceOpen = false, payError = null) }
         }
     }
 

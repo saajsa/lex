@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
@@ -88,6 +89,7 @@ private fun iconFor(t: NotifType): ImageVector = when (t) {
     NotifType.DOCUMENT    -> Icons.Outlined.Description
     NotifType.CHAMBER     -> Icons.Outlined.MeetingRoom
     NotifType.GENERAL     -> Icons.Outlined.Notifications
+    NotifType.ATTENTION   -> Icons.Outlined.Info
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -243,6 +245,8 @@ private fun Feed(state: NotificationsUiState.Ready, onOpen: (AppNotification) ->
         state.bands.forEach { band ->
             item(key = "band-${band.title}") { BandHeader(band) }
             items(band.items, key = { it.id }) { n ->
+                // Waiting on the client: it goes when the step is done, not by a swipe.
+                if (n.type == NotifType.ATTENTION) { NotifRow(n, onClick = { onOpen(n) }); return@items }
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { v ->
                         if (v == SwipeToDismissBoxValue.EndToStart) { onDismiss(n); true } else false
@@ -283,7 +287,8 @@ private fun BandHeader(band: NotifBand) {
 @Composable
 private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
     val c = colorsFor(n.severity)
-    val read = n.isRead
+    // Waiting on the client is never "read": it stays live until the step is done.
+    val read = n.isRead && n.type != NotifType.ATTENTION
     Box(
         Modifier
             .fillMaxWidth()

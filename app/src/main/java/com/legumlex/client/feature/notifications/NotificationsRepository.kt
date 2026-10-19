@@ -29,8 +29,11 @@ class NotificationsRepository(private val api: ApiService) {
     /** Re-group a flat list into ordered time bands (used after local edits). */
     fun group(items: List<AppNotification>): NotificationsUiState.Ready {
         val order = listOf("Today", "Yesterday", "Earlier this week", "Older")
-        val grouped = items.groupBy { bandOf(it.createdAt) }
-        val bands = order.mapNotNull { key ->
+        // As the portal's drawer: what the firm needs from the client first,
+        // then what it has published to them.
+        val attention = items.filter { it.type == NotifType.ATTENTION }
+        val grouped = items.filterNot { it.type == NotifType.ATTENTION }.groupBy { bandOf(it.createdAt) }
+        val bands = listOfNotNull(attention.takeIf { it.isNotEmpty() }?.let { NotifBand("Requires Your Attention", it, 0) }) + order.mapNotNull { key ->
             val rows = grouped[key].orEmpty()
             if (rows.isEmpty()) null
             else NotifBand(key, rows, rows.count { !it.isRead })
@@ -51,7 +54,9 @@ class NotificationsRepository(private val api: ApiService) {
             type      = typeOf(m["type"] as? String),
             severity  = severityOf(m["severity"] as? String),
             title     = (m["title"] as? String).orEmpty().ifBlank { "Notification" },
-            subtitle  = (m["subtitle"] as? String).orEmpty(),
+            subtitle  = if ((m["type"] as? String) == "attention")
+                listOf(m["subtitle"] as? String, m["body"] as? String).filterNot { it.isNullOrBlank() }.joinToString(" · ")
+            else (m["subtitle"] as? String).orEmpty(),
             cta       = (m["cta"] as? String).orEmpty().ifBlank { "Open" },
             link      = (m["link"] as? String).orEmpty(),
             createdAt = createdAt,
@@ -73,6 +78,7 @@ class NotificationsRepository(private val api: ApiService) {
         "message"     -> NotifType.MESSAGE
         "document"    -> NotifType.DOCUMENT
         "chamber"     -> NotifType.CHAMBER
+        "attention"   -> NotifType.ATTENTION
         else          -> NotifType.GENERAL
     }
 

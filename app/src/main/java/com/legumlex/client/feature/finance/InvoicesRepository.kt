@@ -22,32 +22,6 @@ class InvoicesRepository(private val api: ApiService) {
             ?: error("Invoice not found")
         parseDetail(data)
     }
-
-    /**
-     * Open a Razorpay order for the outstanding balance. Returns the SDK
-     * config the screen hands to openRazorpayCheckout. Throws if the invoice
-     * is already paid / cancelled / has no balance.
-     */
-    suspend fun startPayment(invoiceId: String, amountRupees: String? = null): Result<RazorpayOptions> = runCatching {
-        val response = api.startInvoicePayment(invoiceId, amountRupees?.takeIf { it.isNotBlank() })
-        @Suppress("UNCHECKED_CAST")
-        val data = response["data"] as? Map<String, Any?>
-            ?: error(response["message"]?.toString() ?: "Could not start payment")
-        com.legumlex.client.feature.payment.razorpayOptionsFrom(data, "Invoice payment")
-    }
-
-    /** Verify after the SDK reports success. Throws on signature failure. */
-    suspend fun verifyPayment(
-        invoiceId: String,
-        orderId: String,
-        paymentId: String,
-        signature: String,
-    ): Result<Unit> = runCatching {
-        val response = api.verifyInvoicePayment(invoiceId, orderId, paymentId, signature)
-        val ok = response["status"]?.toString()?.toBooleanStrictOrNull() == true
-        if (!ok) error(response["message"]?.toString() ?: "Payment verification failed")
-        Unit
-    }
 }
 
 private fun parseInvoice(m: Map<String, Any?>): Invoice {

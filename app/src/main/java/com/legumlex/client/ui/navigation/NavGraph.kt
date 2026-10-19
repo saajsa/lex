@@ -206,6 +206,10 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpen = { n ->
                     // A firm announcement is read where it stands (tapping marks it read).
                     if (n.link.isBlank() && n.type == com.legumlex.client.feature.notifications.NotifType.GENERAL) return@NotificationsScreen
+                    // A matter waiting on the client opens itself.
+                    n.link.removePrefix("consultation/").takeIf { n.link.startsWith("consultation/") }?.let {
+                        navController.navigate(Route.ConsultationDetail.build(it)); return@NotificationsScreen
+                    }
                     // Deep-link by type to the most relevant destination. Exact
                     // record IDs aren't carried on the notification, so we land
                     // on the list/tab the alert belongs to.
@@ -215,6 +219,7 @@ fun LegumNavGraph(navController: NavHostController) {
                         com.legumlex.client.feature.notifications.NotifType.TASK,
                         com.legumlex.client.feature.notifications.NotifType.PROJECT     -> Route.Projects.path
                         com.legumlex.client.feature.notifications.NotifType.HEARING     -> Route.Matters.path
+                        com.legumlex.client.feature.notifications.NotifType.ATTENTION,
                         com.legumlex.client.feature.notifications.NotifType.AHC,
                         com.legumlex.client.feature.notifications.NotifType.APPOINTMENT,
                         com.legumlex.client.feature.notifications.NotifType.DOCREQUEST,

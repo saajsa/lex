@@ -32,7 +32,6 @@ fun AhcFunnelScreen(
     val state by vm.state.collectAsState()
     var showSaveExit by rememberSaveable { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val razorpayResults = com.legumlex.client.feature.payment.LocalRazorpayResults.current
 
     // Bridge ViewModel events
     LaunchedEffect(Unit) {
@@ -42,16 +41,21 @@ fun AhcFunnelScreen(
                     onResultReady(state.session?.consultationId)
                 AhcFunnelViewModel.Event.NavigateToHome -> onExit()
                 is AhcFunnelViewModel.Event.Toast -> { /* handled by host snackbar if needed */ }
-                is AhcFunnelViewModel.Event.LaunchCheckout ->
-                    (context as? android.app.Activity)?.let {
-                        com.legumlex.client.feature.payment.openRazorpayCheckout(it, event.options)
-                    }
+                is AhcFunnelViewModel.Event.OpenUrl -> runCatching {
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(event.url)))
+                }
             }
         }
     }
-    // The checkout answers through the Activity; the view model keeps only
-    // the result for the order it opened.
-    LaunchedEffect(vm) { razorpayResults.collect { vm.handlePaymentResult(it) } }
+    // The fee is paid on the website: look again on coming back.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.checkPaid()
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
 
     // Start a session once when the host launched us at the empty state. A
     // failed start shows its error with Try Again; it is not retried forever.

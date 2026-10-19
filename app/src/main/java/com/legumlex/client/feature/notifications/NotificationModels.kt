@@ -9,7 +9,9 @@ enum class NotifSeverity { CRITICAL, WARNING, INFO, POSITIVE }
 /** Notification kind — selects the leading icon and the deep-link target. */
 enum class NotifType {
     HEARING, INVOICE, PAYMENT, AHC, DOCREQUEST, SIGNATURE,
-    APPOINTMENT, TASK, PROJECT, MESSAGE, DOCUMENT, CHAMBER, GENERAL
+    APPOINTMENT, TASK, PROJECT, MESSAGE, DOCUMENT, CHAMBER, GENERAL,
+    /** An enquiry or Agreement Check whose next step is the client's (the portal drawer's "Requires Your Attention"). */
+    ATTENTION
 }
 
 /** One presentation-ready notification (shaped by the customers_api backend). */

@@ -2,8 +2,6 @@ package com.legumlex.client.feature.healthchecks.funnel
 
 import com.legumlex.client.data.api.ApiService
 import com.legumlex.client.feature.consultations.RiskLevel
-import com.legumlex.client.feature.payment.RazorpayOptions
-import com.legumlex.client.feature.payment.razorpayOptionsFrom
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -46,18 +44,14 @@ class AhcFunnelRepository(private val api: ApiService) {
             ?: error("Server returned an empty session")
     }
 
-    /** The session, and the checkout to open when the check has a fee. */
-    suspend fun payInit(): Result<Pair<AhcFunnelSession, RazorpayOptions?>> = runCatching {
+    /** The session, and the fee's invoice to pay on the website when the check has a fee. */
+    suspend fun payInit(): Result<Pair<AhcFunnelSession, String?>> = runCatching {
         val response = api.ahcPayInit()
         val session = parse(response) ?: error("Server returned an empty session")
         @Suppress("UNCHECKED_CAST")
-        val checkout = ((response["data"] as? Map<String, Any?>)?.get("checkout") as? Map<String, Any?>)
-            ?.let { razorpayOptionsFrom(it, "Agreement Check") }
-        session to checkout
-    }
-
-    suspend fun payVerify(orderId: String, paymentId: String, signature: String): Result<AhcFunnelSession> = runCatching {
-        parse(api.ahcPayVerify(orderId, paymentId, signature)) ?: error("Server returned an empty session")
+        val url = (((response["data"] as? Map<String, Any?>)?.get("invoice") as? Map<String, Any?>)?.get("pay_url") as? String)
+            ?.takeIf { it.isNotBlank() }
+        session to url
     }
 
     suspend fun status(): Result<AhcFunnelSession?> = runCatching { parse(api.ahcStatus()) }

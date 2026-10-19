@@ -400,7 +400,8 @@ private fun PreFilledPill() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Step 4 · Payment — the site's fee (tblfunnel_modules), through Razorpay
+// Step 4 · Payment — the site's fee (tblfunnel_modules), as an invoice paid
+// on the website
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -420,11 +421,21 @@ fun StepPaymentScreen(
         onSaveAndExit = onSaveAndExit,
         action = if (price > 0) {
             {
-                FunnelPrimaryButton(
-                    label = if (state.paying) "Opening the Payment…" else "Pay ${com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00")}",
-                    onClick = { vm.startPayment() },
-                    enabled = !state.paying,
-                )
+                Column {
+                    FunnelPrimaryButton(
+                        label = when {
+                            state.paying      -> "Opening the Invoice…"
+                            state.invoiceOpen -> "Open the Invoice Again"
+                            else              -> "Pay ${com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00")} on the Website"
+                        },
+                        onClick = { vm.startPayment() },
+                        enabled = !state.paying,
+                    )
+                    if (state.invoiceOpen) {
+                        Spacer(Modifier.height(8.dp))
+                        FunnelSecondaryButton(label = "I Have Paid", onClick = { vm.checkPaid(asked = true) })
+                    }
+                }
             }
         } else null,
     ) {
@@ -445,14 +456,14 @@ fun StepPaymentScreen(
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "The fee covers an advocate's review of your agreement and the written report. Your document goes to the advocate once the payment is confirmed.",
+                            "The fee covers an advocate's review of your agreement and the written report. It is an invoice from the firm, paid on the website; your document goes to the advocate once the payment is confirmed.",
                             color = SecondaryText, style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Payments are taken by Razorpay. You can save and pay later; your agreement stays here.",
+                    "The invoice opens in your browser and is paid through Razorpay. You can save and pay later; your agreement stays here.",
                     color = TertiaryText, style = MaterialTheme.typography.bodySmall,
                 )
             } else {

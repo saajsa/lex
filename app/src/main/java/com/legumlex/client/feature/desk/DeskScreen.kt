@@ -148,16 +148,23 @@ fun DeskScreen(
     val ui by vm.ui.collectAsState()
     var tracking by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val razorpayResults = com.legumlex.client.feature.payment.LocalRazorpayResults.current
-    LaunchedEffect(vm) { razorpayResults.collect { vm.handlePaymentResult(it) } }
+    // The fee is paid on the website: look again on coming back.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.resumed()
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
 
     LaunchedEffect(vm) {
         vm.events.collect { e ->
             when (e) {
                 DeskEvent.OpenMatters -> onOpenMatters()
                 is DeskEvent.OpenConsultation -> onOpenConsultation(e.id)
-                is DeskEvent.LaunchCheckout -> (context as? android.app.Activity)?.let {
-                    com.legumlex.client.feature.payment.openRazorpayCheckout(it, e.options)
+                is DeskEvent.OpenUrl -> runCatching {
+                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(e.url)))
                 }
             }
         }

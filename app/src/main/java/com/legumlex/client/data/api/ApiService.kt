@@ -464,15 +464,6 @@ interface ApiService {
     @POST("ahc/pay/init")
     suspend fun ahcPayInit(): Map<String, Any?>
 
-    /** The Agreement Check fee, paid: verified the site's way, then sent to the advocate. */
-    @FormUrlEncoded
-    @POST("ahc/pay/verify")
-    suspend fun ahcPayVerify(
-        @Field("razorpay_order_id") orderId: String,
-        @Field("razorpay_payment_id") paymentId: String,
-        @Field("razorpay_signature") signature: String,
-    ): Map<String, Any?>
-
     @GET("ahc/status")
     suspend fun ahcStatus(): Map<String, Any?>
 
@@ -483,33 +474,6 @@ interface ApiService {
 
     @GET("invoices")
     suspend fun invoices(@Query("id") id: String? = null): Map<String, Any?>
-
-    /**
-     * Open a Razorpay order for an invoice and return the SDK config (order_id,
-     * amount_paise, key_id, prefill, …). Server stamps order_id on invoice.token
-     * for verifier reuse. [amount] (rupees) requests a partial payment; when
-     * null/blank the server bills the full outstanding balance.
-     */
-    @FormUrlEncoded
-    @POST("invoices/{id}/pay")
-    suspend fun startInvoicePayment(
-        @Path("id") invoiceId: String,
-        @Field("amount") amount: String? = null,
-    ): Map<String, Any?>
-
-    /**
-     * Verify a Razorpay payment and record it against the invoice. Returns
-     * already_recorded=true on duplicate callbacks once the token has been
-     * cleared, so the app can treat that as success.
-     */
-    @FormUrlEncoded
-    @POST("invoices/{id}/pay/verify")
-    suspend fun verifyInvoicePayment(
-        @Path("id") invoiceId: String,
-        @Field("razorpay_order_id")   orderId:   String,
-        @Field("razorpay_payment_id") paymentId: String,
-        @Field("razorpay_signature")  signature: String,
-    ): Map<String, Any?>
 
     // --- Documents ---
 
@@ -632,20 +596,10 @@ interface ApiService {
     @POST("desk/enquiry")
     suspend fun deskEnquiry(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
 
-    /** The fee for a written enquiry (Funnel_orchestrator::create_payment): {is_free, step, consultation_id} or the checkout block. */
+    /** The fee for a written enquiry, as an invoice paid on its public page: {invoice_id, pay_url, total}; or {is_free | already_processed, step, consultation_id}. */
     @FormUrlEncoded
     @POST("desk/pay")
     suspend fun deskPay(@Field("session_hash") sessionHash: String): Map<String, Any?>
-
-    /** {step, consultation_id}: the enquiry is with the advocates once the payment is confirmed. */
-    @FormUrlEncoded
-    @POST("desk/pay/verify")
-    suspend fun deskPayVerify(
-        @Field("session_hash") sessionHash: String,
-        @Field("razorpay_order_id") orderId: String,
-        @Field("razorpay_payment_id") paymentId: String,
-        @Field("razorpay_signature") signature: String,
-    ): Map<String, Any?>
 
     /** An unpaid enquiry set aside (Funnel_orchestrator::discard_unpaid). */
     @FormUrlEncoded

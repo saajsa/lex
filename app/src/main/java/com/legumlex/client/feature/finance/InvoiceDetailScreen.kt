@@ -133,23 +133,14 @@ fun InvoiceDetailScreen(invoiceId: String, onBack: () -> Unit) {
     )
     val state by vm.state.collectAsState()
     val snack = remember { SnackbarHostState() }
-    val razorpayResults = com.legumlex.client.feature.payment.LocalRazorpayResults.current
-
-    LaunchedEffect(vm) {
-        vm.events.collect { ev ->
-            when (ev) {
-                is InvoicePaymentEvent.Failed         -> snack.showSnackbar(ev.message)
-                is InvoicePaymentEvent.Info           -> snack.showSnackbar(ev.message)
-                is InvoicePaymentEvent.LaunchCheckout -> {
-                    (context as? android.app.Activity)?.let {
-                        com.legumlex.client.feature.payment.openRazorpayCheckout(it, ev.options)
-                    }
-                }
-            }
+    // Paid on the website: read again on coming back to the app.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.refresh()
         }
-    }
-    LaunchedEffect(vm) {
-        razorpayResults.collect { vm.handlePaymentResult(it) }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
     Scaffold(
@@ -161,11 +152,7 @@ fun InvoiceDetailScreen(invoiceId: String, onBack: () -> Unit) {
             when (val s = state) {
                 is InvoiceDetailUiState.Loading -> Skeleton()
                 is InvoiceDetailUiState.Error   -> ErrorView(s.message, vm::load)
-                is InvoiceDetailUiState.Ready   -> Sheet(
-                    state          = s,
-                    onPay          = vm::startPayment,
-                    onAmountChange = vm::onAmountChange,
-                )
+                is InvoiceDetailUiState.Ready   -> Sheet(state = s)
             }
         }
     }
@@ -178,8 +165,6 @@ fun InvoiceDetailScreen(invoiceId: String, onBack: () -> Unit) {
 @Composable
 private fun Sheet(
     state: InvoiceDetailUiState.Ready,
-    onPay: () -> Unit,
-    onAmountChange: (String) -> Unit,
 ) {
     val detail = state.detail
     val inv = detail.invoice
@@ -200,7 +185,7 @@ private fun Sheet(
                 StatusPill(inv)
                 if (!inv.projectName.isNullOrBlank()) MatterBlock(inv)
                 BalanceHero(detail)
-                ActionStack(state, onPay, onAmountChange)
+                ActionStack(state)
                 AmountSummary(detail)
                 ExpandableBreakdown(detail)
                 FirmFooter(detail.issuer)
@@ -387,11 +372,7 @@ private fun HeroSub(label: String, value: String, valueColor: Color, modifier: M
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ActionStack(
-    state: InvoiceDetailUiState.Ready,
-    onPay: () -> Unit,
-    onAmountChange: (String) -> Unit,
-) {
+private fun ActionStack(state: InvoiceDetailUiState.Ready) {
     val context = LocalContext.current
     val inv = state.detail.invoice
     val sym = inv.currencySymbol
@@ -400,77 +381,27 @@ private fun ActionStack(
 
     Column(Modifier.padding(horizontal = 18.dp).padding(top = 18.dp)) {
         if (payable) {
-            // Editable partial-amount field — prefilled with the full balance.
-            val showErr = state.payAmount.isNotBlank() && !state.amountValid
-            Text("AMOUNT TO PAY", fontFamily = Inter, fontWeight = FontWeight.Bold,
-                fontSize = 8.5.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
-            Spacer(Modifier.height(7.dp))
-            OutlinedTextField(
-                value = state.payAmount,
-                onValueChange = onAmountChange,
-                singleLine = true,
-                isError = showErr,
-                enabled = !state.paying,
-                leadingIcon = {
-                    Text(sym, fontFamily = Inter, fontWeight = FontWeight.Medium,
-                        fontSize = 16.sp, color = LlColor.InkMuted)
-                },
-                textStyle = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp, color = LlColor.Ink),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = LlColor.Claret,
-                    unfocusedBorderColor = LlColor.Border,
-                    errorBorderColor     = LlColor.ClaretMid,
-                    cursorColor          = LlColor.Claret,
-                    focusedContainerColor   = LlColor.Surface,
-                    unfocusedContainerColor = LlColor.Surface,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                if (showErr) (state.amountError ?: "") else "Min ${formatMoney(1.0, sym)} · balance ${formatMoney(inv.leftToPay, sym)}",
-                fontFamily = Inter, fontSize = 10.5.sp,
-                color = if (showErr) LlColor.ClaretMid else LlColor.InkFaint,
-            )
-            Spacer(Modifier.height(12.dp))
-
-            // Pay button — claret, amount baked in; "partially" when < balance.
-            val amount = state.enteredAmount ?: inv.leftToPay
-            val enabled = !state.paying && state.amountValid
+            // Paid on the invoice's own page on the website, where every bill
+            // of the firm is paid (the app takes no payments itself).
             Surface(
-                onClick = onPay,
-                enabled = enabled,
-                color = if (enabled) LlColor.Claret else LlColor.BorderStrong,
+                onClick = { openPaymentPage(context, inv) },
+                color = LlColor.Claret,
                 contentColor = LlColor.Paper,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                if (state.paying) {
-                    Row(Modifier.padding(15.dp), horizontalArrangement = Arrangement.Center,
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).padding(start = 16.dp, top = 15.dp, bottom = 15.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = LlColor.Paper)
-                        Spacer(Modifier.width(10.dp))
-                        Text("Opening secure checkout…", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp, color = LlColor.Paper)
+                        Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Pay on the Website", fontFamily = Inter, fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
                     }
-                } else {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Row(Modifier.weight(1f).padding(start = 16.dp, top = 15.dp, bottom = 15.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Lock, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (state.isPartial) "Pay partially" else "Pay now",
-                                fontFamily = Inter, fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
-                        }
-                        Box(Modifier.width(LlDimen.HairlineWidth).height(22.dp).background(LlColor.Paper.copy(alpha = 0.22f)))
-                        Text(formatMoney(amount, sym), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp, color = LlColor.Paper,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp))
-                    }
+                    Box(Modifier.width(LlDimen.HairlineWidth).height(22.dp).background(LlColor.Paper.copy(alpha = 0.22f)))
+                    Text(formatMoney(inv.leftToPay, sym), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp, color = LlColor.Paper,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp))
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -478,7 +409,7 @@ private fun ActionStack(
                 verticalAlignment = Alignment.CenterVertically, ) {
                 Icon(Icons.Outlined.Verified, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Secured by Razorpay · in-app checkout", fontFamily = Inter,
+                Text("Opens the invoice in your browser · paid through Razorpay", fontFamily = Inter,
                     fontSize = 9.5.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint)
             }
             Spacer(Modifier.height(11.dp))
@@ -497,8 +428,8 @@ private fun GhostRow(context: android.content.Context, inv: Invoice, settled: Bo
             GhostAction(Icons.Outlined.ReceiptLong, "Receipt", { openPaymentPage(context, inv) }, Modifier.weight(1f))
             GhostAction(Icons.AutoMirrored.Outlined.OpenInNew, "In browser", { openPaymentPage(context, inv) }, Modifier.weight(1f))
         } else {
-            GhostAction(Icons.AutoMirrored.Outlined.OpenInNew, "In browser", { openPaymentPage(context, inv) }, Modifier.weight(1f))
-            GhostAction(Icons.Outlined.Share, "Share link", { sharePaymentLink(context, inv) }, Modifier.weight(1f))
+            // Unpaid: Pay above already opens the page; the link can be passed on.
+            GhostAction(Icons.Outlined.Share, "Share Link", { sharePaymentLink(context, inv) }, Modifier.weight(1f))
         }
     }
 }

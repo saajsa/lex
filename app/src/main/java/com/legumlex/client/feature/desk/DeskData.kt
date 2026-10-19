@@ -1,7 +1,5 @@
 package com.legumlex.client.feature.desk
 
-import com.legumlex.client.feature.payment.RazorpayOptions
-import com.legumlex.client.feature.payment.razorpayOptionsFrom
 import android.content.Context
 import android.net.Uri
 import com.legumlex.client.BuildConfig
@@ -75,8 +73,10 @@ data class DeskReading(
 class DeskFile(val name: String, val size: Long, val mime: String, val bytes: ByteArray)
 
 sealed interface PayStart {
+    /** No fee is due any more, or it has been paid: the enquiry is with the advocates. */
     data class Sent(val consultationId: Int?) : PayStart
-    data class Checkout(val options: RazorpayOptions) : PayStart
+    /** The fee's invoice, to be paid on its public page on the website. */
+    data class Invoice(val url: String) : PayStart
 }
 
 sealed interface Sent {
@@ -219,23 +219,16 @@ class DeskRepository(context: Context) {
     }
 
     /**
-     * The enquiry's fee, the site's way (desk/pay → Funnel_orchestrator::create_payment):
-     * the checkout to open, or — the price having been removed meanwhile — the
-     * enquiry already sent.
+     * The enquiry's fee (desk/pay): an invoice, paid on the website (the app
+     * takes no payments itself); or, the fee paid or removed meanwhile, the
+     * enquiry already sent. Asked again on return from the browser.
      */
     @Suppress("UNCHECKED_CAST")
     suspend fun pay(sessionHash: String): Result<PayStart> = runCatching {
         val d = api.deskPay(sessionHash)["data"] as? Map<String, Any?> ?: error("No answer")
-        if (d["is_free"] == true || d["already_processed"] == true) PayStart.Sent(d["consultation_id"].int().takeIf { it > 0 })
-        else PayStart.Checkout(razorpayOptionsFrom(d, "Legal enquiry"))
-    }.recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "Could not start the payment. Please try again.") }
-
-    /** The consultation it opened, once the payment is confirmed. */
-    @Suppress("UNCHECKED_CAST")
-    suspend fun payVerify(sessionHash: String, orderId: String, paymentId: String, signature: String): Result<Int?> = runCatching {
-        val d = api.deskPayVerify(sessionHash, orderId, paymentId, signature)["data"] as? Map<String, Any?> ?: error("No answer")
-        d["consultation_id"].int().takeIf { it > 0 }
-    }
+        val url = (d["pay_url"] as? String).orEmpty()
+        if (url.isNotBlank()) PayStart.Invoice(url) else PayStart.Sent(d["consultation_id"].int().takeIf { it > 0 })
+    }.recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "The invoice could not be opened. Please try again.") }
 
     suspend fun discard(sessionHash: String): Boolean = runCatching { api.deskDiscard(sessionHash); true }.getOrDefault(false)
 
