@@ -3,6 +3,12 @@ package com.legumlex.client.feature.desk
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -184,7 +190,14 @@ fun DeskScreen(
     LaunchedEffect(focusTick) { if (focusTick > 0) { delay(80); runCatching { compose.requestFocus() } } }
 
     val typing = WindowInsets.isImeVisible
-    Column(Modifier.fillMaxSize().background(D.Page).imePadding()) {
+    var services by remember { mutableStateOf(false) }
+    // The drawer must not hand focus back to the question box as it leaves,
+    // or the keyboard springs up under the client's thumb.
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val showServices: (Boolean) -> Unit = { focusManager.clearFocus(force = true); services = it }
+    androidx.activity.compose.BackHandler(enabled = services) { showServices(false) }
+    Box(Modifier.fillMaxSize().background(D.Page)) {
+    Column(Modifier.fillMaxSize().imePadding()) {
         Head(onClose)
         if (!ui.opened) {
             // The intro scrolls; the composer stays docked above the keyboard,
@@ -206,9 +219,10 @@ fun DeskScreen(
                 }
             }
             if (ui.termsLoaded) Disclaimer(ui.terms, compact = typing)
+            // The services wait below a handle: swipe it up (or tap) to reveal them.
             if (!typing) {
-                Services(onAgreement) { tracking = true }
-                Foot(ui.terms.firm)
+                Spacer(Modifier.weight(1f, fill = true))
+                ServicesHandle { showServices(true) }
             }
         } else {
             Conversation(ui, vm::change, Modifier.weight(1f))
@@ -226,6 +240,14 @@ fun DeskScreen(
             }
             if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         }
+    }
+    ServicesDrawer(
+        open = services && !ui.opened,
+        firm = ui.terms.firm,
+        onClose = { showServices(false) },
+        onReview = { showServices(false); onAgreement() },
+        onTrack = { showServices(false); tracking = true },
+    )
     }
 
     if (tracking) TrackSheet(onDismiss = { tracking = false })
@@ -345,29 +367,90 @@ private fun Disclaimer(t: DeskTerms, compact: Boolean = false) {
     )
 }
 
+/** The services' handle at the foot of the desk: swipe up, or tap, to reveal them. */
 @Composable
-private fun Services(onAgreement: () -> Unit, onTrack: () -> Unit) {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(D.Line))
-    Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
-        Kicker("services")
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Service(Icons.Outlined.Description, "Have an agreement read", "Counsel reads it for risk, before you sign.", onAgreement, Modifier.weight(1f).fillMaxHeight())
-            Service(Icons.Outlined.LocalShipping, "Track a notice", "Where it has reached, from its reference.", onTrack, Modifier.weight(1f).fillMaxHeight())
+private fun ServicesHandle(onOpen: () -> Unit) {
+    var pulled by remember { mutableStateOf(0f) }
+    Column(
+        Modifier.fillMaxWidth()
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { pulled = 0f },
+                    onVerticalDrag = { _, dy -> pulled += dy; if (pulled < -24.dp.toPx()) { pulled = 0f; onOpen() } },
+                )
+            }
+            .clickable(onClick = onOpen)
+            .padding(top = 8.dp, bottom = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(D.Line2))
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.KeyboardArrowUp, null, tint = D.Muted, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Services", style = TextStyle(fontFamily = Mono, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = D.Muted))
         }
     }
 }
 
+/** The services, revealed from the foot: swipe down, tap outside or go back to close. */
 @Composable
-private fun Service(icon: ImageVector, title: String, sub: String, onClick: () -> Unit, modifier: Modifier) {
-    Column(
-        modifier.clip(RoundedCornerShape(14.dp)).border(1.dp, D.Line2, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(14.dp),
+private fun BoxScope.ServicesDrawer(open: Boolean, firm: String, onClose: () -> Unit, onReview: () -> Unit, onTrack: () -> Unit) {
+    androidx.compose.animation.AnimatedVisibility(open, enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut()) {
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)).clickable(
+            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onClose))
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        open,
+        enter = androidx.compose.animation.slideInVertically(tween(260)) { it },
+        exit = androidx.compose.animation.slideOutVertically(tween(220)) { it },
+        modifier = Modifier.align(Alignment.BottomCenter),
     ) {
-        Icon(icon, null, tint = D.Gold, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(8.dp))
-        Text(title, style = body(14.5f, weight = FontWeight.SemiBold).copy(lineHeight = 19.sp))
-        Spacer(Modifier.height(2.dp))
-        Text(sub, style = body(12f, D.Muted).copy(lineHeight = 16.sp))
+        var pulled by remember { mutableStateOf(0f) }
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .background(D.Raise)
+                .border(1.dp, D.Line2, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragStart = { pulled = 0f },
+                        onVerticalDrag = { _, dy -> pulled += dy; if (pulled > 32.dp.toPx()) { pulled = 0f; onClose() } },
+                    )
+                }
+                .navigationBarsPadding(),
+        ) {
+            Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.width(36.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(D.Line2))
+            }
+            Kicker("services", Modifier.padding(start = 18.dp, top = 14.dp, bottom = 6.dp))
+            Service(Icons.Outlined.Description, "Review", "An advocate reads your agreement for risk, before you sign it.", onReview)
+            Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(1.dp).background(D.Line))
+            Service(Icons.Outlined.LocalShipping, "Track", "Follow a legal notice sent for you, from its postal reference.", onTrack)
+            Spacer(Modifier.height(6.dp))
+            Foot(firm)
+        }
+    }
+}
+
+/** One service: a single-word name and two lines on what it does. */
+@Composable
+private fun Service(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, D.Line2, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = D.Gold, modifier = Modifier.size(21.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = body(15.5f, weight = FontWeight.SemiBold).copy(lineHeight = 20.sp))
+            Spacer(Modifier.height(2.dp))
+            Text(sub, style = body(12.5f, D.Muted).copy(lineHeight = 17.sp), minLines = 2, maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = D.Muted, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -596,9 +679,22 @@ private fun WaitLine(label: String) {
 /** The composer: what has happened, with a paperclip where files are taken. */
 @Composable
 private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Unit, focus: FocusRequester, ui: DeskUi, attach: (() -> Unit)?, onRemove: (Int) -> Unit, onSend: () -> Unit) {
-    var ex by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { while (true) { delay(3_200); ex = (ex + 1) % EXAMPLES.size } }
     val text = value.text
+    // The examples type themselves into the empty box, letter by letter, and
+    // erase for the next; they stop the moment the client writes.
+    var shown by remember { mutableStateOf("") }
+    LaunchedEffect(text.isEmpty()) {
+        if (text.isNotEmpty()) return@LaunchedEffect
+        var ex = 0
+        while (true) {
+            val line = EXAMPLES[ex]
+            for (i in 1..line.length) { shown = line.take(i); delay(if (line[i - 1] == ' ') 90 else 55) }
+            delay(1_500)
+            for (i in line.length downTo 0) { shown = line.take(i); delay(22) }
+            delay(350)
+            ex = (ex + 1) % EXAMPLES.size
+        }
+    }
     Column {
         FileChips(ui.files, onRemove)
         Column(
@@ -606,7 +702,10 @@ private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Uni
                 .padding(start = 16.dp, end = 10.dp, top = 14.dp, bottom = 10.dp),
         ) {
             Box(Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                if (text.isEmpty()) Text(EXAMPLES[ex], style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
+                if (text.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(shown, style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
+                    Box(Modifier.padding(start = 1.dp).width(2.dp).height(18.dp).background(D.Gold.copy(alpha = 0.7f)))
+                }
                 BasicTextField(
                     value, { if (it.text.length <= ui.terms.maxChars) onValue(it) },
                     textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold),
