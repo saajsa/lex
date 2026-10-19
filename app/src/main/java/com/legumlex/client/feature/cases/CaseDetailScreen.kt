@@ -553,12 +553,10 @@ private fun HearingTimelineRow(h: HearingRow, next: HearingRow?, orders: List<Ca
         "scheduled" -> com.legumlex.client.ui.theme.Lex.colors.blue.solid
         else -> com.legumlex.client.ui.theme.Lex.colors.neutral.solid
     }
+    // The date block stands outside the card on the rail; no time, gap or day.
     com.legumlex.client.ui.components.TimelineEntry(
-        rail = h.time?.format(timeFmt)?.lowercase() ?: "—",
-        railSub = h.date?.format(java.time.format.DateTimeFormatter.ofPattern("EEE")),
-        gapToNext = com.legumlex.client.ui.components.gapLabel(h.date, next?.date),
         isLast = next == null,
-        leading = { com.legumlex.client.ui.components.DateBlock(h.date, muted = past) },
+        railBlock = { com.legumlex.client.ui.components.DateBlock(h.date, muted = past) },
         title = h.purpose?.takeIf { it.isNotBlank() } ?: "Hearing",
         // The court is in the case header; every card repeating it was noise.
         subtitle = null,

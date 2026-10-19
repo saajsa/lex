@@ -1192,7 +1192,7 @@ private fun LiveSessionBanner(
         else                                   -> "is ready"
     }
 
-    Column(modifier = Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF18181B))  /* dark in both themes: its text is white */) {
+    Column(modifier = Modifier.fillMaxWidth().background(com.legumlex.client.ui.theme.DarkLexColors.background)  /* dark in both themes: its text is white */) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

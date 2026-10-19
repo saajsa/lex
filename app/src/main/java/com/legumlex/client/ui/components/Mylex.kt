@@ -186,26 +186,11 @@ fun StatusChip(label: String, palette: StatusPalette, icon: ImageVector? = null)
 /** The colours of one workspace entrance, light and dark, as Mylex sets them. */
 private data class TileLook(val surface: Color, val border: Color, val gate: Color, val dark: Boolean)
 
+// One look for every entrance, from the palette: the card a step off the page,
+// a hairline, ink for the accent (Oct 2026: two hues at most, for status).
 @Composable
-private fun tileLook(ws: Workspace): TileLook {
-    val dark = Lex.colors.isDark
-    return when (ws) {
-        // The Legum Lex desk's own navy and gold, in both themes, as the
-        // desk itself keeps them.
-        Workspace.Consult    -> TileLook(Color(0xFF0B0F17), Color(0xFF26304A), Color(0xFFF3C25E), true)
-        // Black and white: near-black (true black in dark mode), white mark,
-        // and the card takes the dark palette for its text and button.
-        // On the layered dark page the tiles keep Mylex's order — Litigation a
-        // step darker than the page, Projects and Registry tinted — in muted
-        // violet and teal rather than the portal's saturated 950s.
-        Workspace.Litigation -> if (dark) TileLook(Color(0xFF0C0C0E), Color(0xFF3A3A41), Color(0xFFE8E8EB), true)
-                                else TileLook(Color(0xFF09090B), Color(0xFF27272A), Color(0xFFFAFAFA), true)
-        Workspace.Projects   -> if (dark) TileLook(Color(0xFF221D33), Color(0xFF3B3157), Color(0xFFC4B5FD), dark)
-                                else TileLook(Color(0xFFF5F3FF), Color(0xFFDDD6FE), Color(0xFF6D28D9), dark)
-        Workspace.Registry   -> if (dark) TileLook(Color(0xFF16272A), Color(0xFF1F4247), Color(0xFF5EEAD4), dark)
-                                else TileLook(Color(0xFFF0FDFA), Color(0xFF99F6E4), Color(0xFF0F766E), dark)
-    }
-}
+private fun tileLook(@Suppress("UNUSED_PARAMETER") ws: Workspace): TileLook =
+    TileLook(Lex.colors.card, Lex.colors.border, Lex.colors.foreground, false)
 
 /**
  * A workspace's entrance: eyebrow, name, what lives there, Enter, and its
@@ -252,8 +237,8 @@ fun WorkspaceTile(
                     if (offered) {
                         // Consult's button is the desk's gold; the workspaces' the theme's ink.
                         val desk = workspace == Workspace.Consult
-                        val ctaBg = if (desk) look.gate else Lex.colors.primary
-                        val ctaFg = if (desk) Color(0xFF1B1406) else Lex.colors.primaryForeground
+                        val ctaBg = Lex.colors.primary
+                        val ctaFg = Lex.colors.primaryForeground
                         Surface(color = ctaBg, shape = MaterialTheme.shapes.medium) {
                             Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(cta, style = MaterialTheme.typography.labelLarge, color = ctaFg)
@@ -287,10 +272,11 @@ private fun DeskMark(gold: Color, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Box(Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(gold), contentAlignment = Alignment.Center) {
             Text(">_", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold,
-                fontSize = 24.sp, color = Color(0xFF1B1406))
+                fontSize = 24.sp, color = Lex.colors.primaryForeground)
         }
-        Text("AI", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color(0xFF1B1406),
-            modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(5.dp)).background(Color.White).padding(horizontal = 5.dp, vertical = 1.dp))
+        Text("AI", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Lex.colors.foreground,
+            modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(5.dp)).background(Lex.colors.card)
+                .border(1.dp, Lex.colors.border, RoundedCornerShape(5.dp)).padding(horizontal = 5.dp, vertical = 1.dp))
     }
 }
 

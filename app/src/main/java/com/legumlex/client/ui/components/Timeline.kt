@@ -51,11 +51,13 @@ import java.time.temporal.ChronoUnit
  */
 @Composable
 fun TimelineEntry(
-    rail: String,
+    rail: String = "",
     railSub: String? = null,
     gapToNext: String? = null,
     isLast: Boolean,
-    leading: @Composable () -> Unit,
+    leading: (@Composable () -> Unit)? = null,
+    /** In place of the rail's text: a block (a hearing's date) outside the card. */
+    railBlock: (@Composable () -> Unit)? = null,
     title: String,
     subtitle: String? = null,
     status: Pair<String, Color>? = null,
@@ -66,14 +68,19 @@ fun TimelineEntry(
     onClick: () -> Unit,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val accent = Lex.colors.info.solid
+    // Ink, not a hue: the palette keeps colour for status alone.
+    val accent = Lex.colors.foreground
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         // ── Rail ──
-        Column(Modifier.width(66.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(14.dp))
-            Text(rail, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
-                color = if (muted) Lex.colors.mutedForeground else accent, textAlign = TextAlign.Center, maxLines = 1)
-            if (railSub != null) Text(railSub, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, maxLines = 1)
+        Column(Modifier.width(if (railBlock != null) 64.dp else 66.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (railBlock != null) {
+                railBlock()
+            } else {
+                Spacer(Modifier.height(14.dp))
+                Text(rail, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                    color = if (muted) Lex.colors.mutedForeground else accent, textAlign = TextAlign.Center, maxLines = 1)
+                if (railSub != null) Text(railSub, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, maxLines = 1)
+            }
             if (!isLast) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     val line = Lex.colors.input
@@ -101,8 +108,10 @@ fun TimelineEntry(
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                     if (stripe != null) Box(Modifier.width(3.dp).fillMaxHeight().background(stripe))
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                        leading()
-                        Spacer(Modifier.width(12.dp))
+                        if (leading != null) {
+                            leading()
+                            Spacer(Modifier.width(12.dp))
+                        }
                         Column(Modifier.weight(1f)) {
                             // The status on its own line: beside a long title it cut
                             // the title short.
@@ -144,7 +153,7 @@ fun DateBlock(date: LocalDate?, muted: Boolean = false) {
             Text("—", style = MaterialTheme.typography.titleMedium, color = fg)
         } else {
             Text(date.format(DateTimeFormatter.ofPattern("MMM")).uppercase(), fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold,
-                color = Lex.colors.info.solid, letterSpacing = 0.6.sp)
+                color = Lex.colors.mutedForeground, letterSpacing = 0.6.sp)
             Text("${date.dayOfMonth}", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = fg, lineHeight = 21.sp)
             Text("${date.year}", fontSize = 9.sp, color = Lex.colors.mutedForeground)
         }

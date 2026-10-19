@@ -1,5 +1,6 @@
 package com.legumlex.client
 
+import com.legumlex.client.ui.theme.grain
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -138,6 +139,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     Scaffold(
+        // The reference's paper grain, over every screen and both themes.
+        modifier = Modifier.grain(),
         topBar = {
             if (showAppHeader(currentRoute)) {
                 AppHeader(

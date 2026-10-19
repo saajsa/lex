@@ -63,57 +63,56 @@ data class LexColors(
     val neutral: StatusPalette,
 )
 
+/* Warm greys, after the owner's reference (Oct 2026): a pale grey page with
+ * charcoal type in light, a charcoal page with off-white type in dark, cards a
+ * step lighter than the page, hairline rules between. Colour is held to two
+ * muted hues for meaning only (red overdue, green done); waiting, information
+ * and neutral read in grey, by their words. A faint grain lies over both
+ * (Modifier.grain). */
 val LightLexColors = LexColors(
     isDark              = false,
-    background          = Color(0xFFFFFFFF),
-    card                = Color(0xFFFFFFFF),
-    foreground          = Zinc950,
-    secondaryForeground = Zinc700,
-    mutedForeground     = Zinc500,
-    faint               = Zinc400,
-    muted               = Zinc100,
-    secondary           = Zinc100,
-    border              = Color(0xFFECECEE), // between zinc-100 and zinc-200
-    input               = Zinc200,
-    ring                = Zinc400,
-    primary             = Zinc950,
-    primaryForeground   = Color(0xFFFFFFFF),
-    success = StatusPalette(Color(0xFF22C55E), Color(0xFFDCFCE7), Color(0xFF166534)),
-    warning = StatusPalette(Color(0xFFEAB308), Color(0xFFFEF9C3), Color(0xFF854D0E)),
-    info    = StatusPalette(Color(0xFF8B5CF6), Color(0xFFEDE9FE), Color(0xFF5B21B6)),
-    blue    = StatusPalette(Color(0xFF3B82F6), Color(0xFFDBEAFE), Color(0xFF1E40AF)),
-    danger  = StatusPalette(Color(0xFFDC2626), Color(0xFFFEE2E2), Color(0xFF991B1B)),
-    neutral = StatusPalette(Zinc500, Zinc100, Zinc900),
+    background          = Color(0xFFE3E3E1),
+    card                = Color(0xFFEBEBE9),
+    foreground          = Color(0xFF383838),
+    secondaryForeground = Color(0xFF4A4A49),
+    mutedForeground     = Color(0xFF777775),
+    faint               = Color(0xFFA2A29F),
+    muted               = Color(0xFFD9D9D6),
+    secondary           = Color(0xFFD5D5D2),
+    border              = Color(0xFFCACAC7),
+    input               = Color(0xFFBBBBB8),
+    ring                = Color(0xFF959592),
+    primary             = Color(0xFF383838),
+    primaryForeground   = Color(0xFFEDEDEB),
+    success = StatusPalette(Color(0xFF55785D), Color(0xFFD3DCD4), Color(0xFF3D5A44)),
+    warning = StatusPalette(Color(0xFF5E5E5C), Color(0xFFD5D5D2), Color(0xFF383838)),
+    info    = StatusPalette(Color(0xFF5E5E5C), Color(0xFFD5D5D2), Color(0xFF383838)),
+    blue    = StatusPalette(Color(0xFF5E5E5C), Color(0xFFD5D5D2), Color(0xFF383838)),
+    danger  = StatusPalette(Color(0xFFA9483F), Color(0xFFE6D3D0), Color(0xFF86352D)),
+    neutral = StatusPalette(Color(0xFF777775), Color(0xFFD5D5D2), Color(0xFF383838)),
 )
 
-// Dark: layered, not inverted. Mylex's own dark (zinc-950 page and cards,
-// white text, a white primary button) read on a phone as a negative of the
-// light theme. Here the page is charcoal and each surface above it a step
-// lighter, so depth is carried by tone, as light mode carries it by hairline:
-//   page #141417 · card #1C1C20 · inset #232328 · chip/track #2A2A30
-// Text is off-white rather than white, the primary button a soft light grey,
-// and the status colours are 400-shade text on a faint tint of their own hue.
 val DarkLexColors = LexColors(
     isDark              = true,
-    background          = Color(0xFF141417),
-    card                = Color(0xFF1C1C20),
-    foreground          = Color(0xFFE8E8EB),
-    secondaryForeground = Color(0xFFC2C2C8),
-    mutedForeground     = Color(0xFF8E8E96),
-    faint               = Color(0xFF63636B),
-    muted               = Color(0xFF232328),
-    secondary           = Color(0xFF2A2A30),
-    border              = Color(0xFF2C2C32),
-    input               = Color(0xFF3A3A41),
-    ring                = Color(0xFF52525B),
-    primary             = Color(0xFFE4E4E7),
-    primaryForeground   = Color(0xFF18181B),
-    success = StatusPalette(Color(0xFF22C55E), Color(0x2922C55E), Color(0xFF4ADE80)),
-    warning = StatusPalette(Color(0xFFEAB308), Color(0x29EAB308), Color(0xFFFACC15)),
-    info    = StatusPalette(Color(0xFF8B5CF6), Color(0x298B5CF6), Color(0xFFA78BFA)),
-    blue    = StatusPalette(Color(0xFF3B82F6), Color(0x293B82F6), Color(0xFF60A5FA)),
-    danger  = StatusPalette(Color(0xFFEF4444), Color(0x29EF4444), Color(0xFFF87171)),
-    neutral = StatusPalette(Color(0xFF8E8E96), Color(0xFF2A2A30), Color(0xFFD4D4D8)),
+    background          = Color(0xFF3A3A3A),
+    card                = Color(0xFF424242),
+    foreground          = Color(0xFFE4E4E2),
+    secondaryForeground = Color(0xFFCDCDCB),
+    mutedForeground     = Color(0xFF9E9E9C),
+    faint               = Color(0xFF7B7B79),
+    muted               = Color(0xFF474747),
+    secondary           = Color(0xFF4B4B4B),
+    border              = Color(0xFF535353),
+    input               = Color(0xFF606060),
+    ring                = Color(0xFF7B7B79),
+    primary             = Color(0xFFE4E4E2),
+    primaryForeground   = Color(0xFF383838),
+    success = StatusPalette(Color(0xFF86A88E), Color(0xFF485449), Color(0xFFADC9B3)),
+    warning = StatusPalette(Color(0xFFB2B2B0), Color(0xFF4B4B4B), Color(0xFFE4E4E2)),
+    info    = StatusPalette(Color(0xFFB2B2B0), Color(0xFF4B4B4B), Color(0xFFE4E4E2)),
+    blue    = StatusPalette(Color(0xFFB2B2B0), Color(0xFF4B4B4B), Color(0xFFE4E4E2)),
+    danger  = StatusPalette(Color(0xFFD27268), Color(0xFF574341), Color(0xFFE59C93)),
+    neutral = StatusPalette(Color(0xFF9E9E9C), Color(0xFF4B4B4B), Color(0xFFE4E4E2)),
 )
 
 val LocalLexColors = staticCompositionLocalOf { LightLexColors }
