@@ -57,51 +57,34 @@ import com.legumlex.client.ui.theme.Lex
  *  workspace entrances (swiped, not stacked), and the consultations' four figures.
  * ========================================================================== */
 
-/**
- * "MONDAY, 19 OCTOBER 2026" over "Good afternoon, Saaj", and Consult: the
- * Legum Lex desk, as the site's masthead button opens it (with its "AI" tag).
- * Having an agreement read is one of the desk's services, as on the site.
- */
+/** "MONDAY, 19 OCTOBER 2026" over "Good afternoon, Saaj". */
 @Composable
-internal fun HomeHeader(
-    dateLabel: String,
-    greeting: String,
-    onConsult: () -> Unit,
-) {
+internal fun HomeHeader(dateLabel: String, greeting: String) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Eyebrow(dateLabel)
         Spacer(Modifier.height(4.dp))
         Text(greeting, style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(14.dp))
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(MaterialTheme.shapes.medium).background(Lex.colors.primary)
-                .clickable(onClick = onConsult).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(Icons.Outlined.Forum, null, tint = Lex.colors.primaryForeground, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Text("Consult", style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp), color = Lex.colors.primaryForeground)
-            Spacer(Modifier.width(8.dp))
-            Text("AI", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color(0xFF1B1406),
-                modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Color(0xFFF3C25E)).padding(horizontal = 6.dp, vertical = 2.dp))
-        }
     }
 }
 
 /**
- * The three entrances: Litigation (dark), Projects (violet), Registry (teal),
+ * The entrances: Consult (the desk), Litigation (dark), Projects (violet), Registry (teal),
  * swiped through one at a time rather than stacked, with the next card's edge
  * showing so it is plain there is more, and dots under them.
  */
 @Composable
 internal fun WorkspaceEntrances(
     ws: Workspaces,
+    onConsult: () -> Unit,
     onLitigation: () -> Unit,
     onProjects: () -> Unit,
     onRegistry: () -> Unit,
 ) {
     val tiles = listOf(
+        // Consult first: the Legum Lex desk, where anything new begins.
+        Entrance(Workspace.Consult, "Consult", "Ask the advocates",
+            "A new question, an agreement to read, or a notice to track.", onConsult, cta = "Ask"),
         Entrance(Workspace.Litigation, "Litigation", "Your matter, your cases with us",
             "Your matters before a court — hearings, orders and notices.", if ("litigation" in ws.offered) onLitigation else null),
         Entrance(Workspace.Projects, "Projects", "Your work with us",
@@ -119,8 +102,7 @@ internal fun WorkspaceEntrances(
             verticalAlignment = Alignment.Top,
         ) { i ->
             val t = tiles[i]
-            WorkspaceTile(t.workspace, t.title, t.description, onEnter = t.onEnter, eyebrow = t.eyebrow,
-                modifier = Modifier.heightIn(min = 158.dp))
+            WorkspaceTile(t.workspace, t.title, t.description, onEnter = t.onEnter, eyebrow = t.eyebrow, cta = t.cta)
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -138,7 +120,7 @@ internal fun WorkspaceEntrances(
     }
 }
 
-private data class Entrance(val workspace: Workspace, val title: String, val eyebrow: String, val description: String, val onEnter: (() -> Unit)?)
+private data class Entrance(val workspace: Workspace, val title: String, val eyebrow: String, val description: String, val onEnter: (() -> Unit)?, val cta: String = "Enter")
 
 /** Consultations · Awaiting An Answer · Resolved · Written Reports. */
 @Composable

@@ -133,14 +133,6 @@ private val Mono = FontFamily.Monospace
 private fun body(size: Float = 14.5f, color: Color = D.Ink, weight: FontWeight = FontWeight.Normal) =
     TextStyle(fontFamily = Inter, fontSize = size.sp, lineHeight = (size * 1.55f).sp, color = color, fontWeight = weight)
 
-/** Where to start, by who is asking (desk_panel's topics): title → what it puts in the composer. */
-private val STARTERS = mapOf(
-    "business" to listOf("A supplier" to "Our supplier has ", "Money owed" to "A customer owes us ", "A notice" to "We have received a notice "),
-    "individual" to listOf("Property" to "My land case has ", "A cheque" to "A cheque given to me has bounced. ", "Family" to "In my family matter, "),
-    "nri" to listOf("The family house" to "Our family house in India ", "A parent's estate" to "After my father passed away, ", "A case back home" to "There is a case going on in India about "),
-    "general" to listOf("A cheque" to "A cheque given to me has bounced. ", "Property" to "My property ", "A business dispute" to "Our business "),
-)
-
 private val EXAMPLES = listOf("A cheque I got bounced…", "My tenant owes me rent…", "I got a legal notice…",
     "I want to set up a firm…", "My boss has not paid me…", "Someone took my land…")
 
@@ -184,11 +176,13 @@ fun DeskScreen(
         if (!ui.opened) {
             // The intro scrolls; the composer stays docked above the keyboard,
             // as the drawer docks it, and the services step aside while typing.
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                Intro(ui.terms.context?.entity.orEmpty(), put)
+            // Takes only the room it needs, so the composer follows the steps
+            // rather than sinking to the bottom of an empty page.
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Intro()
                 Spacer(Modifier.height(18.dp))
                 Process()
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(22.dp))
             }
             Box(Modifier.padding(horizontal = 14.dp)) {
                 if (ui.termsLoaded && !ui.terms.isActive) {
@@ -275,27 +269,11 @@ private fun Kicker(s: String, modifier: Modifier = Modifier) =
 // ---- Before the first question --------------------------------------------------
 
 @Composable
-private fun Intro(entity: String, onStart: (String) -> Unit) {
+private fun Intro() {
     Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 22.dp)) {
         Text("What has happened?", style = body(25f, weight = FontWeight.SemiBold).copy(lineHeight = 30.sp, letterSpacing = (-0.4).sp))
         Spacer(Modifier.height(8.dp))
         Text("In your own words: what happened, who is involved, and what you would like counsel to do.", style = body(14.5f, D.Ink.copy(alpha = 0.7f)))
-        Spacer(Modifier.height(18.dp))
-        Kicker("start with")
-        Spacer(Modifier.height(10.dp))
-        (STARTERS[entity.ifBlank { "general" }] ?: STARTERS.getValue("general")).forEach { (title, put) ->
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, D.Line2, RoundedCornerShape(14.dp))
-                    .clickable { onStart(put) }.padding(horizontal = 16.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = body(15f, weight = FontWeight.SemiBold).copy(lineHeight = 20.sp))
-                    Text(put.trim() + "…", style = body(13.5f, D.Muted).copy(lineHeight = 19.sp))
-                }
-                Icon(Icons.Outlined.NorthEast, null, tint = D.Muted, modifier = Modifier.size(18.dp))
-            }
-        }
     }
 }
 

@@ -324,7 +324,6 @@ private fun HomeContent(
             HomeHeader(
                 dateLabel        = todayDateLabel(),
                 greeting         = "${greetingForNow()}, ${data.firstName.ifBlank { "there" }}",
-                onConsult        = onAskNew,
             )
 
             Column(
@@ -337,6 +336,7 @@ private fun HomeContent(
                 // top of Mylex's home.
                 WorkspaceEntrances(
                     ws           = data.workspaces,
+                    onConsult    = onAskNew,
                     onLitigation = onOpenLitigation,
                     onProjects   = onOpenProjects,
                     onRegistry   = onOpenRegistry,

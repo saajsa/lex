@@ -24,7 +24,7 @@ import androidx.compose.ui.graphics.vector.PathParser
  *  (the card behind, filling shapes that must hide what is under them).
  * ========================================================================== */
 
-enum class Workspace { Litigation, Projects, Registry }
+enum class Workspace { Consult, Litigation, Projects, Registry }
 
 private data class Rot(val deg: Float, val x: Float, val y: Float)
 
@@ -41,6 +41,7 @@ private class GateOp(
 @Composable
 fun GateArt(workspace: Workspace, ink: Color, surface: Color, modifier: Modifier = Modifier) {
     val ops = when (workspace) {
+        Workspace.Consult    -> return   // the desk's ">_" mark is drawn by the tile
         Workspace.Litigation -> LitigationOps
         Workspace.Projects   -> ProjectsOps
         Workspace.Registry   -> RegistryOps

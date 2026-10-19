@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material3.HorizontalDivider
@@ -189,6 +190,9 @@ private data class TileLook(val surface: Color, val border: Color, val gate: Col
 private fun tileLook(ws: Workspace): TileLook {
     val dark = Lex.colors.isDark
     return when (ws) {
+        // The Legum Lex desk's own navy and gold, in both themes, as the
+        // desk itself keeps them.
+        Workspace.Consult    -> TileLook(Color(0xFF0B0F17), Color(0xFF26304A), Color(0xFFF3C25E), true)
         // Black and white: near-black (true black in dark mode), white mark,
         // and the card takes the dark palette for its text and button.
         // On the layered dark page the tiles keep Mylex's order — Litigation a
@@ -217,6 +221,7 @@ fun WorkspaceTile(
     modifier: Modifier = Modifier,
     emptyNote: String = "Nothing here yet.",
     eyebrow: String = "Your Work With Us",
+    cta: String = "Enter",
 ) {
     val look = tileLook(workspace)
     val offered = onEnter != null
@@ -225,6 +230,8 @@ fun WorkspaceTile(
         Box(
             modifier
                 .fillMaxWidth()
+                // Every entrance the same height, whatever its words.
+                .height(WorkspaceTileHeight)
                 .clip(MaterialTheme.shapes.large)
                 .background(look.surface)
                 .border(1.dp, if (offered) look.border else Lex.colors.input, MaterialTheme.shapes.large)
@@ -232,20 +239,25 @@ fun WorkspaceTile(
         ) {
             // The accent runs the head of the card.
             Box(Modifier.width(72.dp).height(3.dp).background(if (offered) look.gate else look.gate.copy(alpha = 0.45f)))
-            Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxSize().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Eyebrow(eyebrow)
                     Spacer(Modifier.height(6.dp))
                     Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground)
                     Spacer(Modifier.height(4.dp))
-                    Text(description, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
+                    Text(description, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Spacer(Modifier.height(12.dp))
                     if (offered) {
-                        Surface(color = Lex.colors.primary, shape = MaterialTheme.shapes.medium) {
+                        // Consult's button is the desk's gold; the workspaces' the theme's ink.
+                        val desk = workspace == Workspace.Consult
+                        val ctaBg = if (desk) look.gate else Lex.colors.primary
+                        val ctaFg = if (desk) Color(0xFF1B1406) else Lex.colors.primaryForeground
+                        Surface(color = ctaBg, shape = MaterialTheme.shapes.medium) {
                             Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("Enter", style = MaterialTheme.typography.labelLarge, color = Lex.colors.primaryForeground)
+                                Text(cta, style = MaterialTheme.typography.labelLarge, color = ctaFg)
                                 Spacer(Modifier.width(6.dp))
-                                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Lex.colors.primaryForeground, modifier = Modifier.size(14.dp))
+                                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = ctaFg, modifier = Modifier.size(14.dp))
                             }
                         }
                     } else {
@@ -253,7 +265,8 @@ fun WorkspaceTile(
                     }
                 }
                 Spacer(Modifier.width(12.dp))
-                GateArt(
+                if (workspace == Workspace.Consult) DeskMark(look.gate, Modifier.size(width = 78.dp, height = 89.dp))
+                else GateArt(
                     workspace = workspace,
                     ink = if (offered) look.gate else Lex.colors.mutedForeground,
                     surface = look.surface,
@@ -261,6 +274,22 @@ fun WorkspaceTile(
                 )
             }
         }
+    }
+}
+
+/** The height every workspace entrance shares. */
+val WorkspaceTileHeight = 188.dp
+
+/** The Legum Lex desk's mark: a gold ">_" tile, with the site's AI tag. */
+@Composable
+private fun DeskMark(gold: Color, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)).background(gold), contentAlignment = Alignment.Center) {
+            Text(">_", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                fontSize = 24.sp, color = Color(0xFF1B1406))
+        }
+        Text("AI", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color(0xFF1B1406),
+            modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(5.dp)).background(Color.White).padding(horizontal = 5.dp, vertical = 1.dp))
     }
 }
 
