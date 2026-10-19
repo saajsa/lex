@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +41,8 @@ import androidx.compose.material.icons.outlined.ClosedCaption
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.MeetingRoom
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MicOff
+import androidx.compose.material.icons.outlined.VideocamOff
 import androidx.compose.material.icons.outlined.NorthEast
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PlayCircle
@@ -117,11 +121,12 @@ import java.time.ZonedDateTime
  *  The Digital Office — the Legum Lex chamber page (digital_office/views/
  *  public/chamber_site.php, cases/assets/css/src/site.tw.css), on a phone.
  *
- *  "The chamber, with its door open." in Fraunces, the open/shut word in an
- *  outlined pill; then the desk: who is at it, the sitting clock (the hours,
- *  how long is left, the week), the advocates, the chamber's register, and the
- *  Google Meet call panel the visitor knocks from. Light mode is monochrome
- *  ink as the page is; dark mode takes the page's gold.
+ *  The desk first, since the call is what the tab is for: "At the desk." in
+ *  Fraunces with How It Works beside it, the door's state and tally, the
+ *  Google Meet call panel the client knocks from (their own camera and
+ *  microphone live in it once they turn them on, see SelfView), the
+ *  advocates, the sitting clock, and the chamber's register in boxes. Light
+ *  mode is monochrome ink as the page is; dark mode takes the page's gold.
  *
  *  What the page cannot know, the app adds in the same language: the one-time
  *  registration while it is outstanding, and a session already in flight.
@@ -182,6 +187,7 @@ private val MeetIcon = Color(0xFFE8EAED)
 private val MeetMuted = Color(0xFFBDC1C6)
 private val MeetGreen = Color(0xFF1E8E3E)
 private val MeetBlue = Color(0xFF1A73E8)
+private val MeetRed = Color(0xFFEA4335)
 
 private fun serif(size: Int, color: Color) =
     TextStyle(fontFamily = Fraunces, fontWeight = FontWeight.Normal, fontSize = size.sp, lineHeight = (size * 1.08f).sp,
@@ -307,9 +313,6 @@ private fun Chamber(
     onAskAdvocate: () -> Unit,
 ) {
     val ink = chamberInk()
-    val scroll = rememberScrollState()
-    val scope = rememberCoroutineScope()
-    var deskY by remember { mutableIntStateOf(0) }
     var showHow by remember { mutableStateOf(false) }
 
     // The clock repaints itself every 30 seconds; it never asks the server.
@@ -319,68 +322,20 @@ private fun Chamber(
     val clock = clockAt(c.sitting, now)
 
     val open = c.isOpen && c.roster.isNotEmpty()
-    val toDesk: () -> Unit = { scope.launch { scroll.animateScrollTo(deskY) } }
 
-    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp)) {
-        Spacer(Modifier.height(28.dp))
-        Hero(open, ink, c, onRegister = { onWalkIn(null) }, onHow = { showHow = true }, onToDesk = toDesk)
-        Spacer(Modifier.height(28.dp))
-
+    // The desk comes first: the call is what the tab is for.
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (!c.hasAccess) Registration(c, ink) { onWalkIn(null) }
         c.activeSession?.let { a ->
             InSession(ink) { a.consultationId?.let { onOpenConsultation(it.toString()) } ?: onWalkIn(null) }
-            Spacer(Modifier.height(14.dp))
         }
-
-        Box(Modifier.onGloballyPositioned { deskY = it.positionInParent().y.toInt() }) {
-            Desk(c, open, clock, ink, onWalkIn, onOpenLanding, onAskAdvocate)
-        }
-        Spacer(Modifier.height(24.dp))
+        Desk(c, open, clock, ink, onWalkIn, onOpenLanding, onAskAdvocate, onHow = { showHow = true })
     }
 
     if (showHow) {
         val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(onDismissRequest = { showHow = false }, sheetState = sheet, containerColor = Lex.colors.card) {
-            HowItWorks(ink) { showHow = false; toDesk() }
-        }
-    }
-}
-
-// ---- Hero ---------------------------------------------------------------------
-
-@Composable
-private fun Hero(open: Boolean, ink: ChamberInk, c: ChamberState, onRegister: () -> Unit, onHow: () -> Unit, onToDesk: () -> Unit) {
-    val fg = Lex.colors.foreground
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("The", style = serif(36, fg))
-            Spacer(Modifier.width(6.dp))
-            PillWord("chamber,", 36, ink)
-        }
-        Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("with its door", style = serif(36, fg))
-            Spacer(Modifier.width(6.dp))
-            PillWord(if (open) "open." else "shut.", 36, ink)
-        }
-        Spacer(Modifier.height(20.dp))
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(ink.gold).clickable(onClick = onToDesk),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.NorthEast, "To the desk", tint = ink.onGold, modifier = Modifier.size(20.dp)) }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            if (!c.hasAccess) "Registering opens the door: a one-time ₹${"%,d".format(c.onboardingFee.toLong())}. " +
-                "A consultation is ₹${"%,d".format(c.clientSessionFee.toLong())}, charged only once an advocate has read what you wrote and agreed to see you."
-            else "Nothing is charged until an advocate has read what you wrote and agreed to see you. The consultation is a Google Meet call of its own.",
-            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 23.sp), color = Lex.colors.secondaryForeground,
-            textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 8.dp),
-        )
-        Spacer(Modifier.height(18.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!c.hasAccess) {
-                Pill("Register And Enter", Icons.AutoMirrored.Outlined.ArrowForward, ink.gold, ink.onGold, null, onRegister)
-            }
-            Pill("How It Works", Icons.Outlined.PlayCircle, Lex.colors.card, fg, ink.line, onHow)
+            HowItWorks(ink) { showHow = false }
         }
     }
 }
@@ -403,6 +358,29 @@ private fun Pill(label: String, icon: ImageVector?, bg: Color, fg: Color, line: 
     ) {
         if (icon != null) { Icon(icon, null, tint = fg, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
         Text(label, style = MaterialTheme.typography.labelLarge, color = fg)
+    }
+}
+
+// ---- Registration, while it is outstanding --------------------------------------
+
+/** The one-time registration that opens the door, with what a consultation costs. */
+@Composable
+private fun Registration(c: ChamberState, ink: ChamberInk, onRegister: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Lex.colors.card)
+            .border(1.5.dp, ink.gold, RoundedCornerShape(28.dp)).padding(20.dp),
+    ) {
+        Text("Registering opens the door.", style = serif(26, Lex.colors.foreground))
+        Spacer(Modifier.height(8.dp))
+        Text("Registration is once. A consultation is charged only after an advocate has read what you wrote and agreed to see you.",
+            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
+        Spacer(Modifier.height(14.dp))
+        Figures(listOf(
+            Figure("₹${"%,d".format(c.onboardingFee.toLong())}", null, "Registration, once"),
+            Figure("₹${"%,d".format(c.clientSessionFee.toLong())}", null, "Each consultation, once accepted"),
+        ), ink)
+        Spacer(Modifier.height(14.dp))
+        Pill("Register And Enter", Icons.AutoMirrored.Outlined.ArrowForward, ink.gold, ink.onGold, null, onRegister, Modifier.fillMaxWidth())
     }
 }
 
@@ -434,6 +412,7 @@ private fun Desk(
     onWalkIn: (Int?) -> Unit,
     onOpenLanding: (Int?) -> Unit,
     onAskAdvocate: () -> Unit,
+    onHow: () -> Unit,
 ) {
     val fg = Lex.colors.foreground
     val muted = Lex.colors.mutedForeground
@@ -444,10 +423,21 @@ private fun Desk(
 
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Lex.colors.card)
-            .border(1.dp, Lex.colors.border, RoundedCornerShape(28.dp)).padding(20.dp),
+            .border(1.dp, Lex.colors.border, RoundedCornerShape(28.dp)).padding(18.dp),
     ) {
-        Text("At the desk.", style = serif(32, fg))
-        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("At the desk.", style = serif(30, fg), modifier = Modifier.weight(1f))
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).border(1.5.dp, ink.line, RoundedCornerShape(50))
+                    .clickable(onClick = onHow).padding(start = 10.dp, end = 12.dp, top = 7.dp, bottom = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.PlayCircle, null, tint = fg, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("How It Works", style = MaterialTheme.typography.labelMedium, color = fg)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
 
         // The door's state, and the tally of who is at the desk.
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -470,23 +460,7 @@ private fun Desk(
                 )
             }
         }
-        Spacer(Modifier.height(16.dp))
-
-        SittingClock(c.sitting, clock, roster.isEmpty(), ink)
-        Spacer(Modifier.height(16.dp))
-
-        roster.forEach { a ->
-            AdvocateCard(a, selected = a.staffId == chosen?.staffId) { chosenId = a.staffId }
-            Spacer(Modifier.height(10.dp))
-        }
-        Text(
-            if (roster.isEmpty()) "Advocates appear here only while they are at the desk. When one is, choose them to see them in the call."
-            else "Advocates appear here only while they are at the desk. Choose one to see them in the call.",
-            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground,
-        )
-
-        Register(c)
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(14.dp))
 
         CallPanel(
             a = chosen,
@@ -495,13 +469,28 @@ private fun Desk(
             onWait = { chosen?.let { onOpenLanding(it.staffId) } },
         )
         if (chosen == null) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onAskAdvocate, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            TextButton(onClick = onAskAdvocate, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp)) {
                 Text("Ask Your Advocate Instead", style = MaterialTheme.typography.labelLarge, color = fg)
                 Spacer(Modifier.width(6.dp))
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = fg, modifier = Modifier.size(16.dp))
             }
         }
+        Spacer(Modifier.height(14.dp))
+
+        roster.forEach { a ->
+            AdvocateCard(a, selected = a.staffId == chosen?.staffId) { chosenId = a.staffId }
+            Spacer(Modifier.height(10.dp))
+        }
+        Text(
+            if (roster.isEmpty()) "Advocates appear here only while they are at the desk. When one is, choose them to see them in the call."
+            else if (roster.size > 1) "Advocates appear here only while they are at the desk. Choose one to see them in the call."
+            else "Advocates appear here only while they are at the desk.",
+            style = MaterialTheme.typography.bodySmall, color = muted,
+        )
+        Spacer(Modifier.height(14.dp))
+
+        SittingClock(c.sitting, clock, roster.isEmpty(), ink)
+        Register(c, ink)
     }
 }
 
@@ -656,31 +645,45 @@ private fun fullName(a: ChamberAdvocate) =
 private fun initials(a: ChamberAdvocate) =
     ((a.firstName.take(1) + a.lastName.take(1)).ifBlank { fullName(a).take(1) }).uppercase()
 
-/** From the chamber's register: counts only, each shown once there are enough. */
+/** A figure in its own box: the value large, its unit small, what it counts beneath. */
+private data class Figure(val value: String, val unit: String?, val label: String)
+
 @Composable
-private fun Register(c: ChamberState) {
-    val r = c.register
-    val figures = buildList {
-        r.held?.let { add(Triple("Consultations held", "$it", r.since?.let { s -> "since $s" })) }
-        r.replyMin?.let { add(Triple("A typical reply to a knock", "about $it min", null)) }
-        add(Triple("A consultation is planned for", "${r.duration} min", "on Google Meet"))
-    }
-    Spacer(Modifier.height(18.dp))
-    HorizontalDivider(color = Lex.colors.border)
-    Spacer(Modifier.height(14.dp))
-    Text("FROM THE CHAMBER'S REGISTER", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.4.sp),
-        color = Lex.colors.mutedForeground)
-    Spacer(Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        figures.forEach { (label, figure, sub) ->
-            Column(Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, minLines = 2)
-                Spacer(Modifier.height(4.dp))
-                Text(figure, style = serif(22, Lex.colors.foreground))
-                sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground) }
+private fun Figures(items: List<Figure>, ink: ChamberInk) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { f ->
+            Column(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(ink.wash)
+                    .border(1.dp, Lex.colors.border, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    buildAnnotatedString {
+                        append(f.value)
+                        f.unit?.let { withStyle(SpanStyle(fontFamily = Inter, fontSize = 13.sp, color = Lex.colors.mutedForeground)) { append(" $it") } }
+                    },
+                    style = serif(26, Lex.colors.foreground), maxLines = 1,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(f.label, style = MaterialTheme.typography.bodySmall.copy(lineHeight = 16.sp), color = Lex.colors.mutedForeground)
             }
         }
     }
+}
+
+/** From the chamber's register: counts only, each shown once there are enough. */
+@Composable
+private fun Register(c: ChamberState, ink: ChamberInk) {
+    val r = c.register
+    val figures = buildList {
+        r.held?.let { add(Figure("$it", null, "Consultations held" + (r.since?.let { s -> ", since $s" } ?: ""))) }
+        r.replyMin?.let { add(Figure("$it", "min", "A typical reply to a knock")) }
+        add(Figure("${r.duration}", "min", "Each consultation, on Google Meet"))
+    }
+    Spacer(Modifier.height(18.dp))
+    Text("FROM THE CHAMBER'S REGISTER", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.4.sp),
+        color = Lex.colors.mutedForeground)
+    Spacer(Modifier.height(10.dp))
+    Figures(figures, ink)
 }
 
 // ---- The call panel -------------------------------------------------------------
@@ -692,8 +695,10 @@ private fun Register(c: ChamberState) {
  */
 @Composable
 private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit, onWait: () -> Unit) {
+    val me = rememberSelfView()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MeetFrame).padding(8.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(0.92f).clip(RoundedCornerShape(14.dp)).background(MeetStage)) {
+        // Portrait while someone is in it; shorter while it stands empty.
+        Box(Modifier.fillMaxWidth().aspectRatio(if (a == null) 1.25f else 0.92f).clip(RoundedCornerShape(14.dp)).background(MeetStage)) {
             if (a == null) {
                 Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Outlined.MeetingRoom, null, tint = MeetMuted, modifier = Modifier.size(44.dp))
@@ -741,14 +746,32 @@ private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit
                 Spacer(Modifier.width(6.dp))
                 Text("Google Meet", style = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Medium), color = Color.White)
             }
-            // "You", top right, 3:4.
+            // "You", top right, 3:4: the client's own camera once they turn it on.
             Box(
-                Modifier.align(Alignment.TopEnd).padding(10.dp).width(72.dp).aspectRatio(0.75f)
-                    .clip(RoundedCornerShape(10.dp)).background(MeetIdle).border(1.5.dp, Color.White, RoundedCornerShape(10.dp)),
+                Modifier.align(Alignment.TopEnd).padding(10.dp).width(84.dp).aspectRatio(0.75f)
+                    .clip(RoundedCornerShape(10.dp)).background(MeetIdle).border(1.5.dp, Color.White, RoundedCornerShape(10.dp))
+                    .clickable(enabled = !me.camOn, onClick = me.toggleCam),
             ) {
-                Icon(Icons.Outlined.Person, null, tint = MeetIcon, modifier = Modifier.align(Alignment.Center).size(28.dp))
-                Text("You", style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.Medium), color = Color.White,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
+                if (me.camOn) {
+                    CameraSelf(Modifier.fillMaxSize())
+                } else {
+                    Column(Modifier.align(Alignment.Center).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Outlined.VideocamOff, null, tint = MeetIcon, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.height(4.dp))
+                        Text("Tap to see yourself", style = TextStyle(fontFamily = Inter, fontSize = 9.5.sp, lineHeight = 12.sp),
+                            color = MeetMuted, textAlign = TextAlign.Center)
+                    }
+                }
+                Row(Modifier.align(Alignment.BottomStart).padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("You", style = TextStyle(fontFamily = Inter, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                        shadow = Shadow(Color(0x99000000), blurRadius = 6f)), color = Color.White)
+                }
+                // The microphone: Meet's red slash when off, its level when on.
+                Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp).clip(CircleShape)
+                    .background(if (me.micOn) MeetBlue else MeetRed), contentAlignment = Alignment.Center) {
+                    if (me.micOn) Level(me.level, 10.dp)
+                    else Icon(Icons.Outlined.MicOff, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                }
             }
         }
 
@@ -758,10 +781,11 @@ private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit
             horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(Icons.Outlined.Mic, Icons.Outlined.Videocam, Icons.Outlined.ClosedCaption).forEach {
-                Box(Modifier.size(38.dp).clip(CircleShape).background(MeetStage), contentAlignment = Alignment.Center) {
-                    Icon(it, null, tint = MeetIcon, modifier = Modifier.size(18.dp))
-                }
+            // Mic and camera are the client's own, and work; captions are Meet's, shown for the likeness.
+            Toggle(if (me.micOn) Icons.Outlined.Mic else Icons.Outlined.MicOff, me.micOn, if (me.micOn) "Turn off microphone" else "Turn on microphone", me.toggleMic)
+            Toggle(if (me.camOn) Icons.Outlined.Videocam else Icons.Outlined.VideocamOff, me.camOn, if (me.camOn) "Turn off camera" else "Turn on camera", me.toggleCam)
+            Box(Modifier.size(38.dp).clip(CircleShape).background(MeetStage), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.ClosedCaption, null, tint = MeetIcon, modifier = Modifier.size(18.dp))
             }
             val busy = a?.isBusy == true
             val dim = if (a == null) 0.6f else 1f
@@ -777,6 +801,26 @@ private fun CallPanel(a: ChamberAdvocate?, shutLine: String, onKnock: () -> Unit
                 Text(if (busy) "In Session" else "Knock", style = TextStyle(fontFamily = Inter, fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
                     color = Color.White.copy(alpha = dim))
             }
+        }
+    }
+}
+
+/** A bar button: grey when on, Meet's red when off. */
+@Composable
+private fun Toggle(icon: ImageVector, on: Boolean, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(38.dp).clip(CircleShape).background(if (on) MeetStage else MeetRed).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = if (on) MeetIcon else Color.White, modifier = Modifier.size(18.dp)) }
+}
+
+/** The client's own microphone level: three bars that follow their voice. */
+@Composable
+private fun Level(level: Float, height: androidx.compose.ui.unit.Dp) {
+    Row(horizontalArrangement = Arrangement.spacedBy(1.5.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(0.6f, 1f, 0.6f).forEach { k ->
+            Box(Modifier.width(2.dp).height(height * (0.25f + 0.75f * (level * k).coerceIn(0f, 1f) * 1.6f).coerceIn(0.25f, 1f))
+                .clip(RoundedCornerShape(1.dp)).background(Color.White))
         }
     }
 }
@@ -841,7 +885,7 @@ private fun HowItWorks(ink: ChamberInk, onToDesk: () -> Unit) {
             }
         }
         Spacer(Modifier.height(22.dp))
-        Pill("To The Desk", Icons.AutoMirrored.Outlined.ArrowForward, ink.gold, ink.onGold, null, onToDesk, Modifier.fillMaxWidth())
+        Pill("Back To The Desk", Icons.AutoMirrored.Outlined.ArrowForward, ink.gold, ink.onGold, null, onToDesk, Modifier.fillMaxWidth())
         Spacer(Modifier.height(16.dp))
     }
 }
