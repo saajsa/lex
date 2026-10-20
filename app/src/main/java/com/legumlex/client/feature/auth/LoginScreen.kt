@@ -27,6 +27,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalContext
@@ -214,8 +218,7 @@ private val HeroHeight = 300.dp
 
 /**
  * The sign-in sheet, edge to edge: square at the top left, and at the top
- * right a large curve that starts well in from the edge and eases into it
- * (a continuous-curvature corner rather than a quarter circle).
+ * right a large quarter circle that starts well in from the edge.
  */
 private val SheetShape = object : androidx.compose.ui.graphics.Shape {
     override fun createOutline(
@@ -223,14 +226,14 @@ private val SheetShape = object : androidx.compose.ui.graphics.Shape {
         layoutDirection: androidx.compose.ui.unit.LayoutDirection,
         density: androidx.compose.ui.unit.Density,
     ): androidx.compose.ui.graphics.Outline {
-        val r = with(density) { 70.dp.toPx() }
+        val r = with(density) { 84.dp.toPx() }
         val w = size.width
         val path = androidx.compose.ui.graphics.Path().apply {
             moveTo(0f, 0f)
-            lineTo(w - r * 1.4f, 0f)
-            // One cubic, its handles long along both edges: the curve eases
-            // in and out instead of turning at a fixed radius.
-            cubicTo(w - r * 0.35f, 0f, w, r * 0.35f, w, r * 1.4f)
+            lineTo(w - r, 0f)
+            // A true quarter circle, as the reference draws it: the earlier
+            // long-handled cubic bulged square in its middle and looked odd.
+            arcTo(androidx.compose.ui.geometry.Rect(w - 2 * r, 0f, w, 2 * r), 270f, 90f, false)
             lineTo(w, size.height)
             lineTo(0f, size.height)
             close()
@@ -266,20 +269,17 @@ private fun ColumnScope.ChooseView(
     onDev: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    ChoiceButton(
-        text    = if (busy) "Signing in…" else "Continue with Google",
-        enabled = !busy,
-        onClick = onGoogle,
-        icon    = { Image(painterResource(R.drawable.ic_google_g), contentDescription = null, modifier = Modifier.size(20.dp)) },
-    )
-    Spacer(Modifier.height(spacing.s3))
-    ChoiceButton(
-        text    = "Continue with Mobile",
-        enabled = !busy,
-        onClick = onMobile,
-        icon    = { Icon(Icons.Outlined.Smartphone, contentDescription = null, modifier = Modifier.size(20.dp)) },
-    )
-    Spacer(Modifier.height(spacing.s4))
+    // The two ways in, as their marks alone: Google and a mobile code.
+    Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        MarkButton("Continue with Google", !busy, onGoogle) {
+            if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = PrimaryText)
+            else Image(painterResource(R.drawable.ic_google_g), contentDescription = null, modifier = Modifier.size(26.dp))
+        }
+        MarkButton("Continue with Mobile", !busy, onMobile) {
+            Icon(Icons.Outlined.Smartphone, contentDescription = null, tint = PrimaryText, modifier = Modifier.size(26.dp))
+        }
+    }
+    Spacer(Modifier.height(spacing.s5))
     LinkButton(
         text     = "Sign In with Email and Password",
         enabled  = !busy,
@@ -302,6 +302,18 @@ private fun ColumnScope.ChooseView(
             Text("Debug · Sign In as Test Contact", style = MaterialTheme.typography.labelMedium)
         }
     }
+}
+
+/** A round button carrying only a mark; its name is read out, not shown. */
+@Composable
+private fun MarkButton(label: String, enabled: Boolean, onClick: () -> Unit, mark: @Composable () -> Unit) {
+    Box(
+        Modifier.size(68.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .border(1.dp, BorderColor, androidx.compose.foundation.shape.CircleShape)
+            .clickable(enabled = enabled, onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { mark() }
 }
 
 @Composable
