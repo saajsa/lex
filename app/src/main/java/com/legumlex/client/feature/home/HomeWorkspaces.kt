@@ -29,6 +29,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.outlined.RateReview
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.MaterialTheme
@@ -104,12 +109,20 @@ internal fun WorkspaceEntrances(
     Column(Modifier.fillMaxWidth()) {
         HorizontalPager(
             state = pager,
-            contentPadding = PaddingValues(start = 16.dp, end = 40.dp),
-            pageSpacing = 10.dp,
-            verticalAlignment = Alignment.Top,
+            // A card and most of the next, as the owner's reference shows them.
+            contentPadding = PaddingValues(start = 16.dp, end = 130.dp),
+            pageSpacing = 12.dp,
+            verticalAlignment = Alignment.CenterVertically,
         ) { i ->
             val t = tiles[i]
-            WorkspaceTile(t.workspace, t.title, t.description, onEnter = t.onEnter, eyebrow = t.eyebrow, cta = t.cta)
+            // The card in front is full size and dark; those beside it shrink a little and go light.
+            val off = kotlin.math.abs((pager.currentPage - i) + pager.currentPageOffsetFraction)
+            val focus = (1f - off).coerceIn(0f, 1f)
+            EntranceCard(t, focus, Modifier.graphicsLayer {
+                val k = 0.9f + 0.1f * focus
+                scaleX = k; scaleY = k
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+            })
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -125,6 +138,63 @@ internal fun WorkspaceEntrances(
             }
         }
     }
+}
+
+/**
+ * An entrance as the owner's reference draws a card: tall and round, its mark
+ * in a circle, the name, a line on what is inside, and a round arrow in. The
+ * card in front ([focus] 1) is dark, the others light; a workspace not yet
+ * opened for this client says so and has no arrow.
+ */
+@Composable
+private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifier) {
+    val front = focus > 0.5f
+    val bg = androidx.compose.ui.graphics.lerp(Lex.colors.muted, Lex.colors.primary, focus)
+    val ink = if (front) Lex.colors.primaryForeground else Lex.colors.foreground
+    val sub = ink.copy(alpha = 0.72f)
+    val offered = t.onEnter != null
+    Column(
+        modifier
+            .fillMaxWidth()
+            .height(232.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .background(bg)
+            .then(if (offered) Modifier.clickable(onClick = t.onEnter!!) else Modifier)
+            .padding(20.dp),
+    ) {
+        // The mark, in a circle of the opposite tone.
+        Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (front) Lex.colors.primaryForeground else Lex.colors.primary),
+            contentAlignment = Alignment.Center) {
+            val markInk = if (front) Lex.colors.primary else Lex.colors.primaryForeground
+            if (t.workspace == Workspace.Consult) Text(">_", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontWeight = FontWeight.Bold, fontSize = 15.sp, color = markInk)
+            else Icon(entranceIcon(t.workspace), null, tint = markInk, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.height(18.dp))
+        Text(t.title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1)
+        Spacer(Modifier.height(8.dp))
+        Text(t.description, fontSize = 13.5.sp, lineHeight = 19.sp, color = sub, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (!offered) Text("Not Yet Opened", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = sub, modifier = Modifier.weight(1f))
+            else Spacer(Modifier.weight(1f))
+            if (offered) Box(
+                Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(if (front) Lex.colors.primaryForeground else Lex.colors.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Enter " + t.title,
+                    tint = if (front) Lex.colors.primary else Lex.colors.primaryForeground, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+private fun entranceIcon(w: Workspace) = when (w) {
+    Workspace.Consult    -> Icons.Outlined.Forum
+    Workspace.Litigation -> Icons.Outlined.Gavel
+    Workspace.Projects   -> Icons.Outlined.FolderOpen
+    Workspace.Registry   -> Icons.Outlined.Description
 }
 
 private data class Entrance(val workspace: Workspace, val title: String, val eyebrow: String, val description: String, val onEnter: (() -> Unit)?, val cta: String = "Enter")
