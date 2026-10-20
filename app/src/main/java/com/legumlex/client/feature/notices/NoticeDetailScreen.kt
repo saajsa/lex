@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Text
@@ -185,7 +186,7 @@ private fun Body(
             // remarks, documents, responses) is told at the step it belongs to.
             Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 20.dp)) {
                 val steps = trackSteps(n, onOpen, onOpenCase) { doc -> onOpenDocument(sum.id, doc.id, doc.name) }
-                steps.forEachIndexed { i, st -> TrackRow(st, last = i == steps.lastIndex) }
+                steps.forEachIndexed { i, st -> TrackRow(st, last = i == steps.lastIndex, index = i) }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -441,7 +442,7 @@ private class TrackStep(
  * in hand and closed for the rest, a tap away.
  */
 @Composable
-private fun TrackRow(step: TrackStep, last: Boolean) {
+private fun TrackRow(step: TrackStep, last: Boolean, index: Int = 0) {
     val ink = Lex.colors.foreground
     val paper = Lex.colors.background
     val done = step.state == StepState.DONE
@@ -449,10 +450,25 @@ private fun TrackRow(step: TrackStep, last: Boolean) {
     val todo = step.state == StepState.TODO
     val hasBody = step.rows.isNotEmpty() || step.links.isNotEmpty() || step.notes.isNotEmpty()
     var open by androidx.compose.runtime.saveable.rememberSaveable(step.title) { mutableStateOf(now) }
-    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+    // The steps come in one after another, rising a little, as the page opens.
+    val shown = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(60L * index)
+        shown.animateTo(1f, androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    // The step in hand breathes: a soft halo swells and fades around its circle.
+    val halo = androidx.compose.animation.core.rememberInfiniteTransition(label = "halo")
+    val h by halo.animateFloat(0f, 1f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "halo-p")
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)
+        .graphicsLayer { alpha = shown.value; translationY = (1f - shown.value) * 18.dp.toPx() }) {
         Box(Modifier.width(40.dp).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
             if (!last) Box(Modifier.padding(top = 20.dp).width(4.dp).fillMaxHeight()
                 .background(if (done) ink else Lex.colors.border))
+            if (now) androidx.compose.foundation.Canvas(Modifier.size(40.dp)) {
+                drawCircle(ink.copy(alpha = 0.22f * (1f - h)), radius = size.minDimension / 2 * (1f + 0.45f * h))
+            }
             // The circle is the fold: tapping it shows or hides the step's particulars.
             Box(
                 Modifier.size(40.dp).clip(CircleShape)
@@ -466,7 +482,7 @@ private fun TrackRow(step: TrackStep, last: Boolean) {
             }
         }
         Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f).padding(bottom = if (last) 4.dp else 18.dp)) {
+        Column(Modifier.weight(1f).padding(bottom = if (last) 4.dp else 30.dp)) {
             // The header: name and date. It folds the step too, as the circle does.
             Row(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(8.dp))
@@ -566,60 +582,71 @@ private fun trackSteps(
     val type = s.noticeType?.trim()?.ifBlank { null }
     val amount = money(s.claimAmount)
     if (out) {
+        val reply = n.parent != null
         if (s.status == "Cancelled") {
             return listOf(
-                TrackStep("Submitted", emptyList(), emptyList(), R.drawable.ic_ms_check, StepState.DONE, date = created),
+                TrackStep(if (reply) "Reply Instructions" else "Instructions", emptyList(), emptyList(), R.drawable.ic_ms_check, StepState.DONE, date = created),
                 TrackStep("Cancelled", emptyList(), emptyList(), R.drawable.ic_ms_lock, StepState.NOW, notes = listOfNotNull(n.notes)),
             )
         }
         val returned = s.status == "Returned" && n.deemedServedDate == null
         val served = n.isServed || s.isServed || n.deemedServedDate != null || s.status in listOf("Served", "Delivered")
         val outcome = s.status in listOf("Response Received", "No Response", "Expired")
-        now = when {
-            outcome -> 6
-            s.needsApproval -> 2
-            s.status in listOf("Draft", "Reserved") -> 1
-            returned -> 4
-            served -> 5
-            s.status in listOf("Dispatched", "Sent") -> 4
-            else -> 1
-        }
+        val dispatched = s.status in listOf("Dispatched", "Sent") || served || returned || outcome || n.dispatchDate != null
+        // A notice is not one fixed route: some go out without the client's
+        // review (the firm makes them live), and a reply begins from the
+        // notice it answers. Only the steps that apply to this one are shown.
+        val reviewed = s.needsApproval || n.approvedAt != null || !dispatched
         val waitEnd = n.waitingEndDate ?: s.responseDueDate
         val open = !s.isClosed && !s.isAnswered()
         val ended = waitEnd?.isBefore(todayIst()) == true
-        steps = mutableListOf(
-            TrackStep("Submitted",
-                listOfNotNull(row("Recipient", n.recipientName ?: s.counterparty), row("Address", n.recipientAddress),
-                    row("Type", type), row("Claim", amount)),
-                docLinks(DocKind.SUPPORTING) { "Supporting Document · ${it.name}" }, R.drawable.ic_ms_check, StepState.TODO, date = created),
-            TrackStep("Drafting", listOfNotNull(row("Advocate", adv)), emptyList(), R.drawable.ic_ms_draw, StepState.TODO),
-            TrackStep("Client Review",
-                listOfNotNull(row("Confirmed", n.approvedAt?.toLocalDate()?.format(LONG))),
-                if (now == 2) docLinks(DocKind.DRAFT) { "Read The Draft" } else emptyList(), R.drawable.ic_ms_rate_review, StepState.TODO,
-                notes = listOfNotNull(if (now == 2) "Read the draft, then confirm it below or ask your advocate for changes." else null)),
-            TrackStep("Dispatch",
-                listOfNotNull(row("Service", n.serviceMethod), row("Carrier", n.courierServiceName), row("Tracking", n.trackingNumber)),
-                emptyList(), R.drawable.ic_ms_send, StepState.TODO, date = d(n.dispatchDate)),
-            TrackStep(
-                when { returned -> "Returned"; n.deemedServedDate != null -> "Deemed Service"; else -> "Service" },
-                listOfNotNull(row("Delivered", d(n.deliveryDate)), row("Received By", n.receivedByPerson),
-                    row("Returned", d(n.returnDate)), row("Reason", n.returnReason), row("Deemed Served", d(n.deemedServedDate))),
-                docLinks(DocKind.PROOF) { "Proof Of Service" }, R.drawable.ic_ms_mark_email_read, StepState.TODO,
-                notes = listOfNotNull(if (returned) "Your advocate will advise on what follows." else null),
-                date = d(n.deemedServedDate ?: n.deliveryDate ?: n.returnDate)),
-            TrackStep("Waiting Period",
-                listOfNotNull(row(if (ended) "Ended" else "Ends", d(waitEnd)),
-                    if (now == 5 && waitEnd != null && !ended) "Remaining" to daysLeft(waitEnd).replaceFirstChar { it.uppercase() } else null),
-                emptyList(), R.drawable.ic_ms_schedule, StepState.TODO,
-                notes = listOfNotNull(if (open && now == 5 && waitEnd != null && !ended) "If no reply comes by then, your advocate will advise on what follows." else null)),
-            TrackStep(
-                when (s.status) { "Response Received" -> "Response Received"; "No Response" -> "No Response"; "Expired" -> "Period Over"; else -> "Outcome" },
-                emptyList(),
-                n.children.map { c -> TrackLink("Response · ${listOfNotNull(c.referenceNumber, noticeStatusTitle(c)).joinToString(" · ")}") { onOpen(c.id) } } +
-                    listOfNotNull(if (n.convertedToCase) TrackLink("Open The Case") { n.caseId?.let(onOpenCase) } else null),
-                R.drawable.ic_ms_forum, StepState.TODO),
-        )
-        if (outcome) now = steps.size
+        val keyed = mutableListOf<Pair<String, TrackStep>>()
+        keyed += "start" to (if (reply) TrackStep("Reply Instructions",
+                listOfNotNull(row("In Reply To", n.parent?.referenceNumber), row("Type", type)),
+                listOfNotNull(n.parent?.let { p -> TrackLink("Open The Notice Received") { onOpen(p.id) } }) +
+                    docLinks(DocKind.SUPPORTING) { "Supporting Document · ${it.name}" },
+                R.drawable.ic_ms_reply, StepState.TODO, date = created)
+            else TrackStep("Instructions",
+                listOfNotNull(row("Type", type), row("Claim", amount)),
+                docLinks(DocKind.SUPPORTING) { "Supporting Document · ${it.name}" }, R.drawable.ic_ms_check, StepState.TODO, date = created))
+        keyed += "draft" to TrackStep("Drafting", emptyList(), emptyList(), R.drawable.ic_ms_draw, StepState.TODO)
+        if (reviewed) keyed += "review" to TrackStep("Client Review",
+            listOfNotNull(row("Cleared", n.approvedAt?.toLocalDate()?.format(LONG))),
+            if (s.needsApproval) docLinks(DocKind.DRAFT) { "Read The Draft" } else emptyList(), R.drawable.ic_ms_rate_review, StepState.TODO,
+            notes = listOfNotNull(if (s.needsApproval) "Read the draft, then clear it for dispatch below or ask your advocate for changes." else null))
+        keyed += "dispatch" to TrackStep("Dispatch",
+            listOfNotNull(row("To", n.recipientName ?: s.counterparty), row("Address", n.recipientAddress),
+                row("Service", n.serviceMethod), row("Carrier", n.courierServiceName), row("Tracking", n.trackingNumber)),
+            emptyList(), R.drawable.ic_ms_send, StepState.TODO, date = d(n.dispatchDate))
+        keyed += "service" to TrackStep(
+            when { returned -> "Returned"; n.deemedServedDate != null -> "Deemed Service"; else -> "Service" },
+            listOfNotNull(row("Delivered", d(n.deliveryDate)), row("Received By", n.receivedByPerson),
+                row("Returned", d(n.returnDate)), row("Reason", n.returnReason), row("Deemed Served", d(n.deemedServedDate))),
+            docLinks(DocKind.PROOF) { "Proof Of Service" }, R.drawable.ic_ms_mark_email_read, StepState.TODO,
+            notes = listOfNotNull(if (returned) "Your advocate will advise on what follows." else null),
+            date = d(n.deemedServedDate ?: n.deliveryDate ?: n.returnDate))
+        keyed += "wait" to TrackStep("Waiting Period",
+            listOfNotNull(row(if (ended) "Ended" else "Ends", d(waitEnd)),
+                if (served && !outcome && waitEnd != null && !ended) "Remaining" to daysLeft(waitEnd).replaceFirstChar { it.uppercase() } else null),
+            emptyList(), R.drawable.ic_ms_schedule, StepState.TODO,
+            notes = listOfNotNull(if (open && served && waitEnd != null && !ended) "If no reply comes by then, your advocate will advise on what follows." else null))
+        keyed += "outcome" to TrackStep(
+            when (s.status) { "Response Received" -> "Response Received"; "No Response" -> "No Response"; "Expired" -> "Period Over"; else -> "Outcome" },
+            emptyList(),
+            n.children.map { c -> TrackLink("Response · ${listOfNotNull(c.referenceNumber, noticeStatusTitle(c)).joinToString(" · ")}") { onOpen(c.id) } } +
+                listOfNotNull(if (n.convertedToCase) TrackLink("Open The Case") { n.caseId?.let(onOpenCase) } else null),
+            R.drawable.ic_ms_forum, StepState.TODO)
+        val nowKey = when {
+            outcome -> null
+            s.needsApproval -> "review"
+            s.status in listOf("Draft", "Reserved") -> "draft"
+            returned -> "service"
+            served -> "wait"
+            dispatched -> "service"
+            else -> "draft"
+        }
+        steps = keyed.map { it.second }.toMutableList()
+        now = nowKey?.let { k -> keyed.indexOfFirst { it.first == k } } ?: steps.size
     } else {
         val child = n.children.firstOrNull { it.direction == NoticeDirection.OUTBOUND } ?: n.children.firstOrNull()
         now = when {
