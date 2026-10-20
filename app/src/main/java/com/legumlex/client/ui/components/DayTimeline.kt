@@ -71,7 +71,8 @@ fun longDate(d: LocalDate): String = DateLine.format(d)
 
 /**
  * The strip of days. The chosen day is a dark pill with a dot; a day with
- * unread items carries a red dot, one with items a grey dot. What falls
+ * something pending (unread) is coloured red and dotted, one with items a
+ * grey dot. What falls
  * outside the strip's span sits in a chip at its start ([before], e.g.
  * "Earlier") or its end ([after], e.g. "Later"); [selected] null with
  * [edge] -1 or 1 means that chip is chosen. It opens scrolled to the choice.
@@ -104,12 +105,19 @@ fun DayStrip(
         if (before != null) item("before") { EdgeChip(before, selected == null && edge < 0, edgeUnread) { onEdge(-1) } }
         itemsIndexed(days, key = { _, d -> d.toEpochDay() }) { _, d ->
             val on = d == selected
-            val ink = if (on) Lex.colors.primaryForeground else Lex.colors.mutedForeground
+            // A day with something pending is coloured: red ink on a soft red
+            // pill, so it stands out from the plain days around it.
+            val pending = d in unread && !on
+            val ink = when {
+                on -> Lex.colors.primaryForeground
+                pending -> Lex.colors.danger.softText
+                else -> Lex.colors.mutedForeground
+            }
             Column(
                 Modifier
                     .width(46.dp)
                     .clip(RoundedCornerShape(23.dp))
-                    .background(if (on) Lex.colors.primary else Color.Transparent)
+                    .background(when { on -> Lex.colors.primary; pending -> Lex.colors.danger.softBg; else -> Color.Transparent })
                     .clickable { onSelect(d) }
                     .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,12 +145,17 @@ fun DayStrip(
 /** "Earlier" / "Later": everything beyond the strip's span, as one choice. */
 @Composable
 private fun EdgeChip(label: String, on: Boolean, unread: Boolean, onClick: () -> Unit) {
-    val ink = if (on) Lex.colors.primaryForeground else Lex.colors.mutedForeground
+    val pending = unread && !on
+    val ink = when {
+        on -> Lex.colors.primaryForeground
+        pending -> Lex.colors.danger.softText
+        else -> Lex.colors.mutedForeground
+    }
     Column(
         Modifier
             .clip(RoundedCornerShape(23.dp))
-            .background(if (on) Lex.colors.primary else Color.Transparent)
-            .border(1.dp, if (on) Color.Transparent else Lex.colors.border, RoundedCornerShape(23.dp))
+            .background(when { on -> Lex.colors.primary; pending -> Lex.colors.danger.softBg; else -> Color.Transparent })
+            .border(1.dp, when { on -> Color.Transparent; pending -> Lex.colors.danger.solid; else -> Lex.colors.border }, RoundedCornerShape(23.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

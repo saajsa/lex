@@ -152,8 +152,9 @@ private fun QueueDays(
     onAskNew: () -> Unit,
 ) {
     val today = remember { java.time.LocalDate.now() }
-    // A month ahead day by day; anything due after it is under "Later".
-    val lastDay = today.plusDays(29)
+    // A week ahead day by day, as Notifications runs a week back; anything
+    // due after it is under "Later".
+    val lastDay = today.plusDays(6)
     val keyOf: (ActionItem) -> Long = { i ->
         val d = i.dueAt?.takeIf { d -> d.isAfter(today) } ?: today
         if (d.isAfter(lastDay)) LATER else d.toEpochDay()

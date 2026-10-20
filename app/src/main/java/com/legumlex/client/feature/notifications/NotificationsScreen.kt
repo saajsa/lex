@@ -127,8 +127,8 @@ private fun TopBar(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
 private val ShortDate = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)
 private val SinceDate = java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)
 
-/** How far back the strip runs; anything older is under "Earlier". */
-private const val SpanDays = 30L
+/** How far back the strip runs (owner, 2026-10-20: a week); anything older is under "Earlier". */
+private const val SpanDays = 7L
 
 /** The strip's choice: a day, or everything before it (Earlier). */
 private const val EARLIER = Long.MIN_VALUE
