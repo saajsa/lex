@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -55,6 +56,7 @@ import com.legumlex.client.ui.theme.StatusDanger
 import com.legumlex.client.ui.theme.StatusPalette
 import com.legumlex.client.ui.theme.StatusSettled
 import com.legumlex.client.ui.theme.TertiaryText
+import com.legumlex.client.ui.theme.grain
 import kotlinx.coroutines.launch
 
 // Screen 03 — sign-in, as on the web door: two choices, Google and Mobile,
@@ -80,24 +82,31 @@ fun LoginScreen(
     }
     BackHandler(enabled = view != LoginView.Choose) { vm.show(LoginView.Choose) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .imePadding()
-            .padding(horizontal = spacing.s4)
-            .padding(top = spacing.s6, bottom = spacing.s5),
-    ) {
-        LegumMark(
-            size = 36.dp,
-            fillColor = AccentInk,
-        )
-
-        Spacer(Modifier.height(spacing.s8))
-
+    // A black panel with the mark on a white tile, under the status bar
+    // (whose icons the shell keeps light here), and a paper sheet laid over
+    // its foot with the ways in.
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+        Hero()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = HeroHeight - 28.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .background(MaterialTheme.colorScheme.background)
+                .grain()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(horizontal = spacing.s4)
+                .padding(top = spacing.s6, bottom = spacing.s2),
+        ) {
         // Not "Welcome back": many arrive here for the first time.
-        Text("Sign In To Legum Lex", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Sign In",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(spacing.s2))
         Text(
             when (view) {
@@ -107,6 +116,8 @@ fun LoginScreen(
             },
             style = MaterialTheme.typography.bodyMedium,
             color = SecondaryText,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(Modifier.height(spacing.s6))
@@ -186,6 +197,56 @@ fun LoginScreen(
             ) {
                 Text("Consult Us", style = MaterialTheme.typography.labelLarge)
             }
+        }
+        }
+    }
+}
+
+/**
+ * The black panel: a flat pattern of circles, halves and quarters in two
+ * near-blacks (no gradient), and the mark on a white tile at its centre.
+ */
+private val HeroHeight = 300.dp
+
+@Composable
+private fun Hero() {
+    val c1 = androidx.compose.ui.graphics.Color(0xFF121212)
+    val c2 = androidx.compose.ui.graphics.Color(0xFF1B1B1B)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(HeroHeight)
+            .background(androidx.compose.ui.graphics.Color.Black),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            val cell = 64.dp.toPx()
+            val cols = (size.width / cell).toInt() + 1
+            val rows = (size.height / cell).toInt() + 1
+            for (r in 0 until rows) for (k in 0 until cols) {
+                val x = k * cell; val y = r * cell
+                val tone = if ((r + k) % 2 == 0) c1 else c2
+                val tl = androidx.compose.ui.geometry.Offset(x, y)
+                val sz = androidx.compose.ui.geometry.Size(cell, cell)
+                when ((r * 7 + k * 3) % 6) {
+                    0 -> drawCircle(tone, cell / 2, androidx.compose.ui.geometry.Offset(x + cell / 2, y + cell / 2))
+                    1 -> drawArc(tone, 180f, 180f, true, androidx.compose.ui.geometry.Offset(x, y + cell / 2), androidx.compose.ui.geometry.Size(cell, cell))
+                    2 -> drawArc(tone, 0f, 90f, true, androidx.compose.ui.geometry.Offset(x - cell, y - cell), androidx.compose.ui.geometry.Size(cell * 2, cell * 2))
+                    3 -> drawRect(tone, tl, sz)
+                    4 -> drawArc(tone, 90f, 180f, true, androidx.compose.ui.geometry.Offset(x + cell / 2, y), androidx.compose.ui.geometry.Size(cell, cell))
+                    else -> {}
+                }
+            }
+        }
+        Box(
+            Modifier
+                .statusBarsPadding()
+                .size(84.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+                .background(androidx.compose.ui.graphics.Color.White),
+            contentAlignment = Alignment.Center,
+        ) {
+            LegumMark(size = 40.dp, fillColor = androidx.compose.ui.graphics.Color.Black)
         }
     }
 }
