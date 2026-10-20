@@ -27,22 +27,22 @@ fun Throwable.apiError(): ApiError = cache.getOrPut(this) {
  * one; otherwise a plain description of what went wrong. Never a raw
  * exception, never "HTTP 409", and a 403 is a permission, not a session.
  */
-fun Throwable.friendlyMessage(fallback: String = "Something went wrong. Please try again."): String {
+fun Throwable.friendlyMessage(fallback: String = "The request could not be completed. Please try again."): String {
     val err = apiError()
     err.message?.let { return it }
     return when (err.http) {
         null -> when (this) {
             is java.net.UnknownHostException, is java.net.ConnectException,
             is java.net.SocketTimeoutException, is java.io.InterruptedIOException ->
-                "Couldn't reach the firm. Please check your connection and try again."
+                "The server could not be reached. Please check your connection and try again."
             else -> fallback
         }
         401 -> "Your session has ended. Please sign in again."
         403 -> "Your account does not include this. Please ask the firm if you need it."
         404 -> "This is no longer available."
-        409 -> "This can't be done in its current state."
+        409 -> "This action is not available in the record's current state."
         422 -> "Some of the details were not accepted. Please check them and try again."
-        in 500..599 -> "The firm's server had a problem. Please try again in a moment."
+        in 500..599 -> "A server error occurred. Please try again shortly."
         else -> fallback
     }
 }

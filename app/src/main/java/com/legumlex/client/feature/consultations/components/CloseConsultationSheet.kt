@@ -237,10 +237,10 @@ private fun sheetCopyFor(consultation: Consultation, linkage: ConsultationLinkag
     // and can't be cancelled from the app.
     if (consultation.phase.equals("litigation", ignoreCase = true)) {
         return SheetCopy(
-            title           = "Can't cancel this",
+            title           = "Cancellation Unavailable",
             body            = "This consultation has been converted to a case. Contact your advocate if you'd like to discuss it further.",
             confirmLabel    = "CLOSE",
-            blockingMessage = "Once on the case register, a consultation can't be cancelled from the app.",
+            blockingMessage = "A consultation entered on the case register cannot be cancelled from the app.",
         )
     }
 
@@ -259,7 +259,7 @@ private fun sheetCopyFor(consultation: Consultation, linkage: ConsultationLinkag
     return when (consultation.kind) {
         ConsultationKind.AHC -> SheetCopy(
             title        = "Close this Agreement Check?",
-            body         = "You'll keep access to anything that's already been released — the verdict, findings and the original document.",
+            body         = "You will retain access to everything already released: the verdict, the findings and the original document.",
             confirmLabel = "CLOSE",
         )
         ConsultationKind.LEGAL_NOTICE -> SheetCopy(
@@ -269,12 +269,12 @@ private fun sheetCopyFor(consultation: Consultation, linkage: ConsultationLinkag
         )
         ConsultationKind.GENERAL, ConsultationKind.LEGAL_ENQUIRY -> SheetCopy(
             title        = "Close this consultation?",
-            body         = "Your advocate will be notified you've marked this complete. The conversation stays in your history.",
+            body         = "Your advocate will be notified you have marked this complete. The conversation stays in your history.",
             confirmLabel = "CLOSE",
         )
         ConsultationKind.DOC_REQUEST -> SheetCopy(
             title        = "Close this request?",
-            body         = "Your advocate will be notified. Any documents you've already uploaded stay attached.",
+            body         = "Your advocate will be notified. Any documents you have already uploaded stay attached.",
             confirmLabel = "CLOSE",
         )
         ConsultationKind.DIGITAL_OFFICE -> SheetCopy(

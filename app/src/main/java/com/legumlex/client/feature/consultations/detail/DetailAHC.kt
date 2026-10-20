@@ -64,6 +64,7 @@ import com.legumlex.client.ahc.theme.RiskLevel
 import com.legumlex.client.feature.consultations.AhcAnalysis
 import com.legumlex.client.feature.consultations.awaitingPayment
 import com.legumlex.client.feature.consultations.Consultation
+import com.legumlex.client.feature.consultations.funnelCopy
 import com.legumlex.client.feature.consultations.RiskLevel as ConsultRiskLevel
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -306,7 +307,7 @@ private fun AhcWarmHeader(
                         escalated -> EscalatedRail(consultation, onOpenLinkedConsultation)
                         loading   -> LoadingRail()
                         awaitingPay -> AwaitingPaymentRail()
-                        consultation.funnelAction == "reupload" -> UnreadableRail(consultation.funnelLabel ?: "We Could Not Read It")
+                        consultation.funnelAction == "reupload" -> UnreadableRail(consultation.funnelCopy()?.label ?: "Document Unreadable")
                         else      -> PendingRail(remaining = remaining, overdueMin = overdueMin)
                     }
                 }
@@ -396,14 +397,13 @@ private fun ReleasedRail(ahcData: AhcAnalysis?) {
 }
 
 /** Unpaid: the fee's invoice is paid on the website before the review begins. */
-private fun titled(s: String) = s.split(' ').joinToString(" ") { w -> w.replaceFirstChar { it.titlecase() } }
 
 @Composable
 private fun UnreadableRail(label: String) {
     RailRow {
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            StateChip(label = titled(label), soft = LlColor.AmberSoft, text = LlColor.Amber, icon = Icons.Filled.HourglassTop)
-            Text("The review waits for another copy", style = LlText.label.copy(fontSize = 11.5.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            StateChip(label = label, soft = LlColor.AmberSoft, text = LlColor.Amber, icon = Icons.Filled.HourglassTop)
+            Text("Review resumes on receipt of a clearer copy", style = LlText.label.copy(fontSize = 11.5.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -423,12 +423,12 @@ private fun UnreadableBody(consultation: Consultation, onUpload: () -> Unit, onM
         ) {
             Icon(Icons.Outlined.Description, null, tint = LlColor.Amber, modifier = Modifier.size(34.dp))
             Spacer(Modifier.height(10.dp))
-            Text(titled(consultation.funnelLabel ?: "We could not read it"), style = LlText.emptyTitle, textAlign = TextAlign.Center)
+            Text(consultation.funnelCopy()?.label ?: "Document Unreadable", style = LlText.emptyTitle, textAlign = TextAlign.Center)
             Spacer(Modifier.height(6.dp))
-            Text(consultation.funnelDetail ?: "Please upload another copy and we will take a look.", style = LlText.body, textAlign = TextAlign.Center)
+            Text(consultation.funnelCopy()?.detail ?: "The document could not be processed. Please submit a clearer copy.", style = LlText.body, textAlign = TextAlign.Center)
         }
         androidx.compose.material3.Button(onClick = onUpload, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text("Send Another Copy")
+            Text("Submit A Clearer Copy")
         }
         androidx.compose.material3.TextButton(onClick = onMessage, modifier = Modifier.fillMaxWidth()) {
             Text("Message Your Advocate")
@@ -470,13 +470,13 @@ private fun PendingRail(remaining: Int, overdueMin: Int) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StateChip(
-                label = if (overdue) "Running Late" else "In Review",
+                label = if (overdue) "Review Extended" else "In Review",
                 soft = if (overdue) LlColor.AmberSoft else LlColor.VerdantSoft,
                 text = if (overdue) LlColor.Amber else LlColor.Verdant,
                 icon = if (overdue) Icons.Filled.HourglassTop else Icons.Outlined.Visibility,
             )
             Text(
-                if (overdue) "Almost there" else "Report ready soon",
+                if (overdue) "Taking longer than usual" else "Report expected shortly",
                 style = LlText.label.copy(fontSize = 11.5.sp),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
@@ -570,7 +570,8 @@ private fun LiveChip(overdue: Boolean, remaining: Int, overdueMin: Int) {
     val border = if (overdue) LlColor.AmberBorder else LlColor.VerdantBorder
     val text = if (overdue) LlColor.Amber else LlColor.Verdant
     val dot = if (overdue) LlColor.AmberMid else LlColor.VerdantMid
-    val value = if (overdue) "+$overdueMin min" else "%d:%02d".format(remaining / 60, remaining % 60)
+    // Past the window it says so in words; a running count of minutes ("+1440 min") read as a fault.
+    val value = if (overdue) (if (overdueMin >= 120) "Delayed" else "+$overdueMin min") else "%d:%02d".format(remaining / 60, remaining % 60)
     Row(
         Modifier
             .clip(RoundedCornerShape(8.dp))

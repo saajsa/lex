@@ -378,7 +378,7 @@ private fun OverviewPanel(detail: CaseDetail, timeline: List<TimelineEvent>, dis
                 }
             }
         } else if (detail.parties.others.isEmpty()) {
-            EmptySection(Icons.Outlined.Groups, "No Parties Listed", "Parties haven't been recorded for this matter yet.")
+            EmptySection(Icons.Outlined.Groups, "No Parties Listed", "Parties have not been recorded for this matter yet.")
         }
         if (detail.parties.others.isNotEmpty()) {
             if (hasParties) Spacer(Modifier.height(10.dp))
@@ -990,7 +990,7 @@ private fun CaseDetailError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't Load This Matter", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Matter Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))

@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 /** The contact lacks the 'notices' permission (HTTP 403): the screens hide, not error. */
-const val NO_ACCESS = "Notices aren't part of your access on this account."
+const val NO_ACCESS = "Notices are not included in this account's access."
 
 class NoticesViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -129,12 +129,12 @@ class NoticesViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun messageFor(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401 -> "Your session expired. Sign in again."
+            401 -> "Your session has expired. Please sign in again."
             403 -> NO_ACCESS
-            in 500..599 -> "Server error. Try again in a moment."
-            else -> "Couldn't reach the server (HTTP ${e.code()})."
+            in 500..599 -> "A server error occurred. Please try again shortly."
+            else -> "The server returned an error (${e.code()}). Please try again."
         }
-        else -> "Couldn't reach the server. Check your connection."
+        else -> "The server could not be reached. Please check your connection and try again."
     }
 }
 
@@ -178,7 +178,7 @@ class NoticeDetailViewModel(app: Application) : AndroidViewModel(app) {
             .onSuccess { _state.value = NoticeDetailUiState.Ready(it) }
             .onFailure { e ->
                 _state.value = NoticeDetailUiState.Error(
-                    if (e is HttpException && e.code() == 403) NO_ACCESS else "Couldn't load this notice.")
+                    if (e is HttpException && e.code() == 403) NO_ACCESS else "This notice could not be loaded.")
             }
     }
 
@@ -191,10 +191,10 @@ class NoticeDetailViewModel(app: Application) : AndroidViewModel(app) {
             .onSuccess { _state.value = NoticeDetailUiState.Ready(it) }
             .onFailure { e ->
                 _approveError.value = when (e) {
-                    is HttpException -> if (e.code() in listOf(401, 403)) "Your session expired. Sign in again."
-                        else "That didn't reach your advocate. Try again in a moment."
-                    is java.io.IOException -> "That didn't reach your advocate. Check your connection and try again."
-                    else -> e.message?.takeIf { it.isNotBlank() } ?: "That didn't reach your advocate. Try again."
+                    is HttpException -> if (e.code() in listOf(401, 403)) "Your session has expired. Please sign in again."
+                        else "Your response could not be sent to your advocate. Please try again shortly."
+                    is java.io.IOException -> "Your response could not be sent. Please check your connection and try again."
+                    else -> e.message?.takeIf { it.isNotBlank() } ?: "Your response could not be sent. Please try again."
                 }
             }
         _approving.value = false

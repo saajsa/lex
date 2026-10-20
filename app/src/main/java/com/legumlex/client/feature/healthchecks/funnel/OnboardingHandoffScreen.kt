@@ -55,7 +55,7 @@ fun OnboardingAhcHandoffScreen(
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "You're all set${userFirstName?.let { ", $it" } ?: ""}.",
+                text = "Your account is ready${userFirstName?.let { ", $it" } ?: ""}.",
                 color = PrimaryText,
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
@@ -95,7 +95,7 @@ fun OnboardingAhcHandoffScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Let's run an agreement check now. Upload any contract — we'll flag the risks and your advocate reviews it.",
+                    "Begin an Agreement Check by uploading a contract. Its risks are identified and reviewed by your advocate.",
                     color = SecondaryText,
                     fontSize = 13.5.sp,
                     lineHeight = 22.sp,

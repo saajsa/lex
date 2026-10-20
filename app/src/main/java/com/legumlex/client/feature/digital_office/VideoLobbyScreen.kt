@@ -297,7 +297,7 @@ private fun LobbyBody(
 
                     if (ui.handingOff) {
                         Spacer(Modifier.height(26.dp))
-                        Reassure("You’re leaving Legum Lex. Google Meet will open in a moment and ask for camera & mic access.")
+                        Reassure("Google Meet will now open and request access to your camera and microphone.")
                     } else if (frame is LobbyFrame.BeingApproved) {
                         Spacer(Modifier.height(26.dp))
                         Reassure(
@@ -334,13 +334,13 @@ private fun LobbyBody(
                     ) { vm.startHandoff() }
                     if (ui.camOn) {
                         Spacer(Modifier.height(12.dp))
-                        Reassure("Meet will ask for camera & mic again — this preview doesn’t record or transmit anything.")
+                        Reassure("Google Meet will request camera and microphone access again. This preview does not record or transmit anything.")
                     } else {
                         Spacer(Modifier.height(14.dp)); ReassureStrip()
                     }
                 }
                 frame is LobbyFrame.InLine -> {
-                    Reassure("Sit tight — we’ll bring you in automatically the moment your advocate is free. No need to refresh.")
+                    Reassure("You will be admitted automatically when your advocate is available. There is no need to refresh.")
                     Spacer(Modifier.height(16.dp)); ReassureStrip()
                     LeaveText("Leave The Line", busy = ui.actionInFlight) { vm.leaveLine(onBack) }
                 }

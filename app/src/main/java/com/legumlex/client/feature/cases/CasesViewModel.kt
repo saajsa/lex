@@ -54,11 +54,11 @@ class CasesViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { e ->
                 val msg = when (e) {
                     is HttpException -> when (e.code()) {
-                        401, 403   -> "Your session expired. Sign in again."
-                        in 500..599 -> "Server error. Try again in a moment."
-                        else        -> "Couldn't load matters (HTTP ${e.code()})."
+                        401, 403   -> "Your session has expired. Please sign in again."
+                        in 500..599 -> "A server error occurred. Please try again shortly."
+                        else        -> "Your matters could not be loaded (error ${e.code()})."
                     }
-                    else -> "Couldn't reach the server. Check your connection."
+                    else -> "The server could not be reached. Please check your connection and try again."
                 }
                 if (!(preserveCurrent && _state.value is CasesUiState.Ready)) {
                     _state.value = CasesUiState.Error(msg)

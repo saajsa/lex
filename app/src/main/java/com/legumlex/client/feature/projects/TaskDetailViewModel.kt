@@ -63,7 +63,7 @@ class TaskDetailViewModel(
                         else cur
                     }
                 }
-                .onFailure { e -> _actionError.value = serverMessage(e, "Couldn't post your comment. Try again.") }
+                .onFailure { e -> _actionError.value = serverMessage(e, "Your comment could not be posted. Please try again.") }
             _posting.value = false
         }
     }
@@ -72,12 +72,12 @@ class TaskDetailViewModel(
 
     private fun loadErr(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401         -> "Your session expired. Sign in again."
+            401         -> "Your session has expired. Please sign in again."
             403         -> forbiddenMessage(e, "Your account does not include this project's tasks. Ask the firm to give you access.")
             404         -> "This task is no longer available."
-            in 500..599 -> "Server error. Try again in a moment."
-            else        -> "Couldn't load this task (HTTP ${e.code()})."
+            in 500..599 -> "A server error occurred. Please try again shortly."
+            else        -> "This task could not be loaded (error ${e.code()})."
         }
-        else -> "Couldn't reach the server. Check your connection."
+        else -> "The server could not be reached. Please check your connection and try again."
     }
 }

@@ -211,7 +211,7 @@ class DocFileViewerViewModel(
                 }
             }
                 .onSuccess { pages ->
-                    if (pages.isEmpty()) _state.value = DocViewerUiState.Error("This file can’t be previewed here.")
+                    if (pages.isEmpty()) _state.value = DocViewerUiState.Error("This file cannot be previewed in the app.")
                     else _state.value = DocViewerUiState.Ready(pages)
                 }
                 .onFailure { e -> _state.value = DocViewerUiState.Error(friendly(e)) }

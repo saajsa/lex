@@ -55,9 +55,9 @@ fun PermissionEmptyState(
         Spacer(Modifier.height(14.dp))
         Text(
             text = message ?: if (viewOnly) {
-                "Your advocate hasn't enabled edits on this matter yet."
+                "Your advocate has not yet enabled changes on this matter."
             } else {
-                "Your advocate hasn't shared this with you yet."
+                "Your advocate has not yet shared this with you."
             },
             color = SecondaryText,
             style = MaterialTheme.typography.bodyMedium,

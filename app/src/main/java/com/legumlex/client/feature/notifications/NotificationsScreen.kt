@@ -419,7 +419,7 @@ private fun EmptyState() {
                 Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text("You're All Caught Up", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
+            Text("Nothing Requires Your Attention", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = LlColor.Ink)
             Spacer(Modifier.height(7.dp))
             Text(
                 "Announcements from the firm, and anything waiting on you, arrive here.",
@@ -450,7 +450,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
                 Icon(Icons.Outlined.WifiOff, null, tint = LlColor.Amber, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("Couldn't Load Notifications", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+                Text("Notifications Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
                 Spacer(Modifier.height(2.dp))
                 Text(message, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted)
             }

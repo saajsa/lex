@@ -77,7 +77,7 @@ fun StepUploadScreen(
             FunnelStepHeader(
                 step = AhcStep.UPLOAD,
                 question = "Upload The Agreement",
-                sub = "We'll read it and pre-fill the details. PDF, DOCX, JPG or PNG, up to 25 MB.",
+                sub = "The details will be read from the document and filled in for you. PDF, DOCX, JPG or PNG, up to 25 MB.",
             )
 
             if (docs.isEmpty() && pending.isEmpty()) {
@@ -162,7 +162,7 @@ fun StepExtractingScreen(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                "We're identifying the parties, the type, and a one-line summary so you can confirm in a tap.",
+                "The parties, the agreement type and a short summary are being identified for your confirmation.",
                 color = SecondaryText,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
@@ -255,8 +255,8 @@ fun StepConfirmScreen(
                 extraction == null -> null
                 extraction.ok && extraction.isLowConfidence ->
                     "Our initial reading found these — double-check before continuing."
-                extraction.ok -> "Pre-filled from an initial reading of your document. Edit anything that's off."
-                else -> "We couldn't process your document automatically. Please fill in the details."
+                extraction.ok -> "Pre-filled from an initial reading of your document. Please correct anything inaccurate."
+                else -> "The document could not be processed automatically. Please enter the details."
             }
             FunnelStepHeader(step = AhcStep.CONFIRM, question = question, sub = sub)
 
@@ -317,7 +317,7 @@ fun StepConfirmScreen(
                 }
 
                 AhcField(
-                    label = "Anything specific you're worried about? (optional)",
+                    label = "Any specific concerns? (Optional)",
                     value = draft.concern,
                     onValueChange = vm::setConfirmConcern,
                     placeholder = "Describe any specific concerns…",

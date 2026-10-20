@@ -78,7 +78,7 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(types = types, problems = buildProblems(types), typesLoading = false) }
             }
             .onFailure {
-                _state.update { it.copy(typesLoading = false, typesError = "The notice types couldn't be loaded.") }
+                _state.update { it.copy(typesLoading = false, typesError = "The notice types could not be loaded.") }
             }
     }
 
@@ -248,7 +248,7 @@ class NewNoticeViewModel(app: Application) : AndroidViewModel(app) {
         val fallback: Int? = null
         return listOf(
             ProblemCard("dues", "Unpaid Cheque Or Dues",
-                "Money you're owed — a bounced cheque, unpaid invoice or loan.",
+                "Money owed to you, such as a dishonoured cheque, an unpaid invoice or a loan.",
                 match("demand", "cheque", "payment") ?: fallback),
             ProblemCard("service", "Bad Service Or Faulty Product",
                 "A purchase or service that went wrong.",

@@ -133,7 +133,7 @@ fun ConsultationDetailScreen(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri -> if (uri != null) vm.uploadAttachment(uri) }
 
-    // Doc-request "I don't have this" sheet — hoisted here so it overlays
+    // Doc-request "Not Available To Me" sheet — hoisted here so it overlays
     // the DetailDocReq variant without that screen owning the state.
     var declineTarget by remember { mutableStateOf<DocRequestItem?>(null) }
 
@@ -304,7 +304,7 @@ fun ConsultationDetailScreen(
     }
 }
 
-// "I don't have this" sheet (Plot Design 08e). Bottom sheet: what happens, a
+// "Not Available To Me" sheet (Plot Design 08e). Bottom sheet: what happens, a
 // reason field, and a submit that stays disabled until a reason is typed.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -321,14 +321,14 @@ private fun DeclineDocRequestDialog(
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 22.dp)) {
             Text(
-                "I Don’t Have This",
+                "Document Not Available",
                 fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 buildAnnotatedString {
-                    append("We’ll mark ")
+                    append("This will mark ")
                     withStyle(SpanStyle(color = LlColor.Ink, fontWeight = FontWeight.SemiBold)) {
                         append(item.documentName)
                     }
@@ -347,7 +347,7 @@ private fun DeclineDocRequestDialog(
                 value = reason,
                 onValueChange = { reason = it.take(500) },
                 placeholder = {
-                    Text("lost, doesn’t exist, applied for…",
+                    Text("lost, never issued, applied for…",
                         fontFamily = Inter, fontSize = 14.sp, color = LlColor.InkFaint)
                 },
                 textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Inter, fontSize = 14.sp, color = LlColor.Ink),
@@ -380,7 +380,7 @@ private fun DeclineDocRequestDialog(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "MARK AS DON’T HAVE",
+                    "MARK AS NOT AVAILABLE",
                     fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp, letterSpacing = 0.05.em,
                     color = if (canSubmit) LlColor.Paper else LlColor.InkFaint,

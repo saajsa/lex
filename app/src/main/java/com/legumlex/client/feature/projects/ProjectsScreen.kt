@@ -265,7 +265,7 @@ private fun ProjectsEmpty() {
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
-            "When your chamber opens a piece of transactional work — a filing, a contract, a compliance retainer — it'll appear here, with its tasks, milestones and progress kept up to date.",
+            "When your chamber opens a piece of transactional work — a filing, a contract, a compliance retainer — it will appear here, with its tasks, milestones and progress kept up to date.",
             fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp),
         )
@@ -297,7 +297,7 @@ private fun FilteredEmpty(filter: ProjectFilter) {
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(9.dp))
-        Text("Nothing in this view right now.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp,
+        Text("No records match this view.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
     }
 }
@@ -346,7 +346,7 @@ private fun ProjectsError(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't Load Your Projects", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Projects Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,

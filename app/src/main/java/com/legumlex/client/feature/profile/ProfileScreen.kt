@@ -236,7 +236,7 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
                     if (m.available) {
                         LegumPrimaryButton(text = "Verify A Number", onClick = vm::openVerify, leadingIcon = Icons.Outlined.Smartphone)
                     } else {
-                        Text("Codes can't be sent at the moment. Please try again later.",
+                        Text("Verification codes cannot be sent at present. Please try again later.",
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                     }
                 }
@@ -269,7 +269,7 @@ private fun VerifySteps(v: VerifyFlow, vm: ProfileViewModel) {
             Spacer(Modifier.height(8.dp))
             LegumSecondaryButton(text = "Cancel", onClick = vm::closeVerify)
         } else {
-            Text("A code is on its way on WhatsApp to ${v.sentTo}. Enter the 6 digits.",
+            Text("A code has been sent by WhatsApp to ${v.sentTo}. Please enter the 6 digits.",
                 style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
             Spacer(Modifier.height(12.dp))
             LegumTextField(

@@ -167,7 +167,7 @@ class DoIntakeViewModel(
                 }
                 if (!chamber.isOpen || chamber.roster.isEmpty()) {
                     _state.value = DoIntakeUiState.Error(
-                        "The Digital Office is closed right now. Please try again during chamber hours."
+                        "The Digital Office is closed at present. Please try again during chamber hours."
                     )
                     return@onSuccess
                 }
@@ -177,7 +177,7 @@ class DoIntakeViewModel(
                     ?: chamber.roster.firstOrNull()
                 if (target == null) {
                     _state.value = DoIntakeUiState.Error(
-                        "No counsel are in the chamber right now. Please try again later."
+                        "No advocate is in the chamber at present. Please try again later."
                     )
                     return@onSuccess
                 }
@@ -321,7 +321,7 @@ class DoIntakeViewModel(
                         _state.value = DoIntakeUiState.Declined(
                             advocate = current.advocate,
                             reason   = fresh.failureReason
-                                ?: "Your advocate isn't able to take this request right now.",
+                                ?: "Your advocate is unable to take this request at present.",
                         )
                         return@launch
                     }
@@ -334,7 +334,7 @@ class DoIntakeViewModel(
                                 "Your advocate accepted, but the fee was not paid in time, so the request lapsed. " +
                                 "No session took place; you can send a new request."
                             else
-                                "Your advocate didn't respond in time. Please try again later.",
+                                "Your advocate did not respond in time. Please try again later.",
                             lapsedAfterAccept = afterAccept,
                         )
                         return@launch

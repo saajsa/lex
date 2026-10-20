@@ -149,7 +149,7 @@ fun ConsultationActionsMenu(vm: ConsultationDetailViewModel) {
             title = { Text("Withdraw This Request?") },
             text = {
                 Text(
-                    "Your firm won't act on this request and it will disappear " +
+                    "The firm will not act on this request, and it will be removed " +
                     "from your list. You can submit a new one any time."
                 )
             },

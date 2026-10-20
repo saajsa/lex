@@ -310,7 +310,7 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
     val done = mode == RowMode.DONE
     val (statusLabel, statusColor) = when {
         c.awaitingPayment() -> "Awaiting Payment" to Lex.colors.warning.solid
-        c.funnelNeedsYou() && c.funnelLabel != null -> title(c.funnelLabel) to Lex.colors.warning.solid
+        c.funnelNeedsYou() && c.funnelCopy() != null -> c.funnelCopy()!!.label to Lex.colors.warning.solid
         else -> title(c.status.label) to c.status.palette.solid
     }
     val kind = when (c.kind) {
@@ -330,7 +330,7 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
     val updatedOtherDay = c.lastUpdatedAt != null && c.createdAt != null &&
         c.lastUpdatedAt.toLocalDate() != c.createdAt.toLocalDate()
     val meta = when {
-        mode == RowMode.LIVE -> "Your session is live — tap to join"
+        mode == RowMode.LIVE -> "Your session is in progress. Tap to join."
         mode == RowMode.AWAIT -> c.nextActionLabel() ?: "Open to continue"
         c.kind == ConsultationKind.DIGITAL_OFFICE && c.scheduledAt() != null -> scheduledGlance(c)
         updatedOtherDay -> relativeAge(c.lastUpdatedAt)?.replaceFirstChar { it.uppercase() }
@@ -451,7 +451,7 @@ private fun NextActionLine(c: Consultation, mode: RowMode) {
         c.kind == ConsultationKind.DOC_REQUEST && c.pendingDocCount > 0 -> Icons.Outlined.UploadFile
         else -> Icons.Outlined.ChevronRight
     }
-    val text = if (live) "Your session is live — tap to join now"
+    val text = if (live) "Your session is in progress. Tap to join."
         else c.nextActionLabel() ?: "Open to continue"
     val tint = if (live) LlColor.Verdant else ClaretMidFix
     Column(Modifier.padding(top = 11.dp)) {
@@ -515,7 +515,7 @@ private fun AllCaughtUpNote() {
 }
 
 @Composable
-private fun buildAnnotatedNote(): String = "Clear these and you're all caught up — nothing else needs you right now."
+private fun buildAnnotatedNote(): String = "Once these are attended to, nothing else requires your attention."
 
 @Composable
 private fun FilteredEmpty(filter: ConsultationFilter, onFilter: (ConsultationFilter) -> Unit) {
@@ -537,7 +537,7 @@ private fun FilteredEmpty(filter: ConsultationFilter, onFilter: (ConsultationFil
         Spacer(Modifier.height(9.dp))
         Text(
             when (filter) {
-                ConsultationFilter.AWAITING_YOU -> "You're all caught up. Your advocate has the ball on everything that's open — we'll notify you the moment something needs you."
+                ConsultationFilter.AWAITING_YOU -> "Nothing requires your attention. Your advocate is attending to every open matter, and you will be notified when your input is needed."
                 ConsultationFilter.DONE, ConsultationFilter.CONVERTED -> "No completed or converted matters yet."
                 else -> "No consultations match this view."
             },
@@ -575,7 +575,7 @@ private fun FirstRunEmpty(onStartNew: () -> Unit) {
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(
-            "You haven't raised anything yet. Ask a question, request a document check, or book a call — your advocate and the team are here.",
+            "You have not raised a consultation yet. You may ask a question, request an agreement check or book a call.",
             fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp),
         )
@@ -647,7 +647,7 @@ private fun ConsultationsError(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Could Not Be Loaded", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,

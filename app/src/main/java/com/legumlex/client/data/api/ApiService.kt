@@ -282,7 +282,7 @@ interface ApiService {
     @retrofit2.http.DELETE("consultations/attachments/{fid}")
     suspend fun deleteConsultationAttachment(@Path("fid") fileId: String): Map<String, Any?>
 
-    /** Client-initiated waive of a doc-request — "I don't have this". */
+    /** Client-initiated waive of a doc-request — "Not Available To Me". */
     @FormUrlEncoded
     @POST("consultations/doc_requests/{rid}/decline")
     suspend fun declineDocRequest(

@@ -94,11 +94,11 @@ class NotificationsViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun messageFor(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401         -> "Your session expired. Sign in again."
-            403         -> "Your account doesn't include notifications yet. Ask the firm to give you access."
-            in 500..599 -> "Server error. Try again in a moment."
-            else        -> "Couldn't reach the server (HTTP ${e.code()})."
+            401         -> "Your session has expired. Please sign in again."
+            403         -> "This account does not yet include notifications. Please contact the firm."
+            in 500..599 -> "A server error occurred. Please try again shortly."
+            else        -> "The server returned an error (${e.code()}). Please try again."
         }
-        else -> "Couldn't reach the server. Check your connection."
+        else -> "The server could not be reached. Please check your connection and try again."
     }
 }

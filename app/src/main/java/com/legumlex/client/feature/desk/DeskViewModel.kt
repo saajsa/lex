@@ -153,7 +153,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun termsReady(): Boolean {
         terms.join()
         if (_ui.value.termsLoaded) return true
-        say(Para.Text("The desk could not reach the firm just now, so it cannot go on. Please check your connection and try again."), note = true, warn = true)
+        say(Para.Text("The desk could not connect to the firm. Please check your connection and try again."), note = true, warn = true)
         dock(Dock.Actions(listOf(Action("terms", "Try Again", main = true))))
         return false
     }
@@ -210,7 +210,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun askQuestion() {
         if (!asked(Step.QUESTION)) {
             if (again) {
-                say(Para.Text("Of course. What else would you like to ask?"), prompt = Step.QUESTION)
+                say(Para.Text("What else would you like to ask?"), prompt = Step.QUESTION)
             } else {
                 say(Para.Text(hour() + ", and welcome to Legum Lex."))
                 say(Para.Text("What would you like to ask? In your own words: what has happened, who is involved, and what you would like the advocate to do."), prompt = Step.QUESTION)
@@ -222,10 +222,10 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     fun submitQuestion(raw: String) {
         val v = raw.trim()
         if (v.length < t.minChars) {
-            err(if (v.isNotEmpty()) "A little more, please: a sentence or two about what has happened." else "Tell the advocate what happened, in your own words.")
+            err(if (v.isNotEmpty()) "Please add a sentence or two describing what has happened." else "Tell the advocate what happened, in your own words.")
             return
         }
-        if (mashed(v)) { err("I could not quite make that out. Tell me, in plain words, what has happened."); return }
+        if (mashed(v)) { err("That could not be understood. Please describe, in plain words, what has happened."); return }
         go {
             _ui.update { it.copy(opened = true) }
             text = v
@@ -258,7 +258,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
         // never be the reason someone cannot reach the firm.
         if (v == "gibberish" && ++gibs >= 2) v = "clear"
         if (v == "gibberish") {
-            rewind(Step.QUESTION) { say(Para.Text("I am sorry, I could not quite make that out. Could you tell me, in a sentence or two, what has happened?"), note = true, warn = true) }
+            rewind(Step.QUESTION) { say(Para.Text("That could not be understood. Please describe, in a sentence or two, what has happened."), note = true, warn = true) }
             return
         }
         if (v == "vague" || v == "not_legal") {
@@ -285,7 +285,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     fun submitClarify(raw: String) {
         val v = raw.trim()
         if (v.length < 3) { err("Please add a few words, or send it as it is."); return }
-        if (mashed(v)) { err("I could not quite make that out. A few plain words will do."); return }
+        if (mashed(v)) { err("That could not be understood. Please use a few plain words."); return }
         go {
             more = v
             answer(Step.CLARIFY, v)
@@ -324,7 +324,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
             say(
                 Para.Text(thanks() + " If you have them to hand, these would help counsel read it properly:"),
                 Para.Bullets(list),
-                Para.Text("Attach what you have now, or carry on without them. They can be sent later."),
+                Para.Text("Attach the documents you have now, or continue without them. They may be sent later."),
                 *readingNotes().toTypedArray(),
                 prompt = Step.DOCS,
             )
@@ -386,7 +386,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
         say(
             Para.Text((if (first.isNotEmpty()) "Welcome back, $first." else "Welcome back.") + (if (c.company.isNotEmpty()) " Good to hear from ${c.company} again." else "")),
             *(if (facts.isNotEmpty()) arrayOf<Para>(Para.Facts(facts)) else emptyArray()),
-            Para.Text("This will go onto your file, so the counsel who know it will see it."),
+            Para.Text("This will be added to your file, for the advocates who know your matters."),
             *readingNotes().toTypedArray(),
         )
     }
@@ -445,8 +445,8 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     fun otherCountry(raw: String) {
         val v = raw.trim()
-        if (v.isEmpty()) { err("Please tell us the country or city."); return }
-        if (!Regex("^[\\p{L}\\p{Zs}.,'’()-]+$").matches(v)) { err("Just the name of the country or city, please: letters only."); return }
+        if (v.isEmpty()) { err("Please enter the country or city."); return }
+        if (!Regex("^[\\p{L}\\p{Zs}.,'’()-]+$").matches(v)) { err("Please enter the country or city name, using letters only."); return }
         go {
             country = "OTHER"; countryOther = v
             answer(Step.COUNTRY, v)
@@ -602,7 +602,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
                 _ui.update { it.copy(locked = false) }
                 sessionHash = r.sessionHash ?: sessionHash
                 if (r.errors.isNotEmpty()) fieldErrors(r.errors)
-                else failed("We could not send that. " + r.message.ifBlank { "Something went wrong at our end. Please try again." })
+                else failed("Your message could not be sent. " + r.message.ifBlank { "The request could not be completed. Please try again." })
             }
             is Sent.Failed -> {
                 dropLine(stagesId)
@@ -610,10 +610,10 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
                 if (r.timedOut) {
                     // Not "try again": the enquiry may be on a desk already.
                     say(Para.Text("This is taking longer than it should. Your enquiry may already have reached the advocates."),
-                        Para.Text("Before sending it again, look at your matters: if it is there, the advocates already have it and there is nothing more for you to do."), note = true, warn = true)
+                        Para.Text("Before sending it again, please check your matters. If it appears there, the advocates have received it and no further action is required."), note = true, warn = true)
                     dock(Dock.Actions(listOf(Action("matters", "See Whether It Arrived", main = true), Action("try", "Send It Again"))))
                 } else {
-                    failed(if (r.message.isNotBlank()) "We could not send that. ${r.message}" else "We could not send that. Please check your connection and try again.")
+                    failed(if (r.message.isNotBlank()) "Your message could not be sent. ${r.message}" else "Your message could not be sent. Please check your connection and try again.")
                 }
             }
         }
@@ -664,7 +664,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
                 consultationId = p.consultationId
                 delivered(savedEmail)
             } else if (asked) {
-                say(Para.Text("The payment has not reached us yet. If you have just paid, give it a minute and try again."), note = true)
+                say(Para.Text("The payment has not yet been confirmed. If you have just paid, please wait a minute and try again."), note = true)
                 dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
             }
         }

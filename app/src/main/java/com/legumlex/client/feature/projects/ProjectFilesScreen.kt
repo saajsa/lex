@@ -119,8 +119,8 @@ class ProjectFilesViewModel(app: Application, private val projectId: String) : A
             if (!(preserve && _state.value is FilesUiState.Ready)) {
                 _state.value = FilesUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's files. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load files (HTTP ${e.code()})." }
-                        else -> "Couldn't reach the server. Check your connection."
+                        is HttpException -> when (e.code()) { 401 -> "Your session has expired. Please sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's files. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "A server error occurred. Please try again shortly."; else -> "The files could not be loaded (error ${e.code()})." }
+                        else -> "The server could not be reached. Please check your connection and try again."
                     },
                 )
             }
@@ -175,7 +175,7 @@ fun ProjectFilesScreen(projectId: String, onBack: () -> Unit) {
     LaunchedEffect(toast) { toast?.let { snackbar.showSnackbar(it); vm.clearToast() } }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { scope.launch { val part = uriToFilePart(context, it); if (part != null) vm.uploadFile(part) else Toast.makeText(context, "Couldn't read that file.", Toast.LENGTH_LONG).show() } }
+        uri?.let { scope.launch { val part = uriToFilePart(context, it); if (part != null) vm.uploadFile(part) else Toast.makeText(context, "The selected file could not be read.", Toast.LENGTH_LONG).show() } }
     }
     val openFile: (ProjectFile) -> Unit = { f ->
         // A linked file (Drive, Dropbox…) lives elsewhere: open its own link.
@@ -184,7 +184,7 @@ fun ProjectFilesScreen(projectId: String, onBack: () -> Unit) {
             if (link == null) Toast.makeText(context, "This file has no link to open.", Toast.LENGTH_LONG).show()
             else runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))) }
                 .onFailure { Toast.makeText(context, "No app here can open that link.", Toast.LENGTH_LONG).show() }
-        } else vm.openFile(f, onReady = { file, mime -> openProjFile(context, file, mime) }, onError = { Toast.makeText(context, "Couldn't open the file.", Toast.LENGTH_LONG).show() }) }
+        } else vm.openFile(f, onReady = { file, mime -> openProjFile(context, file, mime) }, onError = { Toast.makeText(context, "The file could not be opened.", Toast.LENGTH_LONG).show() }) }
 
     Scaffold(containerColor = LlColor.Paper, contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {
@@ -368,7 +368,7 @@ private fun FilesError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load files", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Files Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
@@ -383,7 +383,7 @@ private val dayFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM")
 
 private fun openProjFile(context: android.content.Context, file: java.io.File, mime: String?) {
     val authority = "${context.packageName}.fileprovider"
-    val uri = try { FileProvider.getUriForFile(context, authority, file) } catch (e: Exception) { Toast.makeText(context, "Couldn't open file: ${e.message}", Toast.LENGTH_LONG).show(); return }
+    val uri = try { FileProvider.getUriForFile(context, authority, file) } catch (e: Exception) { Toast.makeText(context, "The file could not be opened.", Toast.LENGTH_LONG).show(); return }
     val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, mime ?: "application/octet-stream"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
     try { context.startActivity(Intent.createChooser(intent, "Open document").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
     catch (e: Exception) { Toast.makeText(context, "No app installed to open this file type.", Toast.LENGTH_LONG).show() }

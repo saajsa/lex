@@ -27,7 +27,7 @@ class ProfileRepository(private val api: ApiService) {
     }
 
     suspend fun codeBySms(ref: String): Result<String> = call {
-        api.profilePhone("sms", ref = ref)["message"] as? String ?: "The code is on its way by SMS."
+        api.profilePhone("sms", ref = ref)["message"] as? String ?: "The code has been sent by SMS."
     }
 
     suspend fun verify(ref: String, code: String): Result<Mobile> = mobileAfter { api.profilePhone("verify", ref = ref, code = code) }
@@ -46,7 +46,7 @@ class ProfileRepository(private val api: ApiService) {
             is HttpException -> {
                 val body = runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()) }.getOrNull()
                 StepException(
-                    body?.optString("message")?.takeIf { it.isNotBlank() } ?: "Something went wrong (HTTP ${e.code()}).",
+                    body?.optString("message")?.takeIf { it.isNotBlank() } ?: "The request could not be completed (error ${e.code()}).",
                     body?.optString("error")?.takeIf { it.isNotBlank() },
                 )
             }

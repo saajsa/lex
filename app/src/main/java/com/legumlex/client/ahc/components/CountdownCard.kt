@@ -108,10 +108,10 @@ private fun OverdueBody(submittedAtLabel: String, etaLabel: String) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Default.HourglassTop, null, Modifier.size(33.dp), tint = LlColor.Amber) }
         Spacer(Modifier.height(15.dp))
-        Text("Running late", style = LlText.emptyTitle)
+        Text("Review Extended", style = LlText.emptyTitle)
         Spacer(Modifier.height(8.dp))
         Text(
-            "We're taking a little longer than usual on this one. We'll notify you the moment your report is ready.",
+            "The review is taking longer than usual. You will be notified as soon as the report is ready.",
             style = LlText.body, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 264.dp),
         )
         Spacer(Modifier.height(13.dp))

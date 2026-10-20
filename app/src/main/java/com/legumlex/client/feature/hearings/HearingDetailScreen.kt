@@ -303,18 +303,26 @@ private fun StatusCard(h: Hearing) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
+            // A past date still marked Scheduled has no outcome on file: Listed,
+            // as the case's hearing list says. The badge alone; the label said it twice.
+            val listed = h.date != null && h.date.isBefore(LocalDate.now(IST)) && h.status.label.equals("Scheduled", true)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusBadge(h.status.label, h.status.palette)
+                StatusBadge(if (listed) "Listed" else h.status.label, h.status.palette)
                 Spacer(Modifier.width(10.dp))
-                Text(h.status.label, style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
+                Text(if (listed) "No outcome recorded for this date" else "Status on record",
+                    style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
             }
-            if (h.history.isNotEmpty()) {
+            // The history is the earlier dates; this hearing itself is the page.
+            val earlier = h.history.filter { it.id != h.id }
+            if (earlier.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 Divider()
                 Spacer(Modifier.height(14.dp))
-                h.history.forEachIndexed { i, entry ->
+                EyebrowText("Earlier Dates")
+                Spacer(Modifier.height(8.dp))
+                earlier.forEachIndexed { i, entry ->
                     HistoryRow(entry)
-                    if (i != h.history.lastIndex) Spacer(Modifier.height(10.dp))
+                    if (i != earlier.lastIndex) Spacer(Modifier.height(10.dp))
                 }
             }
             if (!h.adjournmentReason.isNullOrBlank()) {
@@ -447,7 +455,7 @@ private fun HearingDetailError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = StatusDanger.solid, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(spacing.s4))
-        Text("Couldn't Load This Hearing",
+        Text("Hearing Unavailable",
             style = MaterialTheme.typography.headlineSmall,
             color = PrimaryText,
             textAlign = TextAlign.Center)

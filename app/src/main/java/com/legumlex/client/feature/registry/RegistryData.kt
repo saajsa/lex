@@ -172,10 +172,10 @@ private fun Map<*, *>.toDeadline() = Deadline(
 private fun <T> Result<T>.friendly(): Result<T> = recoverCatching { e ->
     throw IllegalStateException(
         when {
-            e is HttpException && e.code() == 401 -> "Your session expired. Sign in again."
+            e is HttpException && e.code() == 401 -> "Your session has expired. Please sign in again."
             e is HttpException && e.code() == 403 -> "Your account does not include the register. Please ask the firm."
             e is HttpException && e.code() == 404 -> "This agreement is not on your register."
-            e is HttpException && e.code() in 500..599 -> "The server had a problem. Please try again in a moment."
+            e is HttpException && e.code() in 500..599 -> "A server error occurred. Please try again shortly."
             e is java.io.IOException -> "Network error. Please try again."
             // Our own error(...) messages are written for the client; anything else is not.
             e is IllegalStateException && !e.message.isNullOrBlank() -> e.message!!

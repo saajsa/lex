@@ -168,7 +168,7 @@ private fun WelcomeStep(onPick: (VaultIntent) -> Unit) {
         )
         Spacer(Modifier.height(spacing.s2))
         Text(
-            "Pick the closest match and we'll narrow it down together.",
+            "Select the closest match to narrow the search.",
             style = MaterialTheme.typography.bodyMedium,
             color = SecondaryText,
         )
@@ -281,7 +281,7 @@ private fun PickerStep(step: VaultStep.Picker, onPick: (PickerItem) -> Unit) {
     }
 
     if (step.items.isEmpty()) {
-        StepEmpty(header = "Nothing To Pick", body = "There aren't any ${step.intent.plural} on your account yet.")
+        StepEmpty(header = "No Records Available", body = "There are no ${step.intent.plural} on your account yet.")
         return
     }
 
@@ -343,7 +343,7 @@ private fun SearchStep(initial: String, onSubmit: (String) -> Unit) {
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            "We'll look across file names and tags — across every category.",
+            "Searches file names and tags across every category.",
             style = MaterialTheme.typography.bodyMedium,
             color = SecondaryText,
         )
@@ -618,7 +618,7 @@ private fun openWithViewer(context: android.content.Context, file: File, mimeTyp
     val uri: Uri = try {
         FileProvider.getUriForFile(context, authority, file)
     } catch (e: Exception) {
-        Toast.makeText(context, "Couldn't open file: ${e.message}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "The file could not be opened.", Toast.LENGTH_LONG).show()
         return
     }
     val intent = Intent(Intent.ACTION_VIEW).apply {

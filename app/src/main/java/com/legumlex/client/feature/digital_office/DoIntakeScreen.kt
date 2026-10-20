@@ -399,7 +399,7 @@ private fun DeclinedContent(
         inner       = inner,
         eyebrowText = if (state.lapsedAfterAccept) "REQUEST LAPSED" else "ADVOCATE COULDN'T TAKE THIS",
         eyebrowColor= LexClaret,
-        headline    = if (state.lapsedAfterAccept) "The Fee Was Not Paid In Time" else "${state.advocate.name} Can't Take This Right Now",
+        headline    = if (state.lapsedAfterAccept) "The Fee Was Not Paid In Time" else "${state.advocate.name} Is Unavailable",
         body        = state.reason,
         onBack      = onBack,
     )

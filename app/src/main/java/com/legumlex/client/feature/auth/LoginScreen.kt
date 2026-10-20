@@ -101,7 +101,7 @@ fun LoginScreen(
         Spacer(Modifier.height(spacing.s2))
         Text(
             when (view) {
-                LoginView.Choose -> "Sign in to see what's happening with your matters."
+                LoginView.Choose -> "Sign in to see what is happening with your matters."
                 LoginView.Mobile -> "Sign in with a code sent to your mobile."
                 LoginView.Email  -> "Sign in with your email and password."
             },
@@ -485,7 +485,7 @@ private suspend fun requestGoogleIdToken(
                 val googleCred = GoogleIdTokenCredential.createFrom(cred.data)
                 onToken(googleCred.idToken)
             } catch (e: GoogleIdTokenParsingException) {
-                onError("Couldn't read Google credential: ${e.message}")
+                onError("Google sign-in could not be completed. Please try again.")
             }
         } else {
             onError("Unexpected credential type. Please try again.")

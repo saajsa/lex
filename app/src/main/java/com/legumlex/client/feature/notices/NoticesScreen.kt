@@ -104,7 +104,7 @@ fun NoticesScreen(
 
         if (noAccess) {
             com.legumlex.client.ui.components.LexEmpty(
-                "Notices Aren't Available", NO_ACCESS,
+                "Notices Unavailable", NO_ACCESS,
                 modifier = Modifier.fillMaxSize().padding(24.dp),
             )
             return@Column
@@ -472,7 +472,7 @@ private fun Empty(onNew: () -> Unit) {
             Spacer(Modifier.height(15.dp))
             Text("No Notices Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink)
             Spacer(Modifier.height(7.dp))
-            Text("Ask your advocate to send a legal notice, or upload one you've received for them to review.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.fillMaxWidth(0.85f))
+            Text("Ask your advocate to send a legal notice, or upload one you have received for them to review.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.fillMaxWidth(0.85f))
             Spacer(Modifier.height(16.dp))
             Row(
                 Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onNew).padding(horizontal = 16.dp, vertical = 11.dp),
@@ -497,7 +497,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
                 Icon(Icons.Outlined.Inventory2, null, tint = LlColor.Amber, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("Couldn't Load Notices", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+                Text("Notices Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
                 Text(message, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted)
             }
             Row(

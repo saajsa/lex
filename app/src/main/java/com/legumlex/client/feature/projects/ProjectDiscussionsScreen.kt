@@ -109,8 +109,8 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
             if (!(preserve && _state.value is DiscUiState.Ready)) {
                 _state.value = DiscUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's discussions. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load discussions (HTTP ${e.code()})." }
-                        else -> "Couldn't reach the server. Check your connection."
+                        is HttpException -> when (e.code()) { 401 -> "Your session has expired. Please sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's discussions. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "A server error occurred. Please try again shortly."; else -> "The discussions could not be loaded (error ${e.code()})." }
+                        else -> "The server could not be reached. Please check your connection and try again."
                     },
                 )
             }
@@ -120,7 +120,7 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
     fun openThread(id: String) {
         viewModelScope.launch {
             _threadLoading.value = true
-            repo.discussion(id).onSuccess { _thread.value = it }.onFailure { e -> _toast.value = serverMessage(e, "Couldn't open the discussion."); _failed.value = id }
+            repo.discussion(id).onSuccess { _thread.value = it }.onFailure { e -> _toast.value = serverMessage(e, "The discussion could not be opened."); _failed.value = id }
             _threadLoading.value = false
         }
     }
@@ -139,7 +139,7 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
                     repo.discussion(id).onSuccess { fresh -> if (_thread.value?.id == id) _thread.value = fresh }
                     _state.update { cur -> if (cur is DiscUiState.Ready) cur.copy(discussions = cur.discussions.map { if (it.id == id) it.copy(totalComments = it.totalComments + 1) else it }) else cur }
                 }
-                .onFailure { e -> _toast.value = serverMessage(e, "Couldn't post your reply. Try again.") }
+                .onFailure { e -> _toast.value = serverMessage(e, "Your reply could not be posted. Please try again.") }
             _posting.value = false
         }
     }
@@ -343,7 +343,7 @@ private fun DiscEmpty() {
         Spacer(Modifier.height(20.dp))
         Text("No discussions yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text("When your chamber needs your input — a clause to confirm, a document to send — they'll open a thread here. You'll be notified, and you can reply right away.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
+        Text("When your chamber needs your input — a clause to confirm, a document to send — they'll open a thread here. You will be notified, and you can reply right away.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }
 }
 
@@ -371,7 +371,7 @@ private fun DiscError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load discussions", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Discussions Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))

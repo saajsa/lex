@@ -177,7 +177,7 @@ class NoticeDocViewerViewModel(
                 }
             }
                 .onSuccess { pages ->
-                    _state.value = if (pages.isEmpty()) NoticeDocViewerUiState.Error("This file can’t be previewed here.")
+                    _state.value = if (pages.isEmpty()) NoticeDocViewerUiState.Error("This file cannot be previewed in the app.")
                     else NoticeDocViewerUiState.Ready(pages)
                 }
                 .onFailure { e -> _state.value = NoticeDocViewerUiState.Error(friendly(e)) }
@@ -228,12 +228,12 @@ class NoticeDocViewerViewModel(
 
     private fun friendly(e: Throwable): String = when (e) {
         is retrofit2.HttpException -> when (e.code()) {
-            401, 403 -> "Your session expired. Sign in again."
+            401, 403 -> "Your session has expired. Please sign in again."
             404 -> "This document is no longer available."
-            in 500..599 -> "Server error. Try again in a moment."
-            else -> "Couldn’t reach the server (HTTP ${e.code()})."
+            in 500..599 -> "A server error occurred. Please try again shortly."
+            else -> "The server returned an error (${e.code()}). Please try again."
         }
-        else -> e.message?.takeIf { it.isNotBlank() } ?: "Couldn’t open the document."
+        else -> e.message?.takeIf { it.isNotBlank() } ?: "The document could not be opened."
     }
 }
 

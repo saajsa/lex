@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +30,12 @@ import com.legumlex.client.ui.theme.Surface1
 fun LegumBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    // The tab a screen belongs to is the last tab root on the back stack (a
+    // hearing opened from More belongs to More), or its own route's tab.
+    val stack by navController.currentBackStack.collectAsState()
+    val owner = stack.mapNotNull { it.destination.route }
+        .lastOrNull { r -> bottomTabs.any { it.route.path == r } }
+        ?: currentRoute
     val spacing = LocalSpacing.current
 
     Surface(
@@ -47,21 +54,13 @@ fun LegumBottomBar(navController: NavHostController) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             bottomTabs.forEach { tab ->
-                val selected = currentRoute?.hierarchyContains(tab.route.path) == true
+                val selected = owner?.hierarchyContains(tab.route.path) == true
                 NavGlyph(
                     tab = tab,
                     selected = selected,
-                    onClick = {
-                        navController.navigate(tab.route.path) {
-                            // Home is the signed-in root (Splash is popped on the way
-                            // in), so tabs pop back to it and keep their state.
-                            popUpTo(Route.Home.path) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    // Tabs pop back to Home and keep their state; Home itself
+                    // clears to the Home screen (navigateTab).
+                    onClick = { navController.navigateTab(tab.route.path) },
                 )
             }
         }

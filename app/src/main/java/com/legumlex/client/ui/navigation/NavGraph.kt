@@ -687,8 +687,19 @@ fun LegumNavGraph(navController: NavHostController) {
  * the root of the signed-in graph (Splash is popped on the way in), so tabs pop
  * back to it; popping to the start destination would be a silent no-op.
  */
-internal fun NavHostController.navigateTab(path: String) = navigate(path) {
-    popUpTo(Route.Home.path) { saveState = true }
-    launchSingleTop = true
-    restoreState = true
+internal fun NavHostController.navigateTab(path: String) {
+    // Home is the root every tab pops back to. Going home clears the stack to
+    // it outright: saving and restoring Home's own state brought back whatever
+    // was open above it (a consultation opened from the Action Queue stayed).
+    if (path == Route.Home.path) {
+        if (!popBackStack(Route.Home.path, inclusive = false)) navigate(Route.Home.path) { launchSingleTop = true }
+        return
+    }
+    // A tab always opens at its own root. Restoring a tab's saved stack sent a
+    // tap back to the very screen already open (More → a hearing → More did
+    // nothing), so the tab looked dead.
+    navigate(path) {
+        popUpTo(Route.Home.path)
+        launchSingleTop = true
+    }
 }

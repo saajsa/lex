@@ -207,7 +207,7 @@ fun WorkspaceTile(
     description: String,
     onEnter: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    emptyNote: String = "Nothing here yet.",
+    emptyNote: String = "No records yet.",
     eyebrow: String = "Your Work With Us",
     cta: String = "Enter",
 ) {

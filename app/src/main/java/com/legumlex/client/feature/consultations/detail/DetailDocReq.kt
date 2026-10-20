@@ -48,7 +48,7 @@ import kotlin.math.roundToInt
 // Documents.html" — Plot Design). A progress-led checklist body inside the
 // shared consultation shell. The app-wide header (centred logo) + footer
 // (bottom nav) are provided by MainActivity. The advocate uploads the requested
-// documents; the client reviews each inline and can mark "I don't have this".
+// documents; the client reviews each inline and can mark "Not Available To Me".
 // -----------------------------------------------------------------------------
 
 @Composable
@@ -235,11 +235,11 @@ private fun HeroStatus(phase: DocPhase, bundle: DocRequestBundle?) {
     val spec = when (phase) {
         DocPhase.COMPLETE -> HeroSpec(
             LlColor.Verdant, Icons.Outlined.TaskAlt, "All documents received",
-            "Your advocate now has everything needed. We’ll message you with the next step.",
+            "Your advocate has received every document requested. You will be informed of the next step.",
         )
         DocPhase.FRESH -> HeroSpec(
             LlColor.SlateMid, Icons.Outlined.WavingHand, "Your advocate is preparing these",
-            "These documents are being collated for your matter. You can review each one here as it’s added.",
+            "These documents are being collated for your matter. Each may be reviewed here as it is added.",
         )
         DocPhase.AWAITING -> HeroSpec(
             LlColor.AmberMid, Icons.Outlined.FolderOpen, "Documents in progress",
@@ -379,7 +379,7 @@ private fun CelebrateBanner() {
             Icon(Icons.Filled.Verified, null, tint = Color.White, modifier = Modifier.size(23.dp))
         }
         Column {
-            Text("Everything’s ready", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+            Text("All Documents Received", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp, letterSpacing = (-0.01).em, color = LlColor.Ink)
             Spacer(Modifier.height(2.dp))
             Text("All documents for this matter are in. Tap any to review it.",
@@ -537,7 +537,7 @@ private fun DeclineButton(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Icon(Icons.Outlined.Block, null, tint = LlColor.InkFaint, modifier = Modifier.size(16.dp))
-        Text("I don’t have this", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted)
+        Text("Not Available", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted)
     }
 }
 
@@ -681,7 +681,7 @@ private fun EmptyChecklist() {
         Spacer(Modifier.height(16.dp))
         Text("No documents yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink)
         Spacer(Modifier.height(7.dp))
-        Text("Your advocate hasn’t shared any documents for this matter yet. We’ll notify you when they do.",
+        Text("No documents have been shared for this matter yet. You will be notified when they are.",
             fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp, color = LlColor.InkMuted)
     }
 }

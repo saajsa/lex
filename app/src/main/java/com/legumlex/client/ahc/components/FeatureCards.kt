@@ -259,7 +259,7 @@ fun PartialFailureBlock(section: String, onRetry: () -> Unit, modifier: Modifier
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Default.Info, null, Modifier.size(21.dp), tint = LlColor.Amber) }
         Column(Modifier.weight(1f)) {
-            Text("Couldn't load $section", style = LlText.bodyTitle.copy(fontSize = 13.sp))
+            Text("$section could not be loaded", style = LlText.bodyTitle.copy(fontSize = 13.sp))
             Spacer(Modifier.height(2.dp))
             Text("Everything else is ready.", style = LlText.body.copy(fontSize = 11.5.sp))
         }

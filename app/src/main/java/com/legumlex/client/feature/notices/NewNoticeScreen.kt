@@ -105,7 +105,7 @@ private fun Fork(vm: NewNoticeViewModel) {
             "Someone owes you, or has wronged you, and you want to formally demand action.") { vm.chooseDirection(NoticeDirection.OUTBOUND) }
         Spacer(Modifier.height(14.dp))
         BigCard(NoticeDirection.INBOUND, "A Notice You Received",
-            "Upload a legal notice you've received so your advocate can review it.") { vm.chooseDirection(NoticeDirection.INBOUND) }
+            "Upload a legal notice you have received so your advocate can review it.") { vm.chooseDirection(NoticeDirection.INBOUND) }
     }
 }
 
@@ -143,7 +143,7 @@ private fun problemIcon(key: String): Int = when (key) {
 private fun OutProblem(s: NewNoticeState, vm: NewNoticeViewModel) {
     val needsType = s.selectedProblemKey != null && s.problems.firstOrNull { it.key == s.selectedProblemKey }?.typeId == null
     StepScaffold(1, NoticeDirection.OUTBOUND, "What Happened?",
-        "Choose what's closest. Your advocate refines the legal basis later.",
+        "Select the closest description. Your advocate will settle the legal basis.",
         cta = "Continue", ctaEnabled = s.selectedProblemKey != null && s.selectedTypeId != null, onCta = vm::continueFromProblem) {
         TypesStatus(s, vm)
         Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -227,7 +227,7 @@ private fun TypeChooser(types: List<NoticeType>, selected: Int?, title: String, 
 @Composable
 private fun OutRecipient(s: NewNoticeState, vm: NewNoticeViewModel) {
     StepScaffold(2, NoticeDirection.OUTBOUND, "Who Is It Against?",
-        "The person or company the notice is for. That's all we need to start.",
+        "The person or company to whom the notice is addressed.",
         cta = "Continue", ctaEnabled = true, onCta = vm::continueFromRecipient) {
         Column(Modifier.padding(horizontal = 18.dp)) {
             Field("Recipient Name *", s.recipientName, vm::setRecipientName,
@@ -270,7 +270,7 @@ private fun InUpload(vm: NewNoticeViewModel) {
     Column(Modifier.fillMaxSize().padding(18.dp)) {
         Text("Upload The Notice You Received", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, color = LlColor.Ink)
         Spacer(Modifier.height(6.dp))
-        Text("Pick a photo or the PDF. We'll read out the key details for your advocate.",
+        Text("Select a photo or the PDF. The key details will be read for your advocate.",
             fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted)
         Spacer(Modifier.height(20.dp))
         Column(
@@ -305,7 +305,7 @@ private fun InProcessing() {
 @Composable
 private fun InConfirm(s: NewNoticeState, vm: NewNoticeViewModel) {
     StepScaffold(null, NoticeDirection.INBOUND, "Confirm What We Found",
-        if (s.extractFailed) "We couldn't read it automatically — please fill these in." else "Tap any field to correct it.",
+        if (s.extractFailed) "The details could not be read automatically. Please enter them." else "Tap any field to correct it.",
         cta = if (s.isSubmitting) "Submitting…" else "Submit", ctaEnabled = !s.isSubmitting && s.selectedTypeId != null,
         submitting = s.isSubmitting, onCta = vm::submitInbound) {
         TypesStatus(s, vm)
@@ -346,7 +346,7 @@ private fun Done(s: NewNoticeState, dir: NoticeDirection, onOpenNotice: (String)
             Icon(painterResource(R.drawable.ic_ms_check_circle), null, tint = LlColor.Verdant, modifier = Modifier.size(36.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text(if (dir == NoticeDirection.OUTBOUND) "Notice Request Submitted" else "We've Logged Your Notice",
+        Text(if (dir == NoticeDirection.OUTBOUND) "Notice Request Submitted" else "Notice Recorded",
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = LlColor.Ink)
         Spacer(Modifier.height(9.dp))
         Text(

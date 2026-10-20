@@ -218,7 +218,7 @@ private fun WaitingBody(row: DoWaitroomRow) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "We'll send you a push the moment the advocate is ready. You can close the app — you'll be notified.",
+                "You will be notified when the advocate is ready. You may close the app in the meantime.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,

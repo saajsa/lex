@@ -478,7 +478,7 @@ private fun Desk(
         )
         if (chosen == null) {
             TextButton(onClick = onAskAdvocate, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp)) {
-                Text("Ask On The Desk Instead", style = MaterialTheme.typography.labelLarge, color = fg)
+                Text("Submit A Written Enquiry Instead", style = MaterialTheme.typography.labelLarge, color = fg)
                 Spacer(Modifier.width(6.dp))
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = fg, modifier = Modifier.size(16.dp))
             }
@@ -769,7 +769,7 @@ private fun CallPanel(a: ChamberAdvocate?, shutLine: String, sitting: Boolean, o
                     Column(Modifier.align(Alignment.Center).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Outlined.VideocamOff, null, tint = MeetIcon, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.height(4.dp))
-                        Text("Tap to see yourself", style = TextStyle(fontFamily = Inter, fontSize = 9.5.sp, lineHeight = 12.sp),
+                        Text("Preview Your Camera", style = TextStyle(fontFamily = Inter, fontSize = 9.5.sp, lineHeight = 12.sp),
                             color = MeetMuted, textAlign = TextAlign.Center)
                     }
                 }

@@ -51,7 +51,7 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
     /** Whether [note] reports a failure, so it is drawn as one. */
     private val _noteIsError = MutableStateFlow(false)
     val noteIsError: StateFlow<Boolean> = _noteIsError.asStateFlow()
-    private fun fail(msg: String?) { _note.value = msg ?: "Something went wrong. Please try again."; _noteIsError.value = true }
+    private fun fail(msg: String?) { _note.value = msg ?: "The request could not be completed. Please try again."; _noteIsError.value = true }
 
     private var watch: Job? = null
 

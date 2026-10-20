@@ -53,12 +53,12 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { e ->
                 val msg = when (e) {
                     is HttpException -> when (e.code()) {
-                        401         -> "Your session expired. Sign in again."
+                        401         -> "Your session has expired. Please sign in again."
                         403         -> forbiddenMessage(e, "Your account does not include projects. Ask the firm to give you access.")
-                        in 500..599 -> "Server error. Try again in a moment."
-                        else        -> "Couldn't load projects (HTTP ${e.code()})."
+                        in 500..599 -> "A server error occurred. Please try again shortly."
+                        else        -> "Your projects could not be loaded (error ${e.code()})."
                     }
-                    else -> "Couldn't reach the server. Check your connection."
+                    else -> "The server could not be reached. Please check your connection and try again."
                 }
                 if (!(preserveCurrent && _state.value is ProjectsUiState.Ready)) {
                     _state.value = ProjectsUiState.Error(msg)

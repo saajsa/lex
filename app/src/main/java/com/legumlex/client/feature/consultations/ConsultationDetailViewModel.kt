@@ -420,7 +420,7 @@ class ConsultationDetailViewModel(
             val part = uriToFilePart(getApplication(), uri)
             if (part == null) {
                 clearBusy(requestId)
-                _events.emit(ReplyEvent.Failed("Couldn't read that file. Try another."))
+                _events.emit(ReplyEvent.Failed("The selected file could not be read. Please choose another file."))
                 return@launch
             }
             repo.fulfillDocRequest(requestId, part)
@@ -480,7 +480,7 @@ class ConsultationDetailViewModel(
             val part = uriToFilePart(getApplication(), uri)
             if (part == null) {
                 clearAttachmentBusy()
-                _events.emit(ReplyEvent.Failed("Couldn't read that file. Try another."))
+                _events.emit(ReplyEvent.Failed("The selected file could not be read. Please choose another file."))
                 return@launch
             }
             repo.uploadAttachment(consultationId, part)

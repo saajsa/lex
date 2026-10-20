@@ -204,7 +204,7 @@ private fun Body(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(painterResource(R.drawable.ic_ms_visibility), null, tint = LlColor.InkFaint, modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (draftDoc != null) "Tap To Read The Full Notice" else "The Draft Isn't Shared Yet", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
+                                Text(if (draftDoc != null) "Tap To Read The Full Notice" else "Draft Not Yet Shared", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
                             }
                         }
                     }
@@ -212,7 +212,7 @@ private fun Body(
             }
 
             // ---------- key facts ----------
-            Section(if (out) "Recipient" else "What They're Claiming") {
+            Section(if (out) "Recipient" else "The Claim") {
                 Panel {
                     Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
                         if (out) {
@@ -402,7 +402,7 @@ private fun Footer(
                         onDismissRequest = { confirm = false },
                         title = { Text("Tell Your Advocate The Draft Is Fine?") },
                         text = { Text("Your advocate will see that you have read this draft and are content with it. Anything further on this notice stays with them.") },
-                        confirmButton = { androidx.compose.material3.TextButton(onClick = { confirm = false; onApprove() }) { Text("Yes, It's Fine") } },
+                        confirmButton = { androidx.compose.material3.TextButton(onClick = { confirm = false; onApprove() }) { Text("Confirm") } },
                         dismissButton = { androidx.compose.material3.TextButton(onClick = { confirm = false }) { Text("Not Yet") } },
                     )
                 }

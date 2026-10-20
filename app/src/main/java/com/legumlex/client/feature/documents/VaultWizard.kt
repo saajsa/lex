@@ -161,7 +161,7 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
                 _events.emit(DownloadEvent.Ready(file = file, doc = doc))
             }.onFailure { e ->
                 val msg = (e as? HttpException)?.let { httpMessage(it) }
-                    ?: e.message ?: "Couldn't download. Check your connection."
+                    ?: e.message ?: "The download could not be completed. Please check your connection."
                 _events.emit(DownloadEvent.Failed(message = msg, doc = doc))
             }
         }
@@ -253,13 +253,13 @@ class VaultWizardViewModel(app: Application) : AndroidViewModel(app) {
     private fun Throwable.isDenied() = (this as? HttpException)?.code() == 403
 
     private fun httpMessage(e: HttpException): String = when (e.code()) {
-        401        -> "Your session expired. Sign in again."
-        403        -> "Your account doesn't include these documents. Ask the firm if you expected to see them."
+        401        -> "Your session has expired. Please sign in again."
+        403        -> "This account does not include these documents. Please contact the firm if you expected to see them."
         404        -> "Not available on the server."
-        in 500..599 -> "Server error. Try again in a moment."
-        else        -> "Couldn't reach the server (HTTP ${e.code()})."
+        in 500..599 -> "A server error occurred. Please try again shortly."
+        else        -> "The server returned an error (${e.code()}). Please try again."
     }
 
     private fun Throwable.toFriendly(): String =
-        (this as? HttpException)?.let { httpMessage(it) } ?: this.message ?: "Couldn't reach the server."
+        (this as? HttpException)?.let { httpMessage(it) } ?: this.message ?: "The server could not be reached. Please check your connection and try again."
 }

@@ -140,7 +140,7 @@ private fun SessionStateCard(s: DoSession, spacing: Spacing) {
             icon  = Icons.Outlined.Cancel,
             tint  = StatusDanger.solid,
             title = "Advocate Declined",
-            sub   = s.failureReason ?: "Your advocate can't take this session right now.",
+            sub   = s.failureReason ?: "Your advocate is unable to take this session at present.",
         )
         DoSessionStatus.COMPLETED -> StateInfo(
             icon  = Icons.Outlined.EventAvailable,
@@ -178,7 +178,7 @@ private fun SessionStateCard(s: DoSession, spacing: Spacing) {
             icon  = Icons.Outlined.HelpOutline,
             tint  = TertiaryText,
             title = "Session",
-            sub   = "This session's status is not available right now.",
+            sub   = "This session's status is not available at present.",
         )
     }
 
@@ -359,7 +359,7 @@ private fun NoSessionCard(spacing: Spacing) {
             )
             Spacer(Modifier.height(spacing.s1))
             Text(
-                "This consultation isn't linked to a Digital Office session. " +
+                "This consultation is not linked to a Digital Office session. " +
                 "Contact us to be connected with counsel.",
                 style = MaterialTheme.typography.bodySmall,
                 color = SecondaryText,

@@ -319,7 +319,7 @@ private fun CasesEmpty() {
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
-            "When your advocate opens a case for you, it'll appear here — with its court, judge and every hearing date kept up to date.",
+            "When your advocate opens a case for you, it will appear here — with its court, judge and every hearing date kept up to date.",
             fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp),
         )
@@ -357,7 +357,7 @@ private fun FilteredEmpty(filter: CaseFilter) {
             letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(9.dp))
-        Text("Nothing in this view right now.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp,
+        Text("No records match this view.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp,
             color = LlColor.InkMuted, textAlign = TextAlign.Center)
     }
 }
@@ -415,7 +415,7 @@ private fun CasesError(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp)) }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't Load Your Matters", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Matters Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,

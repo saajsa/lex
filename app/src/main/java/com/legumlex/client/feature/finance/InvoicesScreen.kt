@@ -342,8 +342,8 @@ private fun InvoiceRow(inv: Invoice, onClick: () -> Unit) {
 private fun EmptyState(filter: InvFilter) {
     val (title, body) = when (filter) {
         InvFilter.PAID        -> "No Paid Invoices" to "Paid invoices will appear here once settled."
-        InvFilter.OUTSTANDING -> "Nothing Outstanding" to "Every invoice is settled. New invoices from the chamber will appear here the moment they're issued."
-        InvFilter.ALL         -> "No Invoices Yet" to "When your advocate raises an invoice on your account, it'll appear here."
+        InvFilter.OUTSTANDING -> "Nothing Outstanding" to "Every invoice is settled. New invoices from the chamber will appear here the moment they are issued."
+        InvFilter.ALL         -> "No Invoices Yet" to "When your advocate raises an invoice on your account, it will appear here."
     }
     Column(
         Modifier.fillMaxWidth().clip(LlShape.Card).background(LlColor.Surface)
@@ -419,7 +419,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("Can't Load Your Invoices", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Invoices Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,

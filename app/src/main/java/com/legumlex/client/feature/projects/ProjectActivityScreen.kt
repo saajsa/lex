@@ -92,8 +92,8 @@ class ProjectActivityViewModel(app: Application, private val projectId: String) 
             if (!(preserve && _state.value is ActivityUiState.Ready)) {
                 _state.value = ActivityUiState.Error(
                     when (e) {
-                        is HttpException -> when (e.code()) { 401 -> "Your session expired. Sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's activity. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "Server error. Try again in a moment."; else -> "Couldn't load activity (HTTP ${e.code()})." }
-                        else -> "Couldn't reach the server. Check your connection."
+                        is HttpException -> when (e.code()) { 401 -> "Your session has expired. Please sign in again."; 403 -> forbiddenMessage(e, "Your account does not include this project's activity. Ask the firm to give you access."); 404 -> "This project is no longer available."; in 500..599 -> "A server error occurred. Please try again shortly."; else -> "The activity log could not be loaded (error ${e.code()})." }
+                        else -> "The server could not be reached. Please check your connection and try again."
                     },
                 )
             }
@@ -263,7 +263,7 @@ private fun ActError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load activity", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Activity Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))

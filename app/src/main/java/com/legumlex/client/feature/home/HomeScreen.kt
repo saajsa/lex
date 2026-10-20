@@ -778,7 +778,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             }
             Spacer(Modifier.height(15.dp))
             Text(
-                text       = "You're all caught up",
+                text       = "Nothing Requires Your Attention",
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize   = 18.sp,
@@ -788,7 +788,7 @@ private fun CaughtUpCard(onAskNew: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text  = "No invoices, signatures or requests need you right now. We'll surface anything new here.",
+                text  = "No invoices, signatures or requests currently require your attention. New items will appear here.",
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp),
                 color = SecondaryText,
                 textAlign = TextAlign.Center,
@@ -1248,7 +1248,7 @@ private fun LiveSessionBanner(
                         cid != null                  -> onOpenConsultation(cid.toString())
                         else -> {
                             Toast.makeText(context,
-                                "Your session isn't ready yet. Opening the Digital Office.",
+                                "Your session is not ready yet. Opening the Digital Office.",
                                 Toast.LENGTH_SHORT).show()
                             onOpenDigitalOffice()
                         }
@@ -1393,7 +1393,7 @@ private fun HomeError(message: String, denied: Boolean, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = SecondaryText, modifier = Modifier.size(34.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text(if (denied) "Home Isn't Open To You Yet" else "We Can't Reach Legum Lex", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = PrimaryText, textAlign = TextAlign.Center)
+        Text(if (denied) "Access Not Yet Enabled" else "Service Unavailable", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = Inter, fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = PrimaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = Inter), color = SecondaryText, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))

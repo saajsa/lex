@@ -81,11 +81,11 @@ private class CalendarViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = CalendarUiState.Error(
                     when (e) {
                         is HttpException -> when (e.code()) {
-                            401 -> "Your session expired. Sign in again."
-                            in 500..599 -> "Server error. Try again in a moment."
-                            else -> "Couldn't load the calendar (HTTP ${e.code()})."
+                            401 -> "Your session has expired. Please sign in again."
+                            in 500..599 -> "A server error occurred. Please try again shortly."
+                            else -> "The calendar could not be loaded (error ${e.code()})."
                         }
-                        else -> "Couldn't reach the server. Check your connection."
+                        else -> "The server could not be reached. Please check your connection and try again."
                     }
                 )
             }
@@ -122,7 +122,7 @@ fun CalendarScreen(
                     is CalendarUiState.Error   -> CalendarError(s.message, vm::load)
                     is CalendarUiState.Denied  -> com.legumlex.client.ui.components.PermissionEmptyState(
                         feature = "Calendar",
-                        message = "Your account doesn't include court matters, so there are no hearings to show. Ask the firm if you expected to see them.",
+                        message = "This account does not include court matters, so there are no hearings to show. Please contact the firm if you expected to see them.",
                     )
                     is CalendarUiState.Ready   -> CalendarBody(s.hearings, onOpenHearing)
                 }
@@ -424,7 +424,7 @@ private fun CalendarError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.ErrorOutline, null, tint = StatusDanger.solid, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(spacing.s4))
-        Text("Couldn't Load The Calendar",
+        Text("Calendar Unavailable",
             style = MaterialTheme.typography.headlineSmall,
             color = PrimaryText,
             textAlign = TextAlign.Center)

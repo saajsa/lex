@@ -131,7 +131,7 @@ class ProjectDetailViewModel(
             _actionInFlight.value = true
             repo.createTask(projectId, name, startDate, dueDate, priority, milestone, description)
                 .onSuccess { _toast.value = "Task created"; onDone(); refresh() }
-                .onFailure { e -> _toast.value = serverMessage(e, "Couldn't create the task. Try again.") }
+                .onFailure { e -> _toast.value = serverMessage(e, "The task could not be created. Please try again.") }
             _actionInFlight.value = false
         }
     }
@@ -178,7 +178,7 @@ class ProjectDetailViewModel(
             _discussionLoading.value = true
             repo.discussion(id)
                 .onSuccess { _openDiscussion.value = it }
-                .onFailure { _toast.value = "Couldn't open the discussion." }
+                .onFailure { _toast.value = "The discussion could not be opened." }
             _discussionLoading.value = false
         }
     }
@@ -204,19 +204,19 @@ class ProjectDetailViewModel(
                         else cur
                     }
                 }
-                .onFailure { e -> _toast.value = serverMessage(e, "Couldn't post your reply. Try again.") }
+                .onFailure { e -> _toast.value = serverMessage(e, "Your reply could not be posted. Please try again.") }
             _actionInFlight.value = false
         }
     }
 
     private fun loadErr(e: Throwable): String = when (e) {
         is HttpException -> when (e.code()) {
-            401         -> "Your session expired. Sign in again."
+            401         -> "Your session has expired. Please sign in again."
             403         -> forbiddenMessage(e, "Your account does not include this project. Ask the firm to give you access.")
             404         -> "This project is no longer available."
-            in 500..599 -> "Server error. Try again in a moment."
-            else        -> "Couldn't load this project (HTTP ${e.code()})."
+            in 500..599 -> "A server error occurred. Please try again shortly."
+            else        -> "This project could not be loaded (error ${e.code()})."
         }
-        else -> "Couldn't reach the server. Check your connection."
+        else -> "The server could not be reached. Please check your connection and try again."
     }
 }

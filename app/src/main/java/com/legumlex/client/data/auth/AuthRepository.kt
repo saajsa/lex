@@ -54,7 +54,7 @@ class AuthRepository(
 
     /** "Send by SMS instead": the same code, by SMS. Returns the server's note. */
     suspend fun codeBySms(ref: String): Result<String> = runStep {
-        api.otpSms(ref)["message"] as? String ?: "The code is on its way by SMS."
+        api.otpSms(ref)["message"] as? String ?: "The code has been sent by SMS."
     }
 
     suspend fun signInWithCode(ref: String, code: String): Result<LoginResult> =

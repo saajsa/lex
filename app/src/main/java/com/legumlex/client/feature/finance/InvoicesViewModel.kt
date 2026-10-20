@@ -85,11 +85,11 @@ class InvoicesViewModel(app: Application) : AndroidViewModel(app) {
 
 internal fun friendlyMessage(e: Throwable): String = when (e) {
     is HttpException -> when (e.code()) {
-        401        -> "Your session expired. Sign in again."
+        401        -> "Your session has expired. Please sign in again."
         403        -> "Your account does not include billing. Ask the firm to give you access."
         404        -> "Not available."
-        in 500..599 -> "Server error. Try again in a moment."
-        else        -> "Couldn't reach the server (HTTP ${e.code()})."
+        in 500..599 -> "A server error occurred. Please try again shortly."
+        else        -> "The server returned an error (${e.code()}). Please try again."
     }
-    else -> "Couldn't reach the server. Check your connection."
+    else -> "The server could not be reached. Please check your connection and try again."
 }

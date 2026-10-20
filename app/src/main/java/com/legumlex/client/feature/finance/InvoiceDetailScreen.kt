@@ -757,7 +757,7 @@ private fun sharePaymentLink(context: android.content.Context, inv: Invoice) {
     try {
         context.startActivity(Intent.createChooser(intent, "Share invoice").apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
     } catch (e: Exception) {
-        Toast.makeText(context, "Couldn't share.", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "The invoice could not be shared.", Toast.LENGTH_LONG).show()
     }
 }
 
@@ -817,7 +817,7 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.ErrorOutline, null, tint = LlColor.InkMuted, modifier = Modifier.size(32.dp)) }
         Spacer(Modifier.height(20.dp))
-        Text("Couldn't Open This Invoice", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+        Text("Invoice Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold,
             fontSize = 21.sp, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,

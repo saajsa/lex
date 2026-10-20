@@ -143,12 +143,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { e ->
                 val msg = when (e) {
                     is HttpException -> when (e.code()) {
-                        401         -> "Your session expired. Sign in again."
-                        403         -> "Your account doesn't include this yet. Ask the firm to give you access."
-                        in 500..599 -> "Server error. Try again in a moment."
-                        else        -> "Couldn't reach the server (HTTP ${e.code()})."
+                        401         -> "Your session has expired. Please sign in again."
+                        403         -> "This account does not yet include access to this section. Please contact the firm."
+                        in 500..599 -> "A server error occurred. Please try again shortly."
+                        else        -> "The server returned an error (${e.code()}). Please try again."
                     }
-                    else -> "Couldn't reach the server. Check your connection."
+                    else -> "The server could not be reached. Please check your connection and try again."
                 }
                 // On refresh, keep the stale content visible rather than wiping
                 // it for an error screen. Errors are shown only when there's no

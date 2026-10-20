@@ -115,7 +115,7 @@ private fun PendingScreen(state: AhcUiState.Pending, actions: AhcActions, showTo
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         if (showTopBar) item {
             AhcTopBar(state.agreementName, actions.onBack, actions.onOverflow) {
-                AhcEyebrow(if (state.isOverdue) "Running late" else null, LlColor.AmberMid)
+                AhcEyebrow(if (state.isOverdue) "Review extended" else null, LlColor.AmberMid)
             }
         }
         // anchor: countdown
@@ -146,7 +146,7 @@ private fun PendingScreen(state: AhcUiState.Pending, actions: AhcActions, showTo
             Spacer(Modifier.height(9.dp))
             WhatHappensNext(
                 listOf(
-                    NextStep("Received and queued", StepState.DONE),
+                    NextStep("Received and registered", StepState.DONE),
                     NextStep("Lex reads your agreement", StepState.NOW),
                     NextStep("Advocate reviews & releases your report", StepState.TODO),
                 )
@@ -553,7 +553,7 @@ private fun EmptyScreen(state: AhcUiState.Empty, actions: AhcActions, showTopBar
             Text("No report yet", style = LlText.emptyTitle)
             Spacer(Modifier.height(7.dp))
             Text(
-                "We haven't started the review for this agreement. It'll appear here the moment it's underway.",
+                "The review of this agreement has not yet begun. It will appear here once it is under way.",
                 style = LlText.body, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 250.dp),
             )
         }
@@ -577,10 +577,10 @@ private fun ErrorScreen(state: AhcUiState.Error, actions: AhcActions, showTopBar
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Default.Refresh, null, Modifier.size(34.dp), tint = LlColor.InkMuted) }
             Spacer(Modifier.height(22.dp))
-            Text("We couldn't load this", style = LlText.errorTitle, textAlign = TextAlign.Center)
+            Text("Report Unavailable", style = LlText.errorTitle, textAlign = TextAlign.Center)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Something went wrong fetching your report. Check your connection and try again.",
+                "The report could not be retrieved. Please check your connection and try again.",
                 style = LlText.body, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 270.dp),
             )
             Spacer(Modifier.height(26.dp))

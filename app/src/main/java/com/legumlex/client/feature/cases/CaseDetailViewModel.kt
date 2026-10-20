@@ -64,12 +64,12 @@ class CaseDetailViewModel(
         } catch (e: Throwable) {
             val msg = when (e) {
                 is HttpException -> when (e.code()) {
-                    401, 403   -> "Your session expired. Sign in again."
+                    401, 403   -> "Your session has expired. Please sign in again."
                     404        -> "This case is no longer available."
-                    in 500..599 -> "Server error. Try again in a moment."
-                    else        -> "Couldn't load this case (HTTP ${e.code()})."
+                    in 500..599 -> "A server error occurred. Please try again shortly."
+                    else        -> "This matter could not be loaded (error ${e.code()})."
                 }
-                else -> "Couldn't reach the server. Check your connection."
+                else -> "The server could not be reached. Please check your connection and try again."
             }
             if (!(preserveCurrent && _state.value is CaseDetailUiState.Ready)) {
                 _state.value = CaseDetailUiState.Error(msg)

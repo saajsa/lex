@@ -624,7 +624,7 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
         Spacer(Modifier.height(7.dp))
         Text(
             if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
-            else "${advName(c.assignedTo)} will respond shortly — the firm usually replies within 30 minutes during chamber hours. You'll get a notification the moment there's an answer.",
+            else "${advName(c.assignedTo)} will respond shortly — the firm usually replies within 30 minutes during chamber hours. You will get a notification the moment there is an answer.",
             fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )

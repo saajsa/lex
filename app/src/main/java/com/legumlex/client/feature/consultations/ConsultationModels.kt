@@ -136,6 +136,21 @@ data class Consultation(
     val brief: String? = null,
 )
 
+/**
+ * The funnel's client action, in the app's own formal words. The server's
+ * board label ("We could not read it") is written for the portal's card; the
+ * app names the state instead. One place, so every screen says the same.
+ */
+data class FunnelCopy(val label: String, val detail: String)
+
+fun Consultation.funnelCopy(): FunnelCopy? = when (funnelAction) {
+    "reupload"    -> FunnelCopy("Document Unreadable", "The document could not be processed. Please submit a clearer copy.")
+    "answer"      -> FunnelCopy("Response Requested", "Your advocate has requested your response.")
+    "pay"         -> FunnelCopy("Payment Pending", "The fee invoice is awaiting payment.")
+    "check_email" -> FunnelCopy("Reply Requested By Email", "Your advocate has written to you by email and awaits your reply.")
+    else          -> null
+}
+
 /** Funnel actions that wait on the client, as the portal's board counts them. */
 fun Consultation.funnelNeedsYou(): Boolean = funnelAction in setOf("reupload", "answer", "pay", "check_email")
 
@@ -230,7 +245,7 @@ fun Consultation.displayTitle(): String =
 
 // Short "what to do next" hint for the Needs-action card subline.
 fun Consultation.nextActionLabel(): String? = when {
-    funnelNeedsYou() && funnelDetail != null           -> funnelDetail
+    funnelNeedsYou() && funnelCopy() != null           -> funnelCopy()!!.detail
     hasUnreadReplies                                   -> "New message from your advocate"
     kind == ConsultationKind.DOC_REQUEST && pendingDocCount > 0 ->
         "$pendingDocCount document${if (pendingDocCount == 1) "" else "s"} left to upload"

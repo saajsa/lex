@@ -63,7 +63,7 @@ class DocumentsRepository(
                 body.byteStream().use { input ->
                     part.outputStream().use { out -> input.copyTo(out) }
                 }
-                if (!part.renameTo(target)) error("The download couldn't be saved.")
+                if (!part.renameTo(target)) error("The download could not be saved.")
             } finally {
                 part.delete()
             }

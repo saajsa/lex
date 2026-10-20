@@ -268,7 +268,7 @@ fun DropTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "Tap to pick a file",
+                "Tap To Select A File",
                 color = PrimaryText,
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
@@ -308,7 +308,7 @@ fun PendingFileRow(
 ) {
     val subtitle = when (file.state) {
         PendingUploadState.UPLOADING -> "Uploading… ${file.progress}%"
-        PendingUploadState.FAILED    -> "Couldn't upload — tap to retry"
+        PendingUploadState.FAILED    -> "Upload failed. Tap to retry."
         PendingUploadState.OFFLINE   -> "PENDING UPLOAD"
     }
     FileRow(
@@ -454,7 +454,7 @@ fun SaveAndExitSheet(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "You can pick up where you left off from Agreement Checks → Drafts. Your uploads are already saved.",
+                "You may resume from Agreement Checks → Drafts. Your uploads have been saved.",
                 color = SecondaryText,
                 fontSize = 13.5.sp,
                 lineHeight = 22.sp,

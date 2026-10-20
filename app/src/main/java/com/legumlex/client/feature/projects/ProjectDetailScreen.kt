@@ -530,7 +530,7 @@ private fun CreateTaskSheet(
                 FieldLabel("Due Date (Optional)")
                 DateField(due?.format(dayYearFmt) ?: "Choose a date", due == null) { pick(due ?: start, start) { due = it } }
                 if (due != null) Text("Clear the due date", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 8.dp).clickable { due = null })
-                if (!datesOk) Text("The due date can't be before the start date.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Claret, modifier = Modifier.padding(top = 8.dp))
+                if (!datesOk) Text("The due date cannot be earlier than the start date.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Claret, modifier = Modifier.padding(top = 8.dp))
                 milestone?.dueDate?.let { md ->
                     if (due?.isAfter(md) == true) Text("This is after the milestone's own date, ${md.format(dayYearFmt)}.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Amber, modifier = Modifier.padding(top = 8.dp))
                 }
@@ -603,7 +603,7 @@ private fun FailedSections(failed: Set<ProjectSection>, busy: Boolean, onRetry: 
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(Icons.Outlined.CloudOff, null, tint = LlColor.Amber, modifier = Modifier.size(18.dp))
-        Text("Couldn't load this project's $names. What shows below may be incomplete.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.Amber, modifier = Modifier.weight(1f))
+        Text("This project's $names could not be loaded. The information below may be incomplete.", fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.Amber, modifier = Modifier.weight(1f))
         Text("Retry", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink,
             modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = !busy, onClick = onRetry).padding(horizontal = 8.dp, vertical = 5.dp))
     }
@@ -691,7 +691,7 @@ private fun ProjectDetailError(message: String, onRetry: () -> Unit) {
             Icon(Icons.Outlined.CloudOff, null, tint = LlColor.InkMuted, modifier = Modifier.size(30.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("Couldn't load this project", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Project Unavailable", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
         Text(message, fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 280.dp))
         Spacer(Modifier.height(22.dp))
