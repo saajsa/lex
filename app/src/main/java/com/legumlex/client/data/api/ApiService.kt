@@ -195,21 +195,11 @@ interface ApiService {
     @GET("notices")
     suspend fun notices(): Map<String, Any?>
 
-    @GET("notices/types")
-    suspend fun noticeTypes(): Map<String, Any?>
 
     @GET("notices/{id}")
     suspend fun notice(@retrofit2.http.Path("id") id: String): Map<String, Any?>
 
-    /** Inbound: upload the received notice; AI returns extracted fields (no record). */
-    @Multipart
-    @POST("notices/extract")
-    suspend fun extractNotice(@Part file: MultipartBody.Part): Map<String, Any?>
-
-    /** Create a notice. Outbound (draft request) or Inbound (received), with optional file. */
-    @Multipart
-    @POST("notices")
-    suspend fun createNotice(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+    // A client does not create notices (owner, 2026-10-20): no extract or create calls.
 
     @PUT("notices/{id}/approve")
     suspend fun approveNotice(@retrofit2.http.Path("id") id: String): Map<String, Any?>

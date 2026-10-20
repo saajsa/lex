@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.desk
 
+import com.legumlex.client.ui.theme.Lex
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,15 +60,17 @@ import kotlinx.coroutines.launch
  *  (Landing::ajax_track). Only the tracking reference is taken, as there.
  * ========================================================================== */
 
-private val Page = Color(0xFF0B0F17)
-private val Ink = Color(0xFFEBE7DF)
-private val Muted = Ink.copy(alpha = 0.62f)
-private val Line2 = Color(0x26FFFFFF)
-private val Raise = Color(0xFF111725)
-private val Gold = Color(0xFFF3C25E)
-private val OnGold = Color(0xFF1B1406)
-private val Bad = Color(0xFFF2A65A)
+// The app's palette, as the desk itself now uses (owner, 2026-10-20).
+private val Page: Color   @Composable get() = Lex.colors.background
+private val Ink: Color    @Composable get() = Lex.colors.foreground
+private val Muted: Color  @Composable get() = Lex.colors.mutedForeground
+private val Line2: Color  @Composable get() = Lex.colors.input
+private val Raise: Color  @Composable get() = Lex.colors.card
+private val Gold: Color   @Composable get() = Lex.colors.primary
+private val OnGold: Color @Composable get() = Lex.colors.primaryForeground
+private val Bad: Color    @Composable get() = Lex.colors.danger.solid
 
+@Composable
 private fun t(size: Float, color: Color = Ink, weight: FontWeight = FontWeight.Normal) =
     TextStyle(fontFamily = Inter, fontSize = size.sp, lineHeight = (size * 1.5f).sp, color = color, fontWeight = weight)
 

@@ -10,13 +10,6 @@ enum class NoticeDirection { OUTBOUND, INBOUND;
     }
 }
 
-/** A statutory notice type (from tblcase_notice_types) — never invented client-side. */
-data class NoticeType(
-    val id: Int,
-    val name: String,
-    val waitingPeriodDays: Int,
-    val description: String?,
-)
 
 data class NoticeDocument(
     val id: String,
@@ -92,17 +85,6 @@ data class NoticeDetail(
     val activity: List<NoticeActivity> = emptyList(),
 )
 
-/** AI-extracted fields from an uploaded inbound notice (preview, pre-confirm). */
-data class ExtractedNotice(
-    val senderName: String?,
-    val senderAddress: String?,
-    val senderContact: String?,
-    val senderAdvocateName: String?,
-    val noticeTypeId: Int?,
-    val claimAmount: String?,
-    val responseDueDate: String?,
-    val receivedDate: String?,
-)
 
 /** Sort modes offered in the sort sheet. */
 enum class NoticeSort(val label: String, val sub: String?) {

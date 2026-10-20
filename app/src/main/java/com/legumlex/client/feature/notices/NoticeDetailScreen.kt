@@ -61,7 +61,6 @@ fun NoticeDetailScreen(
     onBack: () -> Unit,
     onMessageAdvocate: (String) -> Unit,
     onOpen: (String) -> Unit,
-    onRespond: (String, String?) -> Unit,
     onOpenDocument: (String, String, String?) -> Unit,
     onOpenCase: (String) -> Unit = {},
 ) {
@@ -93,7 +92,7 @@ fun NoticeDetailScreen(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 action = if (s.message == NO_ACCESS) null else ({ androidx.compose.material3.TextButton(onClick = { vm.load() }) { Text("Try Again", color = LlColor.Ink) } }),
             )
-            is NoticeDetailUiState.Ready -> Body(s.notice, approving, approveError, vm::approve, onMessageAdvocate, onOpen, onRespond, onOpenDocument, onOpenCase)
+            is NoticeDetailUiState.Ready -> Body(s.notice, approving, approveError, vm::approve, onMessageAdvocate, onOpen, onOpenDocument, onOpenCase)
         }
     }
 }
@@ -106,7 +105,6 @@ private fun Body(
     onApprove: () -> Unit,
     onMessageAdvocate: (String) -> Unit,
     onOpen: (String) -> Unit,
-    onRespond: (String, String?) -> Unit,
     onOpenDocument: (String, String, String?) -> Unit,
     onOpenCase: (String) -> Unit,
 ) {
@@ -370,7 +368,7 @@ private fun Body(
         }
 
         // ---------- contextual footer ----------
-        Footer(n, approving, approveError, onApprove, onMessageAdvocate, onRespond, onOpenDocument)
+        Footer(n, approving, approveError, onApprove, onMessageAdvocate, onOpenDocument)
     }
 }
 
@@ -379,7 +377,7 @@ private fun Body(
 @Composable
 private fun Footer(
     n: NoticeDetail, approving: Boolean, approveError: String?,
-    onApprove: () -> Unit, onMessageAdvocate: (String) -> Unit, onRespond: (String, String?) -> Unit,
+    onApprove: () -> Unit, onMessageAdvocate: (String) -> Unit,
     onOpenDocument: (String, String, String?) -> Unit,
 ) {
     val sum = n.summary
@@ -408,10 +406,9 @@ private fun Footer(
                 }
                 n.consultationId?.let { cid -> GhostBtn("Ask For Changes") { onMessageAdvocate(cid) } }
             }
-            // inbound awaiting a reply
-            !out && n.children.isEmpty() && !sum.isClosed -> {
-                PrimaryBtn("Respond To This Notice", painterResource(R.drawable.ic_ms_reply)) { onRespond(sum.id, n.senderName ?: sum.counterparty) }
-            }
+            // An inbound notice awaiting a reply: the reply is the firm's to
+            // draft (a client does not start a notice); the default actions
+            // below let the client view it and write to the advocate.
             // default — view the notice + message advocate
             else -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (primaryDoc != null) {

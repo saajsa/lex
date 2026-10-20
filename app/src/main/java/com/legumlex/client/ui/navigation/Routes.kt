@@ -59,16 +59,6 @@ sealed class Route(val path: String) {
     data object Invoices       : Route("invoices")
     data object Notifications  : Route("notifications")
     data object Notices        : Route("notices")
-    data object NewNotice      : Route("notices/new?parent={parent}&to={to}") {
-        const val ARG_PARENT = "parent"
-        const val ARG_TO = "to"
-        /** Fresh notice (fork) when no parent; a nested response when parent is set. */
-        fun build(parentId: String? = null, recipientName: String? = null): String {
-            if (parentId == null) return "notices/new"
-            val to = android.net.Uri.encode(recipientName.orEmpty())
-            return "notices/new?parent=$parentId&to=$to"
-        }
-    }
     data object NoticeDetail   : Route("notices/d/{noticeId}") {
         const val ARG = "noticeId"
         fun build(id: String) = "notices/d/$id"
@@ -247,7 +237,6 @@ private val immersiveBases = setOf(
 private val wizardBases = setOf(
     Route.AhcFunnel.path,                               // healthchecks/funnel
     Route.Vault.path,                                   // multi-step document wizard
-    Route.NewNotice.path.substringBefore("?"),         // notices/new
     Route.DoIntake.path.substringBefore("?"),          // digital_office/intake
 )
 

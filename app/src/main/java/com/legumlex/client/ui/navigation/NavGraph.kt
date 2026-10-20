@@ -161,25 +161,6 @@ fun LegumNavGraph(navController: NavHostController) {
             com.legumlex.client.feature.notices.NoticesScreen(
                 onBack = { navController.popBackStack() },
                 onOpen = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
-                onNew = { navController.navigate(Route.NewNotice.build()) },
-            )
-        }
-        composable(
-            route = Route.NewNotice.path,
-            arguments = listOf(
-                navArgument(Route.NewNotice.ARG_PARENT) { type = NavType.StringType; nullable = true; defaultValue = null },
-                navArgument(Route.NewNotice.ARG_TO) { type = NavType.StringType; nullable = true; defaultValue = null },
-            ),
-        ) { entry ->
-            com.legumlex.client.feature.notices.NewNoticeScreen(
-                parentNoticeId = entry.arguments?.getString(Route.NewNotice.ARG_PARENT),
-                recipientName = entry.arguments?.getString(Route.NewNotice.ARG_TO),
-                onClose = { navController.popBackStack() },
-                onOpenNotice = { id ->
-                    navController.navigate(Route.NoticeDetail.build(id)) {
-                        popUpTo(Route.NewNotice.path) { inclusive = true }
-                    }
-                },
             )
         }
         composable(
@@ -192,7 +173,6 @@ fun LegumNavGraph(navController: NavHostController) {
                 onBack = { navController.popBackStack() },
                 onMessageAdvocate = { cid -> navController.navigate(Route.ConsultationDetail.build(cid)) },
                 onOpen = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
-                onRespond = { parentId, toName -> navController.navigate(Route.NewNotice.build(parentId, toName)) },
                 onOpenDocument = { ownerNoticeId, fileId, name ->
                     navController.navigate(Route.NoticeDocViewer.build(ownerNoticeId, fileId, name))
                 },

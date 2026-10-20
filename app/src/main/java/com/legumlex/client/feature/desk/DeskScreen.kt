@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.desk
 
+import com.legumlex.client.ui.theme.Lex
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
@@ -119,25 +120,31 @@ import kotlinx.coroutines.delay
  *  desk is asking for.
  * ========================================================================== */
 
+/**
+ * The desk's colours, from the app's palette (owner, 2026-10-20: the desk
+ * obeys the app theme). The names stay as the desk's layout uses them; the
+ * former navy and gold are gone — the accent is the theme's ink.
+ */
 private object D {
-    val Page = Color(0xFF0B0F17)
-    val Ink = Color(0xFFEBE7DF)
-    val Me = Color(0xFF232C3D)
-    val MeInk = Color(0xFFF5F2EC)
-    val Line = Color(0x17FFFFFF)
-    val Line2 = Color(0x26FFFFFF)
-    val Raise = Color(0xFF111725)
-    val Mark = Color(0xFF1A2130)
-    val Gold = Color(0xFFF3C25E)
-    val OnGold = Color(0xFF1B1406)
-    val Live = Color(0xFF3FAE7C)
-    val Warn = Color(0xFFF2A65A)
-    val Muted = Ink.copy(alpha = 0.62f)
-    val Quiet = Ink.copy(alpha = 0.5f)
+    val Page: Color   @Composable get() = Lex.colors.background
+    val Ink: Color    @Composable get() = Lex.colors.foreground
+    val Me: Color     @Composable get() = Lex.colors.muted
+    val MeInk: Color  @Composable get() = Lex.colors.foreground
+    val Line: Color   @Composable get() = Lex.colors.border
+    val Line2: Color  @Composable get() = Lex.colors.input
+    val Raise: Color  @Composable get() = Lex.colors.card
+    val Mark: Color   @Composable get() = Lex.colors.secondary
+    val Gold: Color   @Composable get() = Lex.colors.primary
+    val OnGold: Color @Composable get() = Lex.colors.primaryForeground
+    val Live: Color   @Composable get() = Lex.colors.success.solid
+    val Warn: Color   @Composable get() = Lex.colors.danger.solid
+    val Muted: Color  @Composable get() = Lex.colors.mutedForeground
+    val Quiet: Color  @Composable get() = Lex.colors.faint
 }
 
 private val Mono = FontFamily.Monospace
 
+@Composable
 private fun body(size: Float = 14.5f, color: Color = D.Ink, weight: FontWeight = FontWeight.Normal) =
     TextStyle(fontFamily = Inter, fontSize = size.sp, lineHeight = (size * 1.55f).sp, color = color, fontWeight = weight)
 
@@ -327,10 +334,11 @@ private fun Process() {
     LaunchedEffect(Unit) { while (true) { delay(2_600); at = (at + 1) % steps.size } }
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Box(Modifier.fillMaxWidth()) {
+            val rail = D.Line2; val fill = D.Gold
             Canvas(Modifier.fillMaxWidth().height(40.dp)) {
                 val y = size.height / 2
-                drawLine(Color(0x26FFFFFF), Offset(0f, y), Offset(size.width, y), 1.5.dp.toPx())
-                drawLine(D.Gold, Offset(0f, y), Offset(size.width * (at * 2 + 1) / 6f, y), 2.dp.toPx())
+                drawLine(rail, Offset(0f, y), Offset(size.width, y), 1.5.dp.toPx())
+                drawLine(fill, Offset(0f, y), Offset(size.width * (at * 2 + 1) / 6f, y), 2.dp.toPx())
             }
             Row(Modifier.fillMaxWidth()) {
                 steps.forEachIndexed { i, (icon, _, _) ->

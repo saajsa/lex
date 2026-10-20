@@ -19,50 +19,6 @@ class NoticesRepository(private val api: ApiService) {
         parseDetail(m)
     }
 
-    suspend fun loadTypes(): Result<List<NoticeType>> = runCatching {
-        rows(api.noticeTypes()).map {
-            NoticeType(
-                id = num(it["id"]).toInt(),
-                name = (it["name"] as? String).orEmpty(),
-                waitingPeriodDays = num(it["waiting_period_days"]).toInt(),
-                description = it["description"] as? String,
-            )
-        }
-    }
-
-    suspend fun extract(name: String, mime: String, bytes: ByteArray): Result<ExtractedNotice?> = runCatching {
-        val body = bytes.toRequestBody(mime.toMediaTypeOrNull())
-        val part = MultipartBody.Part.createFormData("file", name, body)
-        val resp = api.extractNotice(part)
-        if (resp["status"] == false) return@runCatching null
-        val m = obj(resp) ?: return@runCatching null
-        ExtractedNotice(
-            senderName = m["sender_name"] as? String,
-            senderAddress = m["sender_address"] as? String,
-            senderContact = m["sender_contact_number"] as? String,
-            senderAdvocateName = m["sender_advocate_name"] as? String,
-            noticeTypeId = (m["notice_type_id"] as? Number)?.toInt(),
-            claimAmount = m["claim_amount"]?.toString(),
-            responseDueDate = m["response_due_date"] as? String,
-            receivedDate = m["received_date"] as? String,
-        )
-    }
-
-    suspend fun create(
-        fields: Map<String, String?>,
-        file: Triple<String, String, ByteArray>? = null,   // name, mime, bytes
-    ): Result<NoticeDetail> = runCatching {
-        val parts = buildList {
-            fields.forEach { (k, v) -> if (!v.isNullOrBlank()) add(MultipartBody.Part.createFormData(k, v)) }
-            file?.let { (name, mime, bytes) ->
-                add(MultipartBody.Part.createFormData("file", name, bytes.toRequestBody(mime.toMediaTypeOrNull())))
-            }
-        }
-        val resp = api.createNotice(parts)
-        if (resp["status"] == false) error((resp["message"] as? String) ?: "Could not create the notice")
-        parseDetail(obj(resp) ?: error("Malformed response"))
-    }
-
     suspend fun approve(id: String): Result<NoticeDetail> = runCatching {
         val resp = api.approveNotice(id)
         if (resp["status"] == false) error((resp["message"] as? String) ?: "Could not approve")

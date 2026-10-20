@@ -59,7 +59,6 @@ import java.time.temporal.ChronoUnit
 fun NoticesScreen(
     onBack: () -> Unit,
     onOpen: (String) -> Unit,
-    onNew: () -> Unit,
 ) {
     val vm: NoticesViewModel = viewModel()
     val state by vm.state.collectAsState()
@@ -90,16 +89,8 @@ fun NoticesScreen(
         com.legumlex.client.ui.components.PageHeader(
             eyebrow = "Your File", title = "Legal Notices",
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp),
-            actions = {
-                if (!noAccess) Row(
-                    Modifier.clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.primary).clickable(onClick = onNew).padding(horizontal = 13.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("New", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
-                }
-            },
+            // A client does not start a notice: the firm drafts and records
+            // them (owner, 2026-10-20). The list is for reading.
         )
 
         if (noAccess) {
@@ -118,7 +109,7 @@ fun NoticesScreen(
                 is NoticesUiState.Loading -> Skeleton()
                 is NoticesUiState.Error -> ErrorBlock(s.message, vm::load)
                 is NoticesUiState.Ready ->
-                    if (s.sections.all { it.roots.isEmpty() }) Empty(onNew)
+                    if (s.sections.all { it.roots.isEmpty() }) Empty()
                     else LazyColumn(Modifier.fillMaxSize()) {
                         s.sections.forEach { section ->
                             section.band?.let { band ->
@@ -460,7 +451,7 @@ private fun relTime(dt: LocalDateTime?): String {
 /* ---------------------------------------------------------------- states */
 
 @Composable
-private fun Empty(onNew: () -> Unit) {
+private fun Empty() {
     Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp)).padding(vertical = 38.dp, horizontal = 24.dp),
@@ -472,16 +463,7 @@ private fun Empty(onNew: () -> Unit) {
             Spacer(Modifier.height(15.dp))
             Text("No Notices Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = LlColor.Ink)
             Spacer(Modifier.height(7.dp))
-            Text("Ask your advocate to send a legal notice, or upload one you have received for them to review.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.fillMaxWidth(0.85f))
-            Spacer(Modifier.height(16.dp))
-            Row(
-                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Ink).clickable(onClick = onNew).padding(horizontal = 16.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(painterResource(R.drawable.ic_ms_add), null, tint = com.legumlex.client.ui.theme.Lex.colors.primaryForeground, modifier = Modifier.size(17.dp))
-                Spacer(Modifier.width(7.dp))
-                Text("Start A Notice", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = com.legumlex.client.ui.theme.Lex.colors.primaryForeground)
-            }
+            Text("Notices sent or received on your behalf appear here once your advocate records them.", fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted, modifier = Modifier.fillMaxWidth(0.85f))
         }
     }
 }
