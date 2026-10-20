@@ -30,6 +30,6 @@ fun SplashScreen(onTimeout: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
         // The size the system launch screen draws it at, so it does not move.
-        LegumMark(size = 117.dp, fillColor = Color.White)
+        LegumMark(size = 82.dp, fillColor = Color.White)
     }
 }

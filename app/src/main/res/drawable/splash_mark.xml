@@ -1,0 +1,18 @@
+<!-- The launch screen's mark: the launcher mark (ic_launcher_foreground) at
+     70% about its centre, the size the splash screen draws it at, so the
+     two meet without a jump. The launcher icon itself keeps its size. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.7"
+        android:scaleY="0.7">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36.13,33.35 H43.71 V62.87 H36.13 Z M36.13,56.37 H53.05 V62.87 H36.13 Z M61.18,33.35 H71.87 V74.65 H61.18 Z M48.31,65.58 H71.87 V74.65 H48.31 Z" />
+    </group>
+</vector>
