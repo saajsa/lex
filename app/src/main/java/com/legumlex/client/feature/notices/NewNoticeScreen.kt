@@ -173,7 +173,7 @@ private fun OutProblem(s: NewNoticeState, vm: NewNoticeViewModel) {
         if (needsType && s.types.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             TypeChooser(s.types, s.selectedTypeId, "Which Kind Of Notice?",
-                "None of the types matched this choice. Pick the closest; your advocate can change it.", vm::selectType)
+                "None of the types matched this choice. Select the closest match; your advocate may change it.", vm::selectType)
         }
     }
 }
@@ -323,7 +323,7 @@ private fun InConfirm(s: NewNoticeState, vm: NewNoticeViewModel) {
         if (named == null && s.types.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             TypeChooser(s.types, s.selectedTypeId, "Which Kind Of Notice Is It?",
-                "Pick the closest; your advocate can change it.", vm::setInboundType)
+                "Select the closest match; your advocate may change it.", vm::setInboundType)
         } else if (named != null) {
             Spacer(Modifier.height(12.dp))
             Text("Type · ${named.name}", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(horizontal = 18.dp))

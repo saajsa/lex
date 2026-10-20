@@ -437,7 +437,7 @@ private fun GhostIconBtn(label: String, icon: Painter, onClick: () -> Unit) {
     ) {
         Icon(icon, null, tint = LlColor.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(7.dp))
-        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
     }
 }
 
@@ -455,7 +455,7 @@ private fun PrimaryBtn(label: String, icon: Painter, loading: Boolean = false, o
         } else {
             Icon(icon, null, tint = fg, modifier = Modifier.size(17.dp))
             Spacer(Modifier.width(8.dp))
-            Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = fg)
+            Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = fg)
         }
     }
 }
@@ -466,7 +466,7 @@ private fun GhostBtn(label: String, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 13.dp),
         horizontalArrangement = Arrangement.Center,
     ) {
-        Text(label.uppercase(), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, letterSpacing = 0.5.sp, color = LlColor.Ink)
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
     }
 }
 

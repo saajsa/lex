@@ -677,7 +677,7 @@ private fun ReadyContent(
                     Spacer(Modifier.height(22.dp))
                     IntakeFieldLabel(
                         label = "Area Of Law",
-                        help  = "Pick the closest — you can clarify on the call.",
+                        help  = "Select the closest match; you may clarify during the session.",
                     )
                     AreaChipGrid(selected = area, onSelect = { area = it })
                     Spacer(Modifier.height(22.dp))

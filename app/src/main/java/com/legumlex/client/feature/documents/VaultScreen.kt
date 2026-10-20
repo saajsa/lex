@@ -109,11 +109,11 @@ fun VaultScreen(onBack: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 14.dp, bottom = 6.dp),
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 12.dp, bottom = 6.dp),
             ) {
-                EyebrowText("Your File", color = TertiaryText)
-                Text(title, style = MaterialTheme.typography.headlineSmall, color = PrimaryText, maxLines = 1)
+                // The shared page header, as every other page's.
+                com.legumlex.client.ui.components.PageHeader(eyebrow = "Your File", title = title)
             }
             AnimatedContent(
                 targetState = step,
@@ -274,9 +274,9 @@ private fun IntentTile(
 private fun PickerStep(step: VaultStep.Picker, onPick: (PickerItem) -> Unit) {
     val spacing = LocalSpacing.current
     val (header, subhead) = when (step.intent) {
-        VaultIntent.CASE_FILE   -> "Which Case?"           to "Pick the matter to pull documents from."
-        VaultIntent.HEARING_DOC -> "Which Hearing?"        to "Pick a date to fetch its documents."
-        VaultIntent.SESSION_DOC -> "Which Consultation?"   to "Pick a consultation to fetch its files."
+        VaultIntent.CASE_FILE   -> "Which Case?"           to "Select the matter whose documents you wish to view."
+        VaultIntent.HEARING_DOC -> "Which Hearing?"        to "Select the hearing date whose documents you wish to view."
+        VaultIntent.SESSION_DOC -> "Which Consultation?"   to "Select the consultation whose files you wish to view."
         else                    -> step.intent.title       to step.intent.sub
     }
 
@@ -414,7 +414,7 @@ private fun ResultsStep(
             )
             Spacer(Modifier.height(spacing.s5))
             LegumSecondaryButton(
-                text    = "Pick something else",
+                text    = "Choose Another Category",
                 onClick = onPickAnother,
                 modifier = Modifier.widthIn(max = 280.dp),
             )
