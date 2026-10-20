@@ -12,6 +12,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -122,7 +124,7 @@ fun LoginScreen(
         Spacer(Modifier.height(spacing.s2))
         Text(
             when (view) {
-                LoginView.Choose -> "Clients see their matters here. New to the firm? Sign in with Google to ask Lex Intelligence."
+                LoginView.Choose -> "Clients see their matters here. New to the firm? Ask Lex Intelligence."
                 LoginView.Mobile -> "Sign in with a code sent to your mobile."
                 LoginView.Email  -> "Sign in with your email and password."
             },
@@ -173,6 +175,7 @@ fun LoginScreen(
                         onGoogle = signInWithGoogle,
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
+                        onLex    = onAskLexIntelligence,
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
                     )
                     LoginView.Mobile -> MobileView(vm = vm, mobile = mobile, busy = isLoading)
@@ -193,26 +196,6 @@ fun LoginScreen(
         Spacer(Modifier.weight(1f, fill = true))
         Spacer(Modifier.height(spacing.s6))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Someone new talks to Lex Intelligence before signing in (owner,
-            // 2026-10-20): two short messages, then Google, in the desk itself.
-            Text(
-                "New to Legum Lex?",
-                style = MaterialTheme.typography.bodyMedium,
-                color = SecondaryText,
-            )
-            TextButton(
-                onClick = onAskLexIntelligence,
-                enabled = !isLoading,
-                colors  = ButtonDefaults.textButtonColors(contentColor = AccentInk),
-            ) {
-                Text("Ask Lex Intelligence", style = MaterialTheme.typography.labelLarge)
-            }
-        }
         }
         }
     }
@@ -270,10 +253,12 @@ private fun ColumnScope.ChooseView(
     onGoogle: () -> Unit,
     onMobile: () -> Unit,
     onEmail: () -> Unit,
+    onLex: () -> Unit,
     onDev: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    // The two ways in, as their marks alone: Google and a mobile code.
+    // The ways in, as their marks alone: Google, a mobile code, and Lex
+    // Intelligence, which anyone may ask before signing in (owner, 2026-10-20).
     Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         MarkButton("Continue with Google", !busy, onGoogle) {
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = PrimaryText)
@@ -281,6 +266,20 @@ private fun ColumnScope.ChooseView(
         }
         MarkButton("Continue with Mobile", !busy, onMobile) {
             Icon(Icons.Outlined.Smartphone, contentDescription = null, tint = PrimaryText, modifier = Modifier.size(26.dp))
+        }
+        // The desk's own mark (its header, the bar's Consult), badged "AI".
+        Box {
+            MarkButton("Lex Intelligence", !busy, onLex) {
+                Text(">_", color = PrimaryText, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 21.sp)
+            }
+            Box(
+                Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp)
+                    .clip(RoundedCornerShape(6.dp)).background(LexYellow).padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                Text("AI", color = androidx.compose.ui.graphics.Color.Black, fontSize = 10.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.4.sp)
+            }
         }
     }
     Spacer(Modifier.height(spacing.s5))
@@ -307,6 +306,9 @@ private fun ColumnScope.ChooseView(
         }
     }
 }
+
+/** The counsel desk's yellow (the bottom bar's Consult). */
+private val LexYellow = androidx.compose.ui.graphics.Color(0xFFF5C518)
 
 /** A round button carrying only a mark; its name is read out, not shown. */
 @Composable
