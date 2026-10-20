@@ -120,7 +120,7 @@ fun LoginScreen(
         Spacer(Modifier.height(spacing.s2))
         Text(
             when (view) {
-                LoginView.Choose -> "Sign in to see what is happening with your matters."
+                LoginView.Choose -> "Clients see their matters here. New to the firm? Sign in with Google to ask Lex Intelligence."
                 LoginView.Mobile -> "Sign in with a code sent to your mobile."
                 LoginView.Email  -> "Sign in with your email and password."
             },
@@ -138,6 +138,24 @@ fun LoginScreen(
             Spacer(Modifier.height(spacing.s4))
         }
 
+        // Google: a client's way in, and a newcomer's (as a lead, to Lex Intelligence).
+        val signInWithGoogle: () -> Unit = {
+            vm.clearError()
+            scope.launch {
+                val serverClientId = runCatching {
+                    ApiClient.get(context).googleConfig()["client_id"] as? String
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+                    ?: BuildConfig.GOOGLE_WEB_CLIENT_ID
+                requestGoogleIdToken(
+                    context        = context,
+                    activity       = activity,
+                    serverClientId = serverClientId,
+                    onToken        = vm::onIdTokenReceived,
+                    onError        = vm::onCredentialError,
+                    onCancel       = vm::onCancelled,
+                )
+            }
+        }
         AnimatedContent(
             targetState = view,
             transitionSpec = {
@@ -150,23 +168,7 @@ fun LoginScreen(
                 when (v) {
                     LoginView.Choose -> ChooseView(
                         busy     = isLoading,
-                        onGoogle = {
-                            vm.clearError()
-                            scope.launch {
-                                val serverClientId = runCatching {
-                                    ApiClient.get(context).googleConfig()["client_id"] as? String
-                                }.getOrNull()?.takeIf { it.isNotBlank() }
-                                    ?: BuildConfig.GOOGLE_WEB_CLIENT_ID
-                                requestGoogleIdToken(
-                                    context        = context,
-                                    activity       = activity,
-                                    serverClientId = serverClientId,
-                                    onToken        = vm::onIdTokenReceived,
-                                    onError        = vm::onCredentialError,
-                                    onCancel       = vm::onCancelled,
-                                )
-                            }
-                        },
+                        onGoogle = signInWithGoogle,
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
@@ -194,19 +196,19 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Someone new becomes a client through the Legum Lex desk on the
-            // website (Consult, Google sign-in), as they do from the site.
-            val ctx = androidx.compose.ui.platform.LocalContext.current
+            // Someone new signs in with Google as a lead (owner, 2026-10-20) and
+            // lands on Lex Intelligence, the desk, in the app itself.
             Text(
                 "New to Legum Lex?",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SecondaryText,
             )
             TextButton(
-                onClick = { openSite(ctx, "?desk=1") },
+                onClick = signInWithGoogle,
+                enabled = !isLoading,
                 colors  = ButtonDefaults.textButtonColors(contentColor = AccentInk),
             ) {
-                Text("Consult Us", style = MaterialTheme.typography.labelLarge)
+                Text("Ask Lex Intelligence", style = MaterialTheme.typography.labelLarge)
             }
         }
         }
