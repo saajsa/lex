@@ -93,7 +93,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         com.legumlex.client.data.auth.SessionEvents.ended.collect {
             auth.forget()
             val here = navController.currentDestination?.route
-            if (here !in setOf(Route.Splash.path, Route.Welcome.path, Route.Login.path, Route.Register.path)) {
+            if (here !in setOf(Route.Splash.path, Route.Login.path, Route.Register.path)) {
                 navController.navigate(Route.Login.path) {
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true

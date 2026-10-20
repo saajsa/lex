@@ -15,7 +15,6 @@ import com.legumlex.client.R
 sealed class Route(val path: String) {
     // Auth flow (no bottom nav)
     data object Splash   : Route("splash")
-    data object Welcome  : Route("welcome")
     data object Login    : Route("login")
     data object Register : Route("register")
 
@@ -205,7 +204,7 @@ sealed class Route(val path: String) {
 
 /** Auth-flow routes — never show the nav footer. */
 private val authBases = setOf(
-    Route.Splash.path, Route.Welcome.path, Route.Login.path, Route.Register.path,
+    Route.Splash.path, Route.Login.path, Route.Register.path,
 )
 
 /**
@@ -240,10 +239,9 @@ private val wizardBases = setOf(
     Route.DoIntake.path.substringBefore("?"),          // digital_office/intake
 )
 
-/** Immersive takeovers + splash/welcome/notifications get NO centered-logo header. */
+/** Immersive takeovers + splash/sign-in/notifications get NO centered-logo header. */
 private val headerHiddenBases = setOf(
     Route.Splash.path,
-    Route.Welcome.path,
     Route.Login.path,           // nothing to notify of before sign-in
     Route.Register.path,
     Route.Notifications.path,   // draws its own header (back · title · mark all read)
@@ -255,7 +253,7 @@ private val footerHiddenBases = authBases + immersiveBases + wizardBases
 
 private fun routeBase(route: String?): String? = route?.substringBefore("?")
 
-/** Centered-logo header shows everywhere except the immersive splash/welcome. */
+/** Centered-logo header shows everywhere except the immersive splash and sign-in. */
 fun showAppHeader(route: String?): Boolean {
     val b = routeBase(route) ?: return false
     return b !in headerHiddenBases

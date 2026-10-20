@@ -21,7 +21,6 @@ import com.legumlex.client.data.auth.TokenStore
 import kotlinx.coroutines.launch
 import com.legumlex.client.feature.auth.LoginScreen
 import com.legumlex.client.feature.auth.SplashScreen
-import com.legumlex.client.feature.auth.WelcomeScreen
 import com.legumlex.client.feature.calendar.CalendarScreen
 import com.legumlex.client.feature.cases.CaseDetailScreen
 import com.legumlex.client.feature.cases.CaseDocViewerScreen
@@ -84,18 +83,9 @@ fun LegumNavGraph(navController: NavHostController) {
                 onTimeout = {
                     scope.launch {
                         val signedIn = !tokens.read().isNullOrBlank()
-                        navController.navigate(if (signedIn) Route.Home.path else Route.Welcome.path) {
+                        navController.navigate(if (signedIn) Route.Home.path else Route.Login.path) {
                             popUpTo(Route.Splash.path) { inclusive = true }
                         }
-                    }
-                }
-            )
-        }
-        composable(Route.Welcome.path) {
-            WelcomeScreen(
-                onFinish = {
-                    navController.navigate(Route.Login.path) {
-                        popUpTo(Route.Welcome.path) { inclusive = true }
                     }
                 }
             )
