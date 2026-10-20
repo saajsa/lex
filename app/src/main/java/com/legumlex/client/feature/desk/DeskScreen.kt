@@ -224,13 +224,13 @@ fun DeskScreen(
             )
             // The intro at the top, the middle left empty, the composer at the
             // foot, as a chat is laid out.
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                Intro()
+            // The three steps sit at the foot, just above the message box.
+            Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { Intro() }
                 if (!typing) {
-                    Spacer(Modifier.height(18.dp))
                     Process()
+                    Spacer(Modifier.height(12.dp))
                 }
-                Spacer(Modifier.height(16.dp))
             }
             Box(Modifier.padding(horizontal = 14.dp)) {
                 if (ui.termsLoaded && !ui.terms.isActive) {
@@ -332,35 +332,36 @@ private fun Process() {
     )
     var at by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(2_600); at = (at + 1) % steps.size } }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+    // At 70% of its first size, width and fonts included (owner, 2026-10-20).
+    Column(Modifier.fillMaxWidth().padding(horizontal = 56.dp)) {
         Box(Modifier.fillMaxWidth()) {
             val rail = D.Line2; val fill = D.Gold
-            Canvas(Modifier.fillMaxWidth().height(40.dp)) {
+            Canvas(Modifier.fillMaxWidth().height(28.dp)) {
                 val y = size.height / 2
-                drawLine(rail, Offset(0f, y), Offset(size.width, y), 1.5.dp.toPx())
-                drawLine(fill, Offset(0f, y), Offset(size.width * (at * 2 + 1) / 6f, y), 2.dp.toPx())
+                drawLine(rail, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                drawLine(fill, Offset(0f, y), Offset(size.width * (at * 2 + 1) / 6f, y), 1.5.dp.toPx())
             }
             Row(Modifier.fillMaxWidth()) {
                 steps.forEachIndexed { i, (icon, _, _) ->
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         Box(
-                            Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(D.Page)
-                                .border(1.5.dp, if (i == at) D.Gold else D.Line2, RoundedCornerShape(11.dp)),
+                            Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(D.Page)
+                                .border(1.dp, if (i == at) D.Gold else D.Line2, RoundedCornerShape(8.dp)),
                             contentAlignment = Alignment.Center,
-                        ) { Icon(icon, null, tint = if (i == at) D.Gold else D.Muted, modifier = Modifier.size(20.dp)) }
+                        ) { Icon(icon, null, tint = if (i == at) D.Gold else D.Muted, modifier = Modifier.size(14.dp)) }
                     }
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth()) {
             steps.forEachIndexed { i, (_, label, _) ->
-                Text(label, style = body(13f, if (i == at) D.Ink else D.Muted, FontWeight.SemiBold).copy(lineHeight = 17.sp),
-                    textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(horizontal = 4.dp))
+                Text(label, style = body(9.1f, if (i == at) D.Ink else D.Muted, FontWeight.SemiBold).copy(lineHeight = 12.sp),
+                    textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(horizontal = 3.dp))
             }
         }
-        Spacer(Modifier.height(10.dp))
-        Text(steps[at].third, style = TextStyle(fontFamily = Mono, fontSize = 12.5.sp, color = D.Gold), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(7.dp))
+        Text(steps[at].third, style = TextStyle(fontFamily = Mono, fontSize = 8.75.sp, color = D.Gold), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
 
