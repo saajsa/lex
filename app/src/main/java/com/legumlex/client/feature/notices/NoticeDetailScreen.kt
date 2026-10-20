@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -148,7 +149,14 @@ private fun Body(
                     Text(it, fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted)
                 }
                 Spacer(Modifier.height(8.dp))
-                sum.referenceNumber?.let { RefChip(it) }
+                // The reference, and beside it the postal tracking ID with a copy button.
+                val tracking = n.trackingNumber?.trim()?.ifBlank { null }
+                if (sum.referenceNumber != null || tracking != null) Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    sum.referenceNumber?.let { RefChip(it) }
+                    tracking?.let { TrackingChip(it) }
+                }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
 
@@ -318,6 +326,30 @@ private fun NeedsYouTag(d: NoticeDirection) {
     Box(Modifier.clip(RoundedCornerShape(6.dp)).background(LlColor.AmberSoft).padding(horizontal = 8.dp, vertical = 3.dp)) {
         Text(if (d == NoticeDirection.INBOUND) "Reply Ready For You" else "Draft Ready For You",
             fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = LlColor.Amber, maxLines = 1)
+    }
+}
+
+@Composable
+private fun TrackingChip(id: String) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+    Row(
+        Modifier.clip(RoundedCornerShape(6.dp)).background(LlColor.Paper2)
+            .clickable {
+                clip.setText(androidx.compose.ui.text.AnnotatedString(id))
+                // Android 13 and later confirm a copy themselves.
+                if (android.os.Build.VERSION.SDK_INT < 33)
+                    android.widget.Toast.makeText(ctx, "Tracking ID copied", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .padding(start = 8.dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Tracking", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
+        Spacer(Modifier.width(5.dp))
+        Text(id, fontFamily = Mono, fontWeight = FontWeight.Medium, fontSize = 10.sp, color = LlColor.InkMuted)
+        Spacer(Modifier.width(6.dp))
+        Icon(androidx.compose.material.icons.Icons.Outlined.ContentCopy, contentDescription = "Copy tracking ID",
+            tint = LlColor.InkMuted, modifier = Modifier.size(13.dp))
     }
 }
 
