@@ -165,6 +165,7 @@ fun LoginScreen(
                         },
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
+                        onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
                     )
                     LoginView.Mobile -> MobileView(vm = vm, mobile = mobile, busy = isLoading)
                     LoginView.Email  -> EmailView(vm = vm, busy = isLoading)
@@ -235,6 +236,7 @@ private fun ColumnScope.ChooseView(
     onGoogle: () -> Unit,
     onMobile: () -> Unit,
     onEmail: () -> Unit,
+    onDev: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     ChoiceButton(
@@ -257,6 +259,22 @@ private fun ColumnScope.ChooseView(
         onClick  = onEmail,
         modifier = Modifier.align(Alignment.CenterHorizontally),
     )
+    // Debug builds only: one tap signs in as the dev test contact, whose
+    // email and password come from local.properties (DEV_LOGIN_EMAIL/_PASSWORD),
+    // never from source. Release builds carry neither, and show nothing.
+    if (BuildConfig.DEBUG && BuildConfig.DEV_LOGIN_EMAIL.isNotBlank()) {
+        Spacer(Modifier.height(spacing.s2))
+        OutlinedButton(
+            onClick  = onDev,
+            enabled  = !busy,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            shape    = MaterialTheme.shapes.small,
+            border   = BorderStroke(1.dp, BorderColor),
+            colors   = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryText),
+        ) {
+            Text("Debug · Sign In as Test Contact", style = MaterialTheme.typography.labelMedium)
+        }
+    }
 }
 
 @Composable
@@ -287,23 +305,6 @@ private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean) {
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
-
-    // Debug-only quick-fill so we don't keep typing creds during dev. The
-    // credentials come from local.properties (DEV_LOGIN_EMAIL/_PASSWORD), never
-    // from source; without them, and in every release build, there's no button.
-    if (BuildConfig.DEBUG && BuildConfig.DEV_LOGIN_EMAIL.isNotBlank()) {
-        TextButton(
-            onClick = {
-                email = BuildConfig.DEV_LOGIN_EMAIL
-                password = BuildConfig.DEV_LOGIN_PASSWORD
-            },
-            colors  = ButtonDefaults.textButtonColors(contentColor = SecondaryText),
-        ) {
-            Text("Dev · Fill Test Sign-In",
-                style = MaterialTheme.typography.labelMedium)
-        }
-        Spacer(Modifier.height(spacing.s2))
-    }
 
     LegumTextField(
         value = email,
