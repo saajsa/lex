@@ -47,8 +47,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         latestIntent = intent
+        com.legumlex.client.ui.theme.ThemePrefs.load(applicationContext)
         setContent {
-            LegumLexTheme {
+            val choice by com.legumlex.client.ui.theme.ThemePrefs.choice.collectAsState()
+            val system = androidx.compose.foundation.isSystemInDarkTheme()
+            LegumLexTheme(dark = when (choice) {
+                com.legumlex.client.ui.theme.ThemeChoice.LIGHT -> false
+                com.legumlex.client.ui.theme.ThemeChoice.DARK -> true
+                com.legumlex.client.ui.theme.ThemeChoice.SYSTEM -> system
+            }) {
                 AppShell(latestIntent)
             }
         }

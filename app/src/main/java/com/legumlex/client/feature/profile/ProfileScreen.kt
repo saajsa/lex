@@ -133,6 +133,21 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
 
         MobileCard(p.mobile, verify, note, vm)
 
+        // Appearance: the portal's Dark Mode switch, with the phone's own setting as the default.
+        LexCard(title = "Appearance") {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val choice by com.legumlex.client.ui.theme.ThemePrefs.choice.collectAsState()
+            Column(Modifier.padding(16.dp)) {
+                com.legumlex.client.ui.components.SegmentedToggle(
+                    options = com.legumlex.client.ui.theme.ThemeChoice.entries.map { it to it.label },
+                    selected = choice,
+                    onSelect = { com.legumlex.client.ui.theme.ThemePrefs.set(ctx, it) },
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Kept on this phone.", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            }
+        }
+
         LexCard(title = "Account") {
             val rows = listOfNotNull(
                 p.company?.let { "Client Account" to it },
