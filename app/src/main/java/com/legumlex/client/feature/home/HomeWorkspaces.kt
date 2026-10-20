@@ -145,12 +145,13 @@ internal fun WorkspaceEntrances(
  */
 @Composable
 private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifier) {
-    // A background picture, when one is in res/drawable-nodpi (ws_litigation,
-    // ws_projects, ws_registry): looked up by name, so a card shows its plain
-    // tone until the picture is added.
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val picture = androidx.compose.runtime.remember(t.workspace) {
-        ctx.resources.getIdentifier("ws_" + t.workspace.name.lowercase(), "drawable", ctx.packageName)
+    // The background picture (res/drawable-nodpi, owner's images, 2026-10-20):
+    // the court for Litigation, the desk for Projects, the shelves for Registry.
+    val picture = when (t.workspace) {
+        Workspace.Litigation -> com.legumlex.client.R.drawable.crd_1
+        Workspace.Projects   -> com.legumlex.client.R.drawable.crd_3
+        Workspace.Registry   -> com.legumlex.client.R.drawable.crd_2
+        Workspace.Consult    -> 0
     }
     val front = focus > 0.5f
     val bg = androidx.compose.ui.graphics.lerp(Lex.colors.muted, Lex.colors.primary, focus)
