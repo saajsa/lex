@@ -191,9 +191,14 @@ class LoginViewModel(app: Application) : AndroidViewModel(app) {
     private fun Result<LoginResult>.handleResult() {
         onSuccess { _state.value = LoginState.Success(it) }
         onFailure { e ->
-            _state.value = LoginState.Error(
-                (e as? SignInException)?.message ?: e.message ?: "Sign-in failed"
-            )
+            val raw = (e as? SignInException)?.message ?: e.message
+            // The core's wording speaks of a "username"; clients sign in by email.
+            val msg = when {
+                raw == null -> "Sign-in could not be completed. Please try again."
+                raw.contains("username or password", ignoreCase = true) -> "The email address or password is incorrect."
+                else -> raw
+            }
+            _state.value = LoginState.Error(msg)
         }
     }
 

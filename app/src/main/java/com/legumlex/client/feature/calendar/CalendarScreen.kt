@@ -111,7 +111,7 @@ fun CalendarScreen(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
     ) { inner ->
         Column(Modifier.fillMaxSize().padding(inner)) {
-            DetailHeading(
+            com.legumlex.client.ui.components.PageHeader(
                 eyebrow = "Court Schedule",
                 title = "Calendar",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -392,7 +392,9 @@ private fun SheetHearingCard(h: Hearing, onClick: () -> Unit) {
                 )
             }
             Spacer(Modifier.width(8.dp))
-            StatusBadge(h.status.label, h.status.palette)
+            // A past date still marked Scheduled reads Listed, as everywhere else.
+            val listed = h.date?.isBefore(java.time.LocalDate.now()) == true && h.status.label.equals("Scheduled", true)
+            StatusBadge(if (listed) "Listed" else h.status.label, h.status.palette)
         }
     }
 }

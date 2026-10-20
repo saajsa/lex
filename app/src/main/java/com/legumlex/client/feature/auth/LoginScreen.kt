@@ -215,7 +215,7 @@ private fun ColumnScope.ChooseView(
     )
     Spacer(Modifier.height(spacing.s4))
     LinkButton(
-        text     = "Sign In with Email & Password",
+        text     = "Sign In with Email and Password",
         enabled  = !busy,
         onClick  = onEmail,
         modifier = Modifier.align(Alignment.CenterHorizontally),

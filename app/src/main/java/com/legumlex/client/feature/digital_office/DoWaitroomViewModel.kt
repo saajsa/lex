@@ -98,7 +98,12 @@ class DoWaitroomViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repo.listWaitroom()
                 .onSuccess { _rows.value = it }
-                .onFailure { Log.e(TAG, "waitroom load failed", it) }
+                .onFailure {
+                    // Signed out (or the session ended): stop asking until the
+                    // app is opened again; a 401 every 15 s helps no one.
+                    if ((it as? retrofit2.HttpException)?.code() == 401) { _rows.value = emptyList(); pausePolling() }
+                    Log.e(TAG, "waitroom load failed", it)
+                }
         }
     }
 

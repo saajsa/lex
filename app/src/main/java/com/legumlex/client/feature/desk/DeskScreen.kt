@@ -321,7 +321,7 @@ private fun Process() {
     val steps = listOf(
         Triple(Icons.Outlined.Hub, "Analysed by AI", "> analysing your enquiry"),
         Triple(Icons.Outlined.HowToReg, "Reviewed by an advocate", "> routing to an advocate for review"),
-        Triple(Icons.Outlined.Timer, "Answered in 30 minutes", "> reply on its way, usually within 30 minutes"),
+        Triple(Icons.Outlined.Timer, "Usually answered within 30 minutes", "> reply on its way, usually within 30 minutes"),
     )
     var at by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(2_600); at = (at + 1) % steps.size } }
