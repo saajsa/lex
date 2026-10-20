@@ -200,7 +200,7 @@ private fun Group(label: String, content: @Composable () -> Unit) {
 private fun Divider() = HorizontalDivider(color = Lex.colors.border)
 
 @Composable
-private fun MenuRow(icon: ImageVector, title: String, description: String, onClick: () -> Unit) {
+internal fun MenuRow(icon: ImageVector, title: String, description: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

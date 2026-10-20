@@ -233,6 +233,10 @@ private fun LockedComposer(onNewQuestion: () -> Unit) {
     }
 }
 
+/** The thread's day rule, for a lead's thread (feature/lead). */
+@Composable
+internal fun ThreadDaySeparator(date: LocalDate) = DaySeparator(date)
+
 @Composable
 private fun DaySeparator(date: LocalDate) {
     Row(
@@ -255,7 +259,7 @@ private fun DaySeparator(date: LocalDate) {
 }
 
 @Composable
-private fun ThreadMessage(r: Reply) {
+internal fun ThreadMessage(r: Reply) {
     val isClient = r.fromClient
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -361,12 +365,14 @@ private fun InitialsAvatar(name: String, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThreadComposer(
+internal fun ThreadComposer(
     value: String,
     onChange: (String) -> Unit,
     onSend: () -> Unit,
     isSending: Boolean,
     onAttach: () -> Unit = {},
+    /** A lead's thread (the website's) takes no files. */
+    canAttach: Boolean = true,
 ) {
     val spacing = LocalSpacing.current
     Surface(color = MaterialTheme.colorScheme.background) {
@@ -378,16 +384,18 @@ private fun ThreadComposer(
                     .padding(horizontal = spacing.s3, vertical = spacing.s3),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
-                    onClick = onAttach,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Surface2),
-                ) {
-                    Icon(Icons.Outlined.AttachFile, null, tint = PrimaryText, modifier = Modifier.size(20.dp))
+                if (canAttach) {
+                    IconButton(
+                        onClick = onAttach,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Surface2),
+                    ) {
+                        Icon(Icons.Outlined.AttachFile, null, tint = PrimaryText, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(8.dp))
                 }
-                Spacer(Modifier.width(8.dp))
                 OutlinedTextField(
                     value = value,
                     onValueChange = onChange,

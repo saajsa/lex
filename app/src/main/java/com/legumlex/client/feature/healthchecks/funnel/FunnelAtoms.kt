@@ -247,7 +247,7 @@ fun ContractTypeTile(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-fun DropTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun DropTile(onClick: () -> Unit, modifier: Modifier = Modifier, hint: String = "PDF, DOCX, or scan — up to 25 MB") {
     Surface(
         color = Surface2,
         shape = RoundedCornerShape(12.dp),
@@ -276,7 +276,7 @@ fun DropTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "PDF, DOCX, or scan — up to 25 MB",
+                hint,
                 color = SecondaryText,
                 fontSize = 12.5.sp,
             )

@@ -56,6 +56,9 @@ fun AppHeader(
     initials: String? = null,
     avatarUrl: String? = null,
     onProfile: () -> Unit = {},
+    /** A lead has no notifications: the bell is the client's. */
+    showBell: Boolean = true,
+    subtitle: String = "Client Portal",
 ) {
     // Chrome: a solid step deeper than the page, with a hairline where they meet.
     Surface(color = Lex.colors.chrome, tonalElevation = 0.dp, shadowElevation = 0.dp) {
@@ -73,14 +76,14 @@ fun AppHeader(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Legum Lex", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground, lineHeight = 18.sp)
-                    Text("Client Portal", fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp)
+                    Text(subtitle, fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp)
                 }
                 // The Digital Office, beside the bell (owner, 2026-10-20: it left
                 // the bottom bar when Consult took the centre).
                 if (onOffice != null) IconButton(onClick = onOffice) {
                     Icon(Icons.Outlined.Videocam, contentDescription = "Digital Office", tint = Lex.colors.secondaryForeground)
                 }
-                Box {
+                if (showBell) Box {
                     IconButton(onClick = onNotifications) {
                         Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = Lex.colors.secondaryForeground)
                     }

@@ -33,16 +33,17 @@ import com.legumlex.client.ui.theme.Surface1
 // left, Notices and More to the right; the Digital Office is in the header
 // (owner, 2026-10-20). The current tab is its filled glyph with a dot under it.
 @Composable
-fun LegumBottomBar(navController: NavHostController) {
+fun LegumBottomBar(navController: NavHostController, lead: Boolean = false) {
+    val tabs = if (lead) leadTabs else bottomTabs
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     // The tab a screen belongs to is the last tab root on the back stack (a
     // hearing opened from More belongs to More), or its own route's tab.
     val stack by navController.currentBackStack.collectAsState()
     val owner = stack.mapNotNull { it.destination.route }
-        .lastOrNull { r -> bottomTabs.any { it.route.path == r } }
+        .lastOrNull { r -> tabs.any { it.route.path == r } }
         ?: currentRoute
-    fun tab(r: Route) = bottomTabs.first { it.route == r }
+    fun tab(r: Route) = tabs.first { it.route == r }
     fun on(t: BottomTab) = owner?.hierarchyContains(t.route.path) == true
     // Tabs pop back to Home and keep their state; Home itself clears to the
     // Home screen (navigateTab).
@@ -58,11 +59,20 @@ fun LegumBottomBar(navController: NavHostController) {
                 .height(BarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
-            NavGlyph(tab(Route.Consultations), on(tab(Route.Consultations)), Modifier.weight(1f)) { go(tab(Route.Consultations)) }
-            Spacer(Modifier.weight(1f))
-            NavGlyph(tab(Route.Notices), on(tab(Route.Notices)), Modifier.weight(1f)) { go(tab(Route.Notices)) }
-            NavGlyph(tab(Route.More), on(tab(Route.More)), Modifier.weight(1f)) { go(tab(Route.More)) }
+            if (lead) {
+                // Home and Enquiries on the left, More alone on the right.
+                NavGlyph(tab(Route.LeadHome), on(tab(Route.LeadHome)), Modifier.weight(1f)) { go(tab(Route.LeadHome)) }
+                NavGlyph(tab(Route.LeadEnquiries), on(tab(Route.LeadEnquiries)), Modifier.weight(1f)) { go(tab(Route.LeadEnquiries)) }
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
+                NavGlyph(tab(Route.LeadMore), on(tab(Route.LeadMore)), Modifier.weight(1f)) { go(tab(Route.LeadMore)) }
+            } else {
+                NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
+                NavGlyph(tab(Route.Consultations), on(tab(Route.Consultations)), Modifier.weight(1f)) { go(tab(Route.Consultations)) }
+                Spacer(Modifier.weight(1f))
+                NavGlyph(tab(Route.Notices), on(tab(Route.Notices)), Modifier.weight(1f)) { go(tab(Route.Notices)) }
+                NavGlyph(tab(Route.More), on(tab(Route.More)), Modifier.weight(1f)) { go(tab(Route.More)) }
+            }
         }
         // Consult, raised: its centre on the bar's top edge, in the notch. It
         // opens the desk, where anything new begins.

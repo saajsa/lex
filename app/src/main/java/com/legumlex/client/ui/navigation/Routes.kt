@@ -31,6 +31,16 @@ sealed class Route(val path: String) {
     // Account
     data object Profile       : Route("profile")
 
+    // A lead's app (owner, 2026-10-20): signed in with Google, no open client account.
+    data object LeadHome      : Route("lead")
+    data object LeadEnquiries : Route("lead/enquiries")
+    data object LeadMore      : Route("lead/more")
+    data object LeadAhc       : Route("lead/agreement-check")
+    data object LeadThread    : Route("lead/enquiry/{hash}") {
+        const val ARG = "hash"
+        fun build(hash: String) = "lead/enquiry/$hash"
+    }
+
     // Nested destinations.
     data object CaseDetail : Route("matters/{caseId}") {
         const val ARG = "caseId"
@@ -238,6 +248,7 @@ private val wizardBases = setOf(
     Route.AhcFunnel.path,                               // healthchecks/funnel
     Route.Vault.path,                                   // multi-step document wizard
     Route.DoIntake.path.substringBefore("?"),          // digital_office/intake
+    Route.LeadAhc.path,                                 // a lead's Agreement Check
 )
 
 /** Immersive takeovers + splash/sign-in/notifications get NO centered-logo header. */
@@ -263,7 +274,7 @@ fun showAppHeader(route: String?): Boolean {
 /** Back arrow shows on any non-tab screen that has somewhere to return to. */
 fun showHeaderBack(route: String?, canPop: Boolean): Boolean {
     val b = routeBase(route) ?: return false
-    return canPop && bottomTabs.none { it.route.path == b }
+    return canPop && (bottomTabs + leadTabs).none { it.route.path == b }
 }
 
 /** Footer nav shows on tabs + content screens, never on auth/funnels/modals. */
@@ -289,4 +300,11 @@ val bottomTabs = listOf(
     // reached from Home's Next Event and from More.
     BottomTab(Route.Notices,       R.string.nav_notices,       Icons.Outlined.MarkEmailUnread, Icons.Rounded.MarkEmailUnread),
     BottomTab(Route.More,          R.string.nav_more,          Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
+)
+
+// A lead's bar: Home, their enquiries, Consult in the centre, More.
+val leadTabs = listOf(
+    BottomTab(Route.LeadHome,      R.string.nav_home,      Icons.Outlined.GridView,  Icons.Rounded.GridView),
+    BottomTab(Route.LeadEnquiries, R.string.nav_enquiries, Icons.Outlined.Forum,     Icons.Rounded.Forum),
+    BottomTab(Route.LeadMore,      R.string.nav_more,      Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
 )

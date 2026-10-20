@@ -96,7 +96,16 @@ fun LegumNavGraph(navController: NavHostController) {
                 onTimeout = {
                     scope.launch {
                         val signedIn = !tokens.read().isNullOrBlank()
-                        navController.navigate(if (signedIn) Route.Home.path else Route.Login.path) {
+                        tokens.loadRole()
+                        // A lead asks the firm where they stand: approved since
+                        // the last launch, the app opens as the client's.
+                        var lead = signedIn && com.legumlex.client.data.auth.SessionRole.isLead
+                        if (lead) {
+                            val auth = AuthRepository(ApiClient.get(context), tokens, context.cacheDir)
+                            if (kotlinx.coroutines.withTimeoutOrNull(4_000) { auth.leadStanding() } == "client") lead = false
+                        }
+                        val to = when { !signedIn -> Route.Login.path; lead -> Route.LeadHome.path; else -> Route.Home.path }
+                        navController.navigate(to) {
                             popUpTo(Route.Splash.path) { inclusive = true }
                         }
                     }
@@ -106,11 +115,50 @@ fun LegumNavGraph(navController: NavHostController) {
         composable(Route.Login.path) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(Route.Home.path) {
+                    val home = if (com.legumlex.client.data.auth.SessionRole.isLead) Route.LeadHome.path else Route.Home.path
+                    navController.navigate(home) {
                         popUpTo(Route.Login.path) { inclusive = true }
                     }
                 },
             )
+        }
+
+        // --- A lead's app (owner, 2026-10-20) ---
+        composable(Route.LeadHome.path) {
+            com.legumlex.client.feature.lead.LeadHomeScreen(
+                onAsk            = { navController.navigate(Route.NewConsultation.build()) },
+                onAgreementCheck = { navController.navigate(Route.LeadAhc.path) },
+                onEnquiries      = { navController.navigateTab(Route.LeadEnquiries.path) },
+            )
+        }
+        composable(Route.LeadEnquiries.path) {
+            com.legumlex.client.feature.lead.LeadEnquiriesScreen(
+                onOpen = { hash -> navController.navigate(Route.LeadThread.build(hash)) },
+                onAsk  = { navController.navigate(Route.NewConsultation.build()) },
+            )
+        }
+        composable(
+            Route.LeadThread.path,
+            arguments = listOf(navArgument(Route.LeadThread.ARG) { type = NavType.StringType }),
+        ) { entry ->
+            com.legumlex.client.feature.lead.LeadThreadScreen(entry.arguments?.getString(Route.LeadThread.ARG).orEmpty())
+        }
+        composable(Route.LeadAhc.path) {
+            com.legumlex.client.feature.lead.LeadAhcScreen(
+                onClose     = { navController.popBackStack() },
+                onEnquiries = { navController.navigateTab(Route.LeadEnquiries.path) },
+            )
+        }
+        composable(Route.LeadMore.path) {
+            val context = LocalContext.current
+            val auth    = remember(context) { AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext), context.cacheDir) }
+            val scope   = rememberCoroutineScope()
+            com.legumlex.client.feature.lead.LeadMoreScreen(onSignOut = {
+                scope.launch {
+                    auth.signOut()
+                    navController.navigate(Route.Login.path) { popUpTo(0) { inclusive = true }; launchSingleTop = true }
+                }
+            })
         }
 
         // --- Main shell (bottom-nav tabs) ---
@@ -226,18 +274,22 @@ fun LegumNavGraph(navController: NavHostController) {
             // Consult: the Legum Lex desk, as a client signed in to the portal
             // meets it (feature/desk). It replaced the three-step request form;
             // every way in to a new consultation arrives here.
+            // A lead's desk ends in their enquiries, not a client's consultations.
+            val lead = com.legumlex.client.data.auth.SessionRole.isLead
             DeskScreen(
                 onClose = { navController.popBackStack() },
                 onOpenMatters = {
                     navController.popBackStack()
-                    navController.navigateTab(Route.Consultations.path)
+                    navController.navigateTab(if (lead) Route.LeadEnquiries.path else Route.Consultations.path)
                 },
                 onOpenConsultation = { id ->
                     navController.popBackStack()
-                    navController.navigate(Route.ConsultationDetail.build(id.toString()))
+                    if (lead) navController.navigateTab(Route.LeadEnquiries.path)
+                    else navController.navigate(Route.ConsultationDetail.build(id.toString()))
                 },
-                // "Have an agreement read": the app's Agreement Check.
-                onAgreement = { navController.navigate(Route.AhcFunnel.path) },
+                // "Have an agreement read": the app's Agreement Check (a lead's
+                // is the website's, under the lead's token).
+                onAgreement = { navController.navigate(if (lead) Route.LeadAhc.path else Route.AhcFunnel.path) },
             )
         }
         composable(Route.DigitalOffice.path) {
@@ -659,18 +711,20 @@ fun LegumNavGraph(navController: NavHostController) {
  * back to it; popping to the start destination would be a silent no-op.
  */
 internal fun NavHostController.navigateTab(path: String) {
-    // Home is the root every tab pops back to. Going home clears the stack to
-    // it outright: saving and restoring Home's own state brought back whatever
-    // was open above it (a consultation opened from the Action Queue stayed).
-    if (path == Route.Home.path) {
-        if (!popBackStack(Route.Home.path, inclusive = false)) navigate(Route.Home.path) { launchSingleTop = true }
+    // Home is the root every tab pops back to (a lead's Home, for a lead's
+    // tabs). Going home clears the stack to it outright: saving and restoring
+    // Home's own state brought back whatever was open above it (a
+    // consultation opened from the Action Queue stayed).
+    val home = if (path == Route.LeadHome.path || path.startsWith(Route.LeadHome.path + "/")) Route.LeadHome.path else Route.Home.path
+    if (path == home) {
+        if (!popBackStack(home, inclusive = false)) navigate(home) { launchSingleTop = true }
         return
     }
     // A tab always opens at its own root. Restoring a tab's saved stack sent a
     // tap back to the very screen already open (More → a hearing → More did
     // nothing), so the tab looked dead.
     navigate(path) {
-        popUpTo(Route.Home.path)
+        popUpTo(home)
         launchSingleTop = true
     }
 }

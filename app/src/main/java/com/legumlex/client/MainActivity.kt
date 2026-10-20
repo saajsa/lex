@@ -47,6 +47,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         latestIntent = intent
+        // Debug builds only: sign in as a lead with a token handed over by adb
+        // (am start … --es debug_lead_token <jwt>), to try the lead's app
+        // without a second Google account. Release builds ignore it.
+        if (BuildConfig.DEBUG) intent?.getStringExtra("debug_lead_token")?.takeIf { it.isNotBlank() }?.let { jwt ->
+            kotlinx.coroutines.runBlocking {
+                com.legumlex.client.data.auth.TokenStore(applicationContext).save(jwt, null, null, role = "lead", status = "lead")
+            }
+        }
         com.legumlex.client.ui.theme.ThemePrefs.load(applicationContext)
         setContent {
             val choice by com.legumlex.client.ui.theme.ThemePrefs.choice.collectAsState()
@@ -125,9 +133,12 @@ private fun AppShell(deepLinkIntent: Intent?) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(resumes) { lastUnreadAt = 0L }
+    // A lead's token opens none of the client's endpoints (a refusal would
+    // sign them out): no bell, no profile, no Digital Office for a lead.
+    val lead by com.legumlex.client.data.auth.SessionRole.lead.collectAsState()
     LaunchedEffect(currentRoute, resumes) {
         val now = System.currentTimeMillis()
-        if (showAppFooter(currentRoute) && now - lastUnreadAt >= 60_000L) {
+        if (!lead && showAppFooter(currentRoute) && now - lastUnreadAt >= 60_000L) {
             lastUnreadAt = now
             com.legumlex.client.feature.notifications.NotificationHub.refresh(context)
         }
@@ -136,7 +147,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
     // signed-in screen is reached, and again after a fresh sign-in.
     val profile by com.legumlex.client.feature.profile.ProfileHub.profile.collectAsState()
     LaunchedEffect(currentRoute, profile) {
-        if (profile == null && showAppFooter(currentRoute)) {
+        if (!lead && profile == null && showAppFooter(currentRoute)) {
             com.legumlex.client.feature.profile.ProfileHub.refresh(context)
         }
     }
@@ -152,15 +163,17 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     // leaves, as it does for the back gesture.
                     onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
                     onNotifications = { navController.navigate(Route.Notifications.path) },
-                    onOffice = { navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } },
+                    onOffice = if (lead) null else ({ navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } }),
                     unreadCount = unreadCount,
-                    initials = profile?.initials,
-                    avatarUrl = profile?.avatarUrl,
+                    initials = if (lead) null else profile?.initials,
+                    avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
+                    showBell = !lead,
+                    subtitle = if (lead) "Enquiries" else "Client Portal",
                 )
             }
         },
-        bottomBar = { if (showAppFooter(currentRoute)) LegumBottomBar(navController) },
+        bottomBar = { if (showAppFooter(currentRoute)) LegumBottomBar(navController, lead) },
     ) { innerPadding ->
         // The paper grain is the page's alone: the header and bottom bar are
         // solid chrome, so the three read as frame and paper. The splash and

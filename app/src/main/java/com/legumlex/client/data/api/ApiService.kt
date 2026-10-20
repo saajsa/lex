@@ -39,6 +39,8 @@ interface ApiService {
     @POST("authentication/google")
     suspend fun loginWithGoogle(
         @Field("id_token") idToken: String,
+        // Someone with no client account signs in as a lead (owner, 2026-10-20).
+        @Field("allow_lead") allowLead: String = "1",
     ): Map<String, Any?>
 
     @Headers("X-Skip-Auth: 1")
@@ -591,6 +593,61 @@ interface ApiService {
     @FormUrlEncoded
     @POST("desk/discard")
     suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
+
+    // --- A lead signed in (owner, 2026-10-20) ---
+    // Who they are to the firm now; once the firm has opened their account,
+    // {role: client, client: {token, client_id, contact_id, …}}.
+    @GET("lead/me")
+    suspend fun leadMe(): Map<String, Any?>
+
+    // The desk for a lead: the same calls, the lead's address in place of a contact's.
+    @GET("lead/desk")
+    suspend fun leadDesk(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/check")
+    suspend fun leadDeskCheck(@Field("text") text: String): Map<String, Any?>
+
+    @Multipart
+    @POST("lead/desk/enquiry")
+    suspend fun leadDeskEnquiry(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/pay")
+    suspend fun leadDeskPay(@Field("session_hash") sessionHash: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/discard")
+    suspend fun leadDeskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
+
+    // The website's own funnel endpoints (lexon/api/funnel/*), which take a
+    // lead's token as the identity they would take from Google: My Enquiries,
+    // a matter's thread, a reply. Absolute URLs, beside the API's.
+    @POST
+    suspend fun funnelMySessions(@Url url: String): Map<String, Any?>
+
+    @POST
+    suspend fun funnelThread(@Url url: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST
+    suspend fun funnelReply(@Url url: String, @Field("message") message: String): Map<String, Any?>
+
+    // The website's Agreement Check for a lead: its terms, then start (the
+    // lead's token is the identity), consent and the upload, on the session.
+    @GET
+    suspend fun funnelDetails(@Url url: String): Map<String, Any?>
+
+    @POST
+    suspend fun funnelStart(@Url url: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST
+    suspend fun funnelConsent(@Url url: String, @Field("consent") consent: String = "1"): Map<String, Any?>
+
+    @Multipart
+    @POST
+    suspend fun funnelIntake(@Url url: String, @Part parts: List<MultipartBody.Part>): Map<String, Any?>
 
     /** The Legum Lex site's public notice tracker (cases/landing/ajax_track), by its own URL. */
     @FormUrlEncoded

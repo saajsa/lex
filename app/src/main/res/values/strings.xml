@@ -4,6 +4,7 @@
 
     <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
+    <string name="nav_enquiries">Enquiries</string>
     <string name="nav_matters">Litigation</string>
     <string name="nav_registry">Registry</string>
     <string name="nav_office">Office</string>

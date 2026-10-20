@@ -106,10 +106,12 @@ data class Tracked(
 class DeskRepository(context: Context) {
     private val api = ApiClient.get(context)
     private val resolver = context.applicationContext.contentResolver
+    /** A lead's desk (lead/desk): the same calls, under the lead's token. */
+    private val lead get() = com.legumlex.client.data.auth.SessionRole.isLead
 
     @Suppress("UNCHECKED_CAST")
     suspend fun terms(): DeskTerms? = runCatching {
-        val d = api.desk()["data"] as? Map<String, Any?> ?: return null
+        val d = (if (lead) api.leadDesk() else api.desk())["data"] as? Map<String, Any?> ?: return null
         val c = d["context"] as? Map<String, Any?>
         val hearing = c?.get("next_hearing") as? Map<String, Any?>
         DeskTerms(
@@ -145,7 +147,7 @@ class DeskRepository(context: Context) {
     @Suppress("UNCHECKED_CAST")
     suspend fun check(text: String): DeskReading? = withTimeoutOrNull(9_000) {
         runCatching {
-            val d = api.deskCheck(text)["data"] as? Map<String, Any?> ?: return@runCatching null
+            val d = (if (lead) api.leadDeskCheck(text) else api.deskCheck(text))["data"] as? Map<String, Any?> ?: return@runCatching null
             if (d["success"] != true) return@runCatching null
             DeskReading(
                 verdict  = (d["verdict"] as? String) ?: "clear",
@@ -200,7 +202,7 @@ class DeskRepository(context: Context) {
         // The page's own allowance: 45 seconds, and three more for each megabyte, up to three minutes.
         val ms = minOf(180_000L, 45_000L + ((files.sumOf { it.size } + 1_048_575) / 1_048_576) * 3_000)
         return try {
-            val d = withTimeoutOrNull(ms) { api.deskEnquiry(parts)["data"] as? Map<String, Any?> }
+            val d = withTimeoutOrNull(ms) { (if (lead) api.leadDeskEnquiry(parts) else api.deskEnquiry(parts))["data"] as? Map<String, Any?> }
                 ?: return Sent.Failed("", timedOut = true)
             val email = (d["email"] as? String).orEmpty()
             if (d["require_payment"] == true) Sent.Saved(terms.displayPrice, email, d["session_hash"]?.toString().orEmpty())
@@ -226,12 +228,12 @@ class DeskRepository(context: Context) {
      */
     @Suppress("UNCHECKED_CAST")
     suspend fun pay(sessionHash: String): Result<PayStart> = runCatching {
-        val d = api.deskPay(sessionHash)["data"] as? Map<String, Any?> ?: error("No answer")
+        val d = (if (lead) api.leadDeskPay(sessionHash) else api.deskPay(sessionHash))["data"] as? Map<String, Any?> ?: error("No answer")
         val url = (d["pay_url"] as? String).orEmpty()
         if (url.isNotBlank()) PayStart.Invoice(url) else PayStart.Sent(d["consultation_id"].int().takeIf { it > 0 })
     }.recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "The invoice could not be opened. Please try again.") }
 
-    suspend fun discard(sessionHash: String): Result<Unit> = runCatching { api.deskDiscard(sessionHash); Unit }
+    suspend fun discard(sessionHash: String): Result<Unit> = runCatching { if (lead) api.leadDeskDiscard(sessionHash) else api.deskDiscard(sessionHash); Unit }
         .recoverCatching { e -> throw IllegalStateException(serverMessage(e) ?: "The enquiry could not be set aside. Please try again.") }
 
     // The shared reader caches the body (it can be read once only).

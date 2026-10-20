@@ -60,10 +60,34 @@ class AuthRepository(
     suspend fun signInWithCode(ref: String, code: String): Result<LoginResult> =
         runAuth { api.otpVerify(ref, code) }
 
+    /**
+     * A lead's standing with the firm, asked at each launch: still a lead, a
+     * registration with the firm for approval, or opened, in which case the
+     * client token it returns replaces the lead's and the app becomes the
+     * client's. Null if it could not be asked (offline): the app stays as it is.
+     */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun leadStanding(): String? = runCatching {
+        val d = api.leadMe()["data"] as? Map<String, Any?> ?: return null
+        SessionRole.name.value = (d["name"] as? String).orEmpty()
+        if (d["role"] == "client") {
+            val c = d["client"] as? Map<String, Any?> ?: return null
+            val jwt = c["token"] as? String ?: return null
+            tokens.save(jwt, c["client_id"]?.toString(), c["contact_id"]?.toString(), role = "client")
+            c["contact_id"]?.toString()?.toIntOrNull()?.let { PushSetup.registerContact(it) }
+            "client"
+        } else {
+            val st = (d["status"] as? String).orEmpty().ifBlank { "lead" }
+            tokens.saveLeadStatus(st)
+            st
+        }
+    }.getOrNull()
+
     /** Signs out here and on the server (which revokes the token). */
     suspend fun signOut() {
-        // Best effort: offline, the token still goes from this device.
-        withTimeoutOrNull(5_000) { runCatching { api.logout() } }
+        // Best effort: offline, the token still goes from this device. A
+        // lead's token is not a contact's: the server's logout is a client's.
+        if (!SessionRole.isLead) withTimeoutOrNull(5_000) { runCatching { api.logout() } }
         forget()
     }
 
@@ -113,22 +137,28 @@ class AuthRepository(
         val jwt = data["token"] as? String
             ?: error("Server returned no token")
 
+        // A lead (no open client account) has no contact: role "lead".
+        val role      = if (data["role"] == "lead") "lead" else "client"
         val contactId = data["contact_id"]?.toString()
         tokens.save(
             jwt       = jwt,
             clientId  = data["client_id"]?.toString(),
             contactId = contactId,
+            role      = role,
+            status    = (data["status"] as? String).orEmpty(),
         )
 
         // Subscribe this device to the contact's Beams interest so the
         // server can target pushes at the specific human, not the install.
         // Idempotent — Beams dedupes, safe on every login/me-refresh.
-        contactId?.toIntOrNull()?.let { PushSetup.registerContact(it) }
+        if (role == "client") contactId?.toIntOrNull()?.let { PushSetup.registerContact(it) }
+        else SessionRole.name.value = (data["name"] as? String).orEmpty()
 
         LoginResult(
             email   = (data["email"] as? String).orEmpty().ifBlank { typedEmail.orEmpty() },
             name    = data["name"]    as? String ?: "",
             picture = data["picture"] as? String,
+            lead    = role == "lead",
         )
     }.recoverCatching { throw it.toSignInException() }
 
@@ -152,6 +182,8 @@ data class LoginResult(
     val email: String,
     val name: String,
     val picture: String?,
+    /** Signed in as a lead: no client account, or one awaiting approval. */
+    val lead: Boolean = false,
 )
 
 data class CodeSent(
