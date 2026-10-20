@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,7 +55,6 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 private enum class StepState { DONE, NOW, TODO }
-private data class RailStep(val title: String, val desc: String?, val icon: Int, val state: StepState)
 
 @Composable
 fun NoticeDetailScreen(
@@ -116,12 +117,19 @@ private fun Body(
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
 
             // ---------- casehead ----------
+            var info by remember { mutableStateOf(false) }
+            if (info) SystemDetails(n) { info = false }
             Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     CaseDirBadge(sum.direction)
                     StatusChip(sum)
                     // The label already says so when the server words it ("Awaiting Your Approval").
                     if (sum.needsApproval && sum.statusLabel.isBlank()) NeedsYouTag(sum.direction)
+                    Spacer(Modifier.weight(1f))
+                    // The system's own particulars, behind an (i): not part of the story.
+                    Box(Modifier.size(34.dp).clip(CircleShape).clickable { info = true }, contentAlignment = Alignment.Center) {
+                        Icon(androidx.compose.material.icons.Icons.Outlined.Info, contentDescription = "Notice details", tint = LlColor.InkMuted, modifier = Modifier.size(20.dp))
+                    }
                 }
                 // Hide the response countdown once a response is recorded —
                 // a replied/closed/expired notice isn't "due".
@@ -139,13 +147,7 @@ private fun Body(
                     Text(it, fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.InkMuted)
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    sum.referenceNumber?.let { RefChip(it) }
-                    sum.createdAt?.let {
-                        Text("·", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
-                        Text("Created ${it.toLocalDate().format(LONG)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
-                    }
-                }
+                sum.referenceNumber?.let { RefChip(it) }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
 
@@ -168,200 +170,13 @@ private fun Body(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
             }
 
-            // ---------- rail ----------
-            Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 15.dp)) {
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    Text("PROGRESS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 1.4.sp, color = LlColor.InkFaint)
-                    if (!out) Text("Tracks Your Reply", fontFamily = Inter, fontSize = 9.sp, color = LlColor.InkFaint)
-                }
-                val steps = railSteps(n)
-                steps.forEachIndexed { i, step -> RailRow(step, sum.direction, last = i == steps.lastIndex) }
-                // The portal's own "what happens next" sentence, verbatim.
-                n.nextStep?.let {
-                    Spacer(Modifier.height(10.dp))
-                    Text(it, fontFamily = Inter, fontSize = 12.sp, color = LlColor.InkMuted,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1)
-                            .border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 10.dp))
-                }
-            }
-
-            // ---------- approval gate: draft preview (tap to read inline) ----------
-            // The draft is the notice document by its tag, not whichever file came first.
-            val draftDoc = n.documents.firstOrNull { docKind(it, draftStage = true) == DocKind.DRAFT } ?: n.documents.firstOrNull()
-            if (sum.needsApproval) {
-                Section("Review The Draft") {
-                    Panel {
-                        Column(
-                            Modifier.fillMaxWidth()
-                                .then(if (draftDoc != null) Modifier.clickable { onOpenDocument(sum.id, draftDoc.id, draftDoc.name) } else Modifier)
-                                .padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            DraftSheet()
-                            Spacer(Modifier.height(12.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(painterResource(R.drawable.ic_ms_visibility), null, tint = LlColor.InkFaint, modifier = Modifier.size(15.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(if (draftDoc != null) "Tap To Read The Full Notice" else "Draft Not Yet Shared", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---------- key facts ----------
-            Section(if (out) "Recipient" else "The Claim") {
-                Panel {
-                    Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
-                        if (out) {
-                            Kv("Recipient", n.recipientName ?: sum.counterparty)
-                            n.recipientAddress?.let { Kv("Address", it) }
-                            n.recipientContact?.let { Kv("Contact", it) }
-                        } else {
-                            Kv("Sender", n.senderName ?: sum.counterparty)
-                            n.senderAddress?.let { Kv("Address", it) }
-                            n.senderAdvocateName?.let { Kv("Advocate", it) }
-                        }
-                        sum.noticeType?.let { Kv("Type", it) }
-                        if (!out) n.receivedDate?.let { Kv("Received", it.format(LONG)) }
-                        money(sum.claimAmount)?.let { Kv("Claim", it, amt = true) }
-                        sum.responseDueDate?.let { Kv("Reply Date", it.format(LONG)) }
-                    }
-                }
-            }
-
-            // ---------- service details (outbound, once dispatched) ----------
-            if (out && (n.serviceMethod != null || n.trackingNumber != null || n.dispatchDate != null || n.deliveryDate != null ||
-                    n.deemedServedDate != null || n.waitingEndDate != null || n.returnDate != null)) {
-                Section("Service Details") {
-                    Panel {
-                        Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
-                            n.serviceMethod?.let { Kv("Method", it, strong = true) }
-                            n.trackingNumber?.let { Kv("Tracking", it, mono = true) }
-                            n.dispatchDate?.let { Kv("Dispatched", it.format(LONG)) }
-                            n.deliveryDate?.let { Kv("Delivered", it.format(LONG)) }
-                            n.receivedByPerson?.let { Kv("Received By", it) }
-                            n.returnDate?.let { Kv("Returned", it.format(LONG)) }
-                            n.returnReason?.let { Kv("Reason", it) }
-                            n.deemedServedDate?.let { Kv("Deemed Served", it.format(LONG)) }
-                            n.waitingEndDate?.let { Kv("Waiting Ends", it.format(LONG)) }
-                        }
-                    }
-                    // How many days of the statutory waiting period remain — information only.
-                    n.waitingEndDate?.let { end ->
-                        val left = ChronoUnit.DAYS.between(todayIst(), end)
-                        if (left >= 0 && !sum.isClosed && !sum.isAnswered()) {
-                            Text(
-                                if (left == 0L) "The waiting period ends today." else "$left ${if (left == 1L) "day" else "days"} of the waiting period remain.",
-                                fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 8.dp, start = 2.dp),
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ---------- remarks ----------
-            n.notes?.let { r ->
-                Section("Remarks") {
-                    Panel { Text(r, fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.Ink, modifier = Modifier.padding(14.dp)) }
-                }
-            }
-
-            // ---------- activity (oldest first) ----------
-            if (n.activity.isNotEmpty()) {
-                Section("Activity") {
-                    Panel {
-                        n.activity.forEachIndexed { i, a ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-                            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(a.title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
-                                    a.date?.let { Text(it.format(LONG), fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint) }
-                                }
-                                a.detail?.let { Spacer(Modifier.height(2.dp)); Text(it, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted) }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---------- documents (tap to view inline) ----------
-            // A "Legal Notice Document" is a DRAFT while the notice is pre-dispatch
-            // (status Draft) and the FINAL served notice once sent — differentiated below.
-            if (n.documents.isNotEmpty()) {
-                val draftStage = sum.status == "Draft"
-                Section("Documents") {
-                    Panel {
-                        n.documents.forEachIndexed { i, doc ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-                            DocRow(doc, draftStage) { onOpenDocument(sum.id, doc.id, doc.name) }
-                        }
-                    }
-                }
-            }
-
-            // ---------- advocate ----------
-            n.signingAdvocateName?.takeIf { it.isNotBlank() }?.let { adv ->
-                Section("Your Advocate") {
-                    Panel {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2), contentAlignment = Alignment.Center) {
-                                Text(initials(adv), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = LlColor.InkMuted)
-                            }
-                            Spacer(Modifier.width(11.dp))
-                            Text(adv, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
-                            n.consultationId?.let { cid ->
-                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).clickable { onMessageAdvocate(cid) }, contentAlignment = Alignment.Center) {
-                                    Icon(painterResource(R.drawable.ic_ms_forum), null, tint = LlColor.SlateMid, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ---------- responses (nested) ----------
-            if (n.children.isNotEmpty()) {
-                Section(if (out) "Responses" else "Our Response") {
-                    Panel {
-                        n.children.forEachIndexed { i, child ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-                            ResponseRow(child) { onOpen(child.id) }
-                        }
-                    }
-                }
-            }
-
-            // ---------- convert callout (outbound, response window open) ----------
-            if (out && !sum.isClosed && !sum.isAnswered() && sum.responseDueDate != null && !n.convertedToCase) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp))
-                        .background(LlColor.VioletSoft).padding(13.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card), contentAlignment = Alignment.Center) {
-                        Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
-                    }
-                    Spacer(Modifier.width(11.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("If No Reply Comes By ${sum.responseDueDate.format(LONG)}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet)
-                        Text("Your advocate will advise on what follows.", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
-                    }
-                }
-            }
-            if (n.convertedToCase) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.VioletSoft)
-                        .clickable(enabled = !n.caseId.isNullOrBlank()) { n.caseId?.let(onOpenCase) }.padding(13.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card), contentAlignment = Alignment.Center) {
-                        Icon(painterResource(R.drawable.ic_ms_gavel), null, tint = LlColor.Violet, modifier = Modifier.size(19.dp))
-                    }
-                    Spacer(Modifier.width(11.dp))
-                    Text("This Notice Became A Case", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Violet, modifier = Modifier.weight(1f))
-                    if (!n.caseId.isNullOrBlank()) Icon(painterResource(R.drawable.ic_ms_chevron_right), "Open the case", tint = LlColor.Violet, modifier = Modifier.size(18.dp))
-                }
+            // ---------- the tracker ----------
+            // One story, top to bottom: what the screen used to repeat in
+            // separate panels (the parties, the claim, service, the advocate,
+            // remarks, documents, responses) is told at the step it belongs to.
+            Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 20.dp)) {
+                val steps = trackSteps(n, onOpen, onOpenCase) { doc -> onOpenDocument(sum.id, doc.id, doc.name) }
+                steps.forEachIndexed { i, st -> TrackRow(st, last = i == steps.lastIndex) }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -528,21 +343,12 @@ private fun CountdownChipDetail(due: LocalDate) {
     }
 }
 
-@Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
-    Text(title.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 1.4.sp, color = LlColor.InkFaint, modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 9.dp))
-    Box(Modifier.padding(horizontal = 18.dp)) { content() }
-}
 
-@Composable
-private fun Panel(content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(12.dp))) { content() }
-}
 
 @Composable
 private fun Kv(k: String, v: String, mono: Boolean = false, amt: Boolean = false, strong: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
-        Text(k.uppercase(), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.width(88.dp))
+        Text(k.uppercase(), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.width(118.dp))
         Text(
             v,
             fontFamily = if (mono) Mono else Inter,
@@ -576,178 +382,232 @@ private fun docKind(doc: NoticeDocument, draftStage: Boolean): DocKind {
     }
 }
 
+
+
+
+/* ------------------------------------------------------------- tracker */
+
+private class TrackLink(val label: String, val onClick: () -> Unit)
+
+private class TrackStep(
+    val title: String,
+    val lines: List<String>,
+    val links: List<TrackLink>,
+    val icon: Int,
+    val state: StepState,
+)
+
+/** One step: a large circle on a thick rail (the owner's reference), the title, then what belongs to it. */
 @Composable
-private fun DocRow(doc: NoticeDocument, draftStage: Boolean, onClick: () -> Unit) {
-    val kind = docKind(doc, draftStage)
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(kind.bg), contentAlignment = Alignment.Center) {
-            Icon(painterResource(kind.icon), null, tint = kind.fg, modifier = Modifier.size(20.dp))
+private fun TrackRow(step: TrackStep, last: Boolean) {
+    val ink = Lex.colors.foreground
+    val paper = Lex.colors.background
+    val done = step.state == StepState.DONE
+    val now = step.state == StepState.NOW
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+        Box(Modifier.width(40.dp).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+            // The rail runs on to the next step, dark through what is done.
+            if (!last) Box(Modifier.padding(top = 20.dp).width(4.dp).fillMaxHeight()
+                .background(if (done) ink else Lex.colors.border))
+            Box(
+                Modifier.size(40.dp).clip(CircleShape)
+                    .background(when { done || now -> ink; else -> Lex.colors.muted })
+                    .border(if (now) 4.dp else 1.5.dp, when { now -> ink.copy(alpha = 0.25f); done -> ink; else -> Lex.colors.border }, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(if (done) R.drawable.ic_ms_check else step.icon), null,
+                    tint = if (done || now) paper else Lex.colors.mutedForeground, modifier = Modifier.size(18.dp))
+            }
         }
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(doc.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink, maxLines = 1)
-                if (kind.draft) {
-                    Box(Modifier.clip(RoundedCornerShape(4.dp)).background(LlColor.AmberSoft).padding(horizontal = 5.dp, vertical = 1.dp)) {
-                        Text("DRAFT", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 8.sp, letterSpacing = 0.5.sp, color = LlColor.Amber)
-                    }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f).padding(top = 8.dp, bottom = if (last) 4.dp else 22.dp)) {
+            Text(step.title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp,
+                color = if (step.state == StepState.TODO) Lex.colors.mutedForeground else ink)
+            step.lines.forEach {
+                Spacer(Modifier.height(3.dp))
+                Text(it, fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp,
+                    color = if (step.state == StepState.TODO) Lex.colors.faint else Lex.colors.mutedForeground)
+            }
+            step.links.forEach { l ->
+                Row(Modifier.padding(top = 6.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = l.onClick).padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(l.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = ink)
+                    Icon(painterResource(R.drawable.ic_ms_chevron_right), null, tint = ink, modifier = Modifier.size(16.dp))
                 }
             }
-            // the document KIND, not the raw tag — differentiates draft / notice / proof / etc.
-            Text(kind.label, fontFamily = Inter, fontSize = 10.sp, color = kind.fg)
         }
-        // inline view affordance (eye), not download
-        Icon(painterResource(R.drawable.ic_ms_visibility), null, tint = LlColor.SlateMid, modifier = Modifier.size(20.dp))
     }
 }
 
+/** The particulars only the record needs, shown on the (i). */
 @Composable
-private fun DraftSheet() {
-    Column(
-        Modifier.width(150.dp).height(194.dp).clip(RoundedCornerShape(8.dp)).background(com.legumlex.client.ui.theme.Lex.colors.card).border(1.dp, LlColor.Border, RoundedCornerShape(8.dp)).padding(16.dp),
-    ) {
-        Text("LEGAL NOTICE", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LlColor.Ink)
-        Spacer(Modifier.height(10.dp))
-        listOf(0.96f, 0.86f, 0.74f, 1f, 0.96f, 0.86f, 0.96f, 0.52f).forEach {
-            Box(Modifier.fillMaxWidth(it).height(4.dp).clip(RoundedCornerShape(2.dp)).background(LlColor.Paper2))
-            Spacer(Modifier.height(5.dp))
-        }
-    }
-}
-
-@Composable
-private fun ResponseRow(n: NoticeSummary, onClick: () -> Unit) {
-    val c = dirColors(n.direction)
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(c.soft), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_ms_reply), null, tint = c.solid, modifier = Modifier.size(17.dp))
-        }
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Text("To " + n.counterparty, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.Ink)
-            Text(listOfNotNull(n.referenceNumber, noticeStatusTitle(n)).joinToString("  ·  "), fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
-        }
-        Icon(painterResource(R.drawable.ic_ms_chevron_right), null, tint = LlColor.InkFaint, modifier = Modifier.size(18.dp))
-    }
-}
-
-@Composable
-private fun RailRow(step: RailStep, dir: NoticeDirection, last: Boolean) {
-    val c = dirColors(dir)
-    val dotBg = when (step.state) { StepState.DONE -> LlColor.Verdant; StepState.NOW -> c.solid; StepState.TODO -> Lex.colors.card }
-    val dotBorder = when (step.state) { StepState.DONE -> LlColor.Verdant; StepState.NOW -> c.solid; StepState.TODO -> LlColor.BorderStrong }
-    val dotIcon = if (step.state == StepState.DONE) R.drawable.ic_ms_check else step.icon
-    val dotTint = if (step.state == StepState.TODO) LlColor.InkFaint else Lex.colors.card
-    Row(Modifier.fillMaxWidth()) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
-            Box(Modifier.size(22.dp).clip(CircleShape).background(dotBg).border(2.dp, dotBorder, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(painterResource(dotIcon), null, tint = dotTint, modifier = Modifier.size(12.dp))
-            }
-            if (!last) Box(Modifier.width(2.dp).height(if (step.desc != null) 30.dp else 22.dp).background(if (step.state == StepState.DONE) LlColor.VerdantMid else LlColor.Paper2))
-        }
-        Spacer(Modifier.width(13.dp))
-        Column(Modifier.padding(bottom = if (last) 2.dp else 15.dp)) {
-            Text(
-                step.title, fontFamily = Inter,
-                fontWeight = if (step.state == StepState.TODO) FontWeight.Normal else FontWeight.SemiBold,
-                fontSize = 13.sp,
-                color = when (step.state) { StepState.TODO -> LlColor.InkFaint; StepState.NOW -> c.solid; else -> LlColor.Ink },
-            )
-            step.desc?.let {
-                Spacer(Modifier.height(3.dp))
-                Text(it, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint)
-            }
-        }
-    }
-}
-
-/* --------------------------------------------------------- rail builder */
-
-private fun railSteps(n: NoticeDetail): List<RailStep> {
+private fun SystemDetails(n: NoticeDetail, onDismiss: () -> Unit) {
     val s = n.summary
+    val rows = listOfNotNull(
+        s.referenceNumber?.let { "Reference" to it },
+        "Direction" to (if (s.direction == NoticeDirection.OUTBOUND) "Outbound" else "Inbound"),
+        s.noticeType?.let { "Type" to it },
+        "Status" to noticeStatusTitle(s),
+        s.createdAt?.let { "Created On" to it.format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a")) },
+        n.serviceMethod?.let { "Service" to it },
+        n.courierServiceName?.trim()?.ifBlank { null }?.let { "Carrier" to it },
+        n.trackingNumber?.let { "Tracking" to it },
+        n.deliveryStatus?.let { "Delivery Status" to it },
+        n.waitingPeriodDays.takeIf { it > 0 }?.let { "Waiting Period" to "$it days" },
+        n.approvedAt?.let { "Approved On" to it.format(DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a")) },
+        n.consultationId?.let { "Consultation" to "#$it" },
+        n.caseId?.takeIf { n.convertedToCase }?.let { "Case" to "#$it" },
+    )
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Notice Details") },
+        text = { Column { rows.forEach { (k, v) -> Kv(k, v, mono = k == "Tracking" || k == "Reference") } } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Close", color = Lex.colors.foreground) } },
+        containerColor = Lex.colors.card,
+    )
+}
+
+/** The steps, each carrying what the old panels said about it. */
+private fun trackSteps(
+    n: NoticeDetail,
+    onOpen: (String) -> Unit,
+    onOpenCase: (String) -> Unit,
+    openDoc: (NoticeDocument) -> Unit,
+): List<TrackStep> {
+    val s = n.summary
+    val out = s.direction == NoticeDirection.OUTBOUND
     val created = s.createdAt?.toLocalDate()?.format(LONG)
-    return if (s.direction == NoticeDirection.OUTBOUND) {
+    val draftStage = s.status == "Draft"
+    val docs = n.documents.groupBy { docKind(it, draftStage) }
+    val used = mutableSetOf<String>()
+    fun docLinks(kind: DocKind, label: (NoticeDocument) -> String) =
+        docs[kind].orEmpty().map { d -> used += d.id; TrackLink(label(d)) { openDoc(d) } }
+    // Ours only on a notice we send; on a received one it is the sender's.
+    val adv = n.signingAdvocateName?.takeIf { it.isNotBlank() && out }
+    val claim = listOfNotNull(s.noticeType?.trim()?.ifBlank { null }, money(s.claimAmount)?.let { "Claim $it" }).joinToString(" · ").ifBlank { null }
+    fun daysLeft(d: LocalDate): String {
+        val left = ChronoUnit.DAYS.between(todayIst(), d)
+        return when { left < 0 -> "passed"; left == 0L -> "today"; left == 1L -> "1 day left"; else -> "$left days left" }
+    }
+
+    val steps: MutableList<TrackStep>
+    var now: Int
+    if (out) {
         if (s.status == "Cancelled") {
             return listOf(
-                RailStep("Submitted", created, R.drawable.ic_ms_check, StepState.DONE),
-                RailStep("Cancelled", null, R.drawable.ic_ms_lock, StepState.NOW),
+                TrackStep("Submitted", listOfNotNull(created?.let { "On $it" }), emptyList(), R.drawable.ic_ms_check, StepState.DONE),
+                TrackStep("Cancelled", listOfNotNull(n.notes), emptyList(), R.drawable.ic_ms_lock, StepState.NOW),
             )
         }
-        // A returned notice that the law deems served moves on to the waiting period.
         val returned = s.status == "Returned" && n.deemedServedDate == null
         val served = n.isServed || s.isServed || n.deemedServedDate != null || s.status in listOf("Served", "Delivered")
         val outcome = s.status in listOf("Response Received", "No Response", "Expired")
-        val now = when {
-            outcome -> 7                         // every step done
+        now = when {
+            outcome -> 6
             s.needsApproval -> 2
             s.status in listOf("Draft", "Reserved") -> 1
-            returned -> 4                        // stuck at service
-            served -> 5                          // waiting period running
+            returned -> 4
+            served -> 5
             s.status in listOf("Dispatched", "Sent") -> 4
             else -> 1
         }
-        val serviceTitle = when {
-            returned -> "Returned Undelivered"
-            n.deemedServedDate != null -> "Deemed Served"
-            else -> "Served"
-        }
-        val serviceDesc = when {
-            returned -> listOfNotNull(n.returnDate?.let { "Returned ${it.format(LONG)}" }, n.returnReason, "your advocate will advise").joinToString(" · ")
-            n.deemedServedDate != null -> "Deemed served ${n.deemedServedDate.format(LONG)}"
-            else -> n.deliveryDate?.format(LONG)
-        }
         val waitEnd = n.waitingEndDate ?: s.responseDueDate
-        val waitDesc = waitEnd?.let { end ->
-            val left = ChronoUnit.DAYS.between(todayIst(), end)
-            if (now == 5 && left >= 0) "Ends ${end.format(LONG)} · $left ${if (left == 1L) "day" else "days"} left" else "Ends ${end.format(LONG)}"
-        }
-        val outcomeTitle = when (s.status) {
-            "Response Received" -> "Response Received"
-            "No Response" -> "No Response"
-            "Expired" -> "Waiting Period Over"
-            else -> "Reply Or Waiting Period Ends"
-        }
-        val titles = listOf(
-            Triple("Submitted", created, R.drawable.ic_ms_check),
-            Triple("Advocate Drafting", null, R.drawable.ic_ms_draw),
-            Triple("Draft Ready For Your Review", if (now == 2) "Waiting for you" else null, R.drawable.ic_ms_draw),
-            Triple("Dispatched", n.dispatchDate?.format(LONG), R.drawable.ic_ms_send),
-            Triple(serviceTitle, serviceDesc, R.drawable.ic_ms_mark_email_read),
-            Triple("Waiting Period", waitDesc, R.drawable.ic_ms_schedule),
-            Triple(outcomeTitle, null, R.drawable.ic_ms_forum),
+        val open = !s.isClosed && !s.isAnswered()
+        steps = mutableListOf(
+            TrackStep("Submitted",
+                listOfNotNull(created?.let { "On $it" }, "To ${n.recipientName ?: s.counterparty}", n.recipientAddress, claim),
+                docLinks(DocKind.SUPPORTING) { "Supporting Document · ${it.name}" }, R.drawable.ic_ms_check, StepState.TODO),
+            TrackStep("Advocate Drafting", listOfNotNull(adv?.let { "Prepared by $it" }), emptyList(), R.drawable.ic_ms_draw, StepState.TODO),
+            TrackStep("Draft Ready For Your Review",
+                listOfNotNull(
+                    if (now == 2) "Waiting for you: read the draft, then tell your advocate it is fine or ask for changes." else null,
+                    n.approvedAt?.let { "You confirmed it on ${it.toLocalDate().format(LONG)}" },
+                ),
+                if (now == 2) docLinks(DocKind.DRAFT) { "Read The Draft" } else emptyList(), R.drawable.ic_ms_rate_review, StepState.TODO),
+            TrackStep("Dispatched",
+                listOfNotNull(
+                    n.dispatchDate?.let { "On ${it.format(LONG)}" },
+                    listOf(n.serviceMethod, n.courierServiceName).mapNotNull { it?.trim()?.ifBlank { null } }.joinToString(" · ").ifBlank { null },
+                    n.trackingNumber?.trim()?.ifBlank { null }?.let { "Tracking $it" },
+                ),
+                emptyList(), R.drawable.ic_ms_send, StepState.TODO),
+            TrackStep(
+                when { returned -> "Returned Undelivered"; n.deemedServedDate != null -> "Deemed Served"; else -> "Served" },
+                listOfNotNull(
+                    n.deliveryDate?.let { "Delivered ${it.format(LONG)}" },
+                    n.receivedByPerson?.let { "Received by $it" },
+                    n.returnDate?.let { "Returned ${it.format(LONG)}" },
+                    n.returnReason,
+                    n.deemedServedDate?.let { "Deemed served ${it.format(LONG)}" },
+                    if (returned) "Your advocate will advise on what follows." else null,
+                ),
+                docLinks(DocKind.PROOF) { "Proof Of Service" }, R.drawable.ic_ms_mark_email_read, StepState.TODO),
+            TrackStep("Waiting Period",
+                listOfNotNull(
+                    waitEnd?.let { if (it.isBefore(todayIst())) "Ended ${it.format(LONG)}" else "Ends ${it.format(LONG)}" + if (now == 5) " · ${daysLeft(it)}" else "" },
+                    if (open && now == 5 && waitEnd != null && !waitEnd.isBefore(todayIst())) "If no reply comes by then, your advocate will advise on what follows." else null,
+                ),
+                emptyList(), R.drawable.ic_ms_schedule, StepState.TODO),
+            TrackStep(
+                when (s.status) { "Response Received" -> "Response Received"; "No Response" -> "No Response"; "Expired" -> "Waiting Period Over"; else -> "Reply Or Waiting Period Ends" },
+                emptyList(),
+                n.children.map { c -> TrackLink("Response · ${listOfNotNull(c.referenceNumber, noticeStatusTitle(c)).joinToString(" · ")}") { onOpen(c.id) } } +
+                    listOfNotNull(if (n.convertedToCase) TrackLink("This Notice Became A Case") { n.caseId?.let(onOpenCase) } else null),
+                R.drawable.ic_ms_forum, StepState.TODO),
         )
-        titles.mapIndexed { i, t -> RailStep(t.first, t.second, t.third, stateFor(i, now)) }
+        if (outcome) now = steps.size   // every step done
     } else {
         val child = n.children.firstOrNull { it.direction == NoticeDirection.OUTBOUND } ?: n.children.firstOrNull()
-        val now = when {
+        now = when {
             child == null -> 1
             child.status in listOf("Response Received", "No Response", "Expired") -> 4
             child.status in listOf("Dispatched", "Sent", "Served", "Delivered") -> 3
-            child.status == "Draft" -> 2
             else -> 2
         }
-        val titles = listOf(
-            Triple("Received & Logged", (n.receivedDate?.format(LONG) ?: created), R.drawable.ic_ms_check),
-            Triple("Advocate Reviewing", if (now == 1) "In progress" else null, R.drawable.ic_ms_rate_review),
-            Triple("Response Drafted For Your Review", null, R.drawable.ic_ms_draw),
-            Triple("Response Sent", s.responseDueDate?.let { "Reply date ${it.format(LONG)}" }, R.drawable.ic_ms_send),
+        val due = s.responseDueDate
+        steps = mutableListOf(
+            TrackStep("Received & Logged",
+                listOfNotNull(
+                    (n.receivedDate?.format(LONG) ?: created)?.let { "On $it" },
+                    "From ${n.senderName ?: s.counterparty}",
+                    n.senderAddress,
+                    n.senderAdvocateName?.let { "Sent through $it" },
+                    claim,
+                ),
+                docLinks(DocKind.RECEIVED) { "The Notice Received" }, R.drawable.ic_ms_mark_email_unread, StepState.TODO),
+            TrackStep("Advocate Reviewing",
+                // On a received notice the signing advocate is the other side's
+                // (the one who signed it), so no name is given here.
+                listOfNotNull(
+                    if (now == 1) "Your advocate is reading the notice and will advise on a reply." else null,
+                    due?.let { "Reply due by ${it.format(LONG)}" + if (now <= 2 && !s.isClosed) " · ${daysLeft(it)}" else "" },
+                ),
+                emptyList(), R.drawable.ic_ms_rate_review, StepState.TODO),
+            TrackStep("Response Drafted For Your Review",
+                listOfNotNull(child?.referenceNumber),
+                listOfNotNull(child?.let { c -> TrackLink("Open The Response") { onOpen(c.id) } }), R.drawable.ic_ms_draw, StepState.TODO),
+            TrackStep("Response Sent",
+                listOfNotNull(child?.takeIf { now >= 3 }?.let { noticeStatusTitle(it) }),
+                listOfNotNull(if (n.convertedToCase) TrackLink("This Notice Became A Case") { n.caseId?.let(onOpenCase) } else null),
+                R.drawable.ic_ms_send, StepState.TODO),
         )
-        titles.mapIndexed { i, t -> RailStep(t.first, t.second, t.third, stateFor(i, now)) }
     }
+    // The step in hand also carries the portal's "what happens next" and the advocate's remarks.
+    val at = now.coerceAtMost(steps.lastIndex)
+    steps[at] = steps[at].let { st ->
+        TrackStep(st.title, st.lines + listOfNotNull(n.nextStep, n.notes?.let { "From your advocate: $it" }), st.links, st.icon, st.state)
+    }
+    // Any document not placed at its step belongs with the first.
+    val rest = n.documents.filter { it.id !in used && docKind(it, draftStage) != DocKind.DRAFT && docKind(it, draftStage) != DocKind.NOTICE }
+    if (rest.isNotEmpty()) steps[0] = steps[0].let { st ->
+        TrackStep(st.title, st.lines, st.links + rest.map { d -> TrackLink(d.name) { openDoc(d) } }, st.icon, st.state)
+    }
+    return steps.mapIndexed { i, st -> TrackStep(st.title, st.lines, st.links, st.icon, stateFor(i, now)) }
 }
 
 private fun stateFor(index: Int, now: Int): StepState =
     when { index < now -> StepState.DONE; index == now -> StepState.NOW; else -> StepState.TODO }
 
-private fun initials(name: String): String {
-    val clean = name.replace(Regex("(?i)^(adv\\.?|advocate|mr\\.?|ms\\.?|mrs\\.?)\\s+"), "").trim()
-    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
-    return when {
-        parts.isEmpty() -> "AD"
-        parts.size == 1 -> parts[0].take(2).uppercase()
-        else -> (parts[0].take(1) + parts.last().take(1)).uppercase()
-    }
-}
 
 private val SHORT: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM")
 private val LONG: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy")
