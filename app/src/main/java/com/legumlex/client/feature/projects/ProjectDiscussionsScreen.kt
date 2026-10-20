@@ -65,8 +65,8 @@ import java.time.temporal.ChronoUnit
 // the client reads and replies. Same message idiom as the task conversation.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
 
 sealed interface DiscUiState {
     data object Loading : DiscUiState

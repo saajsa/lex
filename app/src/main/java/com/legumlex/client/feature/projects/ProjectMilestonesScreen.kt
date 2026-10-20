@@ -62,7 +62,7 @@ import java.time.temporal.ChronoUnit
 // a receded Completed band. Milestones are chamber-run; the client reads.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
 
 sealed interface MilestonesUiState {
     data object Loading : MilestonesUiState
@@ -167,10 +167,19 @@ private fun MilestonesReady(milestones: List<Milestone>) {
             Text("$pct%", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
         }
 
-        if (upcoming.isNotEmpty()) {
-            Slabel("Upcoming", upcoming.size, accent = true)
+        // A milestone whose date has gone by is not "upcoming": it has its own band.
+        val pastDue = upcoming.filter { it.dueDate?.isBefore(today) == true }
+        val ahead = upcoming - pastDue.toSet()
+        if (pastDue.isNotEmpty()) {
+            Slabel("Past Due Date", pastDue.size, accent = true)
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                upcoming.forEach { MilestoneCard(it, today, isNearest = it.id == nearestId) }
+                pastDue.forEach { MilestoneCard(it, today, isNearest = false) }
+            }
+        }
+        if (ahead.isNotEmpty()) {
+            Slabel("Upcoming", ahead.size)
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                ahead.forEach { MilestoneCard(it, today, isNearest = it.id == nearestId) }
             }
         }
         if (completed.isNotEmpty()) {
@@ -190,7 +199,7 @@ private fun MilestoneCard(m: Milestone, today: LocalDate, isNearest: Boolean) {
     val week = !done && !soon && days != null && days in 4..7
     val meterColor = when {
         done -> LlColor.VerdantMid
-        soon -> ClaretMidFix
+        soon -> LlColor.ClaretMid
         week -> LlColor.AmberMid
         m.tasksDone > 0 -> LlColor.SlateMid
         else -> LlColor.InkFaint
@@ -234,7 +243,7 @@ private fun MilestoneCard(m: Milestone, today: LocalDate, isNearest: Boolean) {
         days == 1L -> "Due tomorrow"
         else -> "Due ${if (week) "this week · " else if (days != null && days <= 3) "in $days days · " else ""}${d.format(dowFmt)}"
     }
-    val color = when { soon -> ClaretMidFix; week -> LlColor.AmberMid; else -> LlColor.InkMuted }
+    val color = when { soon -> LlColor.ClaretMid; week -> LlColor.AmberMid; else -> LlColor.InkMuted }
     return Triple(if (soon) Icons.Outlined.Flag else Icons.Outlined.Event, label, color)
 }
 
@@ -257,7 +266,7 @@ private fun MsStatusPill(m: Milestone) {
 private fun SubBar(title: String, count: Int?, contextLine: String?, onBack: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
+            Text(title.uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold, fontSize = 26.sp, letterSpacing = 0.3.sp, color = LlColor.Ink)
             count?.let {
                 Box(Modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
                     Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.InkMuted)

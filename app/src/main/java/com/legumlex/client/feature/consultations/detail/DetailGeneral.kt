@@ -812,8 +812,8 @@ private fun Composer(
 
 // LlColor.ClaretSoft / ClaretMid are broken placeholders (white / black); use the
 // design's real claret tints (--claret-s #fdf2f4 / --claret-m #be2e4a) locally.
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
 
 private val stampFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM, h:mm a")
 private val timeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")

@@ -60,8 +60,8 @@ import java.time.format.DateTimeFormatter
 // claret, discussion violet). Read-only.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
 
 sealed interface ActivityUiState {
     data object Loading : ActivityUiState
@@ -199,7 +199,7 @@ private data class ActKind(val color: Color, val bg: Color, val icon: ImageVecto
 private fun SubBar(contextLine: String?, onBack: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Activity", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
+            Text("Activity".uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold, fontSize = 26.sp, letterSpacing = 0.3.sp, color = LlColor.Ink)
         }
         contextLine?.takeIf { it.isNotBlank() }?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))

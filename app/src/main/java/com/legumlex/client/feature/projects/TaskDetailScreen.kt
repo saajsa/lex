@@ -65,9 +65,9 @@ import java.time.temporal.ChronoUnit
 // and composer for a calm record. App-wide header + nav from MainActivity.
 // -----------------------------------------------------------------------------
 
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.Border
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,8 +145,8 @@ private fun Masthead(task: TaskDetail, today: LocalDate, complete: Boolean, onBa
             if (dueLabel != null) {
                 Text("·", fontFamily = Inter, fontSize = 11.sp, color = LlColor.BorderStrong)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(icon, null, tint = if (soon) ClaretMidFix else LlColor.InkFaint, modifier = Modifier.size(13.dp))
-                    Text(dueLabel, fontFamily = Inter, fontSize = 10.5.sp, color = if (soon) ClaretMidFix else LlColor.InkMuted)
+                    Icon(icon, null, tint = if (soon) LlColor.ClaretMid else LlColor.InkFaint, modifier = Modifier.size(13.dp))
+                    Text(dueLabel, fontFamily = Inter, fontSize = 10.5.sp, color = if (soon) LlColor.ClaretMid else LlColor.InkMuted)
                 }
             }
         }
@@ -476,7 +476,7 @@ private val dayYearFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM y
 }
 
 @androidx.compose.runtime.Composable private fun priorityTag(priority: Int?): Pair<String, Pair<Color, Color>>? = when (priority) {
-    4 -> "Urgent" to (ClaretSoftFix to ClaretMidFix)
+    4 -> "Urgent" to (LlColor.ClaretSoft to LlColor.ClaretMid)
     3 -> "High" to (LlColor.AmberSoft to LlColor.Amber)
     2 -> "Medium" to (LlColor.SlateSoft to LlColor.SlateMid)
     1 -> "Low" to (LlColor.Paper2 to LlColor.InkMuted)

@@ -64,9 +64,9 @@ import java.time.temporal.ChronoUnit
 // header (MainActivity); this screen draws no top bar of its own.
 // -----------------------------------------------------------------------------
 
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.Border
 private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -226,10 +226,10 @@ private fun AtAGlance(detail: ProjectDetail, discussionCount: Int, today: LocalD
             s.nextMilestone?.let { ms ->
                 val passed = days != null && days < 0
                 val soon = days != null && days <= 3
-                val cdBg = if (soon) ClaretSoftFix else LlColor.AmberSoft
-                val cdBorder = if (soon) ClaretBorderFix else AmberBorderFix
+                val cdBg = if (soon) LlColor.ClaretSoft else LlColor.AmberSoft
+                val cdBorder = if (soon) LlColor.ClaretBorder else AmberBorderFix
                 val accent = if (soon) LlColor.Claret else LlColor.Amber
-                val accentMid = if (soon) ClaretMidFix else LlColor.AmberMid
+                val accentMid = if (soon) LlColor.ClaretMid else LlColor.AmberMid
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
                 Spacer(Modifier.height(14.dp))
@@ -331,9 +331,10 @@ private fun TasksSection(tasks: List<TaskSummary>, seg: String, onSeg: (String) 
         CountChip(tasks.size)
         Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
         if (canCreate) {
-            Row(Modifier.clip(RoundedCornerShape(8.dp)).background(ClaretSoftFix).border(LlDimen.HairlineWidth, ClaretBorderFix, RoundedCornerShape(8.dp)).clickable(onClick = onCreate).padding(start = 8.dp, end = 10.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(Icons.Outlined.Add, null, tint = ClaretMidFix, modifier = Modifier.size(15.dp))
-                Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = ClaretMidFix)
+            // An ordinary action: ink outline, never the danger red.
+            Row(Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).clickable(onClick = onCreate).padding(start = 8.dp, end = 10.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(Icons.Outlined.Add, null, tint = LlColor.Ink, modifier = Modifier.size(15.dp))
+                Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
             }
         }
     }
@@ -384,7 +385,8 @@ private fun TaskRow(t: TaskSummary, onClick: () -> Unit) {
                 if (t.checklistTotal > 0) add("${t.checklistDone}/${t.checklistTotal} ✓")
                 if (t.commentsCount > 0) add("${t.commentsCount} comment${if (t.commentsCount == 1) "" else "s"}")
                 t.milestoneName?.let { add(it) }
-                t.dueDate?.let { add("due ${it.format(dayFmt)}") }
+                // A due date gone by says so, as the project card does.
+                t.dueDate?.let { add(if (it.isBefore(java.time.LocalDate.now()) && t.status != TaskStatus.Complete) "Due date passed ${it.format(dayFmt)}" else "Due ${it.format(dayFmt)}") }
             }.joinToString("  ·  ")
             if (meta.isNotBlank()) Text(meta, fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.padding(top = 8.dp))
         }
@@ -404,7 +406,7 @@ private fun MoreRows(detail: ProjectDetail, s: ProjectDetailUiState.Ready, onOpe
         if (settings.viewMilestones) {
             val next = detail.summary.nextMilestone
             DrillRow(Icons.Outlined.Flag, "Milestones", detail.counts.milestonesTotal, false,
-                next?.let { "Next · ${it.name}" + (it.dueDate?.let { d -> " · due ${d.format(dowFmt)}" } ?: "") } ?: "No upcoming milestone", onOpenMilestones)
+                next?.let { "Next · ${it.name}" + (it.dueDate?.let { d -> if (d.isBefore(java.time.LocalDate.now())) " · Passed ${d.format(dowFmt)}" else " · Due ${d.format(dowFmt)}" } ?: "") } ?: "No upcoming milestone", onOpenMilestones)
         }
         if (settings.viewFiles) {
             DrillRow(Icons.Outlined.Folder, "Files", detail.counts.filesTotal, false,
@@ -732,14 +734,14 @@ private val dayYearFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM y
 }
 
 @androidx.compose.runtime.Composable private fun priorityTag(priority: Int?): Pair<String, Pair<Color, Color>>? = when (priority) {
-    4 -> "Urgent" to (ClaretSoftFix to ClaretMidFix)
+    4 -> "Urgent" to (LlColor.ClaretSoft to LlColor.ClaretMid)
     3 -> "High" to (LlColor.AmberSoft to LlColor.Amber)
     2 -> "Medium" to (LlColor.SlateSoft to LlColor.SlateMid)
     else -> null
 }
 
 @androidx.compose.runtime.Composable private fun priorityDot(code: Int): Color = when (code) {
-    4 -> ClaretMidFix; 3 -> LlColor.AmberMid; 2 -> LlColor.SlateMid; else -> LlColor.InkFaint
+    4 -> LlColor.ClaretMid; 3 -> LlColor.AmberMid; 2 -> LlColor.SlateMid; else -> LlColor.InkFaint
 }
 
 private fun humanizeKey(key: String): String =

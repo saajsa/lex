@@ -54,9 +54,9 @@ import java.time.temporal.ChronoUnit
 // MainActivity. Cause-titles use the `v.` convention; judges the salutation.
 // -----------------------------------------------------------------------------
 
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.Border
 private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
 private val VioletSoftBg: Color @androidx.compose.runtime.Composable get() = LlColor.VioletSoft
 private val VioletBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.VioletSoft
@@ -188,9 +188,9 @@ private fun NextHearingHero(h: HearingRow, detail: CaseDetail, today: LocalDate)
     // Red only for today and tomorrow; the rest of the week is amber.
     val soon = days <= 1
     val week = days in 2..7
-    val band = when { soon -> ClaretMidFix; week -> LlColor.AmberMid; else -> LlColor.InkFaint }
-    val boxBg = when { soon -> ClaretSoftFix; week -> LlColor.AmberSoft; else -> LlColor.Paper1 }
-    val boxBorder = when { soon -> ClaretBorderFix; week -> AmberBorderFix; else -> LlColor.Border }
+    val band = when { soon -> LlColor.ClaretMid; week -> LlColor.AmberMid; else -> LlColor.InkFaint }
+    val boxBg = when { soon -> LlColor.ClaretSoft; week -> LlColor.AmberSoft; else -> LlColor.Paper1 }
+    val boxBorder = when { soon -> LlColor.ClaretBorder; week -> AmberBorderFix; else -> LlColor.Border }
     val numColor = when { soon -> LlColor.Claret; week -> LlColor.Amber; else -> LlColor.Ink }
     val eyebrowColor = when { soon -> LlColor.Claret; week -> LlColor.AmberMid; else -> LlColor.InkMuted }
     val dayWord = when (days) { 0L -> "Today"; 1L -> "Tomorrow"; else -> "In $days Days" }

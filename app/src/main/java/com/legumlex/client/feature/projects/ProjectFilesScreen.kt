@@ -80,9 +80,9 @@ import java.time.temporal.ChronoUnit
 // tap-to-open via the system viewer.
 // -----------------------------------------------------------------------------
 
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.Border
 
 sealed interface FilesUiState {
     data object Loading : FilesUiState
@@ -190,7 +190,7 @@ fun ProjectFilesScreen(projectId: String, onBack: () -> Unit) {
         Box(Modifier.fillMaxSize().padding(inner)) {
             Column(Modifier.fillMaxSize()) {
                 val ready = state as? FilesUiState.Ready
-                FilesSubBar(ready?.files?.size, ready?.let { it.projectRef + " · " + it.projectName }, ready?.canUpload == true, onBack, onUpload = { filePicker.launch("*/*") })
+                FilesSubBar(ready?.files?.size, ready?.let { it.projectRef + " · " + it.projectName }, false /* the dropzone below is the one upload control; it also shows progress */, onBack, onUpload = { filePicker.launch("*/*") })
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (val s = state) {
                         is FilesUiState.Loading -> FilesSkeleton()
@@ -293,7 +293,7 @@ private data class Kind(val bg: Color, val fg: Color, val border: Color, val ico
 private fun FilesSubBar(count: Int?, contextLine: String?, canUpload: Boolean, onBack: () -> Unit, onUpload: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(LlColor.Paper)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text("Files", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.015).em, color = LlColor.Ink)
+            Text("Files".uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold, fontSize = 26.sp, letterSpacing = 0.3.sp, color = LlColor.Ink)
             count?.let {
                 Box(Modifier.heightIn(min = 18.dp).widthIn(min = 18.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.Paper2).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
                     Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = LlColor.InkMuted)

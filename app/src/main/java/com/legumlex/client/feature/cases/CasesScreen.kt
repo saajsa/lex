@@ -74,9 +74,9 @@ import java.time.temporal.ChronoUnit
 // -----------------------------------------------------------------------------
 
 // LlColor.ClaretSoft / ClaretMid are broken placeholders; use the real tints.
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretSoft
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretMid
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.ClaretBorder
+private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
+private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
+private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.Border
 private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = LlColor.AmberBorder
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
