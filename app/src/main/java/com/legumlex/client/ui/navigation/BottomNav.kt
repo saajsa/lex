@@ -30,7 +30,7 @@ import com.legumlex.client.ui.theme.Surface1
 
 // The bottom bar: black, icons only, with a notch at its centre where Consult
 // (the Legum Lex desk) sits raised in a circle. Home and Consultations to the
-// left, Calendar and More to the right; the Digital Office is in the header
+// left, Notices and More to the right; the Digital Office is in the header
 // (owner, 2026-10-20). The current tab is its filled glyph with a dot under it.
 @Composable
 fun LegumBottomBar(navController: NavHostController) {
@@ -61,7 +61,7 @@ fun LegumBottomBar(navController: NavHostController) {
             NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
             NavGlyph(tab(Route.Consultations), on(tab(Route.Consultations)), Modifier.weight(1f)) { go(tab(Route.Consultations)) }
             Spacer(Modifier.weight(1f))
-            NavGlyph(tab(Route.Calendar), on(tab(Route.Calendar)), Modifier.weight(1f)) { go(tab(Route.Calendar)) }
+            NavGlyph(tab(Route.Notices), on(tab(Route.Notices)), Modifier.weight(1f)) { go(tab(Route.Notices)) }
             NavGlyph(tab(Route.More), on(tab(Route.More)), Modifier.weight(1f)) { go(tab(Route.More)) }
         }
         // Consult, raised: its centre on the bar's top edge, in the notch. It

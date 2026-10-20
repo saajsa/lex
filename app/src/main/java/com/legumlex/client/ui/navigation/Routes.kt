@@ -5,8 +5,8 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material.icons.rounded.MarkEmailUnread
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Videocam
@@ -285,6 +285,8 @@ data class BottomTab(
 val bottomTabs = listOf(
     BottomTab(Route.Home,          R.string.nav_home,          Icons.Outlined.GridView,  Icons.Rounded.GridView),
     BottomTab(Route.Consultations, R.string.nav_consultations, Icons.Outlined.Forum,     Icons.Rounded.Forum),
-    BottomTab(Route.Calendar,      R.string.nav_calendar,      Icons.Outlined.CalendarMonth, Icons.Rounded.CalendarMonth),
+    // Notices took Calendar's place (owner, 2026-10-20); the calendar is
+    // reached from Home's Next Event and from More.
+    BottomTab(Route.Notices,       R.string.nav_notices,       Icons.Outlined.MarkEmailUnread, Icons.Rounded.MarkEmailUnread),
     BottomTab(Route.More,          R.string.nav_more,          Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
 )
