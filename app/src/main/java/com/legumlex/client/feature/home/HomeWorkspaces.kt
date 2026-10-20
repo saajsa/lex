@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -167,7 +168,7 @@ private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifie
     Box(
         modifier
             .fillMaxWidth()
-            .height(232.dp)
+            .height(248.dp)
             .clip(RoundedCornerShape(30.dp))
             .background(bg)
             .then(if (offered) Modifier.clickable(onClick = t.onEnter!!) else Modifier),
@@ -178,7 +179,10 @@ private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifie
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),
             )
-            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f + 0.25f * (1f - focus))))
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.30f + 0.25f * (1f - focus))))
+            // A darker panel down the left (flat, hard-edged, no gradient): the
+            // words stay inside it, clear of the picture's subject.
+            Box(Modifier.fillMaxHeight().fillMaxWidth(TextPanel).background(Color.Black.copy(alpha = 0.45f)))
         }
         Column(Modifier.fillMaxSize().padding(20.dp)) {
             Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(chip), contentAlignment = Alignment.Center) {
@@ -186,16 +190,17 @@ private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifie
             }
             Spacer(Modifier.height(16.dp))
             // The name in the day's own type (TUESDAY on Home): heavy condensed capitals.
-            Text(t.title.uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold,
+            Text(t.title.uppercase(), modifier = if (onPicture) Modifier.fillMaxWidth(TextPanel * 0.88f) else Modifier, fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold,
                 fontSize = 28.sp, lineHeight = 30.sp, letterSpacing = 0.3.sp, color = ink, maxLines = 1)
             Spacer(Modifier.height(6.dp))
-            Text(t.description, fontSize = 13.5.sp, lineHeight = 19.sp, color = sub, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(t.description, fontSize = 13.sp, lineHeight = 18.sp, color = sub, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                modifier = if (onPicture) Modifier.fillMaxWidth(TextPanel * 0.88f) else Modifier)
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 if (!offered) Text("Not Yet Opened", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = sub, modifier = Modifier.weight(1f))
                 else Spacer(Modifier.weight(1f))
                 if (offered) Box(
-                    Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape).background(chip),
+                    Modifier.requiredSize(38.dp).clip(androidx.compose.foundation.shape.CircleShape).background(chip),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Enter " + t.title, tint = chipInk, modifier = Modifier.size(18.dp))
@@ -204,6 +209,9 @@ private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifie
         }
     }
 }
+
+/** How much of a picture card's width the darker text panel covers. */
+private const val TextPanel = 0.64f
 
 private fun entranceIcon(w: Workspace) = when (w) {
     Workspace.Consult    -> Icons.Outlined.Forum

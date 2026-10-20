@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,22 +69,39 @@ fun LegumBottomBar(navController: NavHostController) {
         Surface(
             onClick = { navController.navigate(Route.NewConsultation.build()) },
             shape = CircleShape,
-            color = bar,
+            // The counsel desk, in yellow with black type (owner, 2026-10-20),
+            // ringed in the bar's black so it sits in the notch.
+            color = DeskYellow,
+            border = androidx.compose.foundation.BorderStroke(4.dp, bar),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = -FabSize / 2)
                 .size(FabSize)
                 .semantics { contentDescription = "Consult" },
         ) {
+            // A prompt with a blinking cursor: ">" steady, the bar on and off
+            // every 530 ms, as a terminal's cursor blinks.
+            var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                while (true) { kotlinx.coroutines.delay(530); on = !on }
+            }
             Box(contentAlignment = Alignment.Center) {
-                Text(">_", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                val mono = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 19.sp, color = Color.Black)
+                // The cursor is drawn, not typed: a bar on the prompt's baseline.
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(">", style = mono)
+                    Spacer(Modifier.width(2.dp))
+                    Box(Modifier.padding(bottom = 6.dp).size(width = 10.dp, height = 3.dp)
+                        .background(if (on) Color.Black else Color.Transparent))
+                }
             }
         }
     }
 }
 
 private val BarHeight = 64.dp
+private val DeskYellow = Color(0xFFF5C518)
 private val FabSize = 56.dp
 private val NotchRadius = 36.dp   // the circle, plus the gap around it
 private val NotchShoulder = 12.dp
