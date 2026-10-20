@@ -2,6 +2,9 @@ package com.legumlex.client.feature.home
 
 import android.app.Application
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -102,42 +105,100 @@ fun ActionQueueScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    Box(Modifier.fillMaxSize().padding(top = 0.dp)) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val routes = ActionRoutes(onOpenInvoice, onOpenContract, onOpenConsultation, onOpenCase,
+        onOpenNotice, onOpenTask, onOpenProject, onOpenAgreement, onOpenAhcFunnel)
+    val dismiss: (ActionItem) -> Unit = { item ->
+        vm.dismiss(item)
+        scope.launch {
+            val r = snackbar.showSnackbar("Removed from your queue.", actionLabel = "Undo", withDismissAction = false)
+            if (r == SnackbarResult.ActionPerformed) vm.restore(item)
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
         PullToRefreshBox(isRefreshing = loading && bundle != null, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
-                PageHeader(eyebrow = "Waiting On You", title = "Action Queue", modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(14.dp))
-                val b = bundle
-                when {
-                    b != null -> ActionQueueBlock(
-                        bundle = b,
-                        onOpenInvoice = onOpenInvoice,
-                        onOpenContract = onOpenContract,
-                        onOpenConsultation = onOpenConsultation,
-                        onOpenCase = onOpenCase,
-                        onOpenNotice = onOpenNotice,
-                        onOpenTask = onOpenTask,
-                        onOpenProject = onOpenProject,
-                        onOpenAgreement = onOpenAgreement,
-                        onOpenAhcFunnel = onOpenAhcFunnel,
-                        onAskNew = onAskNew,
-                        onDismiss = { item ->
-                            vm.dismiss(item)
-                            scope.launch {
-                                val r = snackbar.showSnackbar("Removed from your queue.", actionLabel = "Undo", withDismissAction = false)
-                                if (r == SnackbarResult.ActionPerformed) vm.restore(item)
-                            }
-                        },
-                        showHeader = false,
-                    )
-                    error != null -> Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text(error!!, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-                        TextButton(onClick = vm::refresh) { Text("Try Again") }
-                    }
-                    else -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            val b = bundle
+            when {
+                b != null -> QueueDays(b.items, onOpen = { openActionItem(ctx, it, routes) }, onDismiss = dismiss, onAskNew = onAskNew)
+                error != null -> Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(error!!, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+                    TextButton(onClick = vm::refresh) { Text("Try Again") }
                 }
+                else -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
+}
+
+private val Short = java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)
+
+/**
+ * The queue as a day timeline: today and the fortnight ahead. What is overdue
+ * or has no date sits under today. The most pressing item of the day is the
+ * dark card; critical and warning items fill their circles. Swipe a row away
+ * to dismiss it, with Undo.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun QueueDays(
+    items: List<ActionItem>,
+    onOpen: (ActionItem) -> Unit,
+    onDismiss: (ActionItem) -> Unit,
+    onAskNew: () -> Unit,
+) {
+    val today = remember { java.time.LocalDate.now() }
+    val dayOf: (ActionItem) -> java.time.LocalDate = { it.dueAt?.takeIf { d -> d.isAfter(today) } ?: today }
+    val byDay = remember(items) { items.groupBy(dayOf) }
+    val last = maxOf(today.plusDays(13), byDay.keys.maxOrNull() ?: today)
+    val days = remember(last) { generateSequence(today) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList() }
+    var day by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(today.toEpochDay()) }
+    val selected = java.time.LocalDate.ofEpochDay(day)
+    val sevRank = { i: ActionItem -> when (i.severity) { ActionSeverity.Critical -> 0; ActionSeverity.Warning -> 1; ActionSeverity.Info -> 2 } }
+    val list = (byDay[selected] ?: emptyList()).sortedWith(compareBy(sevRank).thenBy { it.dueAt ?: java.time.LocalDate.MAX })
+    val featured = list.firstOrNull()
+
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
+        item("head") {
+            Spacer(Modifier.height(12.dp))
+            com.legumlex.client.ui.components.DayHead(selected, Modifier.padding(horizontal = 20.dp)) {
+                if (items.isNotEmpty()) Text("${items.size} Waiting", style = MaterialTheme.typography.labelLarge, color = Lex.colors.mutedForeground)
+            }
+            Spacer(Modifier.height(12.dp))
+            com.legumlex.client.ui.components.DayStrip(days, selected, byDay.keys, onSelect = { day = it.toEpochDay() })
+            Spacer(Modifier.height(16.dp))
+        }
+        if (items.isEmpty()) item("none") {
+            com.legumlex.client.ui.components.DayEmpty("Nothing is waiting on you. When the firm needs something from you, it appears here.")
+            TextButton(onClick = onAskNew, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Ask the Advocates") }
+        } else if (list.isEmpty()) item("empty") {
+            com.legumlex.client.ui.components.DayEmpty("Nothing is due on this day.")
+        }
+        itemsIndexed(list, key = { _, i -> i.dismissKey() }) { idx, item ->
+            val state = androidx.compose.material3.rememberSwipeToDismissBoxState(
+                confirmValueChange = { v -> if (v == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) { onDismiss(item); true } else false },
+            )
+            androidx.compose.material3.SwipeToDismissBox(state = state, enableDismissFromStartToEnd = false, backgroundContent = {}) {
+                Box(Modifier.background(Lex.colors.background)) {
+                    com.legumlex.client.ui.components.TimelineItem(
+                        title = item.title,
+                        time = when {
+                            item.dueAt == null -> "No Date"
+                            item.dueAt.isBefore(today) -> "Overdue · " + Short.format(item.dueAt)
+                            item.dueAt == today -> "Due Today"
+                            else -> "Due " + Short.format(item.dueAt)
+                        },
+                        body = item.subtitle,
+                        live = item.severity != ActionSeverity.Info,
+                        featured = item === featured,
+                        first = idx == 0,
+                        last = idx == list.lastIndex,
+                        onClick = { onOpen(item) },
+                    )
+                }
+            }
+        }
+        item("end") { Spacer(Modifier.height(24.dp)) }
     }
 }

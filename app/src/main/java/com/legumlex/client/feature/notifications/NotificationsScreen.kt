@@ -17,6 +17,15 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.legumlex.client.ui.components.DayEmpty
+import com.legumlex.client.ui.components.DayHead
+import com.legumlex.client.ui.components.DayStrip
+import com.legumlex.client.ui.components.TimelineItem
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -66,32 +75,6 @@ import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ui.brand.LegumMark
 import com.legumlex.client.ui.theme.AccentInk
 
-private data class SevColors(val stripe: Color, val tileBg: Color, val tileTint: Color)
-
-@androidx.compose.runtime.Composable private fun colorsFor(s: NotifSeverity): SevColors = when (s) {
-    NotifSeverity.CRITICAL -> SevColors(LlColor.Claret, LlColor.ClaretSoft, LlColor.Claret)
-    NotifSeverity.WARNING  -> SevColors(LlColor.AmberMid, LlColor.AmberSoft, LlColor.Amber)
-    NotifSeverity.INFO     -> SevColors(LlColor.SlateMid, LlColor.SlateSoft, LlColor.Slate)
-    NotifSeverity.POSITIVE -> SevColors(LlColor.VerdantMid, LlColor.VerdantSoft, LlColor.Verdant)
-}
-
-private fun iconFor(t: NotifType): ImageVector = when (t) {
-    NotifType.HEARING     -> Icons.Outlined.Gavel
-    NotifType.INVOICE     -> Icons.AutoMirrored.Outlined.ReceiptLong
-    NotifType.PAYMENT     -> Icons.Outlined.Payments
-    NotifType.AHC         -> Icons.Outlined.VerifiedUser
-    NotifType.DOCREQUEST  -> Icons.Outlined.UploadFile
-    NotifType.SIGNATURE   -> Icons.Outlined.Edit
-    NotifType.APPOINTMENT -> Icons.Outlined.Event
-    NotifType.TASK        -> Icons.Outlined.TaskAlt
-    NotifType.PROJECT     -> Icons.Outlined.FolderOpen
-    NotifType.MESSAGE     -> Icons.AutoMirrored.Outlined.Chat
-    NotifType.DOCUMENT    -> Icons.Outlined.Description
-    NotifType.CHAMBER     -> Icons.Outlined.MeetingRoom
-    NotifType.GENERAL     -> Icons.Outlined.Notifications
-    NotifType.ATTENTION   -> Icons.Outlined.Info
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
@@ -100,301 +83,106 @@ fun NotificationsScreen(
 ) {
     val vm: NotificationsViewModel = viewModel()
     val state by vm.state.collectAsState()
-    val filter by vm.filter.collectAsState()
     val isRefreshing by vm.isRefreshing.collectAsState()
-
     val unread = (state as? NotificationsUiState.Ready)?.unreadCount ?: 0
 
-    Column(Modifier.fillMaxSize().background(LlColor.Paper)) {
-        Header(unread = unread, onBack = onBack, onMarkAll = vm::markAllRead)
-        SubBar(filter = filter, unread = unread, onFilter = vm::setFilter)
-
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = vm::refresh,
-            modifier = Modifier.fillMaxSize(),
-        ) {
+    Column(Modifier.fillMaxSize().background(com.legumlex.client.ui.theme.Lex.colors.background)) {
+        PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
             when (val s = state) {
-                is NotificationsUiState.Loading -> SkeletonList()
-                is NotificationsUiState.Error   -> ErrorBlock(s.message, onRetry = vm::load)
-                is NotificationsUiState.Ready ->
-                    if (s.bands.isEmpty()) EmptyState()
-                    else Feed(s, onOpen = { vm.markRead(it.id); onOpen(it) }, onMarkRead = { vm.markRead(it.id) })
+                is NotificationsUiState.Loading -> Column { TopBar(unread, onBack, vm::markAllRead); SkeletonList() }
+                is NotificationsUiState.Error   -> Column { TopBar(unread, onBack, vm::markAllRead); ErrorBlock(s.message, onRetry = vm::load) }
+                is NotificationsUiState.Ready   -> DayFeed(
+                    items = s.bands.flatMap { it.items },
+                    unread = unread,
+                    onBack = onBack,
+                    onMarkAll = vm::markAllRead,
+                    onOpen = { vm.markRead(it.id); onOpen(it) },
+                )
             }
         }
     }
 }
 
-/* ----------------------------------------------------------------- header */
+/* ------------------------------------------------------- the day timeline */
+
+private val Clock = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ENGLISH)
+
+/** Waiting on the client is never "read": it stays live until the step is done. */
+private fun AppNotification.live() = !isRead || type == NotifType.ATTENTION
 
 @Composable
-private fun Header(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .background(LlColor.Paper)
-
-            .height(52.dp),
-    ) {
-        Box(
-            Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 6.dp)
-                .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = LlColor.InkMuted, modifier = Modifier.size(21.dp))
+private fun TopBar(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = com.legumlex.client.ui.theme.Lex.colors.mutedForeground, modifier = Modifier.size(21.dp))
         }
-        Row(
-            Modifier.align(Alignment.Center),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            LegumMark(size = 17.dp, fillColor = AccentInk)
-            Text("Notifications", style = com.legumlex.client.ahc.theme.LlText.appBarTitle.copy(fontSize = 17.sp))
-        }
+        Spacer(Modifier.weight(1f))
         val enabled = unread > 0
         Text(
-            text = "Mark All Read",
-            fontFamily = Inter,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 11.5.sp,
-            // Ink, not red: it is an action, not a warning.
-            color = if (enabled) LlColor.Ink else LlColor.InkFaint,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 8.dp)
-                .then(if (enabled) Modifier.clickable(onClick = onMarkAll) else Modifier)
-                .padding(6.dp),
+            "Mark All Read",
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
+            color = if (enabled) com.legumlex.client.ui.theme.Lex.colors.foreground else com.legumlex.client.ui.theme.Lex.colors.faint,
+            modifier = Modifier.then(if (enabled) Modifier.clickable(onClick = onMarkAll) else Modifier).padding(10.dp),
         )
     }
-    Divider()
 }
 
 @Composable
-private fun SubBar(filter: NotifFilter, unread: Int, onFilter: (NotifFilter) -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(LlColor.Paper)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(
-            Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(LlColor.Paper1)
-                .border(1.dp, LlColor.Border, RoundedCornerShape(8.dp))
-                .padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            SegButton("All", null, filter == NotifFilter.ALL) { onFilter(NotifFilter.ALL) }
-            SegButton("Unread", unread.takeIf { it > 0 }, filter == NotifFilter.UNREAD) { onFilter(NotifFilter.UNREAD) }
-        }
-        if (unread > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(LlColor.Claret))
-                Text("$unread unread", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Verdant, modifier = Modifier.size(14.dp))
-                Text("None Unread", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint)
-            }
-        }
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-}
+private fun DayFeed(
+    items: List<AppNotification>,
+    unread: Int,
+    onBack: () -> Unit,
+    onMarkAll: () -> Unit,
+    onOpen: (AppNotification) -> Unit,
+) {
+    val today = remember { java.time.LocalDate.now() }
+    val dayOf: (AppNotification) -> java.time.LocalDate = { it.createdAt?.toLocalDate() ?: today }
+    val byDay = remember(items) { items.groupBy(dayOf) }
+    // The strip runs back to the oldest notification (at least a week), and
+    // opens on the latest day that has any.
+    val oldest = byDay.keys.minOrNull()?.let { minOf(it, today.minusDays(6)) } ?: today.minusDays(6)
+    val days = remember(oldest, today) { generateSequence(oldest) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }.toList() }
+    var day by rememberSaveable { mutableStateOf(byDay.keys.maxOrNull()?.toEpochDay() ?: today.toEpochDay()) }
+    val selected = java.time.LocalDate.ofEpochDay(day)
+    val list = (byDay[selected] ?: emptyList()).sortedByDescending { it.createdAt }
+    val featured = list.firstOrNull { it.live() }
 
-@Composable
-private fun SegButton(label: String, pill: Int?, on: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (on) com.legumlex.client.ui.theme.Lex.colors.card else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            label,
-            fontFamily = Inter,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 11.5.sp,
-            color = if (on) LlColor.Ink else LlColor.InkMuted,
-        )
-        if (pill != null) {
-            Box(
-                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.ClaretMid).padding(horizontal = 5.dp, vertical = 1.dp),
-            ) {
-                Text("$pill", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.5.sp, color = Color.White)
-            }
-        }
-    }
-}
-
-/* ------------------------------------------------------------------- feed */
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun Feed(state: NotificationsUiState.Ready, onOpen: (AppNotification) -> Unit, onMarkRead: (AppNotification) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
-        state.bands.forEach { band ->
-            item(key = "band-${band.title}") { BandHeader(band) }
-            items(band.items, key = { it.id }) { n ->
-                // Waiting on the client: it goes when the step is done, not by a
-                // swipe. A read row has nothing left to swipe for.
-                if (n.type == NotifType.ATTENTION || n.isRead) { NotifRow(n, onClick = { onOpen(n) }); return@items }
-                // The feed has no delete: a swipe marks the row read and it stays,
-                // dimmed, rather than vanishing only to return on the next refresh.
-                val dismissState = rememberSwipeToDismissBoxState(
-                    confirmValueChange = { v ->
-                        if (v == SwipeToDismissBoxValue.EndToStart) onMarkRead(n)
-                        false
-                    },
-                )
-                SwipeToDismissBox(
-                    state = dismissState,
-                    enableDismissFromStartToEnd = false,
-                    backgroundContent = { SwipeBackground() },
-                ) {
-                    NotifRow(n, onClick = { onOpen(n) })
-                }
-            }
+        item("top") { TopBar(unread, onBack, onMarkAll) }
+        item("head") {
+            DayHead(selected, Modifier.padding(horizontal = 20.dp))
+            Spacer(Modifier.height(12.dp))
+            DayStrip(days, selected, byDay.keys, onSelect = { day = it.toEpochDay() })
+            Spacer(Modifier.height(16.dp))
         }
-        item { Spacer(Modifier.height(12.dp)) }
-    }
-}
-
-@Composable
-private fun BandHeader(band: NotifBand) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 9.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(band.title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = LlColor.Ink)
-        Text(
-            buildString {
-                if (band.newCount > 0) append("${band.newCount} new · ")
-                append("${band.items.size} total")
-            },
-            fontFamily = Inter, fontSize = 10.5.sp,
-            color = if (band.newCount > 0) LlColor.ClaretMid else LlColor.InkFaint,
-        )
-    }
-}
-
-@Composable
-private fun NotifRow(n: AppNotification, onClick: () -> Unit) {
-    val c = colorsFor(n.severity)
-    // Waiting on the client is never "read": it stays live until the step is done.
-    val read = n.isRead && n.type != NotifType.ATTENTION
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .background(if (read) LlColor.Paper else com.legumlex.client.ui.theme.Lex.colors.card)
-            .clickable(onClick = onClick),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(end = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 3px severity stripe
-            Box(
-                Modifier
-                    .width(3.dp)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
-                    .background(c.stripe.copy(alpha = if (read) 0.4f else 1f)),
+        if (items.isEmpty()) item("none") { EmptyState() }
+        else if (list.isEmpty()) item("empty") { DayEmpty("Nothing arrived on this day.") }
+        itemsIndexed(list, key = { _, n -> n.id }) { i, n ->
+            TimelineItem(
+                title = n.title,
+                time = n.createdAt?.let { Clock.format(it) } ?: n.timeLabel,
+                body = n.subtitle,
+                live = n.live(),
+                featured = n === featured,
+                first = i == 0,
+                last = i == list.lastIndex,
+                onClick = { onOpen(n) },
+                footer = if (n === featured && n.cta.isNotBlank() && n.link.isNotBlank()) ({ FeatureCta(n.cta) }) else null,
             )
-            Spacer(Modifier.width(12.dp))
-            // tile
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(c.tileBg)
-                    .alpha(if (read) 0.7f else 1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(iconFor(n.type), null, tint = c.tileTint, modifier = Modifier.size(21.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            // body — an announcement from the firm is read here in full; it has nowhere to open.
-            val notice = n.link.isBlank() && n.type == NotifType.GENERAL
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(
-                        n.title,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.5.sp,
-                        color = if (read) LlColor.InkMuted else LlColor.Ink,
-                        maxLines = if (notice) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (!notice) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            n.cta.uppercase(),
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.5.sp,
-                            color = if (read) LlColor.InkFaint else LlColor.Claret,
-                            maxLines = 1,
-                        )
-                        Icon(
-                            Icons.Outlined.ChevronRight, null,
-                            tint = if (read) LlColor.InkFaint else LlColor.Claret,
-                            modifier = Modifier.size(13.dp),
-                        )
-                    }
-                }
-                if (n.subtitle.isNotBlank()) {
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        n.subtitle,
-                        fontFamily = Inter,
-                        fontSize = 11.5.sp,
-                        color = if (read) LlColor.InkFaint else LlColor.InkMuted,
-                        maxLines = if (notice) 8 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.width(10.dp))
-            // meta — unread dot + time
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                // The dot means unread. A waiting item is never "unread" (the
-                // header can say None Unread beside it); its stripe says it waits.
-                if (!read && n.type != NotifType.ATTENTION) Box(Modifier.size(8.dp).clip(CircleShape).background(LlColor.Claret))
-                Text(n.timeLabel, fontFamily = Inter, fontSize = 10.5.sp, color = if (read) LlColor.InkFaint else LlColor.InkMuted)
-            }
         }
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(LlColor.Paper2))
+        item("end") { Spacer(Modifier.height(24.dp)) }
     }
 }
 
+/** The dark card's action, as the reference's check button: a light chip. */
 @Composable
-private fun SwipeBackground() {
+private fun FeatureCta(label: String) {
     Row(
-        Modifier.fillMaxSize().background(com.legumlex.client.ui.theme.Lex.colors.muted),
+        Modifier.clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End,
     ) {
-        Column(
-            Modifier.padding(end = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(Icons.Outlined.CheckCircle, null, tint = LlColor.Ink, modifier = Modifier.size(20.dp))
-            Text("Mark Read", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = LlColor.Ink)
-        }
+        Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color.Black)
+        Icon(Icons.Outlined.ChevronRight, null, tint = Color.Black, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -501,9 +289,4 @@ private fun SkeletonList() {
 @Composable
 private fun ShimmerBar(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp, radius: androidx.compose.ui.unit.Dp = 6.dp) {
     Box(Modifier.size(width = width, height = height).clip(RoundedCornerShape(radius)).background(LlColor.Paper2))
-}
-
-@Composable
-private fun Divider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Border))
 }

@@ -453,40 +453,55 @@ internal fun ActionQueueBlock(
                             item = item,
                             onDismiss = { onDismiss(item) },
                             onClick = {
-                                // Signing a contract and accepting an estimate or a
-                                // proposal happen on its own web page, as on the portal.
-                                val web = item.webUrl
-                                if (web != null && item.deepLink.type in WebOnlyLinks) {
-                                    openInBrowser(ctx, web); return@SwipeableActionRow
-                                }
-                                when (item.kind) {
-                                    ActionKind.AhcDraftInProgress -> { onOpenAhcFunnel(); return@SwipeableActionRow }
-                                    ActionKind.AhcReviewPending,
-                                    ActionKind.AhcReportReady     -> {
-                                        onOpenConsultation(item.deepLink.id); return@SwipeableActionRow
-                                    }
-                                    else -> Unit
-                                }
-                                when (item.deepLink.type) {
-                                    DeepLinkType.Invoice      -> onOpenInvoice(item.deepLink.id)
-                                    DeepLinkType.Contract     -> onOpenContract(item.deepLink.id)
-                                    DeepLinkType.Estimate,
-                                    DeepLinkType.Proposal     -> item.webUrl?.let { openInBrowser(ctx, it) }
-                                    DeepLinkType.Consultation -> onOpenConsultation(item.deepLink.id)
-                                    DeepLinkType.Case         -> onOpenCase(item.deepLink.id)
-                                    DeepLinkType.Notice       -> onOpenNotice(item.deepLink.id)
-                                    DeepLinkType.Task         -> onOpenTask(item.deepLink.id)
-                                    DeepLinkType.Project      -> onOpenProject(item.deepLink.id)
-                                    DeepLinkType.AhcFunnel    -> onOpenAhcFunnel()
-                                    DeepLinkType.Agreement    -> if (item.deepLink.id.isNotBlank()) onOpenAgreement(item.deepLink.id)
-                                    DeepLinkType.Unknown      -> Unit
-                                }
+                                openActionItem(ctx, item, ActionRoutes(onOpenInvoice, onOpenContract, onOpenConsultation, onOpenCase,
+                                    onOpenNotice, onOpenTask, onOpenProject, onOpenAgreement, onOpenAhcFunnel))
                             },
                         )
                     }
                 }
             }
         }
+    }
+}
+
+/** Where an action-queue item can open. */
+internal data class ActionRoutes(
+    val invoice: (String) -> Unit,
+    val contract: (String) -> Unit,
+    val consultation: (String) -> Unit,
+    val case: (String) -> Unit,
+    val notice: (String) -> Unit,
+    val task: (String) -> Unit,
+    val project: (String) -> Unit,
+    val agreement: (String) -> Unit,
+    val ahcFunnel: () -> Unit,
+)
+
+/** Opens an action-queue item where it is acted on (Home's block and the queue screen alike). */
+internal fun openActionItem(ctx: Context, item: ActionItem, r: ActionRoutes) {
+    // Signing a contract and accepting an estimate or a proposal happen on
+    // its own web page, as on the portal.
+    val web = item.webUrl
+    if (web != null && item.deepLink.type in WebOnlyLinks) { openInBrowser(ctx, web); return }
+    when (item.kind) {
+        ActionKind.AhcDraftInProgress -> { r.ahcFunnel(); return }
+        ActionKind.AhcReviewPending,
+        ActionKind.AhcReportReady     -> { r.consultation(item.deepLink.id); return }
+        else -> Unit
+    }
+    when (item.deepLink.type) {
+        DeepLinkType.Invoice      -> r.invoice(item.deepLink.id)
+        DeepLinkType.Contract     -> r.contract(item.deepLink.id)
+        DeepLinkType.Estimate,
+        DeepLinkType.Proposal     -> item.webUrl?.let { openInBrowser(ctx, it) }
+        DeepLinkType.Consultation -> r.consultation(item.deepLink.id)
+        DeepLinkType.Case         -> r.case(item.deepLink.id)
+        DeepLinkType.Notice       -> r.notice(item.deepLink.id)
+        DeepLinkType.Task         -> r.task(item.deepLink.id)
+        DeepLinkType.Project      -> r.project(item.deepLink.id)
+        DeepLinkType.AhcFunnel    -> r.ahcFunnel()
+        DeepLinkType.Agreement    -> if (item.deepLink.id.isNotBlank()) r.agreement(item.deepLink.id)
+        DeepLinkType.Unknown      -> Unit
     }
 }
 
