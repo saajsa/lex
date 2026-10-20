@@ -5,6 +5,8 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Videocam
@@ -285,5 +287,6 @@ val bottomTabs = listOf(
     BottomTab(Route.Home,          R.string.nav_home,          Icons.Outlined.GridView,  Icons.Rounded.GridView),
     BottomTab(Route.Consultations, R.string.nav_consultations, Icons.Outlined.Forum,     Icons.Rounded.Forum),
     BottomTab(Route.DigitalOffice, R.string.nav_office,        Icons.Outlined.Videocam,  Icons.Rounded.Videocam),
+    BottomTab(Route.Calendar,      R.string.nav_calendar,      Icons.Outlined.CalendarMonth, Icons.Rounded.CalendarMonth),
     BottomTab(Route.More,          R.string.nav_more,          Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
 )

@@ -76,10 +76,10 @@ import java.time.format.DateTimeFormatter
 private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = LlColor.Paper1
 private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = LlColor.Ink   // was the claret accent; red is kept for urgency
 
+// Awaiting You is not among them: it is its own pill, last (AwaitingPill).
 private val visibleFilters = listOf(
     ConsultationFilter.ALL,
     ConsultationFilter.ACTIVE,
-    ConsultationFilter.AWAITING_YOU,
     ConsultationFilter.DONE,
 )
 
@@ -107,7 +107,8 @@ fun ConsultationsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    var filter by rememberSaveable { mutableStateOf(ConsultationFilter.ALL) }
+    // Opens on Active (owner, 2026-10-20).
+    var filter by rememberSaveable { mutableStateOf(ConsultationFilter.ACTIVE) }
 
     Scaffold(
         containerColor = LlColor.Paper,
@@ -158,8 +159,8 @@ private fun bandsFor(sections: SmartSections, filter: ConsultationFilter): List<
             Band("Scheduled", false, sections.scheduled),
             Band("Done", false, done),
         )
+        // What awaits the client shows under its own pill, not here.
         ConsultationFilter.ACTIVE -> listOf(
-            Band("Awaiting You", true, sections.needsAction),
             Band("Active", false, sections.active),
             Band("Scheduled", false, sections.scheduled),
         )
@@ -264,11 +265,80 @@ private fun FilterBar(
     selected: ConsultationFilter,
     onSelect: (ConsultationFilter) -> Unit,
 ) {
-    Row(Modifier.horizontalScroll(rememberScrollState())) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
         SegmentedToggle(
             options = visibleFilters.map { f -> f to title(f.label) },
             selected = selected, onSelect = onSelect,
         )
+        Spacer(Modifier.width(8.dp))
+        AwaitingPill(
+            count = sections.needsAction.size,
+            selected = selected == ConsultationFilter.AWAITING_YOU,
+            onClick = { onSelect(ConsultationFilter.AWAITING_YOU) },
+        )
+    }
+}
+
+/**
+ * Awaiting You, last and apart. With something waiting it is red, and a red
+ * dot pulses in it; with nothing it is a plain pill like the others.
+ */
+@Composable
+private fun AwaitingPill(count: Int, selected: Boolean, onClick: () -> Unit) {
+    val live = count > 0
+    val red = Lex.colors.danger
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+    Row(
+        Modifier
+            .clip(shape)
+            .background(
+                when {
+                    live && selected -> red.solid
+                    live -> red.softBg
+                    selected -> Lex.colors.muted
+                    else -> Lex.colors.card
+                }
+            )
+            .border(1.dp, if (live) red.solid else Lex.colors.input, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (live) {
+            PulseDot(if (selected) Lex.colors.primaryForeground else red.solid)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            if (live) "Awaiting You · $count" else "Awaiting You",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected || live) FontWeight.SemiBold else FontWeight.Medium,
+            color = when {
+                live && selected -> Lex.colors.primaryForeground
+                live -> red.softText
+                selected -> Lex.colors.foreground
+                else -> Lex.colors.secondaryForeground
+            },
+        )
+    }
+}
+
+/** A dot with a ring that swells and fades from it, over and over. */
+@Composable
+private fun PulseDot(color: androidx.compose.ui.graphics.Color) {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
+    val p by t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "pulse-p",
+    )
+    Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            val r = size.minDimension / 2
+            drawCircle(color.copy(alpha = (1f - p) * 0.55f), radius = r * (0.4f + 0.6f * p))
+            drawCircle(color, radius = r * 0.36f)
+        }
     }
 }
 

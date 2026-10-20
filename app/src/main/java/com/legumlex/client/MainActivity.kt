@@ -177,7 +177,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
             val splash = currentRoute == Route.Splash.path
             val login  = currentRoute == Route.Login.path
             bars.isAppearanceLightStatusBars = if (splash) false else if (login) true else !themeDark
-            bars.isAppearanceLightNavigationBars = if (edge) false else !themeDark
+            // The bottom bar is black: light navigation icons wherever it shows.
+            bars.isAppearanceLightNavigationBars = if (edge || showAppFooter(currentRoute)) false else !themeDark
         }
         Box(if (edge) Modifier else Modifier.padding(innerPadding).grain()) {
             LegumNavGraph(navController)

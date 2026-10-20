@@ -3,6 +3,7 @@ package com.legumlex.client.ui.navigation
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -23,9 +24,10 @@ import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.Surface1
 
-// The bottom bar is chrome, as the header is: a solid step deeper than the
-// page, a hairline where they meet. Each tab is its glyph over its name in
-// small caps; the current one carries a short ink bar above it and full ink.
+// The bottom bar: black, icons only, with a notch at its centre where Home
+// sits raised in a circle. Consultations and Office to the left, Calendar and
+// More to the right (owner, 2026-10-20; a fifth item will come later). The
+// current tab is its filled glyph with a dot under it.
 @Composable
 fun LegumBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -36,35 +38,80 @@ fun LegumBottomBar(navController: NavHostController) {
     val owner = stack.mapNotNull { it.destination.route }
         .lastOrNull { r -> bottomTabs.any { it.route.path == r } }
         ?: currentRoute
-    val spacing = LocalSpacing.current
+    fun tab(r: Route) = bottomTabs.first { it.route == r }
+    fun on(t: BottomTab) = owner?.hierarchyContains(t.route.path) == true
+    // Tabs pop back to Home and keep their state; Home itself clears to the
+    // Home screen (navigateTab).
+    fun go(t: BottomTab) = navController.navigateTab(t.route.path)
 
-    Surface(
-        color = Lex.colors.chrome,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-    ) {
-        Column {
-        HorizontalDivider(color = Lex.colors.chromeRule)
+    val bar = Color.Black
+    Box(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(bar, NotchShape)
                 .navigationBarsPadding()
-                .padding(horizontal = spacing.s4, vertical = spacing.s2),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .height(BarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            bottomTabs.forEach { tab ->
-                val selected = owner?.hierarchyContains(tab.route.path) == true
-                NavGlyph(
-                    tab = tab,
-                    selected = selected,
-                    // Tabs pop back to Home and keep their state; Home itself
-                    // clears to the Home screen (navigateTab).
-                    onClick = { navController.navigateTab(tab.route.path) },
+            NavGlyph(tab(Route.Consultations), on(tab(Route.Consultations)), Modifier.weight(1f)) { go(tab(Route.Consultations)) }
+            NavGlyph(tab(Route.DigitalOffice), on(tab(Route.DigitalOffice)), Modifier.weight(1f)) { go(tab(Route.DigitalOffice)) }
+            Spacer(Modifier.weight(1f))
+            NavGlyph(tab(Route.Calendar), on(tab(Route.Calendar)), Modifier.weight(1f)) { go(tab(Route.Calendar)) }
+            NavGlyph(tab(Route.More), on(tab(Route.More)), Modifier.weight(1f)) { go(tab(Route.More)) }
+        }
+        // Home, raised: its centre on the bar's top edge, in the notch.
+        val home = tab(Route.Home)
+        val homeOn = on(home)
+        Surface(
+            onClick = { go(home) },
+            shape = CircleShape,
+            color = bar,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = -FabSize / 2)
+                .size(FabSize),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (homeOn) home.iconActive else home.iconInactive,
+                    contentDescription = stringResource(home.labelRes),
+                    tint = if (homeOn) Color.White else Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
+    }
+}
+
+private val BarHeight = 64.dp
+private val FabSize = 56.dp
+private val NotchRadius = 36.dp   // the circle, plus the gap around it
+private val NotchShoulder = 12.dp
+
+/** The bar with a round notch at the centre of its top edge, its shoulders eased. */
+private val NotchShape = object : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ): androidx.compose.ui.graphics.Outline {
+        val r = with(density) { NotchRadius.toPx() }
+        val s = with(density) { NotchShoulder.toPx() }
+        val cx = size.width / 2
+        val a0 = Math.toRadians(155.0); val a1 = Math.toRadians(25.0)
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(0f, 0f)
+            lineTo(cx - r - s, 0f)
+            quadraticTo(cx - r, 0f, cx + r * kotlin.math.cos(a0).toFloat(), r * kotlin.math.sin(a0).toFloat())
+            arcTo(androidx.compose.ui.geometry.Rect(cx - r, -r, cx + r, r), 155f, -130f, false)
+            quadraticTo(cx + r, 0f, cx + r + s, 0f)
+            lineTo(size.width, 0f)
+            lineTo(size.width, size.height)
+            lineTo(0f, size.height)
+            close()
         }
+        return androidx.compose.ui.graphics.Outline.Generic(path)
     }
 }
 
@@ -72,43 +119,29 @@ fun LegumBottomBar(navController: NavHostController) {
 private fun NavGlyph(
     tab: BottomTab,
     selected: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val fg by animateColorAsState(
-        targetValue = if (selected) Lex.colors.foreground else Lex.colors.mutedForeground,
+        targetValue = if (selected) Color.White else Color.White.copy(alpha = 0.55f),
         animationSpec = tween(durationMillis = 200),
         label = "navFg",
     )
-    val bar by animateColorAsState(
-        targetValue = if (selected) Lex.colors.foreground else Color.Transparent,
-        animationSpec = tween(durationMillis = 200),
-        label = "navBar",
-    )
-    val label = stringResource(tab.labelRes)
-    Surface(
-        onClick = onClick,
-        color = Color.Transparent,
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.size(width = 72.dp, height = 52.dp),
+    Box(
+        modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.width(22.dp).height(2.dp).clip(RoundedCornerShape(1.dp)).background(bar))
-            Spacer(Modifier.height(7.dp))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = if (selected) tab.iconActive else tab.iconInactive,
-                contentDescription = label,
+                contentDescription = stringResource(tab.labelRes),
                 tint = fg,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(24.dp),
             )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                label.uppercase(),
-                fontSize = 9.5.sp,
-                letterSpacing = 0.9.sp,
-                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium,
-                color = fg,
-                maxLines = 1,
-            )
+            Spacer(Modifier.height(5.dp))
+            Box(Modifier.size(4.dp).clip(CircleShape).background(if (selected) Color.White else Color.Transparent))
         }
     }
 }
