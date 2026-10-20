@@ -453,8 +453,10 @@ private fun TrackRow(step: TrackStep, last: Boolean) {
         Box(Modifier.width(40.dp).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
             if (!last) Box(Modifier.padding(top = 20.dp).width(4.dp).fillMaxHeight()
                 .background(if (done) ink else Lex.colors.border))
+            // The circle is the fold: tapping it shows or hides the step's particulars.
             Box(
                 Modifier.size(40.dp).clip(CircleShape)
+                    .then(if (hasBody) Modifier.clickable(onClickLabel = if (open) "Hide details" else "Show details") { open = !open } else Modifier)
                     .background(if (done || now) ink else Lex.colors.muted)
                     .border(if (now) 4.dp else 1.5.dp, when { now -> ink.copy(alpha = 0.25f); done -> ink; else -> Lex.colors.border }, CircleShape),
                 contentAlignment = Alignment.Center,
@@ -465,7 +467,7 @@ private fun TrackRow(step: TrackStep, last: Boolean) {
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f).padding(bottom = if (last) 4.dp else 18.dp)) {
-            // The header: name, date, and the fold.
+            // The header: name and date. It folds the step too, as the circle does.
             Row(
                 Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(8.dp))
                     .then(if (hasBody) Modifier.clickable { open = !open } else Modifier),
@@ -474,12 +476,6 @@ private fun TrackRow(step: TrackStep, last: Boolean) {
                 Text(step.title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp,
                     color = if (todo) Lex.colors.mutedForeground else ink, modifier = Modifier.weight(1f))
                 step.date?.let { Text(it, fontFamily = Inter, fontSize = 12.sp, color = Lex.colors.mutedForeground) }
-                if (hasBody) {
-                    Spacer(Modifier.width(4.dp))
-                    Icon(painterResource(R.drawable.ic_ms_expand_more), if (open) "Hide details" else "Show details",
-                        tint = Lex.colors.mutedForeground,
-                        modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = if (open) 180f else 0f })
-                }
             }
             androidx.compose.animation.AnimatedVisibility(open && hasBody) {
                 Column(
