@@ -27,6 +27,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,13 +86,18 @@ fun LoginScreen(
     // A white panel with the mark on a black tile, under the status bar,
     // and a black sheet laid over its foot with the ways in (the dark
     // palette, in either theme). The shell sets the bar icons to match.
+    // With the keyboard up the panel gives way, so the fields and the button
+    // stay in view.
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val ime = WindowInsets.isImeVisible
+    val heroHeight by androidx.compose.animation.core.animateDpAsState(if (ime) 150.dp else HeroHeight, label = "hero")
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.White)) {
-        Hero()
+        Hero(heroHeight)
         com.legumlex.client.ui.theme.LexDarkRegion {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = HeroHeight - 28.dp)
+                .padding(top = heroHeight - 28.dp)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 0.dp, topEnd = 28.dp))
                 .background(androidx.compose.ui.graphics.Color.Black)
                 .verticalScroll(rememberScrollState())
@@ -202,51 +209,20 @@ fun LoginScreen(
     }
 }
 
-/**
- * The white panel: a flat pattern of circles, halves and quarters in two
- * pale greys (no gradient), and the white mark on a black tile at its centre.
- */
 private val HeroHeight = 300.dp
 
+/** The logo panel: flat white, and the black mark on it, nothing else. */
 @Composable
-private fun Hero() {
-    val c1 = androidx.compose.ui.graphics.Color(0xFFF4F4F4)
-    val c2 = androidx.compose.ui.graphics.Color(0xFFECECEC)
+private fun Hero(height: androidx.compose.ui.unit.Dp) {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(HeroHeight)
+            .height(height)
             .background(androidx.compose.ui.graphics.Color.White),
-        contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
-            val cell = 64.dp.toPx()
-            val cols = (size.width / cell).toInt() + 1
-            val rows = (size.height / cell).toInt() + 1
-            for (r in 0 until rows) for (k in 0 until cols) {
-                val x = k * cell; val y = r * cell
-                val tone = if ((r + k) % 2 == 0) c1 else c2
-                val tl = androidx.compose.ui.geometry.Offset(x, y)
-                val sz = androidx.compose.ui.geometry.Size(cell, cell)
-                when ((r * 7 + k * 3) % 6) {
-                    0 -> drawCircle(tone, cell / 2, androidx.compose.ui.geometry.Offset(x + cell / 2, y + cell / 2))
-                    1 -> drawArc(tone, 180f, 180f, true, androidx.compose.ui.geometry.Offset(x, y + cell / 2), androidx.compose.ui.geometry.Size(cell, cell))
-                    2 -> drawArc(tone, 0f, 90f, true, androidx.compose.ui.geometry.Offset(x - cell, y - cell), androidx.compose.ui.geometry.Size(cell * 2, cell * 2))
-                    3 -> drawRect(tone, tl, sz)
-                    4 -> drawArc(tone, 90f, 180f, true, androidx.compose.ui.geometry.Offset(x + cell / 2, y), androidx.compose.ui.geometry.Size(cell, cell))
-                    else -> {}
-                }
-            }
-        }
-        Box(
-            Modifier
-                .statusBarsPadding()
-                .size(84.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
-                .background(androidx.compose.ui.graphics.Color.Black),
-            contentAlignment = Alignment.Center,
-        ) {
-            LegumMark(size = 40.dp, fillColor = androidx.compose.ui.graphics.Color.White)
+        // Centred in what shows: below the status bar, above the sheet's lip.
+        Box(Modifier.fillMaxSize().statusBarsPadding().padding(bottom = 28.dp), contentAlignment = Alignment.Center) {
+            LegumMark(size = 56.dp, fillColor = androidx.compose.ui.graphics.Color.Black)
         }
     }
 }
@@ -400,21 +376,55 @@ private fun ColumnScope.MobileView(vm: LoginViewModel, mobile: MobileState, busy
     Spacer(Modifier.height(spacing.s3))
 
     if (!onCodeStep) {
-        LegumTextField(
-            value = mobile.number,
-            onValueChange = vm::onNumberChange,
-            label = "Mobile Number",
-            leadingIcon = Icons.Outlined.Smartphone,
-            keyboardType = KeyboardType.Phone,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
-            supportingText = "The number you verified on your profile. The code comes on WhatsApp, or by SMS.",
-        )
-        Spacer(Modifier.height(spacing.s4))
+        // An Indian mobile goes in ten boxes after +91; a number outside
+        // India (the door takes those too) in a field with its own code.
+        var abroad by rememberSaveable { mutableStateOf(mobile.number.startsWith("+") && !mobile.number.startsWith("+91")) }
+        if (!abroad) {
+            val local = mobile.number.filter(Char::isDigit).let {
+                when {
+                    it.length == 12 && it.startsWith("91") -> it.drop(2)
+                    it.length == 11 && it.startsWith("0")  -> it.drop(1)
+                    else -> it
+                }
+            }.take(10)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("+91", style = MaterialTheme.typography.titleMedium, color = SecondaryText)
+                Spacer(Modifier.width(10.dp))
+                DigitBoxes(
+                    value = local,
+                    length = 10,
+                    onValueChange = vm::onNumberChange,
+                    enabled = !busy,
+                    keyboardType = KeyboardType.Phone,
+                    groupAfter = 5,
+                    digitStyle = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(spacing.s2))
+            Text("The number you verified on your profile. The code comes on WhatsApp, or by SMS.",
+                style = MaterialTheme.typography.bodySmall, color = SecondaryText)
+            LinkButton(text = "Number Outside India?", enabled = !busy,
+                onClick = { abroad = true; vm.onNumberChange("+") })
+        } else {
+            LegumTextField(
+                value = mobile.number,
+                onValueChange = vm::onNumberChange,
+                label = "Mobile Number, With Country Code",
+                leadingIcon = Icons.Outlined.Smartphone,
+                keyboardType = KeyboardType.Phone,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = "The number you verified on your profile, as +44 7700 900123. The code comes on WhatsApp, or by SMS.",
+            )
+            LinkButton(text = "An Indian Number", enabled = !busy,
+                onClick = { abroad = false; vm.onNumberChange("") })
+        }
+        Spacer(Modifier.height(spacing.s3))
         LegumPrimaryButton(
             text    = if (busy) "Sending…" else "Send Code",
             onClick = vm::onSendCode,
-            enabled = mobile.number.isNotBlank() && !busy,
+            enabled = (if (abroad) mobile.number.count(Char::isDigit) >= 8 else mobile.number.length == 10) && !busy,
         )
         return
     }
@@ -425,17 +435,16 @@ private fun ColumnScope.MobileView(vm: LoginViewModel, mobile: MobileState, busy
         Banner(message = it, palette = StatusSettled)
         Spacer(Modifier.height(spacing.s3))
     }
-    LegumTextField(
+    DigitBoxes(
         value = code,
+        length = 6,
         onValueChange = {
-            code = it.filter(Char::isDigit).take(6)
+            code = it
             vm.clearError()
             if (code.length == 6 && !busy) vm.onCode(code)
         },
-        label = "6-Digit Code",
-        leadingIcon = Icons.Outlined.Lock,
-        keyboardType = KeyboardType.NumberPassword,
         enabled = !busy,
+        keyboardType = KeyboardType.NumberPassword,
         modifier = Modifier.fillMaxWidth(),
     )
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -465,6 +474,63 @@ private fun ColumnScope.MobileView(vm: LoginViewModel, mobile: MobileState, busy
             onClick = vm::onSendCode,
         )
     }
+}
+
+/**
+ * Square boxes, one digit each, over one hidden field: typing, deleting and
+ * pasting work as in a field, and the box next to be filled is outlined.
+ */
+@Composable
+private fun DigitBoxes(
+    value: String,
+    length: Int,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    keyboardType: KeyboardType,
+    modifier: Modifier = Modifier,
+    groupAfter: Int = 0,
+    digitStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge,
+) {
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = { onValueChange(it.filter(Char::isDigit).take(length)) },
+        enabled = enabled,
+        singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboardType),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Transparent),
+        textStyle = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.Transparent),
+        modifier = modifier.focusRequester(focus),
+        decorationBox = { inner ->
+            Box {
+                // The real field sits under the boxes, invisible, to take input.
+                Box(Modifier.size(1.dp)) { inner() }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (i in 0 until length) {
+                        if (groupAfter > 0 && i == groupAfter) Spacer(Modifier.width(6.dp))
+                        val ch = value.getOrNull(i)?.toString() ?: ""
+                        val next = i == value.length && enabled
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(MaterialTheme.shapes.small)
+                                .background(com.legumlex.client.ui.theme.Lex.colors.card)
+                                .border(
+                                    if (next) 1.5.dp else 1.dp,
+                                    if (next) PrimaryText else BorderColor,
+                                    MaterialTheme.shapes.small,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(ch, style = digitStyle, color = PrimaryText)
+                        }
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable
