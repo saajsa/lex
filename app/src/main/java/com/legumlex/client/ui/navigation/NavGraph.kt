@@ -120,6 +120,7 @@ fun LegumNavGraph(navController: NavHostController) {
                         popUpTo(Route.Login.path) { inclusive = true }
                     }
                 },
+                onAskLexIntelligence = { navController.navigate(Route.NewConsultation.build()) },
             )
         }
 
@@ -279,21 +280,36 @@ fun LegumNavGraph(navController: NavHostController) {
             // meets it (feature/desk). It replaced the three-step request form;
             // every way in to a new consultation arrives here.
             // A lead's desk ends in their enquiries, not a client's consultations.
-            val lead = com.legumlex.client.data.auth.SessionRole.isLead
+            // Read when used: a guest signs in partway, as a lead or a client.
+            val lead = { com.legumlex.client.data.auth.SessionRole.isLead }
+            val deskCtx = LocalContext.current
+            val tokens = remember(deskCtx) { TokenStore(deskCtx.applicationContext) }
+            val scope = rememberCoroutineScope()
+            // Leaving the desk: a guest who signed in in it goes to their Home
+            // (the sign-in screen beneath is no longer theirs); otherwise back.
+            val leave: (() -> Unit) -> Unit = { then ->
+                scope.launch {
+                    val signedIn = !tokens.read().isNullOrBlank()
+                    if (signedIn && navController.previousBackStackEntry?.destination?.route == Route.Login.path) {
+                        navController.navigate(if (lead()) Route.LeadHome.path else Route.Home.path) { popUpTo(0) { inclusive = true } }
+                    } else navController.popBackStack()
+                    then()
+                }
+            }
             DeskScreen(
-                onClose = { navController.popBackStack() },
+                onClose = { leave {} },
                 onOpenMatters = {
-                    navController.popBackStack()
-                    navController.navigateTab(if (lead) Route.LeadEnquiries.path else Route.Consultations.path)
+                    leave { navController.navigateTab(if (lead()) Route.LeadEnquiries.path else Route.Consultations.path) }
                 },
                 onOpenConsultation = { id ->
-                    navController.popBackStack()
-                    if (lead) navController.navigateTab(Route.LeadEnquiries.path)
-                    else navController.navigate(Route.ConsultationDetail.build(id.toString()))
+                    leave {
+                        if (lead()) navController.navigateTab(Route.LeadEnquiries.path)
+                        else navController.navigate(Route.ConsultationDetail.build(id.toString()))
+                    }
                 },
                 // "Have an agreement read": the app's Agreement Check (a lead's
                 // is the website's, under the lead's token).
-                onAgreement = { navController.navigate(if (lead) Route.LeadAhc.path else Route.AhcFunnel.path) },
+                onAgreement = { navController.navigate(if (lead()) Route.LeadAhc.path else Route.AhcFunnel.path) },
             )
         }
         composable(Route.DigitalOffice.path) {

@@ -70,6 +70,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    /** Lex Intelligence before sign-in: the desk, as a guest. */
+    onAskLexIntelligence: () -> Unit = {},
 ) {
     val spacing  = LocalSpacing.current
     val context  = LocalContext.current
@@ -196,15 +198,15 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Someone new signs in with Google as a lead (owner, 2026-10-20) and
-            // lands on Lex Intelligence, the desk, in the app itself.
+            // Someone new talks to Lex Intelligence before signing in (owner,
+            // 2026-10-20): two short messages, then Google, in the desk itself.
             Text(
                 "New to Legum Lex?",
                 style = MaterialTheme.typography.bodyMedium,
                 color = SecondaryText,
             )
             TextButton(
-                onClick = signInWithGoogle,
+                onClick = onAskLexIntelligence,
                 enabled = !isLoading,
                 colors  = ButtonDefaults.textButtonColors(contentColor = AccentInk),
             ) {
@@ -624,7 +626,7 @@ private fun Banner(message: String, palette: StatusPalette, onDismiss: (() -> Un
 
 // --- Credential Manager / Google ID token retrieval ---
 
-private suspend fun requestGoogleIdToken(
+internal suspend fun requestGoogleIdToken(
     context:        Context,
     activity:       ComponentActivity,
     serverClientId: String,
@@ -668,7 +670,10 @@ private suspend fun requestGoogleIdToken(
     }
 }
 
-private fun Context.requireActivity(): ComponentActivity {
+/** The activity behind a context, for the Google request elsewhere (the desk). */
+internal object LoginHost { fun Context.host(): ComponentActivity = requireActivity() }
+
+internal fun Context.requireActivity(): ComponentActivity {
     var ctx: Context = this
     while (ctx is android.content.ContextWrapper) {
         if (ctx is ComponentActivity) return ctx

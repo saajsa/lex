@@ -595,6 +595,12 @@ interface ApiService {
     @POST("desk/discard")
     suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
 
+    // Lex Intelligence before sign-in: two short messages (guest/desk).
+    @FormUrlEncoded
+    @Headers("X-Skip-Auth: 1")
+    @POST("guest/desk")
+    suspend fun guestDesk(@Field("turns") turns: String, @Field("device") device: String): Map<String, Any?>
+
     // --- A lead signed in (owner, 2026-10-20) ---
     // Who they are to the firm now; once the firm has opened their account,
     // {role: client, client: {token, client_id, contact_id, …}}.

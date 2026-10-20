@@ -37,6 +37,10 @@ import java.util.Locale
 
 enum class Step { QUESTION, CLARIFY, DOCS, ROUTE, ENTITY, COUNTRY, PHONE }
 
+/** A guest's allowance, as the website's (cases CASES_DESK_GUEST_*). */
+const val GUEST_TURNS = 2
+const val GUEST_CHARS = 140
+
 private val ORDER = Step.values().toList()
 
 sealed interface Para {
@@ -72,6 +76,10 @@ sealed interface Dock {
     data class Entity(val hint: String) : Dock
     data object Country : Dock
     data object Phone : Dock
+    /** Not signed in: a short message (two, of 140 characters). */
+    data object Guest : Dock
+    /** The Google sign-in, in the conversation. */
+    data object SignIn : Dock
 }
 
 data class DeskUi(
@@ -137,7 +145,22 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     private var nextId = 0L
 
     private val flow = Mutex()
-    private var terms: Job = loadTerms()
+
+    /*
+     * A guest (owner, 2026-10-20): not signed in, as the website's visitor is.
+     * Two short messages, answered by the desk (guest/desk), then the Google
+     * sign-in in the conversation; the desk then goes on as for anyone signed
+     * in. The firm's terms are a signed-in call, so they wait for the sign-in.
+     */
+    var guest: Boolean = kotlinx.coroutines.runBlocking {
+        com.legumlex.client.data.auth.TokenStore(app).read().isNullOrBlank()
+    }
+        private set
+    private val guestTurns = mutableListOf<Pair<String, String>>()
+    private var greeted = false
+    private var signinSaid = false
+
+    private var terms: Job = if (guest) Job().apply { complete() } else loadTerms()
 
     private fun loadTerms(): Job = viewModelScope.launch {
         // One quiet retry: the fee line must come from the funnel, never a default.
@@ -189,6 +212,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun next() {
         when {
+            guest -> askGuest()
             text.isEmpty() -> askQuestion()
             vetted == null -> vet()
             vetted == "clarify" && more == null -> askClarify()
@@ -209,7 +233,9 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun askQuestion() {
         if (!asked(Step.QUESTION)) {
-            if (again) {
+            if (guestTurns.isNotEmpty()) {
+                say(Para.Text("Thank you. Now, in your own words: what has happened, who is involved, and what you would like the advocate to do?"), prompt = Step.QUESTION)
+            } else if (again) {
                 say(Para.Text("What else would you like to ask?"), prompt = Step.QUESTION)
             } else {
                 say(Para.Text(hour() + ", and welcome to Legum Lex."))
@@ -218,6 +244,57 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
         }
         dock(Dock.Question)
     }
+
+    // ---- A guest (guest/desk) -------------------------------------------------
+
+    private val guestLeft get() = GUEST_TURNS - guestTurns.count { it.first == "guest" }
+
+    private suspend fun askGuest() {
+        if (!greeted) {
+            greeted = true
+            say(Para.Text(hour() + ", and welcome to Legum Lex. Ask me about the advocates, or how to reach them."))
+        }
+        if (guestLeft <= 0) signInDock() else dock(Dock.Guest)
+    }
+
+    fun submitGuest(raw: String) {
+        val v = raw.trim()
+        if (v.length < 2) { err("Write a few words first."); return }
+        if (v.length > GUEST_CHARS) { err("At most $GUEST_CHARS characters, please."); return }
+        go {
+            _ui.update { it.copy(opened = true) }
+            guestTurns += "guest" to v
+            _ui.update { it.copy(lines = it.lines + Line(++nextId, Who.ME, listOf(Para.Text(v))), error = "") }
+            dock(Dock.Waiting("…"))
+            val r = repo.guest(guestTurns)
+            val reply = r?.first ?: "The advocates can help with that. Sign in with Google to tell them about your matter; it takes a moment."
+            val toSignIn = r == null || r.second || guestLeft <= 0
+            guestTurns += "desk" to reply
+            if (toSignIn && reply.contains("sign in", ignoreCase = true)) signinSaid = true
+            say(Para.Text(reply))
+            if (toSignIn) signInDock() else dock(Dock.Guest)
+        }
+    }
+
+    /** "Sign in with Google" from the guest's box, before the two are used. */
+    fun guestSignIn() = go { _ui.update { it.copy(opened = true) }; signInDock() }
+
+    private suspend fun signInDock() {
+        if (!signinSaid) {
+            signinSaid = true
+            say(Para.Text("To go on, please sign in with Google. Your question then goes to the advocates, and they write back to you."))
+        }
+        dock(Dock.SignIn)
+    }
+
+    /** Signed in (a lead or a client): the desk goes on, with the firm's terms. */
+    fun signedIn() {
+        guest = false
+        terms = loadTerms()
+        go { next() }
+    }
+
+    fun signInProblem(message: String) = err(message)
 
     fun submitQuestion(raw: String) {
         val v = raw.trim()

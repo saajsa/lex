@@ -107,6 +107,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.legumlex.client.ahc.theme.Inter
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /* ============================================================================
  *  The Legum Lex desk (Consult) on a phone: the website's "Lex Intelligence"
@@ -185,6 +186,30 @@ fun DeskScreen(
         }
     }
 
+    // A guest signs in with Google in the conversation, as on the website: the
+    // sign-in screen's own Google request, and its view model's exchange.
+    val login: com.legumlex.client.feature.auth.LoginViewModel = viewModel()
+    val loginState by login.state.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(loginState) {
+        when (val st = loginState) {
+            is com.legumlex.client.feature.auth.LoginState.Success -> vm.signedIn()
+            is com.legumlex.client.feature.auth.LoginState.Error -> vm.signInProblem(st.message)
+            else -> Unit
+        }
+    }
+    val google: () -> Unit = {
+        login.clearError()
+        scope.launch {
+            val id = kotlin.runCatching { com.legumlex.client.data.api.ApiClient.get(context).googleConfig()["client_id"] as? String }
+                .getOrNull()?.takeIf { it.isNotBlank() } ?: com.legumlex.client.BuildConfig.GOOGLE_WEB_CLIENT_ID
+            com.legumlex.client.feature.auth.requestGoogleIdToken(
+                context = context, activity = with(com.legumlex.client.feature.auth.LoginHost) { context.host() }, serverClientId = id,
+                onToken = login::onIdTokenReceived, onError = login::onCredentialError, onCancel = login::onCancelled,
+            )
+        }
+    }
+
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addFiles(it) }
     val mimes = remember(ui.terms.documentTypes) { mimesFor(ui.terms.documentTypes) }
     val attach: (() -> Unit)? = if (ui.terms.takesFiles) ({ pick.launch(mimes) }) else null
@@ -219,14 +244,15 @@ fun DeskScreen(
                 open = services && !typing,
                 firm = ui.terms.firm,
                 onToggle = { showServices(it) },
-                onReview = { showServices(false); onAgreement() },
+                // The Agreement Check needs a sign-in: a guest is asked for it here.
+                onReview = { showServices(false); if (vm.guest) vm.guestSignIn() else onAgreement() },
                 onTrack = { showServices(false); tracking = true },
             )
             // The intro at the top, the middle left empty, the composer at the
             // foot, as a chat is laid out.
             // The three steps sit at the foot, just above the message box.
             Column(Modifier.weight(1f)) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { Intro() }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { Intro(vm.guest) }
                 if (!typing) {
                     Process()
                     Spacer(Modifier.height(12.dp))
@@ -236,6 +262,8 @@ fun DeskScreen(
                 if (ui.termsLoaded && !ui.terms.isActive) {
                     Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
                         style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
+                } else if (vm.guest) {
+                    GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
                 } else {
                     QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile,
                         onFocus = { if (it && services) services = false }) { vm.submitQuestion(draft.text) }
@@ -254,6 +282,8 @@ fun DeskScreen(
                     Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
                     Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired, ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
                     is Dock.Waiting -> WaitLine(d.label)
+                    Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
+                    Dock.SignIn -> GoogleDock(loginState is com.legumlex.client.feature.auth.LoginState.Loading, ui.error, google)
                 }
             }
             if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
@@ -314,11 +344,12 @@ private fun Kicker(s: String, modifier: Modifier = Modifier) =
 // ---- Before the first question --------------------------------------------------
 
 @Composable
-private fun Intro() {
+private fun Intro(guest: Boolean = false) {
     Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 22.dp)) {
-        Text("What has happened?", style = body(25f, weight = FontWeight.SemiBold).copy(lineHeight = 30.sp, letterSpacing = (-0.4).sp))
+        Text(if (guest) "Ask Lex Intelligence" else "What has happened?", style = body(25f, weight = FontWeight.SemiBold).copy(lineHeight = 30.sp, letterSpacing = (-0.4).sp))
         Spacer(Modifier.height(8.dp))
-        Text("In your own words: what happened, who is involved, and what you would like counsel to do.", style = body(14.5f, D.Ink.copy(alpha = 0.7f)))
+        Text(if (guest) "A short question about the advocates, or how to reach them. To tell them about your matter, you sign in with Google."
+             else "In your own words: what happened, who is involved, and what you would like counsel to do.", style = body(14.5f, D.Ink.copy(alpha = 0.7f)))
     }
 }
 
@@ -483,7 +514,7 @@ private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, modifier: Modifie
         items(ui.lines.size, key = { ui.lines[it].id }) { i ->
             val line = ui.lines[i]
             when (line.who) {
-                Who.ME -> MeLine(line, !ui.locked) { line.step?.let(onChange) }
+                Who.ME -> MeLine(line, !ui.locked && line.step != null) { line.step?.let(onChange) }
                 // The desk's mark heads each run of what it says, not every line.
                 Who.DESK -> DeskLine(line, revealed, mark = i == 0 || ui.lines[i - 1].who != Who.DESK)
                 Who.NOTE -> NoteLine(line)
@@ -791,6 +822,39 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable { onSend(v) }, contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Outlined.Send, "Send", tint = D.OnGold, modifier = Modifier.size(19.dp))
         }
+    }
+}
+
+/** A guest's message: short (GUEST_CHARS), with the sign-in beside it. */
+@Composable
+private fun GuestDock(error: String, onSend: (String) -> Unit, onSignIn: () -> Unit) {
+    var n by remember { mutableIntStateOf(0) }
+    Column {
+        Compose("Ask a short question…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            format = { it.take(GUEST_CHARS).also { v -> n = v.length } }, onSend = onSend)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Quiet("Sign in with Google", onSignIn)
+            Spacer(Modifier.weight(1f))
+            Text("$n / $GUEST_CHARS", style = body(12f, if (n > GUEST_CHARS - 20) D.Warn else D.Muted))
+        }
+        ErrorLine(error)
+    }
+}
+
+/** The Google sign-in, in the conversation. */
+@Composable
+private fun GoogleDock(busy: Boolean, error: String, onGoogle: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(D.Raise).border(1.dp, D.Line2, RoundedCornerShape(14.dp))
+                .clickable(enabled = !busy, onClick = onGoogle).padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.legumlex.client.R.drawable.ic_google_g), null, Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(if (busy) "Signing You In…" else "Continue with Google", style = body(15f, D.Ink, FontWeight.Medium))
+        }
+        ErrorLine(error)
     }
 }
 

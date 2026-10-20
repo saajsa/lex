@@ -103,11 +103,31 @@ data class Tracked(
     val converted: Boolean,
 )
 
-class DeskRepository(context: Context) {
+class DeskRepository(private val context: Context) {
     private val api = ApiClient.get(context)
     private val resolver = context.applicationContext.contentResolver
     /** A lead's desk (lead/desk): the same calls, under the lead's token. */
     private val lead get() = com.legumlex.client.data.auth.SessionRole.isLead
+
+    /** This install's own id, for the guest allowance (a day's two messages). */
+    private val device: String by lazy {
+        val p = context.applicationContext.getSharedPreferences("desk", Context.MODE_PRIVATE)
+        p.getString("device", null) ?: java.util.UUID.randomUUID().toString().also { p.edit().putString("device", it).apply() }
+    }
+
+    /**
+     * The desk's answer to a guest (guest/desk): (reply, sign in now). Null
+     * when it could not be asked; the desk then asks them to sign in.
+     */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun guest(turns: List<Pair<String, String>>): Pair<String, Boolean>? = withTimeoutOrNull(15_000) {
+        runCatching {
+            val json = org.json.JSONArray(turns.map { (role, text) -> org.json.JSONObject().put("role", role).put("text", text) }).toString()
+            val d = api.guestDesk(json, device)["data"] as? Map<String, Any?> ?: return@runCatching null
+            val reply = (d["reply"] as? String).orEmpty()
+            if (reply.isBlank()) null else reply to (d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0)
+        }.getOrNull()
+    }
 
     @Suppress("UNCHECKED_CAST")
     suspend fun terms(): DeskTerms? = runCatching {
