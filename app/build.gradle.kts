@@ -45,12 +45,12 @@ if (googleServicesFile.exists()) {
 
 android {
     namespace = "com.legumlex.client"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.legumlex.client"
         minSdk = 28
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 6
         versionName = "0.4.0"
 
