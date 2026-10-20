@@ -180,9 +180,14 @@ private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifie
                 modifier = Modifier.matchParentSize(),
             )
             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.30f + 0.25f * (1f - focus))))
-            // A darker panel down the left (flat, hard-edged, no gradient): the
-            // words stay inside it, clear of the picture's subject.
-            Box(Modifier.fillMaxHeight().fillMaxWidth(TextPanel).background(Color.Black.copy(alpha = 0.45f)))
+            // A darker tint down the left, the words inside it, clear of the
+            // picture's subject. Its edge fades into the picture rather than
+            // stopping on a line (owner, 2026-10-20: the one place a gradient is asked for).
+            Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
+                0f to Color.Black.copy(alpha = 0.45f),
+                (TextPanel - 0.14f) to Color.Black.copy(alpha = 0.45f),
+                (TextPanel + 0.16f) to Color.Transparent,
+            )))
         }
         Column(Modifier.fillMaxSize().padding(20.dp)) {
             Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(chip), contentAlignment = Alignment.Center) {
