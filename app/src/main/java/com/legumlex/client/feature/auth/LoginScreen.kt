@@ -98,7 +98,7 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = heroHeight - 28.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 0.dp, topEnd = 28.dp))
+                .clip(SheetShape)
                 .background(androidx.compose.ui.graphics.Color.Black)
                 .verticalScroll(rememberScrollState())
                 .imePadding()
@@ -211,6 +211,33 @@ fun LoginScreen(
 }
 
 private val HeroHeight = 300.dp
+
+/**
+ * The sign-in sheet, edge to edge: square at the top left, and at the top
+ * right a large curve that starts well in from the edge and eases into it
+ * (a continuous-curvature corner rather than a quarter circle).
+ */
+private val SheetShape = object : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ): androidx.compose.ui.graphics.Outline {
+        val r = with(density) { 70.dp.toPx() }
+        val w = size.width
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(0f, 0f)
+            lineTo(w - r * 1.4f, 0f)
+            // One cubic, its handles long along both edges: the curve eases
+            // in and out instead of turning at a fixed radius.
+            cubicTo(w - r * 0.35f, 0f, w, r * 0.35f, w, r * 1.4f)
+            lineTo(w, size.height)
+            lineTo(0f, size.height)
+            close()
+        }
+        return androidx.compose.ui.graphics.Outline.Generic(path)
+    }
+}
 
 /** The logo panel: flat white, and the black mark on it, nothing else. */
 @Composable
