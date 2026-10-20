@@ -104,6 +104,11 @@ android {
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"\"")
             buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"\"")
             isMinifyEnabled = true
+            // The native libraries' symbols (ML Kit and the like) go into the
+            // bundle, so Play can name the functions in native crashes and
+            // ANRs. Needs the NDK (installed: 26.3); FULL would add line numbers
+            // at a much larger bundle.
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
