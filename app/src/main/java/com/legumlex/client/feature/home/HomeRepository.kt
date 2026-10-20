@@ -128,10 +128,21 @@ private fun parseActionItems(data: Map<String, Any?>?): ActionItemsBundle {
     @Suppress("UNCHECKED_CAST")
     val counts   = (data["counts"] as? Map<String, Any?>) ?: emptyMap()
 
-    val items = rawItems.mapNotNull { item ->
-        val kindStr  = item["kind"] as? String ?: return@mapNotNull null
-        val id       = item["id"] as? String ?: return@mapNotNull null
-        val title    = item["title"] as? String ?: return@mapNotNull null
+    val items = rawItems.mapNotNull(::parseActionItem)
+
+    return ActionItemsBundle(
+        items    = items,
+        critical = counts["critical"].toIntSafe(),
+        warning  = counts["warning"].toIntSafe(),
+        info     = counts["info"].toIntSafe(),
+    )
+}
+
+/** One queue item, as the dashboard's queue and the notifications' attention list send it. */
+internal fun parseActionItem(item: Map<String, Any?>): ActionItem? {
+        val kindStr  = item["kind"] as? String ?: return null
+        val id       = item["id"] as? String ?: return null
+        val title    = item["title"] as? String ?: return null
         val subtitle = item["subtitle"] as? String ?: ""
         val sevStr   = item["severity"] as? String ?: "info"
         val dueAt    = (item["due_at"] as? String)?.let { parseLocalDate(it) }
@@ -142,7 +153,7 @@ private fun parseActionItems(data: Map<String, Any?>?): ActionItemsBundle {
         val linkId   = (if (linkType == "obligation") linkRaw?.get("agreement_id") as? String else null)
             ?: linkRaw?.get("id") as? String ?: ""
 
-        ActionItem(
+        return ActionItem(
             kind     = parseActionKind(kindStr),
             id       = id,
             title    = title,
@@ -152,14 +163,6 @@ private fun parseActionItems(data: Map<String, Any?>?): ActionItemsBundle {
             deepLink = ActionItemDeepLink(parseDeepLinkType(linkType), linkId),
             webUrl   = (item["web_url"] as? String)?.takeIf { it.isNotBlank() },
         )
-    }
-
-    return ActionItemsBundle(
-        items    = items,
-        critical = counts["critical"].toIntSafe(),
-        warning  = counts["warning"].toIntSafe(),
-        info     = counts["info"].toIntSafe(),
-    )
 }
 
 private fun parseActionKind(s: String): ActionKind = when (s) {

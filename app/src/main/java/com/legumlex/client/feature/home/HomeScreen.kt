@@ -374,7 +374,7 @@ private fun HomeContent(
                 ConsultationFigures(data.workspaces, onOpenConsultations)
 
                 // The action queue lives behind the header's queue button now
-                // (ActionQueueScreen), beside the bell.
+                // (now in Notifications, under Requires Your Attention).
 
                 // 2. Next event
                 NextEventBlock(

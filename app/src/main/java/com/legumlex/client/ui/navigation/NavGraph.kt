@@ -52,6 +52,19 @@ import com.legumlex.client.feature.projects.TaskDetailScreen
 
 @Composable
 fun LegumNavGraph(navController: NavHostController) {
+    // Where a waiting item opens (the action queue, now in Notifications).
+    val navCtx = androidx.compose.ui.platform.LocalContext.current
+    val actionRoutes = com.legumlex.client.feature.home.ActionRoutes(
+        invoice      = { id -> navController.navigate(Route.InvoiceDetail.build(id)) },
+        contract     = { _  -> navController.navigate(Route.Vault.path) },
+        consultation = { id -> navController.navigate(Route.ConsultationDetail.build(id)) },
+        case         = { id -> navController.navigate(Route.CaseDetail.build(id)) },
+        notice       = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
+        task         = { id -> navController.navigate(Route.TaskDetail.build(id)) },
+        project      = { id -> navController.navigate(Route.ProjectDetail.build(id)) },
+        agreement    = { id -> navController.navigate(Route.RegistryAgreement.build(id)) },
+        ahcFunnel    = { navController.navigate(Route.AhcFunnel.path) },
+    )
     // App-wide screen transitions: a subtle horizontal slide + fade. Forward
     // navigation slides in from the right; back navigation reverses it.
     val slideDur = 300
@@ -127,20 +140,6 @@ fun LegumNavGraph(navController: NavHostController) {
                 onStartLegalNotice = { navController.navigate(Route.Notices.path) },
             )
         }
-        composable(Route.ActionQueue.path) {
-            com.legumlex.client.feature.home.ActionQueueScreen(
-                onOpenInvoice      = { id -> navController.navigate(Route.InvoiceDetail.build(id)) },
-                onOpenContract     = { _  -> navController.navigate(Route.Vault.path) },
-                onOpenConsultation = { id -> navController.navigate(Route.ConsultationDetail.build(id)) },
-                onOpenCase         = { id -> navController.navigate(Route.CaseDetail.build(id)) },
-                onOpenNotice       = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
-                onOpenTask         = { id -> navController.navigate(Route.TaskDetail.build(id)) },
-                onOpenProject      = { id -> navController.navigate(Route.ProjectDetail.build(id)) },
-                onOpenAgreement    = { id -> navController.navigate(Route.RegistryAgreement.build(id)) },
-                onOpenAhcFunnel    = { navController.navigate(Route.AhcFunnel.path) },
-                onAskNew           = { navController.navigate(Route.NewConsultation.build()) },
-            )
-        }
         composable(Route.Matters.path) {
             CasesScreen(
                 onOpenCase = { id -> navController.navigate(Route.CaseDetail.build(id)) },
@@ -188,6 +187,8 @@ fun LegumNavGraph(navController: NavHostController) {
             com.legumlex.client.feature.notifications.NotificationsScreen(
                 onBack = { navController.popBackStack() },
                 onOpen = { n ->
+                    // A queue item opens where the queue opened it.
+                    n.action?.let { com.legumlex.client.feature.home.openActionItem(navCtx, it, actionRoutes); return@NotificationsScreen }
                     // A firm announcement is read where it stands (tapping marks it read).
                     if (n.link.isBlank() && n.type == com.legumlex.client.feature.notifications.NotifType.GENERAL) return@NotificationsScreen
                     // A matter waiting on the client opens itself.

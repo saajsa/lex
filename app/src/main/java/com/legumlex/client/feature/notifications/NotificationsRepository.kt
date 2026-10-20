@@ -63,6 +63,7 @@ class NotificationsRepository(private val api: ApiService) {
             createdAt = createdAt,
             timeLabel = relativeLabel(createdAt, now),
             isRead    = m["is_read"] == true || (m["is_read"] as? Number)?.toInt() == 1,
+            action    = asMap(m["action"])?.let { com.legumlex.client.feature.home.parseActionItem(it) },
         )
     }
 
@@ -148,3 +149,6 @@ class NotificationsRepository(private val api: ApiService) {
         val dayMonthFmt = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
     }
 }
+
+@Suppress("UNCHECKED_CAST")
+private fun asMap(v: Any?): Map<String, Any?>? = v as? Map<String, Any?>

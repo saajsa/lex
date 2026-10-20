@@ -28,6 +28,8 @@ data class AppNotification(
     val createdAt: LocalDateTime?,
     val timeLabel: String,
     val isRead: Boolean,
+    /** A queue item waiting on the client (the queue merged in, 2026-10-20): opens where the queue opened it. */
+    val action: com.legumlex.client.feature.home.ActionItem? = null,
 )
 
 /** A time band (Today / Yesterday / …) with its rows + unread count. */

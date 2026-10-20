@@ -127,6 +127,16 @@ private fun TopBar(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
 private val ShortDate = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)
 private val SinceDate = java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)
 
+private fun dueLabel(d: java.time.LocalDate?): String {
+    val today = java.time.LocalDate.now()
+    return when {
+        d == null -> ""
+        d.isBefore(today) -> "Overdue · " + SinceDate.format(d)
+        d == today -> "Due Today"
+        else -> "Due " + SinceDate.format(d)
+    }
+}
+
 /** How far back the strip runs (owner, 2026-10-20: a week); anything older is under "Earlier". */
 private const val SpanDays = 7L
 
@@ -189,15 +199,16 @@ private fun DayFeed(
             itemsIndexed(waiting, key = { _, n -> "w" + n.id }) { i, n ->
                 TimelineItem(
                     title = n.title,
-                    // Since when it has waited (its last activity), not an event's date.
-                    time = n.createdAt?.let { "Since " + SinceDate.format(it) } ?: "",
+                    // A queue item: when it falls due. A lexon matter: since when it has
+                    // waited (its last activity), not an event's date.
+                    time = n.action?.let { a -> dueLabel(a.dueAt) } ?: n.createdAt?.let { "Since " + SinceDate.format(it) } ?: "",
                     body = n.subtitle,
                     live = true,
                     featured = true,
                     first = i == 0,
                     last = i == waiting.lastIndex,
                     onClick = { tap(n) },
-                    footer = if (n.link.isNotBlank()) ({ FeatureCta(n.cta) }) else null,
+                    footer = if (n.link.isNotBlank() || n.action != null) ({ FeatureCta(n.cta) }) else null,
                 )
             }
             item("waiting-gap") { Spacer(Modifier.height(12.dp)) }
