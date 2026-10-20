@@ -4,6 +4,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -24,10 +26,10 @@ import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.Surface1
 
-// The bottom bar: black, icons only, with a notch at its centre where Home
-// sits raised in a circle. Consultations and Office to the left, Calendar and
-// More to the right (owner, 2026-10-20; a fifth item will come later). The
-// current tab is its filled glyph with a dot under it.
+// The bottom bar: black, icons only, with a notch at its centre where Consult
+// (the Legum Lex desk) sits raised in a circle. Home and Consultations to the
+// left, Calendar and More to the right; the Digital Office is in the header
+// (owner, 2026-10-20). The current tab is its filled glyph with a dot under it.
 @Composable
 fun LegumBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -54,31 +56,27 @@ fun LegumBottomBar(navController: NavHostController) {
                 .height(BarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
             NavGlyph(tab(Route.Consultations), on(tab(Route.Consultations)), Modifier.weight(1f)) { go(tab(Route.Consultations)) }
-            NavGlyph(tab(Route.DigitalOffice), on(tab(Route.DigitalOffice)), Modifier.weight(1f)) { go(tab(Route.DigitalOffice)) }
             Spacer(Modifier.weight(1f))
             NavGlyph(tab(Route.Calendar), on(tab(Route.Calendar)), Modifier.weight(1f)) { go(tab(Route.Calendar)) }
             NavGlyph(tab(Route.More), on(tab(Route.More)), Modifier.weight(1f)) { go(tab(Route.More)) }
         }
-        // Home, raised: its centre on the bar's top edge, in the notch.
-        val home = tab(Route.Home)
-        val homeOn = on(home)
+        // Consult, raised: its centre on the bar's top edge, in the notch. It
+        // opens the desk, where anything new begins.
         Surface(
-            onClick = { go(home) },
+            onClick = { navController.navigate(Route.NewConsultation.build()) },
             shape = CircleShape,
             color = bar,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = -FabSize / 2)
-                .size(FabSize),
+                .size(FabSize)
+                .semantics { contentDescription = "Consult" },
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = if (homeOn) home.iconActive else home.iconInactive,
-                    contentDescription = stringResource(home.labelRes),
-                    tint = if (homeOn) Color.White else Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp),
-                )
+                Text(">_", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 18.sp, color = Color.White)
             }
         }
     }

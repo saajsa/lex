@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -88,15 +89,11 @@ internal fun HomeHeader(dateLabel: String, greeting: String) {
 @Composable
 internal fun WorkspaceEntrances(
     ws: Workspaces,
-    onConsult: () -> Unit,
     onLitigation: () -> Unit,
     onProjects: () -> Unit,
     onRegistry: () -> Unit,
 ) {
     val tiles = listOf(
-        // Consult first: the Legum Lex desk, where anything new begins.
-        Entrance(Workspace.Consult, "Consult", "Ask the advocates",
-            "A new question, an agreement to read, or a notice to track.", onConsult, cta = "Ask"),
         Entrance(Workspace.Litigation, "Litigation", "Your matter, your cases with us",
             "Your matters before a court — hearings, orders and notices.", if ("litigation" in ws.offered) onLitigation else null),
         Entrance(Workspace.Projects, "Projects", "Your work with us",
@@ -148,43 +145,60 @@ internal fun WorkspaceEntrances(
  */
 @Composable
 private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifier) {
+    // A background picture, when one is in res/drawable-nodpi (ws_litigation,
+    // ws_projects, ws_registry): looked up by name, so a card shows its plain
+    // tone until the picture is added.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val picture = androidx.compose.runtime.remember(t.workspace) {
+        ctx.resources.getIdentifier("ws_" + t.workspace.name.lowercase(), "drawable", ctx.packageName)
+    }
     val front = focus > 0.5f
     val bg = androidx.compose.ui.graphics.lerp(Lex.colors.muted, Lex.colors.primary, focus)
-    val ink = if (front) Lex.colors.primaryForeground else Lex.colors.foreground
-    val sub = ink.copy(alpha = 0.72f)
+    // On a picture the words are white, over a flat dark veil (no gradient);
+    // the cards beside the front one sit under a deeper veil.
+    val onPicture = picture != 0
+    val ink = if (onPicture) Color.White else if (front) Lex.colors.primaryForeground else Lex.colors.foreground
+    val sub = ink.copy(alpha = 0.78f)
+    // The circles take the card's opposite tone (white on a picture).
+    val chip = when { onPicture -> Color.White; front -> Lex.colors.primaryForeground; else -> Lex.colors.primary }
+    val chipInk = when { onPicture -> Color.Black; front -> Lex.colors.primary; else -> Lex.colors.primaryForeground }
     val offered = t.onEnter != null
-    Column(
+    Box(
         modifier
             .fillMaxWidth()
             .height(232.dp)
             .clip(RoundedCornerShape(30.dp))
             .background(bg)
-            .then(if (offered) Modifier.clickable(onClick = t.onEnter!!) else Modifier)
-            .padding(20.dp),
+            .then(if (offered) Modifier.clickable(onClick = t.onEnter!!) else Modifier),
     ) {
-        // The mark, in a circle of the opposite tone.
-        Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (front) Lex.colors.primaryForeground else Lex.colors.primary),
-            contentAlignment = Alignment.Center) {
-            val markInk = if (front) Lex.colors.primary else Lex.colors.primaryForeground
-            if (t.workspace == Workspace.Consult) Text(">_", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                fontWeight = FontWeight.Bold, fontSize = 15.sp, color = markInk)
-            else Icon(entranceIcon(t.workspace), null, tint = markInk, modifier = Modifier.size(22.dp))
+        if (onPicture) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(picture), null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f + 0.25f * (1f - focus))))
         }
-        Spacer(Modifier.height(18.dp))
-        Text(t.title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1)
-        Spacer(Modifier.height(8.dp))
-        Text(t.description, fontSize = 13.5.sp, lineHeight = 19.sp, color = sub, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.weight(1f))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (!offered) Text("Not Yet Opened", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = sub, modifier = Modifier.weight(1f))
-            else Spacer(Modifier.weight(1f))
-            if (offered) Box(
-                Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(if (front) Lex.colors.primaryForeground else Lex.colors.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Enter " + t.title,
-                    tint = if (front) Lex.colors.primary else Lex.colors.primaryForeground, modifier = Modifier.size(18.dp))
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
+            Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(chip), contentAlignment = Alignment.Center) {
+                Icon(entranceIcon(t.workspace), null, tint = chipInk, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            // The name in the day's own type (TUESDAY on Home): heavy condensed capitals.
+            Text(t.title.uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold,
+                fontSize = 28.sp, lineHeight = 30.sp, letterSpacing = 0.3.sp, color = ink, maxLines = 1)
+            Spacer(Modifier.height(6.dp))
+            Text(t.description, fontSize = 13.5.sp, lineHeight = 19.sp, color = sub, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.weight(1f))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (!offered) Text("Not Yet Opened", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = sub, modifier = Modifier.weight(1f))
+                else Spacer(Modifier.weight(1f))
+                if (offered) Box(
+                    Modifier.size(38.dp).clip(androidx.compose.foundation.shape.CircleShape).background(chip),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, "Enter " + t.title, tint = chipInk, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }

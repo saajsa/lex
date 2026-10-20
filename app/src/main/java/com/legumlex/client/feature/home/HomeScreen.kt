@@ -363,14 +363,16 @@ private fun HomeContent(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 // 0. The workspaces, and the consultations' four figures — the
-                // top of Mylex's home.
+                // top of Mylex's home. Consult is the bottom bar's centre button.
+                Column {
+                    SectionHeader(title = "Workspace")
                 WorkspaceEntrances(
                     ws           = data.workspaces,
-                    onConsult    = onAskNew,
                     onLitigation = onOpenLitigation,
                     onProjects   = onOpenProjects,
                     onRegistry   = onOpenRegistry,
                 )
+                }
                 ConsultationFigures(data.workspaces, onOpenConsultations)
 
                 // The action queue lives behind the header's queue button now

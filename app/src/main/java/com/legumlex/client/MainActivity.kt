@@ -145,6 +145,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     // leaves, as it does for the back gesture.
                     onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
                     onNotifications = { navController.navigate(Route.Notifications.path) },
+                    onOffice = { navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } },
                     unreadCount = unreadCount,
                     initials = profile?.initials,
                     avatarUrl = profile?.avatarUrl,

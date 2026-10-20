@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,9 +52,7 @@ fun AppHeader(
     onBack: () -> Unit,
     onNotifications: () -> Unit = {},
     unreadCount: Int = 0,
-    onActions: (() -> Unit)? = null,
-    actionCount: Int = 0,
-    actionCritical: Boolean = false,
+    onOffice: (() -> Unit)? = null,
     initials: String? = null,
     avatarUrl: String? = null,
     onProfile: () -> Unit = {},
@@ -76,14 +75,10 @@ fun AppHeader(
                     Text("Legum Lex", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground, lineHeight = 18.sp)
                     Text("Client Portal", fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp)
                 }
-                // The action queue: what waits on the client, beside the bell.
-                // Red when something in it is critical, ink otherwise.
-                if (onActions != null) Box {
-                    IconButton(onClick = onActions) {
-                        Icon(Icons.Outlined.TaskAlt, contentDescription = "Action Queue", tint = Lex.colors.secondaryForeground)
-                    }
-                    if (actionCount > 0) CountBadge(actionCount, if (actionCritical) Lex.colors.danger.solid else Lex.colors.foreground,
-                        if (actionCritical) androidx.compose.ui.graphics.Color.White else Lex.colors.background, Modifier.align(Alignment.TopEnd))
+                // The Digital Office, beside the bell (owner, 2026-10-20: it left
+                // the bottom bar when Consult took the centre).
+                if (onOffice != null) IconButton(onClick = onOffice) {
+                    Icon(Icons.Outlined.Videocam, contentDescription = "Digital Office", tint = Lex.colors.secondaryForeground)
                 }
                 Box {
                     IconButton(onClick = onNotifications) {
