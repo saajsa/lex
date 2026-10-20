@@ -49,6 +49,27 @@ private fun LexColors.scheme(): ColorScheme {
     )
 }
 
+/**
+ * A region drawn in the dark palette whatever the phone is set to (the
+ * sign-in sheet). Colours only: the bar icons stay the shell's.
+ */
+@Composable
+fun LexDarkRegion(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalLexColors provides DarkLexColors) {
+        MaterialTheme(
+            colorScheme = DarkLexColors.scheme(),
+            typography  = LegumTypography,
+            shapes      = LegumShapes,
+        ) {
+            // Text without its own colour takes the region's, not the page's.
+            CompositionLocalProvider(
+                androidx.compose.material3.LocalContentColor provides DarkLexColors.foreground,
+                content = content,
+            )
+        }
+    }
+}
+
 /** The Mylex look, light or dark as the phone is set. */
 @Composable
 fun LegumLexTheme(

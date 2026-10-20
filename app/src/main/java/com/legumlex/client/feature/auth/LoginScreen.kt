@@ -56,7 +56,6 @@ import com.legumlex.client.ui.theme.StatusDanger
 import com.legumlex.client.ui.theme.StatusPalette
 import com.legumlex.client.ui.theme.StatusSettled
 import com.legumlex.client.ui.theme.TertiaryText
-import com.legumlex.client.ui.theme.grain
 import kotlinx.coroutines.launch
 
 // Screen 03 — sign-in, as on the web door: two choices, Google and Mobile,
@@ -82,18 +81,18 @@ fun LoginScreen(
     }
     BackHandler(enabled = view != LoginView.Choose) { vm.show(LoginView.Choose) }
 
-    // A black panel with the mark on a white tile, under the status bar
-    // (whose icons the shell keeps light here), and a paper sheet laid over
-    // its foot with the ways in.
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+    // A white panel with the mark on a black tile, under the status bar,
+    // and a black sheet laid over its foot with the ways in (the dark
+    // palette, in either theme). The shell sets the bar icons to match.
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.White)) {
         Hero()
+        com.legumlex.client.ui.theme.LexDarkRegion {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = HeroHeight - 28.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .background(MaterialTheme.colorScheme.background)
-                .grain()
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(topStart = 0.dp, topEnd = 28.dp))
+                .background(androidx.compose.ui.graphics.Color.Black)
                 .verticalScroll(rememberScrollState())
                 .imePadding()
                 .navigationBarsPadding()
@@ -199,24 +198,25 @@ fun LoginScreen(
             }
         }
         }
+        }
     }
 }
 
 /**
- * The black panel: a flat pattern of circles, halves and quarters in two
- * near-blacks (no gradient), and the mark on a white tile at its centre.
+ * The white panel: a flat pattern of circles, halves and quarters in two
+ * pale greys (no gradient), and the white mark on a black tile at its centre.
  */
 private val HeroHeight = 300.dp
 
 @Composable
 private fun Hero() {
-    val c1 = androidx.compose.ui.graphics.Color(0xFF121212)
-    val c2 = androidx.compose.ui.graphics.Color(0xFF1B1B1B)
+    val c1 = androidx.compose.ui.graphics.Color(0xFFF4F4F4)
+    val c2 = androidx.compose.ui.graphics.Color(0xFFECECEC)
     Box(
         Modifier
             .fillMaxWidth()
             .height(HeroHeight)
-            .background(androidx.compose.ui.graphics.Color.Black),
+            .background(androidx.compose.ui.graphics.Color.White),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
@@ -243,10 +243,10 @@ private fun Hero() {
                 .statusBarsPadding()
                 .size(84.dp)
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
-                .background(androidx.compose.ui.graphics.Color.White),
+                .background(androidx.compose.ui.graphics.Color.Black),
             contentAlignment = Alignment.Center,
         ) {
-            LegumMark(size = 40.dp, fillColor = androidx.compose.ui.graphics.Color.Black)
+            LegumMark(size = 40.dp, fillColor = androidx.compose.ui.graphics.Color.White)
         }
     }
 }

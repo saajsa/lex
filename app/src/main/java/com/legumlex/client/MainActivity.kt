@@ -164,16 +164,20 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // sign-in draw edge to edge, under the status bar, and grain their
         // own paper (the splash has none).
         val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path
-        // Both are black under the bars in either theme: light bar icons
-        // there, the theme's own everywhere else. Set by route, here, so one
-        // screen leaving cannot undo the next one's.
+        // Fixed colours under the bars in either theme: the splash is black
+        // (light icons); sign-in is white at the top (dark status icons) and
+        // black at the foot (light navigation icons). The theme's own
+        // everywhere else. Set by route, here, so one screen leaving cannot
+        // undo the next one's.
         val shellView = androidx.compose.ui.platform.LocalView.current
         val themeDark = com.legumlex.client.ui.theme.Lex.colors.isDark
         LaunchedEffect(currentRoute, themeDark) {
             val window = (shellView.context as? android.app.Activity)?.window ?: return@LaunchedEffect
             val bars = androidx.core.view.WindowCompat.getInsetsController(window, shellView)
-            bars.isAppearanceLightStatusBars = !edge && !themeDark
-            bars.isAppearanceLightNavigationBars = !(currentRoute == Route.Splash.path) && !themeDark
+            val splash = currentRoute == Route.Splash.path
+            val login  = currentRoute == Route.Login.path
+            bars.isAppearanceLightStatusBars = if (splash) false else if (login) true else !themeDark
+            bars.isAppearanceLightNavigationBars = if (edge) false else !themeDark
         }
         Box(if (edge) Modifier else Modifier.padding(innerPadding).grain()) {
             LegumNavGraph(navController)
