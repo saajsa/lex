@@ -129,7 +129,11 @@ fun LegumNavGraph(navController: NavHostController) {
                 onAsk            = { navController.navigate(Route.NewConsultation.build()) },
                 onAgreementCheck = { navController.navigate(Route.LeadAhc.path) },
                 onEnquiries      = { navController.navigateTab(Route.LeadEnquiries.path) },
+                onOpenAccount    = { navController.navigate(Route.LeadOnboard.path) },
             )
+        }
+        composable(Route.LeadOnboard.path) {
+            com.legumlex.client.feature.lead.LeadOnboardingScreen(onClose = { navController.navigateTab(Route.LeadHome.path) })
         }
         composable(Route.LeadEnquiries.path) {
             com.legumlex.client.feature.lead.LeadEnquiriesScreen(

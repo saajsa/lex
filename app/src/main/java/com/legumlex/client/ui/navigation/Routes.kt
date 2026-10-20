@@ -36,6 +36,7 @@ sealed class Route(val path: String) {
     data object LeadEnquiries : Route("lead/enquiries")
     data object LeadMore      : Route("lead/more")
     data object LeadAhc       : Route("lead/agreement-check")
+    data object LeadOnboard   : Route("lead/open-account")
     data object LeadThread    : Route("lead/enquiry/{hash}") {
         const val ARG = "hash"
         fun build(hash: String) = "lead/enquiry/$hash"
@@ -249,6 +250,7 @@ private val wizardBases = setOf(
     Route.Vault.path,                                   // multi-step document wizard
     Route.DoIntake.path.substringBefore("?"),          // digital_office/intake
     Route.LeadAhc.path,                                 // a lead's Agreement Check
+    Route.LeadOnboard.path,                             // a lead opening an account
 )
 
 /** Immersive takeovers + splash/sign-in/notifications get NO centered-logo header. */

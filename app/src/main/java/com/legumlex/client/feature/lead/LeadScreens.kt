@@ -46,17 +46,12 @@ import java.time.LocalDate
  * once the firm approves them.
  */
 
-/** The website's own registration, until the app has its onboarding. */
-private fun openRegistration(context: android.content.Context) {
-    val site = BuildConfig.API_BASE_URL.substringBefore("customers_api/")
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(site + "lexon/register")))
-}
-
 @Composable
 fun LeadHomeScreen(
     onAsk: () -> Unit,
     onAgreementCheck: () -> Unit,
     onEnquiries: () -> Unit,
+    onOpenAccount: () -> Unit,
 ) {
     val context = LocalContext.current
     val name by SessionRole.name.collectAsState()
@@ -100,9 +95,7 @@ fun LeadHomeScreen(
             Eyebrow("Become A Client", modifier = Modifier.padding(start = 4.dp, top = 4.dp))
             LexCard {
                 MenuRow(Icons.Outlined.HowToReg, "Open An Account",
-                    "Register with your identity documents. The firm approves every new account; this app then opens as your client app.") {
-                    openRegistration(context)
-                }
+                    "Register with your identity documents. The firm approves every new account; this app then opens as your client app.", onOpenAccount)
             }
         }
         Spacer(Modifier.height(8.dp))

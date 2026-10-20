@@ -3,6 +3,7 @@ package com.legumlex.client.data.api
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.http.Field
+import retrofit2.http.FieldMap
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.Headers
@@ -648,6 +649,32 @@ interface ApiService {
     @Multipart
     @POST
     suspend fun funnelIntake(@Url url: String, @Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    // A lead opens a client account (lead/onboarding): the website's registration.
+    @GET("lead/onboarding")
+    suspend fun leadOnboarding(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/onboarding/begin")
+    suspend fun leadOnboardingBegin(@Field("entity_type") entityType: String): Map<String, Any?>
+
+    @Multipart
+    @POST("lead/onboarding/document")
+    suspend fun leadOnboardingDocument(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/onboarding/remove")
+    suspend fun leadOnboardingRemove(@Field("document_type") type: String): Map<String, Any?>
+
+    @GET("lead/onboarding/review")
+    suspend fun leadOnboardingReview(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/onboarding/submit")
+    suspend fun leadOnboardingSubmit(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    @POST("lead/onboarding/discard")
+    suspend fun leadOnboardingDiscard(): Map<String, Any?>
 
     /** The Legum Lex site's public notice tracker (cases/landing/ajax_track), by its own URL. */
     @FormUrlEncoded
