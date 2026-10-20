@@ -134,6 +134,9 @@ fun ActionQueueScreen(
 
 private val Short = java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)
 
+/** The strip's "Later": everything due after the month it shows. */
+private const val LATER = Long.MAX_VALUE
+
 /**
  * The queue as a day timeline: today and the fortnight ahead. What is overdue
  * or has no date sits under today. The most pressing item of the day is the
@@ -149,24 +152,40 @@ private fun QueueDays(
     onAskNew: () -> Unit,
 ) {
     val today = remember { java.time.LocalDate.now() }
-    val dayOf: (ActionItem) -> java.time.LocalDate = { it.dueAt?.takeIf { d -> d.isAfter(today) } ?: today }
-    val byDay = remember(items) { items.groupBy(dayOf) }
-    val last = maxOf(today.plusDays(13), byDay.keys.maxOrNull() ?: today)
-    val days = remember(last) { generateSequence(today) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList() }
+    // A month ahead day by day; anything due after it is under "Later".
+    val lastDay = today.plusDays(29)
+    val keyOf: (ActionItem) -> Long = { i ->
+        val d = i.dueAt?.takeIf { d -> d.isAfter(today) } ?: today
+        if (d.isAfter(lastDay)) LATER else d.toEpochDay()
+    }
+    val byDay = remember(items) { items.groupBy(keyOf) }
+    val days = remember(today) { generateSequence(today) { it.plusDays(1) }.takeWhile { !it.isAfter(lastDay) }.toList() }
     var day by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(today.toEpochDay()) }
-    val selected = java.time.LocalDate.ofEpochDay(day)
+    val later = day == LATER
+    val selected = if (later) null else java.time.LocalDate.ofEpochDay(day)
     val sevRank = { i: ActionItem -> when (i.severity) { ActionSeverity.Critical -> 0; ActionSeverity.Warning -> 1; ActionSeverity.Info -> 2 } }
-    val list = (byDay[selected] ?: emptyList()).sortedWith(compareBy(sevRank).thenBy { it.dueAt ?: java.time.LocalDate.MAX })
+    val list = (byDay[day] ?: emptyList()).sortedWith(compareBy(sevRank).thenBy { it.dueAt ?: java.time.LocalDate.MAX })
     val featured = list.firstOrNull()
 
     androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
         item("head") {
             Spacer(Modifier.height(12.dp))
-            com.legumlex.client.ui.components.DayHead(selected, Modifier.padding(horizontal = 20.dp)) {
+            val count: @Composable () -> Unit = {
                 if (items.isNotEmpty()) Text("${items.size} Waiting", style = MaterialTheme.typography.labelLarge, color = Lex.colors.mutedForeground)
             }
+            if (later) com.legumlex.client.ui.components.DayHead(lastDay, Modifier.padding(horizontal = 20.dp), title = "Later",
+                dateLine = "After " + com.legumlex.client.ui.components.longDate(lastDay), trailing = count)
+            else com.legumlex.client.ui.components.DayHead(selected!!, Modifier.padding(horizontal = 20.dp), trailing = count)
             Spacer(Modifier.height(12.dp))
-            com.legumlex.client.ui.components.DayStrip(days, selected, byDay.keys, onSelect = { day = it.toEpochDay() })
+            com.legumlex.client.ui.components.DayStrip(
+                days = days,
+                selected = selected,
+                marked = byDay.keys.filter { it != LATER }.map { java.time.LocalDate.ofEpochDay(it) }.toSet(),
+                onSelect = { day = it.toEpochDay() },
+                after = if (byDay.containsKey(LATER)) "Later" else null,
+                edge = if (later) 1 else 0,
+                onEdge = { day = LATER },
+            )
             Spacer(Modifier.height(16.dp))
         }
         if (items.isEmpty()) item("none") {
@@ -187,6 +206,7 @@ private fun QueueDays(
                             item.dueAt == null -> "No Date"
                             item.dueAt.isBefore(today) -> "Overdue · " + Short.format(item.dueAt)
                             item.dueAt == today -> "Due Today"
+                            item.dueAt.year != today.year -> "Due " + Short.format(item.dueAt) + " " + item.dueAt.year
                             else -> "Due " + Short.format(item.dueAt)
                         },
                         body = item.subtitle,

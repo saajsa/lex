@@ -57,6 +57,7 @@ class NotificationsRepository(private val api: ApiService) {
             subtitle  = if ((m["type"] as? String) == "attention")
                 listOf(m["subtitle"] as? String, m["body"] as? String).filterNot { it.isNullOrBlank() }.joinToString(" · ")
             else (m["subtitle"] as? String).orEmpty(),
+            body      = (m["body"] as? String).orEmpty(),
             cta       = (m["cta"] as? String).orEmpty().ifBlank { "Open" },
             link      = (m["link"] as? String).orEmpty(),
             createdAt = createdAt,

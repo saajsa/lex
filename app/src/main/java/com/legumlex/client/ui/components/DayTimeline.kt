@@ -46,12 +46,18 @@ fun dayTitle(d: LocalDate, today: LocalDate = LocalDate.now()): String = when (d
 
 /** The head: the date over the day's name, an optional action at the right. */
 @Composable
-fun DayHead(day: LocalDate, modifier: Modifier = Modifier, trailing: (@Composable () -> Unit)? = null) {
+fun DayHead(
+    day: LocalDate,
+    modifier: Modifier = Modifier,
+    title: String = dayTitle(day),
+    dateLine: String = DateLine.format(day),
+    trailing: (@Composable () -> Unit)? = null,
+) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
-            Text(DateLine.format(day), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+            Text(dateLine, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
             Text(
-                dayTitle(day),
+                title,
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp),
                 color = Lex.colors.foreground,
             )
@@ -60,21 +66,33 @@ fun DayHead(day: LocalDate, modifier: Modifier = Modifier, trailing: (@Composabl
     }
 }
 
+/** "d MMMM yyyy", for heads such as "Before 21 September 2026". */
+fun longDate(d: LocalDate): String = DateLine.format(d)
+
 /**
- * The strip of days. The chosen day is a dark pill with a dot; a day that has
- * items carries a dot under it. It opens scrolled to the chosen day.
+ * The strip of days. The chosen day is a dark pill with a dot; a day with
+ * unread items carries a red dot, one with items a grey dot. What falls
+ * outside the strip's span sits in a chip at its start ([before], e.g.
+ * "Earlier") or its end ([after], e.g. "Later"); [selected] null with
+ * [edge] -1 or 1 means that chip is chosen. It opens scrolled to the choice.
  */
 @Composable
 fun DayStrip(
     days: List<LocalDate>,
-    selected: LocalDate,
+    selected: LocalDate?,
     marked: Set<LocalDate>,
     onSelect: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
+    unread: Set<LocalDate> = emptySet(),
+    before: String? = null,
+    after: String? = null,
+    edge: Int = 0,
+    edgeUnread: Boolean = false,
+    onEdge: (Int) -> Unit = {},
 ) {
     val list = rememberLazyListState()
     LaunchedEffect(days.size) {
-        val i = days.indexOf(selected)
+        val i = if (selected == null) (if (edge < 0) 0 else days.size) else days.indexOf(selected) + (if (before != null) 1 else 0)
         if (i >= 0) list.scrollToItem((i - 3).coerceAtLeast(0))
     }
     LazyRow(
@@ -83,6 +101,7 @@ fun DayStrip(
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        if (before != null) item("before") { EdgeChip(before, selected == null && edge < 0, edgeUnread) { onEdge(-1) } }
         itemsIndexed(days, key = { _, d -> d.toEpochDay() }) { _, d ->
             val on = d == selected
             val ink = if (on) Lex.colors.primaryForeground else Lex.colors.mutedForeground
@@ -103,6 +122,7 @@ fun DayStrip(
                     Modifier.size(4.dp).clip(CircleShape).background(
                         when {
                             on -> Lex.colors.primaryForeground
+                            d in unread -> Lex.colors.danger.solid
                             d in marked -> Lex.colors.mutedForeground
                             else -> Color.Transparent
                         }
@@ -110,6 +130,29 @@ fun DayStrip(
                 )
             }
         }
+        if (after != null) item("after") { EdgeChip(after, selected == null && edge > 0, false) { onEdge(1) } }
+    }
+}
+
+/** "Earlier" / "Later": everything beyond the strip's span, as one choice. */
+@Composable
+private fun EdgeChip(label: String, on: Boolean, unread: Boolean, onClick: () -> Unit) {
+    val ink = if (on) Lex.colors.primaryForeground else Lex.colors.mutedForeground
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(23.dp))
+            .background(if (on) Lex.colors.primary else Color.Transparent)
+            .border(1.dp, if (on) Color.Transparent else Lex.colors.border, RoundedCornerShape(23.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("···", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = ink)
+        Spacer(Modifier.height(2.dp))
+        Text(label, fontSize = 11.sp, color = ink)
+        Spacer(Modifier.height(6.dp))
+        Box(Modifier.size(4.dp).clip(CircleShape).background(
+            when { on -> Lex.colors.primaryForeground; unread -> Lex.colors.danger.solid; else -> Color.Transparent }))
     }
 }
 
@@ -128,6 +171,7 @@ fun TimelineItem(
     last: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    expanded: Boolean = false,
     footer: (@Composable () -> Unit)? = null,
 ) {
     val rail = Lex.colors.border
@@ -160,7 +204,7 @@ fun TimelineItem(
                 }
                 if (body.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
-                    Text(body, fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.72f), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
+                    Text(body, fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.72f), maxLines = if (expanded) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
                 }
                 footer?.let { Spacer(Modifier.height(14.dp)); it() }
             }
@@ -180,7 +224,7 @@ fun TimelineItem(
                 }
                 if (body.isNotBlank()) {
                     Spacer(Modifier.height(3.dp))
-                    Text(body, fontSize = 12.5.sp, color = Lex.colors.mutedForeground, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
+                    Text(body, fontSize = 12.5.sp, color = Lex.colors.mutedForeground, maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
                 }
                 footer?.let { Spacer(Modifier.height(8.dp)); it() }
             }

@@ -107,9 +107,6 @@ fun NotificationsScreen(
 
 private val Clock = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ENGLISH)
 
-/** Waiting on the client is never "read": it stays live until the step is done. */
-private fun AppNotification.live() = !isRead || type == NotifType.ATTENTION
-
 @Composable
 private fun TopBar(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -127,6 +124,22 @@ private fun TopBar(unread: Int, onBack: () -> Unit, onMarkAll: () -> Unit) {
     }
 }
 
+private val ShortDate = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)
+private val SinceDate = java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)
+
+/** How far back the strip runs; anything older is under "Earlier". */
+private const val SpanDays = 30L
+
+/** The strip's choice: a day, or everything before it (Earlier). */
+private const val EARLIER = Long.MIN_VALUE
+
+/**
+ * The feed (customers_api notifications): matters waiting on the client, and
+ * the firm's announcements. What waits is not an event of a day; it is pinned
+ * above the days, as the portal drawer leads with it, until the step is done.
+ * The announcements hang on the days they were published; one is read where
+ * it stands (it opens nowhere), so tapping it shows it in full.
+ */
 @Composable
 private fun DayFeed(
     items: List<AppNotification>,
@@ -136,38 +149,91 @@ private fun DayFeed(
     onOpen: (AppNotification) -> Unit,
 ) {
     val today = remember { java.time.LocalDate.now() }
-    val dayOf: (AppNotification) -> java.time.LocalDate = { it.createdAt?.toLocalDate() ?: today }
-    val byDay = remember(items) { items.groupBy(dayOf) }
-    // The strip runs back to the oldest notification (at least a week), and
-    // opens on the latest day that has any.
-    val oldest = byDay.keys.minOrNull()?.let { minOf(it, today.minusDays(6)) } ?: today.minusDays(6)
-    val days = remember(oldest, today) { generateSequence(oldest) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }.toList() }
-    var day by rememberSaveable { mutableStateOf(byDay.keys.maxOrNull()?.toEpochDay() ?: today.toEpochDay()) }
-    val selected = java.time.LocalDate.ofEpochDay(day)
-    val list = (byDay[selected] ?: emptyList()).sortedByDescending { it.createdAt }
-    val featured = list.firstOrNull { it.live() }
+    val first = today.minusDays(SpanDays - 1)
+    val waiting = items.filter { it.type == NotifType.ATTENTION }
+    val news = items.filterNot { it.type == NotifType.ATTENTION }
+    // Undated is today's; anything before the span is Earlier's.
+    val keyOf: (AppNotification) -> Long = { n ->
+        val d = n.createdAt?.toLocalDate() ?: today
+        if (d.isBefore(first)) EARLIER else minOf(d, today).toEpochDay()
+    }
+    val byKey = remember(news) { news.groupBy(keyOf) }
+    val days = remember(first) { generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }.toList() }
+    val unreadKeys = news.filter { !it.isRead }.map(keyOf).toSet()
+    // Open on the latest day with something unread; else the latest with anything; else today.
+    val opening = (unreadKeys.filter { it != EARLIER }.maxOrNull()
+        ?: unreadKeys.firstOrNull()
+        ?: byKey.keys.filter { it != EARLIER }.maxOrNull()
+        ?: byKey.keys.firstOrNull()
+        ?: today.toEpochDay())
+    var key by rememberSaveable { mutableStateOf(opening) }
+    var open by rememberSaveable { mutableStateOf(setOf<String>()) }
+    val earlier = key == EARLIER
+    val selected = if (earlier) null else java.time.LocalDate.ofEpochDay(key)
+    val list = (byKey[key] ?: emptyList()).sortedByDescending { it.createdAt }
+    val featured = list.firstOrNull { !it.isRead }
+    val tap: (AppNotification) -> Unit = { n ->
+        // An announcement is read here: the tap shows it whole (and marks it read).
+        if (n.link.isBlank() && n.type == NotifType.GENERAL) open = if (n.id in open) open - n.id else open + n.id
+        onOpen(n)
+    }
 
     LazyColumn(Modifier.fillMaxSize()) {
         item("top") { TopBar(unread, onBack, onMarkAll) }
+        if (waiting.isNotEmpty()) {
+            item("waiting-head") {
+                Text("Requires Your Attention", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    color = com.legumlex.client.ui.theme.Lex.colors.danger.solid,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp))
+            }
+            itemsIndexed(waiting, key = { _, n -> "w" + n.id }) { i, n ->
+                TimelineItem(
+                    title = n.title,
+                    // Since when it has waited (its last activity), not an event's date.
+                    time = n.createdAt?.let { "Since " + SinceDate.format(it) } ?: "",
+                    body = n.subtitle,
+                    live = true,
+                    featured = true,
+                    first = i == 0,
+                    last = i == waiting.lastIndex,
+                    onClick = { tap(n) },
+                    footer = if (n.link.isNotBlank()) ({ FeatureCta(n.cta) }) else null,
+                )
+            }
+            item("waiting-gap") { Spacer(Modifier.height(12.dp)) }
+        }
         item("head") {
-            DayHead(selected, Modifier.padding(horizontal = 20.dp))
+            if (earlier) DayHead(first, Modifier.padding(horizontal = 20.dp), title = "Earlier", dateLine = "Before " + com.legumlex.client.ui.components.longDate(first))
+            else DayHead(selected!!, Modifier.padding(horizontal = 20.dp))
             Spacer(Modifier.height(12.dp))
-            DayStrip(days, selected, byDay.keys, onSelect = { day = it.toEpochDay() })
+            DayStrip(
+                days = days,
+                selected = selected,
+                marked = byKey.keys.filter { it != EARLIER }.map { java.time.LocalDate.ofEpochDay(it) }.toSet(),
+                unread = unreadKeys.filter { it != EARLIER }.map { java.time.LocalDate.ofEpochDay(it) }.toSet(),
+                onSelect = { key = it.toEpochDay() },
+                before = if (byKey.containsKey(EARLIER)) "Earlier" else null,
+                edge = if (earlier) -1 else 0,
+                edgeUnread = EARLIER in unreadKeys,
+                onEdge = { key = EARLIER },
+            )
             Spacer(Modifier.height(16.dp))
         }
         if (items.isEmpty()) item("none") { EmptyState() }
-        else if (list.isEmpty()) item("empty") { DayEmpty("Nothing arrived on this day.") }
+        else if (list.isEmpty()) item("empty") { DayEmpty(if (news.isEmpty()) "The firm has published no announcements." else "Nothing was published on this day.") }
         itemsIndexed(list, key = { _, n -> n.id }) { i, n ->
             TimelineItem(
                 title = n.title,
-                time = n.createdAt?.let { Clock.format(it) } ?: n.timeLabel,
-                body = n.subtitle,
-                live = n.live(),
+                time = n.createdAt?.let { if (earlier) ShortDate.format(it) else Clock.format(it) } ?: n.timeLabel,
+                // Opened, an announcement shows its whole text.
+                body = if (n.id in open && n.body.isNotBlank()) n.body else n.subtitle,
+                live = !n.isRead,
                 featured = n === featured,
                 first = i == 0,
                 last = i == list.lastIndex,
-                onClick = { onOpen(n) },
-                footer = if (n === featured && n.cta.isNotBlank() && n.link.isNotBlank()) ({ FeatureCta(n.cta) }) else null,
+                onClick = { tap(n) },
+                expanded = n.id in open,
+                footer = if (n === featured && n.link.isNotBlank()) ({ FeatureCta(n.cta) }) else null,
             )
         }
         item("end") { Spacer(Modifier.height(24.dp)) }

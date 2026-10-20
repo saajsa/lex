@@ -21,6 +21,8 @@ data class AppNotification(
     val severity: NotifSeverity,
     val title: String,
     val subtitle: String,
+    /** The whole text (an announcement's subtitle is cut at 240 characters by the server). */
+    val body: String = "",
     val cta: String,
     val link: String,
     val createdAt: LocalDateTime?,
