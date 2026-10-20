@@ -99,7 +99,7 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
 
         Notice(
             title = "Held As On Record",
-            body = "Your name, email address and phone number appear on filings and on service of notice, so they are held as we have them. To correct one, write to us and we will update the record for you.",
+            body = "Your name and email address appear on filings and on service of notice, so they are held as we have them. To correct one, write to us and we will update the record for you. Your mobile number is changed by verifying a new one below.",
             palette = Lex.colors.info,
         )
 
@@ -125,8 +125,6 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
             KeyValueRow("Email Address", p.email ?: "Not Recorded", trailing = {
                 if (p.emailVerified) StatusBadge("Verified", Lex.colors.success) else Locked()
             })
-            HorizontalDivider(color = Lex.colors.border)
-            KeyValueRow("Phone Number", p.phone ?: "Not Recorded", trailing = { Locked() })
             p.position?.let {
                 HorizontalDivider(color = Lex.colors.border)
                 KeyValueRow("Position", it)
@@ -168,8 +166,9 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
 }
 
 /**
- * The verified mobile: what sign-in codes and case updates go to. Verifying is
- * the contact's own act — a code to the number proves it is theirs.
+ * The one mobile number on record: what sign-in codes and case updates go to
+ * once verified. Verifying is the contact's own act — a code to the number
+ * proves it is theirs — and a different number verified replaces the record.
  */
 @Composable
 private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewModel) {
@@ -182,7 +181,7 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
             title = { Text("Remove This Number?") },
             text = {
                 Text("You will no longer be able to sign in with a code to ${m.number.orEmpty().ifBlank { "this number" }}, " +
-                    "and case updates on WhatsApp and SMS will stop. Make sure you can sign in with Google or a password first.")
+                    "and case updates on WhatsApp and SMS will stop. The number remains on your record. Make sure you can sign in with Google or a password first.")
             },
             confirmButton = {
                 TextButton(onClick = { confirmRemove = false; vm.removeNumber() }) {
@@ -227,14 +226,19 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
                     TextButton(onClick = { confirmRemove = true }) { Text("Remove", color = Lex.colors.danger.softText) }
                 }
             } else {
+                m.number?.let {
+                    KeyValueRow("Number", it)
+                    HorizontalDivider(color = Lex.colors.border)
+                }
                 Column(Modifier.padding(16.dp)) {
                     Text(
-                        "A verified number lets you sign in with a code instead of a password, and brings case updates on WhatsApp.",
+                        if (m.number != null) "The number on your record. Verify it to sign in with a code instead of a password and to receive case updates on WhatsApp."
+                        else "A verified number lets you sign in with a code instead of a password, and brings case updates on WhatsApp.",
                         style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground,
                     )
                     Spacer(Modifier.height(12.dp))
                     if (m.available) {
-                        LegumPrimaryButton(text = "Verify A Number", onClick = vm::openVerify, leadingIcon = Icons.Outlined.Smartphone)
+                        LegumPrimaryButton(text = if (m.number != null) "Verify Number" else "Verify A Number", onClick = vm::openVerify, leadingIcon = Icons.Outlined.Smartphone)
                     } else {
                         Text("Verification codes cannot be sent at present. Please try again later.",
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
@@ -261,7 +265,7 @@ private fun VerifySteps(v: VerifyFlow, vm: ProfileViewModel) {
                 value = v.number, onValueChange = vm::onNumber, label = "Mobile Number",
                 leadingIcon = Icons.Outlined.Smartphone, keyboardType = KeyboardType.Phone, enabled = !v.busy,
                 modifier = Modifier.fillMaxWidth(),
-                supportingText = "The code comes on WhatsApp, or by SMS.",
+                supportingText = "A different number replaces the one on your record once verified. The code comes on WhatsApp, or by SMS.",
             )
             Spacer(Modifier.height(12.dp))
             LegumPrimaryButton(text = if (v.busy) "Sending…" else "Send Code", onClick = vm::sendCode,

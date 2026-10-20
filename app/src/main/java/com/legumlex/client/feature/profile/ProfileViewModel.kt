@@ -67,7 +67,9 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openVerify() {
         _note.value = null
-        _verify.value = VerifyFlow(open = true)
+        // Prefilled with the number on record: verifying it is the usual case.
+        val onRecord = (_state.value as? ProfileState.Ready)?.profile?.mobile?.number.orEmpty()
+        _verify.value = VerifyFlow(open = true, number = onRecord)
     }
 
     fun closeVerify() {
@@ -144,7 +146,7 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
     fun removeNumber() {
         viewModelScope.launch {
             repo.remove()
-                .onSuccess { updateMobile(it); _noteIsError.value = false; _note.value = "Your number is removed. Sign-in by mobile and case updates on WhatsApp stop." }
+                .onSuccess { updateMobile(it); _noteIsError.value = false; _note.value = "Code sign-in and WhatsApp updates have stopped. The number remains on your record." }
                 .onFailure { fail(it.message) }
         }
     }

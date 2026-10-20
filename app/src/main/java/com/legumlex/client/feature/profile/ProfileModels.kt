@@ -22,7 +22,7 @@ data class Profile(
         .joinToString("") { it.first().uppercase() }.ifBlank { "?" }
 }
 
-/** The verified mobile: what codes and case updates go to. */
+/** The one mobile number on record, and whether it is verified for codes and case updates. */
 data class Mobile(
     val available: Boolean,   // a code can be sent at all
     val number: String?,
@@ -48,7 +48,9 @@ internal fun parseProfile(d: Map<String, Any?>): Profile {
         lastLogin       = s("last_login"),
         passwordChanged = s("password_changed"),
         permissions     = (d["permissions"] as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
-        mobile          = parseMobile(m),
+        // A server before the one-number change sent only a verified number;
+        // the record number (phone) stands in for it there.
+        mobile          = parseMobile(m).let { if (it.number == null) it.copy(number = s("phone")) else it },
     )
 }
 
