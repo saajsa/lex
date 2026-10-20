@@ -12,6 +12,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
@@ -175,7 +178,6 @@ fun LoginScreen(
                         onGoogle = signInWithGoogle,
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
-                        onLex    = onAskLexIntelligence,
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
                     )
                     LoginView.Mobile -> MobileView(vm = vm, mobile = mobile, busy = isLoading)
@@ -193,7 +195,12 @@ fun LoginScreen(
             }
         }
 
-        Spacer(Modifier.weight(1f, fill = true))
+        // Lex Intelligence, in the space beneath (owner, 2026-10-20): the bar's
+        // Consult, its cursor blinking; a touch draws a ring once round it, and
+        // the desk opens when the ring closes.
+        Box(Modifier.weight(1f, fill = true).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            if (view == LoginView.Choose) LexOrb(enabled = !isLoading, onOpen = onAskLexIntelligence)
+        }
         Spacer(Modifier.height(spacing.s6))
 
         }
@@ -253,12 +260,10 @@ private fun ColumnScope.ChooseView(
     onGoogle: () -> Unit,
     onMobile: () -> Unit,
     onEmail: () -> Unit,
-    onLex: () -> Unit,
     onDev: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    // The ways in, as their marks alone: Google, a mobile code, and Lex
-    // Intelligence, which anyone may ask before signing in (owner, 2026-10-20).
+    // The two ways in, as their marks alone: Google and a mobile code.
     Row(Modifier.align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         MarkButton("Continue with Google", !busy, onGoogle) {
             if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = PrimaryText)
@@ -266,20 +271,6 @@ private fun ColumnScope.ChooseView(
         }
         MarkButton("Continue with Mobile", !busy, onMobile) {
             Icon(Icons.Outlined.Smartphone, contentDescription = null, tint = PrimaryText, modifier = Modifier.size(26.dp))
-        }
-        // The desk's own mark (its header, the bar's Consult), badged "AI".
-        Box {
-            MarkButton("Lex Intelligence", !busy, onLex) {
-                Text(">_", color = PrimaryText, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 21.sp)
-            }
-            Box(
-                Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp)
-                    .clip(RoundedCornerShape(6.dp)).background(LexYellow).padding(horizontal = 5.dp, vertical = 1.dp),
-            ) {
-                Text("AI", color = androidx.compose.ui.graphics.Color.Black, fontSize = 10.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.4.sp)
-            }
         }
     }
     Spacer(Modifier.height(spacing.s5))
@@ -309,6 +300,89 @@ private fun ColumnScope.ChooseView(
 
 /** The counsel desk's yellow (the bottom bar's Consult). */
 private val LexYellow = androidx.compose.ui.graphics.Color(0xFFF5C518)
+
+/**
+ * Lex Intelligence: the yellow prompt with its blinking cursor and an "AI"
+ * badge. Touched, a ring runs once round it, then [onOpen]; back here later,
+ * the ring is gone and it can be touched again.
+ */
+@Composable
+private fun LexOrb(enabled: Boolean, onOpen: () -> Unit) {
+    val sweep = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    var running by remember { mutableStateOf(false) }
+    var on by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(530); on = !on } }
+    // Returning to this screen: the ring starts empty again.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && !running) scope.launch { sweep.snapTo(0f) }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "lex-pulse")
+    val breath by pulse.animateFloat(1f, 1.06f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1400), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "lex-breath")
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(96.dp)) {
+        Box(
+            Modifier.fillMaxSize()
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .clickable(enabled = enabled && !running, onClickLabel = "Lex Intelligence") {
+                    running = true
+                    scope.launch {
+                        sweep.snapTo(0f)
+                        sweep.animateTo(360f, androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                        onOpen()
+                        running = false
+                    }
+                }
+                .semantics { contentDescription = "Lex Intelligence" },
+            contentAlignment = Alignment.Center,
+        ) {
+            // The ring, round the button.
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                val w = 3.dp.toPx()
+                drawCircle(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f), radius = size.minDimension / 2 - w,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+                if (sweep.value > 0f) drawArc(LexYellow, -90f, sweep.value, false,
+                    topLeft = androidx.compose.ui.geometry.Offset(w, w),
+                    size = androidx.compose.ui.geometry.Size(size.width - 2 * w, size.height - 2 * w),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+            }
+            Box(
+                Modifier.size(64.dp).graphicsLayer { val k = if (running) 1f else breath; scaleX = k; scaleY = k }
+                    .clip(androidx.compose.foundation.shape.CircleShape).background(LexYellow),
+                contentAlignment = Alignment.Center,
+            ) {
+                val mono = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 21.sp, color = androidx.compose.ui.graphics.Color.Black)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(">", style = mono)
+                    Spacer(Modifier.width(2.dp))
+                    Box(Modifier.padding(bottom = 7.dp).size(width = 11.dp, height = 3.dp)
+                        .background(if (on) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.Transparent))
+                }
+            }
+        }
+            // The badge, outside the round touch area so it is not clipped.
+            Box(
+                Modifier.align(Alignment.TopEnd).offset(x = (-6).dp, y = 8.dp)
+                    .clip(RoundedCornerShape(6.dp)).background(androidx.compose.ui.graphics.Color.White)
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            ) {
+                Text("AI", color = androidx.compose.ui.graphics.Color.Black, fontSize = 10.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, letterSpacing = 0.4.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Lex Intelligence", style = MaterialTheme.typography.labelLarge, color = SecondaryText)
+    }
+}
 
 /** A round button carrying only a mark; its name is read out, not shown. */
 @Composable
