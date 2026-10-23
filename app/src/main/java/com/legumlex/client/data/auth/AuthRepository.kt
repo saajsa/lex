@@ -78,6 +78,7 @@ class AuthRepository(
             "client"
         } else {
             val st = (d["status"] as? String).orEmpty().ifBlank { "lead" }
+            SessionRole.reviewNote.value = (d["review_note"] as? String).orEmpty()
             tokens.saveLeadStatus(st)
             st
         }

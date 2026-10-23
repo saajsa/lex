@@ -29,6 +29,16 @@ object ApiClient {
         }
 
         val http = OkHttpClient.Builder()
+            // A call marked `X-Long-Call: 1` waits up to two minutes for its
+            // answer: an identity document is read on the server while the
+            // call is open, and that can take more than a minute.
+            .addInterceptor { chain ->
+                val req = chain.request()
+                if (req.header("X-Long-Call") == "1") {
+                    chain.withReadTimeout(120, TimeUnit.SECONDS).withWriteTimeout(120, TimeUnit.SECONDS)
+                        .proceed(req.newBuilder().removeHeader("X-Long-Call").build())
+                } else chain.proceed(req)
+            }
             .addInterceptor(AuthInterceptor(TokenStore(appContext)))
             .addInterceptor(logging)
             .connectTimeout(20, TimeUnit.SECONDS)

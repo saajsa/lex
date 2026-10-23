@@ -14,6 +14,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -44,14 +47,17 @@ import retrofit2.HttpException
  * Google step is the lead's own sign-in; the documents are read as on the
  * website; Review is Details, Address, Contact and Confirm; the account ends
  * with the firm for approval, and the app opens as the client's when the firm
- * approves it.
+ * approves it. One the firm sends back is reopened here (owner, 2026-10-23):
+ * the documents on file are kept, the reviewer's note is shown, and the
+ * corrections are sent again.
  */
 
 data class OnbDoc(val type: String, val label: String, val description: String, val required: Boolean,
-                  val uploaded: Boolean, val name: String?, val read: Boolean?, val fields: List<Pair<String, String>>)
+                  val uploaded: Boolean, val kept: Boolean, val name: String?, val read: Boolean?, val fields: List<Pair<String, String>>)
 
 data class OnbStanding(val email: String, val problem: String, val types: List<Pair<String, String>>,
-                       val entityType: String?, val documents: List<OnbDoc>, val allUploaded: Boolean)
+                       val entityType: String?, val documents: List<OnbDoc>, val allUploaded: Boolean,
+                       val reopened: Boolean, val reviewNote: String)
 
 data class OnbReview(val entityType: String, val email: String, val givenName: String, val familyName: String,
                      val details: Map<String, String>, val sources: Map<String, String>, val unread: List<String>,
@@ -67,10 +73,12 @@ private fun standingOf(d: Map<String, Any?>) = OnbStanding(
     entityType = (d["entity_type"] as? String)?.takeIf { it.isNotBlank() },
     documents = (d["documents"] as? List<Map<String, Any?>>).orEmpty().map { x ->
         OnbDoc(x["type"].s(), x["label"].s(), x["description"].s(), x["required"] == true, x["uploaded"] == true,
-            x["name"] as? String, x["read"] as? Boolean,
+            x["kept"] == true, x["name"] as? String, x["read"] as? Boolean,
             (x["fields"] as? List<Map<String, Any?>>).orEmpty().map { it["label"].s() to it["value"].s() })
     },
     allUploaded = d["all_uploaded"] == true,
+    reopened = d["reopened"] == true,
+    reviewNote = d["review_note"].s(),
 )
 
 /** The server's own words, from a refusal. */
@@ -109,6 +117,12 @@ class OnboardingRepository(private val context: Context) {
 
     @Suppress("UNCHECKED_CAST")
     suspend fun remove(type: String): Result<OnbStanding> = runCatching { standingOf(api.leadOnboardingRemove(type)["data"] as Map<String, Any?>) }
+        .recoverCatching { throw IllegalStateException(it.said("The document could not be removed. Try again.")) }
+
+    /** The registration the firm sent back, opened again to be corrected. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun reopen(): Result<OnbStanding> = runCatching { standingOf(api.leadOnboardingReopen()["data"] as Map<String, Any?>) }
+        .recoverCatching { throw IllegalStateException(it.said("Your registration could not be opened. Try again.")) }
 
     @Suppress("UNCHECKED_CAST")
     suspend fun review(): Result<OnbReview> = runCatching {
@@ -124,7 +138,8 @@ class OnboardingRepository(private val context: Context) {
         TokenStore(context.applicationContext).saveLeadStatus("awaiting_approval")
     }.recoverCatching { throw IllegalStateException(it.said("The registration could not be completed.")) }
 
-    suspend fun discard() { runCatching { api.leadOnboardingDiscard() } }
+    suspend fun discard(): Result<Unit> = runCatching { api.leadOnboardingDiscard(); Unit }
+        .recoverCatching { throw IllegalStateException(it.said("That could not be set aside. Try again.")) }
 }
 
 private val Steps = listOf("Account Type", "Documents", "Details", "Address", "Contact", "Confirm")
@@ -135,32 +150,39 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
     val repo = remember(context) { OnboardingRepository(context) }
     val scope = rememberCoroutineScope()
 
-    var step by remember { mutableIntStateOf(0) }       // 0..5, 6 = sent
+    // The step, the choice and what was typed survive a rotation; the rest is the server's.
+    var step by rememberSaveable { mutableIntStateOf(0) }       // 0..5, 6 = sent
     var standing by remember { mutableStateOf<OnbStanding?>(null) }
     var review by remember { mutableStateOf<OnbReview?>(null) }
     var busy by remember { mutableStateOf("") }          // the document being read, or "submit"
+    var busySince by remember { mutableLongStateOf(0L) }
     var error by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
-    var choice by remember { mutableStateOf<String?>(null) }
-    val f = remember { mutableStateMapOf<String, String>() } // Review's fields
+    var choice by rememberSaveable { mutableStateOf<String?>(null) }
+    val f = rememberSaveable(saver = FieldsSaver) { mutableStateMapOf<String, String>() } // Review's fields
+    val sentBack by SessionRole.status.collectAsState()
 
     LaunchedEffect(Unit) {
-        repo.standing().onSuccess { s ->
-            standing = s; choice = s.entityType
-            if (s.entityType != null) step = 1
+        repo.standing().onSuccess { s0 ->
+            // Sent back by the firm: open that registration again, documents kept.
+            val s = if (sentBack == "rejected" && !s0.reopened) repo.reopen().getOrElse { error = it.message.orEmpty(); s0 } else s0
+            standing = s; if (choice == null) choice = s.entityType
+            // A draft under way picks up at its documents (only on a first open, not after a rotation).
+            if (s.entityType != null && step == 0 && !s.reopened) step = 1
         }.onFailure { error = it.message.orEmpty() }
     }
 
     fun upload(type: String, uri: Uri) = scope.launch {
-        busy = type; error = ""; notice = ""
-        repo.upload(type, uri).onSuccess { (s, n) -> standing = s; notice = n }.onFailure { error = it.message.orEmpty() }
+        busy = type; busySince = System.currentTimeMillis(); error = ""; notice = ""
+        repo.upload(type, uri).onSuccess { (s, n) -> standing = s; review = null; notice = n }.onFailure { error = it.message.orEmpty() }
         busy = ""
     }
-    var target by remember { mutableStateOf("") }
+    var target by rememberSaveable { mutableStateOf("") }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) upload(target, uri) }
     val scan = rememberDocumentScannerLauncher { uri -> if (uri != null) upload(target, uri) }
 
-    fun toReview() = scope.launch {
+    /** The readings for Details on; [go] moves there (false: reloading them after a rotation). */
+    fun toReview(go: Boolean = true) = scope.launch {
         error = ""
         repo.review().onSuccess { r ->
             review = r
@@ -174,15 +196,18 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                 f["nationality"] = d["nationality"].orEmpty()
                 f["address"] = d["address"].orEmpty()
                 f["city"] = d["city"].orEmpty(); f["state"] = d["state"].orEmpty(); f["zip"] = d["pincode"].orEmpty()
-                val mob = d["mobile"].orEmpty()
+                val mob = d["mobile"].orEmpty().ifBlank { d["phonenumber"].orEmpty() }
                 f["phonenumber"] = if (r.entityType == "nri") mob else mob.filter { it.isDigit() }.takeLast(10)
                 val read = d["country_name"].orEmpty().lowercase()
                 r.countries.firstOrNull { it.second.lowercase() == read }?.let { f["country"] = it.first.toString() }
             }
-            step = 2
+            if (go) step = 2
         }.onFailure { error = it.message.orEmpty() }
     }
+    // After a rotation the step and the typed fields are kept; the readings are asked for again.
+    LaunchedEffect(step, standing != null) { if (step in 2..5 && review == null && standing?.allUploaded == true) toReview(go = false) }
 
+    val reopened = standing?.reopened == true
     val type = review?.entityType ?: choice.orEmpty()
     val person = type == "individual" || type == "nri"
     val nri = type == "nri"
@@ -204,12 +229,12 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
             nri && f["country"].isNullOrBlank() -> "Choose the country you live in."
             else -> ""
         }
-        4 -> if (nri) (if (!f["phonenumber"].orEmpty().matches(Regex("\\+?[0-9 ]{8,19}"))) "Enter your number with its country code, like +44 7700 900123." else "")
+        4 -> if (reopened) "" else if (nri) (if (!f["phonenumber"].orEmpty().matches(Regex("\\+?[0-9 ]{8,19}"))) "Enter your number with its country code, like +44 7700 900123." else "")
              else (if (!f["phonenumber"].orEmpty().matches(Regex("[0-9]{10}"))) "Enter the ten digits of your mobile number." else "")
         5 -> when {
-            f["password"].orEmpty().length < 8 -> "The password needs at least eight characters."
-            f["password"] != f["password_confirm"] -> "The two passwords do not match."
-            f["terms"] != "1" -> "Tick to confirm before opening the account."
+            !reopened && f["password"].orEmpty().length < 8 -> "The password needs at least eight characters."
+            !reopened && f["password"] != f["password_confirm"] -> "The two passwords do not match."
+            f["terms"] != "1" -> if (reopened) "Tick to confirm before sending." else "Tick to confirm before opening the account."
             else -> ""
         }
         else -> ""
@@ -218,7 +243,9 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
     fun submit() = scope.launch {
         busy = "submit"; error = ""
         val fields = buildMap {
-            listOf("firstname", "lastname", "address", "city", "state", "zip", "phonenumber", "password", "password_confirm", "terms").forEach { put(it, f[it].orEmpty()) }
+            listOf("firstname", "lastname", "address", "city", "state", "zip", "terms").forEach { put(it, f[it].orEmpty()) }
+            // Sent back: the mobile and the password stay as they are.
+            if (!reopened) listOf("phonenumber", "password", "password_confirm").forEach { put(it, f[it].orEmpty()) }
             if (!person) { put("company", f["company"].orEmpty()); put("gstin", f["gstin"].orEmpty().uppercase()) }
             if (!panLocked) put("pan_number", f["pan_number"].orEmpty().uppercase())
             if (nri) { put("nationality", f["nationality"].orEmpty()); put("country", f["country"].orEmpty()) }
@@ -234,7 +261,15 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
             if (step < 6) Eyebrow("Step ${step + 1} of 6 · ${Steps[step]}")
             val s = standing
             when (step) {
-                0 -> {
+                0 -> if (s?.reopened == true) {
+                    Title("Correct Your Registration", "The firm checked your registration and sent it back to be corrected.")
+                    LexCard(title = "What The Firm Asks") {
+                        Text(s.reviewNote.ifBlank { "Check your details and documents, and correct what is wrong." },
+                            style = MaterialTheme.typography.bodyLarge, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp))
+                    }
+                    Text("Your documents on file are kept; replace only what the firm asks for. Account type: ${s.types.firstOrNull { it.first == s.entityType }?.second ?: s.entityType.orEmpty()}.",
+                        style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+                } else {
                     Title("Open An Account", "Your account with the firm is opened from your identity documents. The firm reviews every new account before it opens.")
                     if (s?.problem?.isNotBlank() == true) {
                         LexCard { Text(s.problem, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp)) }
@@ -255,22 +290,28 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (d.description.isNotBlank()) Text(d.description, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                                 when {
-                                    busy == d.type -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
-                                        Spacer(Modifier.width(10.dp))
-                                        Text("Reading…", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                                    busy == d.type -> Reading(busySince)
+                                    d.kept -> {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("On file from your registration.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
+                                            Text("On File", style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground)
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = { target = d.type; scan() }, enabled = busy.isEmpty()) { Text("Scan A New One") }
+                                            OutlinedButton(onClick = { target = d.type; picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) }, enabled = busy.isEmpty()) { Text("Replace") }
+                                        }
                                     }
                                     d.uploaded -> {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(d.name.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                                            Text(if (d.read == true) "Read" else "Not Read", style = MaterialTheme.typography.labelMedium,
+                                            Text((if (reopened) "New · " else "") + (if (d.read == true) "Read" else "Not Read"), style = MaterialTheme.typography.labelMedium,
                                                 color = if (d.read == true) Lex.colors.foreground else Lex.colors.mutedForeground)
                                         }
                                         d.fields.forEach { (k, v) ->
                                             Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                                                 Text(v, style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground) }
                                         }
-                                        TextButton(onClick = { scope.launch { repo.remove(d.type).onSuccess { standing = it } } }, enabled = busy.isEmpty(),
+                                        TextButton(onClick = { scope.launch { error = ""; repo.remove(d.type).onSuccess { standing = it; review = null }.onFailure { error = it.message.orEmpty() } } }, enabled = busy.isEmpty(),
                                             contentPadding = PaddingValues(0.dp)) { Text("Remove", color = Lex.colors.danger.softText) }
                                     }
                                     else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -282,6 +323,14 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                         }
                     }
                     if (notice.isNotBlank()) Text(notice, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                    if (s != null && !s.reopened) StartOver(enabled = busy.isEmpty()) {
+                        scope.launch {
+                            repo.discard().onSuccess {
+                                standing = standing?.copy(entityType = null, documents = emptyList(), allUploaded = false)
+                                choice = null; review = null; f.clear(); notice = ""; error = ""; step = 0
+                            }.onFailure { error = it.message.orEmpty() }
+                        }
+                    }
                 }
                 2 -> {
                     val r = review
@@ -315,10 +364,12 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                 4 -> {
                     Title("How We Reach You", "The firm writes to your Google address, and sends updates on your matters to your mobile.")
                     Locked("Email", standing?.email.orEmpty(), "From your Google sign-in. You sign in with it, and the firm writes to it.")
-                    Field(f, "phonenumber", "Mobile Number", if (nri) "With the country code." else "Ten digits; +91 is added.", digits = !nri, phone = nri)
+                    if (reopened) Locked("Mobile Number", review?.details?.get("phonenumber").orEmpty(), "Your mobile on record. It is not changed here.")
+                    else Field(f, "phonenumber", "Mobile Number", if (nri) "With the country code." else "Ten digits; +91 is added.", digits = !nri, phone = nri)
                 }
                 5 -> {
-                    Title("Confirm", "Check the details. Then set a password for the client portal and open your account.")
+                    Title("Confirm", if (reopened) "Check the details. Then send your corrected registration back to the firm."
+                        else "Check the details. Then set a password for the client portal and open your account.")
                     LexCard {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOfNotNull(
@@ -327,7 +378,7 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                                 "Name" to listOf(f["firstname"], f["lastname"]).filter { !it.isNullOrBlank() }.joinToString(" "),
                                 "PAN" to f["pan_number"].orEmpty().uppercase(),
                                 "Address" to listOf(f["address"], f["city"], f["state"], f["zip"]).filter { !it.isNullOrBlank() }.joinToString(", "),
-                                "Mobile" to (if (nri) f["phonenumber"].orEmpty() else "+91 " + f["phonenumber"].orEmpty()),
+                                "Mobile" to (if (reopened) review?.details?.get("phonenumber").orEmpty() else if (nri) f["phonenumber"].orEmpty() else "+91 " + f["phonenumber"].orEmpty()),
                                 "Email" to standing?.email.orEmpty(),
                             ).forEach { (k, v) ->
                                 Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
@@ -335,8 +386,10 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                             }
                         }
                     }
-                    Field(f, "password", "Password", "At least eight characters.", secret = true)
-                    Field(f, "password_confirm", "Confirm Password", "", secret = true)
+                    if (!reopened) {
+                        Field(f, "password", "Password", "At least eight characters.", secret = true)
+                        Field(f, "password_confirm", "Confirm Password", "", secret = true)
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = f["terms"] == "1", onCheckedChange = { f["terms"] = if (it) "1" else "" })
                         Text("I confirm these details are correct, the documents are genuine and mine or my organisation's, and I agree to the firm keeping them to verify my identity.",
@@ -345,7 +398,8 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                 }
                 else -> {
                     Spacer(Modifier.height(24.dp))
-                    Title("With The Firm For Approval", "Your registration and documents have been received. The firm reviews every new account before it opens; we will write to ${standing?.email.orEmpty()} when it does, and this app will then open as your client app.")
+                    if (reopened) Title("Sent Again", "Your corrected registration is with the firm. We will write to ${standing?.email.orEmpty()} when your account opens, and this app will then open as your client app.")
+                    else Title("With The Firm For Approval", "Your registration and documents have been received. The firm reviews every new account before it opens; we will write to ${standing?.email.orEmpty()} when it does, and this app will then open as your client app.")
                 }
             }
             if (error.isNotBlank()) Text(error, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText)
@@ -368,12 +422,48 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                 in 2..4 -> FunnelPrimaryButton("Continue", modifier = Modifier.fillMaxWidth(), onClick = {
                     val p = problem(); if (p.isNotEmpty()) error = p else { error = ""; step += 1 }
                 })
-                5 -> FunnelPrimaryButton(if (busy == "submit") "Opening…" else "Open My Account", modifier = Modifier.fillMaxWidth(),
+                5 -> FunnelPrimaryButton(if (busy == "submit") (if (reopened) "Sending…" else "Opening…") else (if (reopened) "Send Again" else "Open My Account"), modifier = Modifier.fillMaxWidth(),
                     enabled = busy.isEmpty(), onClick = { val p = problem(); if (p.isNotEmpty()) error = p else submit() })
                 else -> FunnelSecondaryButton("Back To Home", modifier = Modifier.fillMaxWidth(), onClick = onClose)
             }
         }
     }
+}
+
+/** What was typed, kept across a rotation as key, value, key, value… */
+private val FieldsSaver = listSaver<SnapshotStateMap<String, String>, String>(
+    save = { m -> m.flatMap { listOf(it.key, it.value) } },
+    restore = { l -> mutableStateMapOf<String, String>().apply { l.chunked(2).forEach { (k, v) -> put(k, v) } } },
+)
+
+/** A document being uploaded and read: the whole call (up to two minutes). */
+@Composable
+private fun Reading(since: Long) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(since) { while (true) { kotlinx.coroutines.delay(1000); now = System.currentTimeMillis() } }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
+        Spacer(Modifier.width(10.dp))
+        Text(if (now - since < 20_000) "Reading…" else "Still reading your document…",
+            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+    }
+}
+
+/** Set the registration aside; the documents uploaded for it are deleted. */
+@Composable
+private fun StartOver(enabled: Boolean, onConfirm: () -> Unit) {
+    var ask by remember { mutableStateOf(false) }
+    TextButton(onClick = { ask = true }, enabled = enabled, contentPadding = PaddingValues(0.dp)) {
+        Text("Start Over", color = Lex.colors.foreground)
+    }
+    if (ask) AlertDialog(
+        onDismissRequest = { ask = false },
+        title = { Text("Start Over?") },
+        text = { Text("The documents you uploaded are deleted, and you choose the kind of account again.") },
+        confirmButton = { TextButton(onClick = { ask = false; onConfirm() }) { Text("Start Over", color = Lex.colors.danger.softText) } },
+        dismissButton = { TextButton(onClick = { ask = false }) { Text("Cancel", color = Lex.colors.foreground) } },
+        containerColor = Lex.colors.card,
+    )
 }
 
 private fun from(r: OnbReview?, key: String, otherwise: String): String =

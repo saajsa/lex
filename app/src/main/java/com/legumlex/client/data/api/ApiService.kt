@@ -665,6 +665,7 @@ interface ApiService {
     suspend fun leadOnboardingBegin(@Field("entity_type") entityType: String): Map<String, Any?>
 
     @Multipart
+    @Headers("X-Long-Call: 1")
     @POST("lead/onboarding/document")
     suspend fun leadOnboardingDocument(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
 
@@ -681,6 +682,10 @@ interface ApiService {
 
     @POST("lead/onboarding/discard")
     suspend fun leadOnboardingDiscard(): Map<String, Any?>
+
+    /** A registration the firm sent back, opened again to be corrected. */
+    @POST("lead/onboarding/reopen")
+    suspend fun leadOnboardingReopen(): Map<String, Any?>
 
     /** The Legum Lex site's public notice tracker (cases/landing/ajax_track), by its own URL. */
     @FormUrlEncoded

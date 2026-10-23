@@ -16,11 +16,14 @@ object SessionRole {
     private val _lead = MutableStateFlow(false)
     val lead: StateFlow<Boolean> = _lead
 
-    /** lead | awaiting_approval, for a lead; empty for a client. */
+    /** lead | awaiting_approval | rejected (sent back to be corrected), for a lead; empty for a client. */
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status
 
     val isLead: Boolean get() = _lead.value
+
+    /** Why the firm sent the registration back (status rejected), in the reviewer's words. */
+    val reviewNote = MutableStateFlow("")
 
     /** The lead's name, as Google gave it (for the greeting). */
     val name = MutableStateFlow("")

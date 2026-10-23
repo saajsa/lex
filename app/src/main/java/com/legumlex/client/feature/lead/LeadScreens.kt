@@ -25,7 +25,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.legumlex.client.BuildConfig
+import com.legumlex.client.data.api.ApiClient
+import com.legumlex.client.data.auth.AuthRepository
 import com.legumlex.client.data.auth.SessionRole
+import com.legumlex.client.data.auth.TokenStore
 import com.legumlex.client.feature.consultations.Reply
 import com.legumlex.client.feature.consultations.detail.ThreadDaySeparator
 import com.legumlex.client.feature.consultations.detail.ThreadComposer
@@ -46,20 +49,52 @@ import java.time.LocalDate
  * once the firm approves them.
  */
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LeadHomeScreen(
     onAsk: () -> Unit,
     onAgreementCheck: () -> Unit,
     onEnquiries: () -> Unit,
     onOpenAccount: () -> Unit,
+    onBecameClient: () -> Unit,
 ) {
     val context = LocalContext.current
     val name by SessionRole.name.collectAsState()
     val status by SessionRole.status.collectAsState()
+    val note by SessionRole.reviewNote.collectAsState()
     val first = name.trim().substringBefore(' ')
     val repo = remember(context) { LeadRepository(context) }
-    val enquiries by produceState<List<LeadEnquiry>?>(initialValue = null) { value = repo.enquiries().getOrNull() }
+    val auth = remember(context) {
+        AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext), context.cacheDir)
+    }
+    val scope = rememberCoroutineScope()
+    var refreshing by remember { mutableStateOf(false) }
+    var enquiries by remember { mutableStateOf<List<LeadEnquiry>?>(null) }
 
+    // Where they stand with the firm, asked on arrival, on every return to the
+    // app and on a pull: approved, the client app opens by itself.
+    suspend fun refresh() {
+        if (auth.leadStanding() == "client") { onBecameClient(); return }
+        enquiries = repo.enquiries().getOrNull() ?: enquiries
+    }
+    LaunchedEffect(Unit) { refresh() }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var firstResume = true
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (firstResume) firstResume = false else scope.launch { refresh() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = { scope.launch { refreshing = true; refresh(); refreshing = false } },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Column(
         Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -69,12 +104,23 @@ fun LeadHomeScreen(
             "Ask the firm's advocates a question, or have an agreement read. Your enquiries and their replies are kept here.",
             style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground,
         )
-        if (status == "awaiting_approval") {
-            LexCard(title = "With The Firm For Approval") {
+        when (status) {
+            "awaiting_approval" -> LexCard(title = "We're Checking Your Documents") {
                 Text(
-                    "Your registration is with the firm. We will write to you when your account opens, and the app will then open it for you.",
+                    "Your registration is with the firm. We will write to you when your account opens, and the app will then open it for you. Pull down to check now.",
                     style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp),
                 )
+            }
+            "rejected" -> LexCard(title = "Your Registration Needs Changes") {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("The firm checked your registration and asks you to correct it:",
+                        style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+                    if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodyLarge, color = Lex.colors.foreground)
+                    Text("Your documents on file are kept; replace only what the firm asks for.",
+                        style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                    com.legumlex.client.feature.healthchecks.funnel.FunnelPrimaryButton("Fix And Resubmit",
+                        modifier = Modifier.fillMaxWidth(), onClick = onOpenAccount)
+                }
             }
         }
         Spacer(Modifier.height(4.dp))
@@ -91,7 +137,7 @@ fun LeadHomeScreen(
                 when (n) { 0 -> "The questions you ask, and the advocates' replies."; 1 -> "One enquiry, and the advocates' replies."; else -> "$n enquiries, and the advocates' replies." },
                 onEnquiries)
         }
-        if (status != "awaiting_approval") {
+        if (status != "awaiting_approval" && status != "rejected") {
             Eyebrow("Become A Client", modifier = Modifier.padding(start = 4.dp, top = 4.dp))
             LexCard {
                 MenuRow(Icons.Outlined.HowToReg, "Open An Account",
@@ -99,6 +145,7 @@ fun LeadHomeScreen(
             }
         }
         Spacer(Modifier.height(8.dp))
+    }
     }
 }
 

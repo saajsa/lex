@@ -131,6 +131,9 @@ fun LegumNavGraph(navController: NavHostController) {
                 onAgreementCheck = { navController.navigate(Route.LeadAhc.path) },
                 onEnquiries      = { navController.navigateTab(Route.LeadEnquiries.path) },
                 onOpenAccount    = { navController.navigate(Route.LeadOnboard.path) },
+                // Approved: lead/me has already handed over the client's token
+                // and retired the lead's, so the client app opens at once.
+                onBecameClient   = { navController.navigate(Route.Home.path) { popUpTo(0) { inclusive = true } } },
             )
         }
         composable(Route.LeadOnboard.path) {
