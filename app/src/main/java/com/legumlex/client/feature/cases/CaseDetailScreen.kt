@@ -706,8 +706,8 @@ private fun OrderCard(o: CaseOrder, detail: CaseDetail, onOpenOrderDocument: (Ca
 
 /**
  * The order's summary line. Shows the AI summary when ready; while OCR is still
- * running (ocr_status='pending') it says so rather than implying a permanent gap;
- * a failed extraction and a genuinely empty summary fall back to neutral copy.
+ * running (ocr_status='pending') it says so; otherwise there is no line — staff
+ * summarise orders only on request, and the order itself is its PDF.
  */
 @Composable
 private fun OrderSummaryText(
@@ -720,8 +720,9 @@ private fun OrderSummaryText(
             Text(o.summary, fontFamily = Inter, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.Ink)
         o.ocrStatus == "pending" ->
             Text("Generating Summary…", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkMuted)
-        else ->
-            Text("Summary Not Available Yet", fontFamily = Inter, fontStyle = FontStyle.Italic, fontSize = fontSize, lineHeight = lineHeight, color = LlColor.InkFaint)
+        // No summary is the ordinary case since summaries became on request
+        // (2026-10-23): the order is its PDF. Say nothing, as the portal does.
+        else -> Unit
     }
 }
 
