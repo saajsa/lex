@@ -130,7 +130,9 @@ fun LegumNavGraph(navController: NavHostController) {
                 onAsk            = { navController.navigate(Route.NewConsultation.build()) },
                 onAgreementCheck = { navController.navigate(Route.LeadAhc.path) },
                 onEnquiries      = { navController.navigateTab(Route.LeadEnquiries.path) },
-                onOpenAccount    = { navController.navigate(Route.LeadOnboard.path) },
+                // Option A (owner, 2026-10-23): the conversation, with the form beneath it.
+                onOpenAccount    = { navController.navigate(Route.NewConsultation.build(account = true)) },
+                onOpenForm       = { navController.navigate(Route.LeadOnboard.path) },
                 // Approved: lead/me has already handed over the client's token
                 // and retired the lead's, so the client app opens at once.
                 onBecameClient   = { navController.navigate(Route.Home.path) { popUpTo(0) { inclusive = true } } },
@@ -277,8 +279,11 @@ fun LegumNavGraph(navController: NavHostController) {
                 navArgument(Route.NewConsultation.ARG) {
                     type = NavType.StringType; nullable = true; defaultValue = null
                 },
+                navArgument(Route.NewConsultation.ACCOUNT) {
+                    type = NavType.StringType; nullable = true; defaultValue = null
+                },
             ),
-        ) {
+        ) { deskEntry ->
             // Consult: the Legum Lex desk, as a client signed in to the portal
             // meets it (feature/desk). It replaced the three-step request form;
             // every way in to a new consultation arrives here.
@@ -313,6 +318,11 @@ fun LegumNavGraph(navController: NavHostController) {
                 // "Have an agreement read": the app's Agreement Check (a lead's
                 // is the website's, under the lead's token).
                 onAgreement = { navController.navigate(if (lead()) Route.LeadAhc.path else Route.AhcFunnel.path) },
+                // Opening an account (lexon Enrolment): the form, Home, and the client sign-in.
+                account = deskEntry.arguments?.getString(Route.NewConsultation.ACCOUNT) == "1",
+                onOpenForm = { navController.navigate(Route.LeadOnboard.path) },
+                onHome = { leave { navController.navigateTab(if (lead()) Route.LeadHome.path else Route.Home.path) } },
+                onSignIn = { leave { navController.navigateTab(if (lead()) Route.LeadHome.path else Route.Home.path) } },
             )
         }
         composable(Route.DigitalOffice.path) {

@@ -51,6 +51,10 @@ sealed interface Para {
     /** "Taking your enquiry in…" and its four stages. */
     data class Stages(val active: Int, val done: Boolean) : Para
     data object Seal : Para
+    /** Opening an account: the summary, with Change, Replace and Add while it is the question. */
+    data class Summary(val groups: List<AcctGroup>, val live: Boolean = true) : Para
+    /** "Your registration is with the firm." between what came before and what follows. */
+    data class Divider(val s: String) : Para
 }
 
 enum class Who { DESK, ME, NOTE }
@@ -80,6 +84,10 @@ sealed interface Dock {
     data object Guest : Dock
     /** The Google sign-in, in the conversation. */
     data object SignIn : Dock
+    /** Opening an account: what answers the server's turn. */
+    data class Acct(val turn: AcctTurn) : Dock
+    /** A document going up and being read (up to a few minutes). */
+    data class AcctReading(val label: String, val since: Long) : Dock
 }
 
 data class DeskUi(
@@ -97,15 +105,26 @@ data class DeskUi(
     val prefill: String = "",
     val prefillTick: Int = 0,
     val locked: Boolean = false,
+    /** Opening an account (lexon Enrolment), and the firm's note pinned above the dock. */
+    val acct: Boolean = false,
+    val acctNote: String = "",
 )
 
 sealed interface DeskEvent {
     data object OpenMatters : DeskEvent
     data class OpenConsultation(val id: Int) : DeskEvent
     data class OpenUrl(val url: String) : DeskEvent
+    /** Use The Form Instead: the registration wizard. */
+    data object OpenForm : DeskEvent
+    /** Back To Home (LeadHome, or the client's Home). */
+    data object Home : DeskEvent
+    /** Sign In / My Matters: the client sign-in. */
+    data object SignIn : DeskEvent
 }
 
-class DeskViewModel(app: Application) : AndroidViewModel(app) {
+class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle) : AndroidViewModel(app) {
+    /** Opened to open an account (the route's account=1): the enquiry is not asked first. */
+    private val accountEntry = saved.get<String>("account") == "1"
     private val repo = DeskRepository(app)
     private val _ui = MutableStateFlow(DeskUi())
     val ui: StateFlow<DeskUi> = _ui.asStateFlow()
@@ -146,6 +165,13 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     private val flow = Mutex()
 
+    // Opening an account (declared before init, which may start it).
+    private var turn: AcctTurn? = null
+    private var acctWish = false
+    private var pendingConfirm: AcctChip? = null
+    private var uploading: Job? = null
+    private var acctStarted = false
+
     /*
      * A guest (owner, 2026-10-20): not signed in, as the website's visitor is.
      * Two short messages, answered by the desk (guest/desk), then the Google
@@ -181,7 +207,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
         return false
     }
 
-    init { go { next() } }
+    init { go { if (accountEntry) { acctStarted = true; enterAccount(true) } else next() } }
 
     private val t get() = _ui.value.terms
     private val ctx get() = t.context
@@ -269,6 +295,7 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
             val r = repo.guest(guestTurns)
             val reply = r?.first ?: "The advocates can help with that. Sign in with Google to tell them about your matter; it takes a moment."
             val toSignIn = r == null || r.second || guestLeft <= 0
+            if (r?.third == true) acctWish = true
             guestTurns += "desk" to reply
             if (toSignIn && reply.contains("sign in", ignoreCase = true)) signinSaid = true
             say(Para.Text(reply))
@@ -291,6 +318,8 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     fun signedIn() {
         guest = false
         terms = loadTerms()
+        // Asked for an account before signing in: straight to it.
+        if (acctWish) { acctWish = false; go { enterAccount(false) }; return }
         go { next() }
     }
 
@@ -298,6 +327,11 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
 
     fun submitQuestion(raw: String) {
         val v = raw.trim()
+        // A short ask for an account is known by its words (Enrolment::wish).
+        if (t.accountDesk && v.length < 20 && accountWish(t.wish, v)) {
+            go { _ui.update { it.copy(opened = true) }; me(v); offer() }
+            return
+        }
         if (v.length < t.minChars) {
             err(if (v.isNotEmpty()) "Please add a sentence or two describing what has happened." else "Tell the advocate what happened, in your own words.")
             return
@@ -328,6 +362,8 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun verdict(r: DeskReading?) {
+        // The reader offers an account; it never assumes one.
+        if (t.accountDesk && r?.intent == "open_account" && r.urgency == "none") { offer(); return }
         var v = r?.verdict ?: "clear"
         area = r?.area.orEmpty()
         keep(r)
@@ -610,7 +646,162 @@ class DeskViewModel(app: Application) : AndroidViewModel(app) {
             "paid" -> go { checkPaid(asked = true) }
             "discard" -> go { discard() }
             "terms" -> go { dock(Dock.Waiting("…")); if (!terms.isActive) terms = loadTerms(); next() }
+            "acct_offer_yes" -> go { me("Open My Account"); enterAccount(false, said = true) }
+            "acct_offer_no" -> go { me("No, I Have A Question"); leaveAccount() }
+            "acct_retry" -> go { me("Try Again"); fetchTurn(false) }
+            "acct_ok" -> pendingConfirm?.let { c -> pendingConfirm = null; c.confirm?.let { acctAnswer(it.ok.id, bubble = it.ok.label) } }
+            "acct_cancel" -> go { me(pendingConfirm?.confirm?.cancel ?: "Keep Going"); pendingConfirm = null; turn?.let { dock(Dock.Acct(it)) } }
         }
+    }
+
+    // ---- Opening an account (lexon Enrolment, via lead/onboarding/turn) ---------------
+    //
+    // The server computes every turn; this draws it. Reached by the chip, the
+    // route's account=1 (LeadHome), an offer (the phrase check or the
+    // reader), or a guest's ask before signing in.
+
+
+    /** Straight into opening an account (the intro's chip, LeadHome). */
+    fun startAccount(explicit: Boolean = true) {
+        if (acctStarted && explicit) return
+        acctStarted = true
+        go { enterAccount(explicit) }
+    }
+
+    private suspend fun enterAccount(explicit: Boolean, said: Boolean = false) {
+        _ui.update { it.copy(opened = true, acct = true) }
+        if (explicit && !said) me("I would like to open an account")
+        if (guest) { acctWish = true; signInDock(); return }
+        fetchTurn(!explicit && !said)
+    }
+
+    private suspend fun fetchTurn(open: Boolean) {
+        dock(Dock.Waiting("…"))
+        _ui.update { it.copy(typing = true) }
+        val t = repo.acctTurn(open)
+        _ui.update { it.copy(typing = false) }
+        render(t, null)
+    }
+
+    private suspend fun offer() {
+        say(Para.Text(t.offer.ifBlank { "It sounds as though you would like to open an account with the firm. Shall we do that now?" }))
+        dock(Dock.Actions(listOf(Action("acct_offer_yes", "Open My Account", main = true), Action("acct_offer_no", "No, I Have A Question"))))
+    }
+
+    /** Back to the enquiry (Ask A Question, Not Now, No, I Have A Question). */
+    private suspend fun leaveAccount() {
+        uploading?.cancel()
+        _ui.update { it.copy(acct = false, acctNote = "") }
+        text = ""; vetted = null; read = null; reading = ""
+        say(Para.Text("Of course. What would you like to ask?"), prompt = Step.QUESTION)
+        next()
+    }
+
+    private fun me(s: String) {
+        _ui.update { it.copy(lines = it.lines + Line(++nextId, Who.ME, listOf(Para.Text(s))), error = "") }
+    }
+
+    private suspend fun render(t: AcctTurn?, ok: Boolean?) {
+        if (t == null) {
+            say(Para.Text("That did not go through."), note = true, warn = true)
+            dock(Dock.Actions(listOf(Action("acct_retry", "Try Again", main = true))))
+            return
+        }
+        val prev = turn
+        turn = t
+        // An earlier summary can no longer be answered.
+        _ui.update { u -> u.copy(lines = u.lines.map { l -> if (l.paras.any { it is Para.Summary }) l.copy(paras = l.paras.map { p -> if (p is Para.Summary) p.copy(live = false) else p }) else l }) }
+        val repeat = ok == false && prev?.step == t.step && !t.stale
+        if (!repeat) t.say.forEach { say(Para.Text(it)) }
+        val ownError = t.dock is AcctDock.Card || t.dock is AcctDock.Code
+        if (t.error.isNotBlank() && !ownError && (repeat || t.error !in t.say)) say(Para.Text(t.error), note = true, warn = true)
+        _ui.update { it.copy(acctNote = t.note) }
+        when (val d = t.dock) {
+            is AcctDock.Confirm -> if (d.rows.isNotEmpty()) say(Para.Facts(d.rows.map { it.label to it.value }))
+            is AcctDock.Summary -> say(Para.Summary(d.groups))
+            else -> Unit
+        }
+        if (t.sent) {
+            say(Para.Divider(t.divider))
+            com.legumlex.client.data.auth.TokenStore(getApplication()).saveLeadStatus("awaiting_approval")
+        }
+        dock(Dock.Acct(t))
+    }
+
+    fun acctChip(c: AcctChip) {
+        if (c.confirm != null) {
+            go { me(c.label); say(Para.Text(c.confirm.say)); pendingConfirm = c
+                dock(Dock.Actions(listOf(Action("acct_ok", c.confirm.ok.label, main = true), Action("acct_cancel", c.confirm.cancel)))) }
+            return
+        }
+        c.href?.let { h ->
+            when {
+                h == "app:lead_onboard" -> _events.tryEmit(DeskEvent.OpenForm)
+                else -> _events.tryEmit(DeskEvent.OpenUrl(h))
+            }
+            return
+        }
+        when (c.id) {
+            "check_again", "try_again" -> go { me(c.label); fetchTurn(false) }
+            "ask", "decline", "not_now" -> go { me(c.label); leaveAccount() }
+            "home" -> _events.tryEmit(DeskEvent.Home)
+            "sign_in" -> _events.tryEmit(DeskEvent.SignIn)
+            "open_account" -> go { me(c.label); fetchTurn(false) }
+            "google" -> go { signInDock() }
+            "upload_again" -> go { me(c.label); turn?.let { dock(Dock.Acct(it.copy(chips = emptyList()))) } }
+            else -> acctAnswer(c.id, bubble = c.label)
+        }
+    }
+
+    fun acctAnswer(id: String, fields: Map<String, String> = emptyMap(), code: String = "", bubble: String = "") = go {
+        val step = turn?.step ?: return@go
+        if (bubble.isNotEmpty()) me(bubble)
+        dock(Dock.Waiting("…"))
+        _ui.update { it.copy(typing = true) }
+        val r = repo.acctAnswer(step, id, fields, code)
+        _ui.update { it.copy(typing = false) }
+        render(r?.second, r?.first)
+    }
+
+    /** A card's fields, said back as "Label: value" (the code is never shown). */
+    fun acctFields(fields: Map<String, String>, labels: Map<String, String>, button: String) {
+        val shown = fields.filterValues { it.isNotBlank() }.map { (k, v) -> (labels[k] ?: k) + ": " + v }.joinToString("\n")
+        acctAnswer(if (button == "Save") "save" else "continue", fields, bubble = shown.ifBlank { button })
+    }
+
+    fun acctCode(code: String) = acctAnswer("code", code = code, bubble = "Code entered")
+
+    fun acctUpload(uri: Uri) {
+        val t = turn ?: return
+        val d = t.dock as? AcctDock.Upload ?: return
+        uploading = viewModelScope.launch {
+            flow.withLock {
+                val name = runCatching {
+                    getApplication<Application>().contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                        ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                }.getOrNull() ?: d.label
+                me(name)
+                dock(Dock.AcctReading(d.label, System.currentTimeMillis()))
+                val next = repo.acctUpload(d.type, uri)
+                render(next, if (next != null && next.error.isNotBlank()) false else null)
+            }
+        }
+    }
+
+    /** Stop Waiting: the reading is given up; its late result is discarded on the server. */
+    fun acctStop() {
+        uploading?.cancel()
+        uploading = null
+        acctAnswer("stop", bubble = "Stop Waiting")
+    }
+
+    fun acctSubmit() = go {
+        val t = turn ?: return@go
+        val d = t.dock as? AcctDock.Final ?: return@go
+        me(d.button)
+        dock(Dock.Waiting(if (d.button == "Send Again") "Sending it again…" else "Opening your account…"))
+        val next = repo.acctSubmit(t.step)
+        render(next, if (next?.sent == true) true else false)
     }
 
     // ---- Attachments --------------------------------------------------------------

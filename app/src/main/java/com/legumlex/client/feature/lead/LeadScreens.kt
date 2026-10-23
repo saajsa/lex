@@ -56,12 +56,17 @@ fun LeadHomeScreen(
     onAgreementCheck: () -> Unit,
     onEnquiries: () -> Unit,
     onOpenAccount: () -> Unit,
+    onOpenForm: () -> Unit,
     onBecameClient: () -> Unit,
 ) {
     val context = LocalContext.current
     val name by SessionRole.name.collectAsState()
     val status by SessionRole.status.collectAsState()
     val note by SessionRole.reviewNote.collectAsState()
+    // The desk opens accounts (Option A): its conversation, with the form beneath; otherwise the form.
+    val accountDesk by SessionRole.accountDesk.collectAsState()
+    val canRegister by SessionRole.canRegister.collectAsState()
+    val openAccount = if (accountDesk) onOpenAccount else onOpenForm
     val first = name.trim().substringBefore(' ')
     val repo = remember(context) { LeadRepository(context) }
     val auth = remember(context) {
@@ -119,7 +124,10 @@ fun LeadHomeScreen(
                     Text("Your documents on file are kept; replace only what the firm asks for.",
                         style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                     com.legumlex.client.feature.healthchecks.funnel.FunnelPrimaryButton("Fix And Resubmit",
-                        modifier = Modifier.fillMaxWidth(), onClick = onOpenAccount)
+                        modifier = Modifier.fillMaxWidth(), onClick = openAccount)
+                    if (accountDesk) TextButton(onClick = onOpenForm, modifier = Modifier.fillMaxWidth()) {
+                        Text("Or Use The Form", color = Lex.colors.foreground)
+                    }
                 }
             }
         }
@@ -137,11 +145,16 @@ fun LeadHomeScreen(
                 when (n) { 0 -> "The questions you ask, and the advocates' replies."; 1 -> "One enquiry, and the advocates' replies."; else -> "$n enquiries, and the advocates' replies." },
                 onEnquiries)
         }
-        if (status != "awaiting_approval" && status != "rejected") {
+        if (status != "awaiting_approval" && status != "rejected" && canRegister) {
             Eyebrow("Become A Client", modifier = Modifier.padding(start = 4.dp, top = 4.dp))
             LexCard {
                 MenuRow(Icons.Outlined.HowToReg, "Open An Account",
-                    "Register with your identity documents. The firm approves every new account; this app then opens as your client app.", onOpenAccount)
+                    if (accountDesk) "Lex Intelligence asks for your identity documents, one at a time. The firm approves every new account; this app then opens as your client app."
+                    else "Register with your identity documents. The firm approves every new account; this app then opens as your client app.", openAccount)
+                if (accountDesk) {
+                    HorizontalDivider(color = Lex.colors.border)
+                    MenuRow(Icons.Outlined.HowToReg, "Or Use The Form", "The same registration, as a form, step by step.", onOpenForm)
+                }
             }
         }
         Spacer(Modifier.height(8.dp))

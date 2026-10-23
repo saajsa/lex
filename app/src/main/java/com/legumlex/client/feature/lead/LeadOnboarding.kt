@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.data.auth.SessionRole
@@ -50,10 +49,18 @@ import retrofit2.HttpException
  * approves it. One the firm sends back is reopened here (owner, 2026-10-23):
  * the documents on file are kept, the reviewer's note is shown, and the
  * corrections are sent again.
+ *
+ * As on the website (owner, 2026-10-23): no password — the client signs in
+ * with Google or with a code to the mobile confirmed on the Contact step,
+ * which a registration cannot complete without; a document that fails the
+ * basic checks (the wrong card, unreadable, someone else's) is refused, and
+ * one on file that fails them is shown for replacing; what the documents say
+ * about who the registrant is stays as read.
  */
 
 data class OnbDoc(val type: String, val label: String, val description: String, val required: Boolean,
-                  val uploaded: Boolean, val kept: Boolean, val name: String?, val read: Boolean?, val fields: List<Pair<String, String>>)
+                  val uploaded: Boolean, val kept: Boolean, val name: String?, val read: Boolean?, val fields: List<Pair<String, String>>,
+                  val problem: String?)
 
 data class OnbStanding(val email: String, val problem: String, val types: List<Pair<String, String>>,
                        val entityType: String?, val documents: List<OnbDoc>, val allUploaded: Boolean,
@@ -61,7 +68,12 @@ data class OnbStanding(val email: String, val problem: String, val types: List<P
 
 data class OnbReview(val entityType: String, val email: String, val givenName: String, val familyName: String,
                      val details: Map<String, String>, val sources: Map<String, String>, val unread: List<String>,
-                     val countries: List<Pair<Int, String>>)
+                     val countries: List<Pair<Int, String>>, val panRead: String, val locked: Set<String>,
+                     val recordVerified: Boolean, val verified: String?, val codes: Boolean, val consent: String)
+
+/** The mobile's code, as the Contact step holds it. */
+data class OnbPhone(val sent: Boolean = false, val to: String = "", val resendIn: Int = 0, val smsIn: Int = 0,
+                    val verified: String? = null, val busy: Boolean = false, val error: String = "")
 
 private fun Any?.s(): String = (this as? String).orEmpty()
 
@@ -74,7 +86,8 @@ private fun standingOf(d: Map<String, Any?>) = OnbStanding(
     documents = (d["documents"] as? List<Map<String, Any?>>).orEmpty().map { x ->
         OnbDoc(x["type"].s(), x["label"].s(), x["description"].s(), x["required"] == true, x["uploaded"] == true,
             x["kept"] == true, x["name"] as? String, x["read"] as? Boolean,
-            (x["fields"] as? List<Map<String, Any?>>).orEmpty().map { it["label"].s() to it["value"].s() })
+            (x["fields"] as? List<Map<String, Any?>>).orEmpty().map { it["label"].s() to it["value"].s() },
+            (x["problem"] as? String)?.takeIf { it.isNotBlank() })
     },
     allUploaded = d["all_uploaded"] == true,
     reopened = d["reopened"] == true,
@@ -128,19 +141,36 @@ class OnboardingRepository(private val context: Context) {
     suspend fun review(): Result<OnbReview> = runCatching {
         val d = api.leadOnboardingReview()["data"] as Map<String, Any?>
         fun map(v: Any?) = (v as? Map<String, Any?>).orEmpty().mapValues { (_, x) -> x?.toString().orEmpty() }
+        val phone = d["phone"] as? Map<String, Any?>
         OnbReview(d["entity_type"].s(), d["email"].s(), d["given_name"].s(), d["family_name"].s(),
             map(d["details"]), map(d["sources"]), (d["unread"] as? List<*>).orEmpty().mapNotNull { it as? String },
-            (d["countries"] as? List<Map<String, Any?>>).orEmpty().map { ((it["id"] as? Number)?.toInt() ?: 0) to it["name"].s() })
+            (d["countries"] as? List<Map<String, Any?>>).orEmpty().map { ((it["id"] as? Number)?.toInt() ?: 0) to it["name"].s() },
+            d["pan_read"].s(), (d["locked"] as? List<*>).orEmpty().mapNotNull { it as? String }.toSet(),
+            phone?.get("record_verified") == true, ((phone?.get("verified") as? Map<String, Any?>)?.get("number") as? String),
+            d["codes"] == true, d["consent"].s())
     }.recoverCatching { throw IllegalStateException(it.said("Your details could not be loaded.")) }
 
+    /** Submit: Unit, or the refusal's field and words (Left: field, message). */
     suspend fun submit(fields: Map<String, String>): Result<Unit> = runCatching {
         api.leadOnboardingSubmit(fields)
         TokenStore(context.applicationContext).saveLeadStatus("awaiting_approval")
-    }.recoverCatching { throw IllegalStateException(it.said("The registration could not be completed.")) }
+    }.recoverCatching {
+        val field = (it as? HttpException)?.let { e -> runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()).optString("field") }.getOrNull() }.orEmpty()
+        throw OnbRefused(field, it.said("The registration could not be completed."))
+    }
+
+    /** The mobile's code: request (number) | status | sms | verify (code). The server's data, or its words. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun phone(step: String, fields: Map<String, String> = emptyMap()): Result<Map<String, Any?>> = runCatching {
+        api.leadOnboardingPhone(step, fields)["data"] as? Map<String, Any?> ?: emptyMap()
+    }.recoverCatching { throw IllegalStateException(it.said("That did not go through. Please try again.")) }
 
     suspend fun discard(): Result<Unit> = runCatching { api.leadOnboardingDiscard(); Unit }
         .recoverCatching { throw IllegalStateException(it.said("That could not be set aside. Try again.")) }
 }
+
+/** A refusal at submit: the field it is about, and the server's words. */
+class OnbRefused(val field: String, message: String) : Exception(message)
 
 private val Steps = listOf("Account Type", "Documents", "Details", "Address", "Contact", "Confirm")
 
@@ -160,6 +190,8 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
     var notice by remember { mutableStateOf("") }
     var choice by rememberSaveable { mutableStateOf<String?>(null) }
     val f = rememberSaveable(saver = FieldsSaver) { mutableStateMapOf<String, String>() } // Review's fields
+    var phone by remember { mutableStateOf(OnbPhone()) }
+    var confirmRemove by remember { mutableStateOf<OnbDoc?>(null) }
     val sentBack by SessionRole.status.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -196,11 +228,12 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                 f["nationality"] = d["nationality"].orEmpty()
                 f["address"] = d["address"].orEmpty()
                 f["city"] = d["city"].orEmpty(); f["state"] = d["state"].orEmpty(); f["zip"] = d["pincode"].orEmpty()
-                val mob = d["mobile"].orEmpty().ifBlank { d["phonenumber"].orEmpty() }
+                val mob = r.verified ?: d["mobile"].orEmpty().ifBlank { d["phonenumber"].orEmpty() }
                 f["phonenumber"] = if (r.entityType == "nri") mob else mob.filter { it.isDigit() }.takeLast(10)
                 val read = d["country_name"].orEmpty().lowercase()
                 r.countries.firstOrNull { it.second.lowercase() == read }?.let { f["country"] = it.first.toString() }
             }
+            phone = phone.copy(verified = r.verified)
             if (go) step = 2
         }.onFailure { error = it.message.orEmpty() }
     }
@@ -211,14 +244,18 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
     val type = review?.entityType ?: choice.orEmpty()
     val person = type == "individual" || type == "nri"
     val nri = type == "nri"
-    val panLocked = review?.details?.get("pan_number").orEmpty().uppercase().matches(Regex("[A-Z]{5}[0-9]{4}[A-Z]"))
+    val lk = review?.locked.orEmpty()
+    // The mobile as the server keeps it (digits, country code first), from what is typed.
+    fun digits(v: String) = if (nri) v.filter { it.isDigit() } else "91" + v.filter { it.isDigit() }.takeLast(10)
+    val keepRecord = reopened && review?.recordVerified == true
+    val confirmed = keepRecord || (phone.verified != null && phone.verified!!.filter { it.isDigit() } == digits(f["phonenumber"].orEmpty()))
+    val anyProblem = standing?.documents.orEmpty().any { it.problem != null }
 
     /** What blocks the step from going on, or "". */
     fun problem(): String = when (step) {
         2 -> when {
-            !person && f["company"].isNullOrBlank() -> "Registered Name is needed."
-            f["firstname"].isNullOrBlank() -> "First Name is needed."
-            !panLocked && !f["pan_number"].orEmpty().uppercase().matches(Regex("[A-Z]{5}[0-9]{4}[A-Z]")) -> "Enter the PAN: ten characters, like ABCDE1234F."
+            !person && "company" !in lk && f["company"].isNullOrBlank() -> "Registered Name is needed."
+            "firstname" !in lk && f["firstname"].isNullOrBlank() -> "First Name is needed."
             else -> ""
         }
         3 -> when {
@@ -229,28 +266,31 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
             nri && f["country"].isNullOrBlank() -> "Choose the country you live in."
             else -> ""
         }
-        4 -> if (reopened) "" else if (nri) (if (!f["phonenumber"].orEmpty().matches(Regex("\\+?[0-9 ]{8,19}"))) "Enter your number with its country code, like +44 7700 900123." else "")
-             else (if (!f["phonenumber"].orEmpty().matches(Regex("[0-9]{10}"))) "Enter the ten digits of your mobile number." else "")
-        5 -> when {
-            !reopened && f["password"].orEmpty().length < 8 -> "The password needs at least eight characters."
-            !reopened && f["password"] != f["password_confirm"] -> "The two passwords do not match."
-            f["terms"] != "1" -> if (reopened) "Tick to confirm before sending." else "Tick to confirm before opening the account."
-            else -> ""
-        }
+        4 -> if (confirmed) "" else "Please confirm your mobile number with the code the firm sends to it."
+        5 -> if (f["terms"] != "1") (if (reopened) "Tick to confirm before sending." else "Tick to confirm before opening the account.") else ""
         else -> ""
     }
 
     fun submit() = scope.launch {
         busy = "submit"; error = ""
+        // What identifies the registrant is the documents'; the server takes it from them.
         val fields = buildMap {
-            listOf("firstname", "lastname", "address", "city", "state", "zip", "terms").forEach { put(it, f[it].orEmpty()) }
-            // Sent back: the mobile and the password stay as they are.
-            if (!reopened) listOf("phonenumber", "password", "password_confirm").forEach { put(it, f[it].orEmpty()) }
-            if (!person) { put("company", f["company"].orEmpty()); put("gstin", f["gstin"].orEmpty().uppercase()) }
-            if (!panLocked) put("pan_number", f["pan_number"].orEmpty().uppercase())
-            if (nri) { put("nationality", f["nationality"].orEmpty()); put("country", f["country"].orEmpty()) }
+            listOf("firstname", "lastname").filter { it !in lk }.forEach { put(it, f[it].orEmpty()) }
+            listOf("address", "city", "state", "zip", "terms").forEach { put(it, f[it].orEmpty()) }
+            if (!keepRecord) put("phonenumber", f["phonenumber"].orEmpty())
+            if (!person && "company" !in lk) put("company", f["company"].orEmpty())
+            if (nri) { if ("nationality" !in lk) put("nationality", f["nationality"].orEmpty()); put("country", f["country"].orEmpty()) }
         }
-        repo.submit(fields).onSuccess { step = 6 }.onFailure { error = it.message.orEmpty() }
+        repo.submit(fields).onSuccess { step = 6 }.onFailure { e ->
+            error = e.message.orEmpty()
+            // To the step that fixes it.
+            val field = (e as? OnbRefused)?.field.orEmpty()
+            when {
+                field == "phonenumber" || field == "phone_verify" -> { if (field == "phone_verify") phone = phone.copy(verified = null); step = 4 }
+                field == "country" -> step = 3
+                field.startsWith("document") || field == "pan_number" -> scope.launch { repo.standing().onSuccess { standing = it }; step = 1 }
+            }
+        }
         busy = ""
     }
 
@@ -294,24 +334,31 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                                     d.kept -> {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text("On file from your registration.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                                            Text("On File", style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground)
+                                            Text(if (d.problem != null) "Needs Replacing" else "On File", style = MaterialTheme.typography.labelMedium,
+                                                color = if (d.problem != null) Lex.colors.danger.softText else Lex.colors.mutedForeground)
                                         }
+                                        d.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText) }
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(onClick = { target = d.type; scan() }, enabled = busy.isEmpty()) { Text("Scan A New One") }
                                             OutlinedButton(onClick = { target = d.type; picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) }, enabled = busy.isEmpty()) { Text("Replace") }
+                                        }
+                                        TextButton(onClick = { confirmRemove = d }, enabled = busy.isEmpty(), contentPadding = PaddingValues(0.dp)) {
+                                            Text("Remove", color = Lex.colors.danger.softText)
                                         }
                                     }
                                     d.uploaded -> {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(d.name.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                                            Text((if (reopened) "New · " else "") + (if (d.read == true) "Read" else "Not Read"), style = MaterialTheme.typography.labelMedium,
-                                                color = if (d.read == true) Lex.colors.foreground else Lex.colors.mutedForeground)
+                                            Text(if (d.problem != null) "Needs Replacing" else (if (reopened) "New · " else "") + (if (d.read == true) "Read" else "Not Read"),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = when { d.problem != null -> Lex.colors.danger.softText; d.read == true -> Lex.colors.foreground; else -> Lex.colors.mutedForeground })
                                         }
+                                        d.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText) }
                                         d.fields.forEach { (k, v) ->
                                             Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                                                 Text(v, style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground) }
                                         }
-                                        TextButton(onClick = { scope.launch { error = ""; repo.remove(d.type).onSuccess { standing = it; review = null }.onFailure { error = it.message.orEmpty() } } }, enabled = busy.isEmpty(),
+                                        TextButton(onClick = { confirmRemove = d }, enabled = busy.isEmpty(),
                                             contentPadding = PaddingValues(0.dp)) { Text("Remove", color = Lex.colors.danger.softText) }
                                     }
                                     else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -337,20 +384,28 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                     Title("Check Your Details", "Your client account is opened with these details. Correct anything that was read wrongly.")
                     if (r != null && r.unread.isNotEmpty()) Text("Your ${r.unread.joinToString(" and ")} could not be read automatically, so some fields are empty. Type them as they appear on your documents; the firm checks them against the documents.",
                         style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                    if (!person) Field(f, "company", "Registered Name", from(r, "company_name", "As on the registration certificate."))
-                    Field(f, "firstname", if (person) "First Name" else "Contact First Name", if (person) from(r, "name", "From your Google account.") else "The person who will use this account.")
-                    Field(f, "lastname", if (person) "Last Name" else "Contact Last Name", if (person) "As on your documents." else "Leave empty if there is none.")
-                    if (panLocked) Locked("PAN", f["pan_number"].orEmpty(), from(r, "pan_number", ""))
-                    else Field(f, "pan_number", "PAN", "Ten characters, like ABCDE1234F.", upper = true)
+                    if (!person) {
+                        if ("company" in lk) Locked("Registered Name", f["company"].orEmpty(), from(r, "company_name", "") + CLEARER)
+                        else Field(f, "company", "Registered Name", "As on the registration certificate.")
+                    }
+                    if ("firstname" in lk) {
+                        Locked("First Name", f["firstname"].orEmpty(), from(r, "name", "") + CLEARER)
+                        Locked("Last Name", f["lastname"].orEmpty(), "As on your documents.")
+                    } else {
+                        Field(f, "firstname", if (person) "First Name" else "Contact First Name", if (person) "As on your documents." else "The person who will use this account.")
+                        Field(f, "lastname", if (person) "Last Name" else "Contact Last Name", if (person) "As on your documents." else "If you use one name only, please repeat it here.")
+                    }
+                    Locked("PAN", r?.panRead.orEmpty().ifBlank { f["pan_number"].orEmpty() }, from(r, "pan_number", "") + CLEARER)
                     when {
-                        type == "individual" -> Locked("Aadhaar", r?.details?.get("aadhaar_number")?.let { "XXXX XXXX " + it.filter(Char::isDigit).takeLast(4) } ?: "Not read",
-                            if (r?.details?.get("aadhaar_number") != null) "Only the last four digits are shown." else "The firm reads it from your Aadhaar Card.")
-                        nri -> {
-                            Locked("Passport", r?.details?.get("passport_number")?.let { it.take(1) + "•".repeat((it.length - 3).coerceAtLeast(0)) + it.takeLast(2) } ?: "Not read",
-                                if (r?.details?.get("passport_number") != null) from(r, "passport_number", "") else "The firm reads it from your passport.")
-                            Field(f, "nationality", "Nationality", from(r, "nationality", "As on your passport, like Indian or British."))
+                        type == "individual" || type == "proprietorship" -> r?.details?.get("aadhaar_number")?.takeIf { it.isNotBlank() }?.let {
+                            Locked("Aadhaar", it, "Only the last four digits are shown.")
                         }
-                        else -> Field(f, "gstin", "GSTIN", from(r, "gstin", "Fifteen characters. Leave empty if not registered for GST."), upper = true)
+                        nri -> {
+                            r?.details?.get("passport_number")?.takeIf { it.isNotBlank() }?.let { Locked("Passport", it, from(r, "passport_number", "")) }
+                            if ("nationality" in lk) Locked("Nationality", f["nationality"].orEmpty(), from(r, "nationality", ""))
+                            else Field(f, "nationality", "Nationality", "As on your passport, like Indian or British.")
+                        }
+                        else -> r?.details?.get("gstin")?.takeIf { it.isNotBlank() }?.let { Locked("GSTIN", it, from(r, "gstin", "")) }
                     }
                 }
                 3 -> {
@@ -364,21 +419,50 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                 4 -> {
                     Title("How We Reach You", "The firm writes to your Google address, and sends updates on your matters to your mobile.")
                     Locked("Email", standing?.email.orEmpty(), "From your Google sign-in. You sign in with it, and the firm writes to it.")
-                    if (reopened) Locked("Mobile Number", review?.details?.get("phonenumber").orEmpty(), "Your mobile on record. It is not changed here.")
-                    else Field(f, "phonenumber", "Mobile Number", if (nri) "With the country code." else "Ten digits; +91 is added.", digits = !nri, phone = nri)
+                    if (keepRecord) Locked("Mobile Number", review?.details?.get("phonenumber").orEmpty(), "Your mobile on record, already confirmed. To change it, please write to the firm.")
+                    else MobileStep(f, phone, nri, review?.codes == true, confirmed,
+                        onNumber = { phone = phone.copy(sent = false, error = "") },
+                        send = { resend ->
+                            phone = phone.copy(busy = true, error = "")
+                            scope.launch {
+                                repo.phone("request", mapOf("number" to if (nri) f["phonenumber"].orEmpty() else f["phonenumber"].orEmpty().filter { it.isDigit() }))
+                                    .onSuccess { d ->
+                                        if (d["ok"] == true) phone = phone.copy(sent = true, to = d["to"].s(), resendIn = (d["resend_in"] as? Number)?.toInt() ?: 60,
+                                            smsIn = (d["sms_in"] as? Number)?.toInt() ?: 30, busy = false, error = if (resend) "A new code is on its way." else "")
+                                        else phone = phone.copy(busy = false, error = d["error"].s())
+                                    }.onFailure { phone = phone.copy(busy = false, error = it.message.orEmpty()) }
+                            }
+                        },
+                        sms = {
+                            scope.launch {
+                                repo.phone("sms").onSuccess { phone = phone.copy(smsIn = Int.MAX_VALUE, error = "The code is on its way by text message.") }
+                                    .onFailure { phone = phone.copy(error = it.message.orEmpty()) }
+                            }
+                        },
+                        verify = { code ->
+                            phone = phone.copy(busy = true, error = "")
+                            scope.launch {
+                                repo.phone("verify", mapOf("code" to code)).onSuccess { d ->
+                                    phone = phone.copy(busy = false, sent = false, verified = (d["number"] as? String) ?: ("+" + digits(f["phonenumber"].orEmpty())))
+                                }.onFailure { phone = phone.copy(busy = false, error = it.message.orEmpty()) }
+                            }
+                        },
+                        change = { phone = phone.copy(sent = false, verified = null, error = "") },
+                        tick = { phone = phone.copy(resendIn = (phone.resendIn - 1).coerceAtLeast(0), smsIn = if (phone.smsIn == Int.MAX_VALUE) phone.smsIn else (phone.smsIn - 1).coerceAtLeast(0)) },
+                    )
                 }
                 5 -> {
                     Title("Confirm", if (reopened) "Check the details. Then send your corrected registration back to the firm."
-                        else "Check the details. Then set a password for the client portal and open your account.")
+                        else "Check the details. Then open your account: you sign in with Google, or with a code sent to your mobile.")
                     LexCard {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOfNotNull(
                                 "Account Type" to (standing?.types?.firstOrNull { it.first == type }?.second ?: type),
                                 ("Registered Name" to f["company"].orEmpty()).takeIf { !person },
                                 "Name" to listOf(f["firstname"], f["lastname"]).filter { !it.isNullOrBlank() }.joinToString(" "),
-                                "PAN" to f["pan_number"].orEmpty().uppercase(),
+                                "PAN" to (review?.panRead.orEmpty().ifBlank { f["pan_number"].orEmpty().uppercase() }),
                                 "Address" to listOf(f["address"], f["city"], f["state"], f["zip"]).filter { !it.isNullOrBlank() }.joinToString(", "),
-                                "Mobile" to (if (reopened) review?.details?.get("phonenumber").orEmpty() else if (nri) f["phonenumber"].orEmpty() else "+91 " + f["phonenumber"].orEmpty()),
+                                "Mobile" to (if (keepRecord) review?.details?.get("phonenumber").orEmpty() else (phone.verified ?: f["phonenumber"].orEmpty()) + " · Confirmed"),
                                 "Email" to standing?.email.orEmpty(),
                             ).forEach { (k, v) ->
                                 Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
@@ -386,20 +470,16 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                             }
                         }
                     }
-                    if (!reopened) {
-                        Field(f, "password", "Password", "At least eight characters.", secret = true)
-                        Field(f, "password_confirm", "Confirm Password", "", secret = true)
-                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = f["terms"] == "1", onCheckedChange = { f["terms"] = if (it) "1" else "" })
-                        Text("I confirm these details are correct, the documents are genuine and mine or my organisation's, and I agree to the firm keeping them to verify my identity.",
+                        Text(review?.consent.orEmpty().ifBlank { "I confirm these details are correct, that the documents are genuine and mine, and I agree to the firm and its service providers using them to verify my identity." },
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground)
                     }
                 }
                 else -> {
                     Spacer(Modifier.height(24.dp))
-                    if (reopened) Title("Sent Again", "Your corrected registration is with the firm. We will write to ${standing?.email.orEmpty()} when your account opens, and this app will then open as your client app.")
-                    else Title("With The Firm For Approval", "Your registration and documents have been received. The firm reviews every new account before it opens; we will write to ${standing?.email.orEmpty()} when it does, and this app will then open as your client app.")
+                    if (reopened) Title("Sent Again", "Your corrected registration is with the firm. The firm will write to ${standing?.email.orEmpty()} when your account opens, and this app will then open as your client app.")
+                    else Title("With The Firm For Approval", "Your registration and documents have been received. The firm reviews every new account before it opens; it will write to ${standing?.email.orEmpty()} when it does, and this app will then open as your client app. You sign in with Google, or with a code sent to your mobile.")
                 }
             }
             if (error.isNotBlank()) Text(error, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText)
@@ -418,7 +498,7 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                         }
                     })
                 1 -> FunnelPrimaryButton("Go To Your Details", modifier = Modifier.fillMaxWidth(),
-                    enabled = standing?.allUploaded == true && busy.isEmpty(), onClick = { toReview() })
+                    enabled = standing?.allUploaded == true && !anyProblem && busy.isEmpty(), onClick = { toReview() })
                 in 2..4 -> FunnelPrimaryButton("Continue", modifier = Modifier.fillMaxWidth(), onClick = {
                     val p = problem(); if (p.isNotEmpty()) error = p else { error = ""; step += 1 }
                 })
@@ -428,6 +508,81 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
             }
         }
     }
+    confirmRemove?.let { d ->
+        AlertDialog(
+            onDismissRequest = { confirmRemove = null },
+            title = { Text("Remove Your ${d.label}?") },
+            text = { Text("You will then upload it again." + if (d.kept) " The one on file goes when your corrected registration is sent." else "") },
+            confirmButton = { TextButton(onClick = {
+                confirmRemove = null
+                scope.launch { error = ""; repo.remove(d.type).onSuccess { standing = it; review = null }.onFailure { error = it.message.orEmpty() } }
+            }) { Text("Remove", color = Lex.colors.danger.softText) } },
+            dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Keep It", color = Lex.colors.foreground) } },
+            containerColor = Lex.colors.card,
+        )
+    }
+}
+
+private const val CLEARER = " Wrong? Upload a clearer copy."
+
+/**
+ * The mobile, confirmed by a code before the registration can complete:
+ * the number and Send Code, then the code (six digits, sent on its own when
+ * complete), Send By SMS, Send A New Code with its countdown, Change Number.
+ */
+@Composable
+private fun MobileStep(f: MutableMap<String, String>, p: OnbPhone, nri: Boolean, codes: Boolean, confirmed: Boolean,
+                       onNumber: () -> Unit, send: (resend: Boolean) -> Unit, sms: () -> Unit, verify: (String) -> Unit,
+                       change: () -> Unit, tick: () -> Unit) {
+    if (confirmed) {
+        Locked("Mobile Number", p.verified ?: f["phonenumber"].orEmpty(), "Confirmed. You can sign in with a code sent to it.")
+        TextButton(onClick = { change() }, contentPadding = PaddingValues(0.dp)) { Text("Change Number", color = Lex.colors.foreground) }
+        return
+    }
+    if (!p.sent) {
+        OutlinedTextField(
+            value = f["phonenumber"].orEmpty(),
+            onValueChange = { v -> f["phonenumber"] = if (nri) v.filter { it.isDigit() || it == '+' || it == ' ' } else v.filter { it.isDigit() }.take(10); onNumber() },
+            label = { Text("Mobile Number") }, singleLine = true, enabled = !p.busy,
+            supportingText = { Text(if (nri) "The whole number with its country code, starting with +." else "Ten digits, starting with 6, 7, 8 or 9. The firm sends a code to confirm it.") },
+            keyboardOptions = KeyboardOptions(keyboardType = if (nri) KeyboardType.Phone else KeyboardType.Number),
+            prefix = if (!nri) ({ Text("+91 ") }) else null,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (!codes) Text("Mobile numbers cannot be confirmed just now, so your registration cannot be completed yet. Everything you have given is saved; please try again a little later.",
+            style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+        else OutlinedButton(onClick = { send(false) }, enabled = !p.busy && f["phonenumber"].orEmpty().isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Text(if (p.busy) "Sending…" else "Send Code")
+        }
+    } else {
+        LaunchedEffect(p.to) { while (true) { kotlinx.coroutines.delay(1000); tick() } }
+        var code by remember(p.to) { mutableStateOf("") }
+        Text("A six-digit code was sent to ${p.to} by WhatsApp or text message. Please type it below.",
+            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+        OutlinedTextField(
+            value = code,
+            onValueChange = { v -> code = v.filter { it.isDigit() }.take(6); if (code.length == 6 && !p.busy) verify(code) },
+            label = { Text("Code") }, singleLine = true, enabled = !p.busy,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedButton(onClick = { verify(code) }, enabled = code.length == 6 && !p.busy, modifier = Modifier.fillMaxWidth()) {
+            Text(if (p.busy) "Confirming…" else "Confirm")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (p.smsIn != Int.MAX_VALUE) TextButton(onClick = sms, enabled = p.smsIn == 0 && !p.busy) {
+                Text(if (p.smsIn > 0) "Send By SMS In %d:%02d".format(p.smsIn / 60, p.smsIn % 60) else "Send By SMS",
+                    color = if (p.smsIn == 0) Lex.colors.foreground else Lex.colors.faint)
+            }
+            TextButton(onClick = { send(true) }, enabled = p.resendIn == 0 && !p.busy) {
+                Text(if (p.resendIn > 0) "Send A New Code In %d:%02d".format(p.resendIn / 60, p.resendIn % 60) else "Send A New Code",
+                    color = if (p.resendIn == 0) Lex.colors.foreground else Lex.colors.faint)
+            }
+        }
+        TextButton(onClick = change, contentPadding = PaddingValues(0.dp)) { Text("Change Number", color = Lex.colors.mutedForeground) }
+    }
+    if (p.error.isNotBlank()) Text(p.error, style = MaterialTheme.typography.bodySmall,
+        color = if (p.error.startsWith("A new code") || p.error.startsWith("The code is on")) Lex.colors.mutedForeground else Lex.colors.danger.softText)
 }
 
 /** What was typed, kept across a rotation as key, value, key, value… */
@@ -477,15 +632,14 @@ private fun Title(title: String, sub: String) {
 
 @Composable
 private fun Field(f: MutableMap<String, String>, key: String, label: String, help: String, upper: Boolean = false,
-                  lines: Int = 1, digits: Boolean = false, phone: Boolean = false, secret: Boolean = false) {
+                  lines: Int = 1, digits: Boolean = false, phone: Boolean = false) {
     OutlinedTextField(
         value = f[key].orEmpty(),
         onValueChange = { v -> f[key] = if (upper) v.uppercase() else v },
         label = { Text(label) },
         supportingText = if (help.isNotBlank()) ({ Text(help) }) else null,
         singleLine = lines == 1, minLines = lines,
-        visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = when { secret -> KeyboardType.Password; digits -> KeyboardType.Number; phone -> KeyboardType.Phone; else -> KeyboardType.Text }),
+        keyboardOptions = KeyboardOptions(keyboardType = when { digits -> KeyboardType.Number; phone -> KeyboardType.Phone; else -> KeyboardType.Text }),
         prefix = if (key == "phonenumber" && digits) ({ Text("+91 ") }) else null,
         modifier = Modifier.fillMaxWidth(),
     )

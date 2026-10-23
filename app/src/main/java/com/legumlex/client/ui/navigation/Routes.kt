@@ -55,11 +55,15 @@ sealed class Route(val path: String) {
         const val ARG = "consultationId"
         fun build(id: String) = "consultations/d/$id"
     }
-    data object NewConsultation : Route("consultations/new?preset={preset}") {
+    data object NewConsultation : Route("consultations/new?preset={preset}&account={account}") {
         const val ARG = "preset"
+        /** "1": straight into opening an account (LeadHome's Open An Account, Fix And Resubmit). */
+        const val ACCOUNT = "account"
         // Preset apiValue from ConsultationKind (e.g. "legal_notice"); null = no preset.
-        fun build(preset: String? = null): String =
-            if (preset.isNullOrBlank()) "consultations/new" else "consultations/new?preset=$preset"
+        fun build(preset: String? = null, account: Boolean = false): String {
+            val q = listOfNotNull(preset?.takeIf { it.isNotBlank() }?.let { "preset=$it" }, "account=1".takeIf { account })
+            return if (q.isEmpty()) "consultations/new" else "consultations/new?" + q.joinToString("&")
+        }
     }
     data object ConsultationThread : Route("consultations/d/{consultationId}/thread") {
         const val ARG = "consultationId"

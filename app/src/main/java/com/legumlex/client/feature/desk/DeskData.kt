@@ -50,6 +50,11 @@ data class DeskTerms(
     val countries: List<DeskCountry> = emptyList(),
     val firm: String = "",
     val context: DeskContext? = null,
+    /** The desk opens accounts for this viewer (a lead, with the switch on), and the words that ask for one. */
+    val accountDesk: Boolean = false,
+    val wish: List<String> = emptyList(),
+    val offer: String = "",
+    val accountFoot: String = "",
 ) {
     val takesFiles get() = maxFiles > 0 && documentTypes.isNotEmpty()
     val priced get() = basePrice > 0
@@ -116,18 +121,69 @@ class DeskRepository(private val context: Context) {
     }
 
     /**
-     * The desk's answer to a guest (guest/desk): (reply, sign in now). Null
-     * when it could not be asked; the desk then asks them to sign in.
+     * The desk's answer to a guest (guest/desk): (reply, sign in now, they
+     * asked to open an account). Null when it could not be asked; the desk
+     * then asks them to sign in.
      */
     @Suppress("UNCHECKED_CAST")
-    suspend fun guest(turns: List<Pair<String, String>>): Pair<String, Boolean>? = withTimeoutOrNull(15_000) {
+    suspend fun guest(turns: List<Pair<String, String>>): Triple<String, Boolean, Boolean>? = withTimeoutOrNull(15_000) {
         runCatching {
             val json = org.json.JSONArray(turns.map { (role, text) -> org.json.JSONObject().put("role", role).put("text", text) }).toString()
             val d = api.guestDesk(json, device)["data"] as? Map<String, Any?> ?: return@runCatching null
             val reply = (d["reply"] as? String).orEmpty()
-            if (reply.isBlank()) null else reply to (d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0)
+            if (reply.isBlank()) null else Triple(reply, d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0, d["account"] == true)
         }.getOrNull()
     }
+
+    // ---- Opening an account (lead/onboarding/turn, answer, document, submit) ----
+
+    /** The server's turn, or null (no connection). */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun acctTurn(open: Boolean): AcctTurn? = runCatching {
+        ((api.leadOnboardingTurn(if (open) 1 else 0)["data"] as? Map<String, Any?>)?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
+    }.getOrNull()
+
+    /** An answer: (accepted, the next turn), or null (no connection). */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun acctAnswer(step: String, id: String, fields: Map<String, String> = emptyMap(), code: String = ""): Pair<Boolean, AcctTurn>? = runCatching {
+        val body = buildMap {
+            put("step", step); put("id", id)
+            if (code.isNotEmpty()) put("code", code)
+            if (fields.isNotEmpty()) put("fields", org.json.JSONObject(fields).toString())
+        }
+        val d = api.leadOnboardingAnswer(body)["data"] as? Map<String, Any?> ?: return@runCatching null
+        val t = (d["turn"] as? Map<String, Any?>)?.let(::parseTurn) ?: return@runCatching null
+        (d["ok"] != false) to t
+    }.getOrNull()
+
+    /** A document for the conversation: read on the server (up to minutes); its next turn. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun acctUpload(type: String, uri: Uri): AcctTurn? = runCatching {
+        val (name, bytes, mime) = withContext(Dispatchers.IO) {
+            var n = "$type.pdf"
+            resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) n = c.getString(0) ?: n }
+            Triple(n, resolver.openInputStream(uri)!!.use { it.readBytes() }, resolver.getType(uri) ?: "application/pdf")
+        }
+        val parts = listOf(
+            MultipartBody.Part.createFormData("document_type", type),
+            MultipartBody.Part.createFormData("desk", "1"),
+            MultipartBody.Part.createFormData("document", name, bytes.toRequestBody(mime.toMediaTypeOrNull())),
+        )
+        val d = try { api.leadOnboardingDocument(parts)["data"] as? Map<String, Any?> } catch (e: HttpException) {
+            // A refusal (422) still carries the conversation's turn.
+            runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()).optJSONObject("data")?.let(::jsonMap) }.getOrNull()
+        }
+        (d?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
+    }.getOrNull()
+
+    /** The final tick: the sent turn, or the turn that fixes a refusal. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun acctSubmit(step: String): AcctTurn? = runCatching {
+        val d = try { api.leadOnboardingSubmit(mapOf("form" to "chat", "step" to step, "terms" to "1"))["data"] as? Map<String, Any?> } catch (e: HttpException) {
+            runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()).optJSONObject("data")?.let(::jsonMap) }.getOrNull()
+        }
+        (d?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
+    }.getOrNull()
 
     @Suppress("UNCHECKED_CAST")
     suspend fun terms(): DeskTerms? = runCatching {
@@ -148,6 +204,10 @@ class DeskRepository(private val context: Context) {
                 DeskCountry(it["code"].toString(), it["name"].toString(), it["dial"].toString())
             } ?: emptyList(),
             firm          = (d["firm"] as? String).orEmpty(),
+            accountDesk   = d["account_desk"] == true,
+            wish          = (d["wish"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            offer         = (d["account_offer"] as? String).orEmpty(),
+            accountFoot   = (d["account_footer"] as? String).orEmpty(),
             context       = c?.takeIf { it["known"] == true }?.let {
                 DeskContext(
                     firstName = (it["first_name"] as? String).orEmpty(),
@@ -287,3 +347,13 @@ class TrackMiss(message: String) : Exception(message)
 
 private fun Any?.int(): Int = when (this) { is Number -> toInt(); is String -> toIntOrNull() ?: 0; else -> 0 }
 private fun Any?.long(): Long = when (this) { is Number -> toLong(); is String -> toLongOrNull() ?: 0L; else -> 0L }
+
+/** org.json, as the untyped maps the API calls return. */
+internal fun jsonMap(o: JSONObject): Map<String, Any?> = o.keys().asSequence().associateWith { k -> jsonValue(o.opt(k)) }
+
+private fun jsonValue(v: Any?): Any? = when (v) {
+    is JSONObject -> jsonMap(v)
+    is org.json.JSONArray -> (0 until v.length()).map { jsonValue(v.opt(it)) }
+    JSONObject.NULL -> null
+    else -> v
+}

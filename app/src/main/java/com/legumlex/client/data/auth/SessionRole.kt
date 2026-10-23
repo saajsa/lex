@@ -28,6 +28,12 @@ object SessionRole {
     /** The lead's name, as Google gave it (for the greeting). */
     val name = MutableStateFlow("")
 
+    /** A new registration can be started (sign-up open, or one under way); lead/me. */
+    val canRegister = MutableStateFlow(true)
+
+    /** The desk opens accounts by conversation (lexon_desk_onboarding); lead/me. */
+    val accountDesk = MutableStateFlow(false)
+
     fun set(role: String?, status: String? = null) {
         _lead.value = role == "lead"
         _status.value = if (role == "lead") status.orEmpty().ifBlank { "lead" } else ""

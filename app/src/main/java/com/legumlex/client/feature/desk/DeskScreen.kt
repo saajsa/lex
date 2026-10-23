@@ -72,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -159,6 +160,11 @@ fun DeskScreen(
     onOpenMatters: () -> Unit,
     onOpenConsultation: (Int) -> Unit,
     onAgreement: () -> Unit,
+    /** Opening an account (LeadHome's Open An Account, Fix And Resubmit). */
+    account: Boolean = false,
+    onOpenForm: () -> Unit = {},
+    onHome: () -> Unit = onClose,
+    onSignIn: () -> Unit = onClose,
 ) {
     val vm: DeskViewModel = viewModel()
     val ui by vm.ui.collectAsState()
@@ -182,6 +188,9 @@ fun DeskScreen(
                 is DeskEvent.OpenUrl -> runCatching {
                     context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(e.url)))
                 }
+                DeskEvent.OpenForm -> onOpenForm()
+                DeskEvent.Home -> onHome()
+                DeskEvent.SignIn -> onSignIn()
             }
         }
     }
@@ -211,6 +220,9 @@ fun DeskScreen(
     }
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addFiles(it) }
+    // A document for the account: chosen, or scanned (the Aadhaar's two sides as one PDF).
+    val acctPick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.acctUpload(uri) }
+    val acctScan = com.legumlex.client.feature.scanner.rememberDocumentScannerLauncher { uri -> if (uri != null) vm.acctUpload(uri) }
     val mimes = remember(ui.terms.documentTypes) { mimesFor(ui.terms.documentTypes) }
     val attach: (() -> Unit)? = if (ui.terms.takesFiles) ({ pick.launch(mimes) }) else null
 
@@ -252,7 +264,13 @@ fun DeskScreen(
             // foot, as a chat is laid out.
             // The three steps sit at the foot, just above the message box.
             Column(Modifier.weight(1f)) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { Intro(vm.guest) }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    Intro(vm.guest)
+                    // Opening an account, for a lead the desk does that for.
+                    if (ui.terms.accountDesk && !vm.guest) Box(Modifier.padding(start = 18.dp, top = 18.dp)) {
+                        Chips(listOf(Triple("Open An Account", false) { vm.startAccount() }))
+                    }
+                }
                 if (!typing) {
                     Process()
                     Spacer(Modifier.height(12.dp))
@@ -271,7 +289,8 @@ fun DeskScreen(
             }
             if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         } else {
-            Conversation(ui, vm::change, Modifier.weight(1f))
+            Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))
+            if (ui.acct && ui.acctNote.isNotBlank()) AcctNote(ui.acctNote)
             Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                 when (val d = ui.dock) {
                     Dock.Question -> QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
@@ -284,9 +303,14 @@ fun DeskScreen(
                     is Dock.Waiting -> WaitLine(d.label)
                     Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
                     Dock.SignIn -> GoogleDock(loginState is com.legumlex.client.feature.auth.LoginState.Loading, ui.error, google)
+                    is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, { acctScan() }, { acctPick.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) },
+                        vm::acctFields, vm::acctCode, vm::acctSubmit)
+                    is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
                 }
             }
-            if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
+            if (ui.acct) {
+                if (ui.terms.accountFoot.isNotBlank()) Text(ui.terms.accountFoot, style = body(12f, D.Muted), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp))
+            } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         }
     }
 
@@ -501,7 +525,7 @@ private fun Service(icon: ImageVector, title: String, sub: String, onClick: () -
 // ---- The conversation ---------------------------------------------------------------
 
 @Composable
-private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, modifier: Modifier) {
+private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, onAcct: (AcctChip) -> Unit, modifier: Modifier) {
     val list = rememberLazyListState()
     // Each desk line's words come in one after another, once.
     val revealed = remember { mutableStateMapOf<Long, Boolean>() }
@@ -516,7 +540,7 @@ private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, modifier: Modifie
             when (line.who) {
                 Who.ME -> MeLine(line, !ui.locked && line.step != null) { line.step?.let(onChange) }
                 // The desk's mark heads each run of what it says, not every line.
-                Who.DESK -> DeskLine(line, revealed, mark = i == 0 || ui.lines[i - 1].who != Who.DESK)
+                Who.DESK -> DeskLine(line, revealed, mark = i == 0 || ui.lines[i - 1].who != Who.DESK, onAcct = onAcct)
                 Who.NOTE -> NoteLine(line)
             }
         }
@@ -532,7 +556,7 @@ private fun DeskMark() {
 }
 
 @Composable
-private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark: Boolean) {
+private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark: Boolean, onAcct: (AcctChip) -> Unit = {}) {
     // The words, one after another (the page's rcp-w): 26ms apart.
     val total = line.paras.sumOf { (it as? Para.Text)?.s?.split(' ')?.size ?: 0 }
     var shown by remember(line.id) { mutableIntStateOf(if (revealed[line.id] == true) total else 0) }
@@ -569,6 +593,12 @@ private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark
                     }
                     is Para.Stages -> Stages(p)
                     Para.Seal -> Seal()
+                    is Para.Summary -> AcctSummary(p, onAcct)
+                    is Para.Divider -> Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f).height(1.dp).background(D.Line2))
+                        Text(p.s, style = body(12f, D.Muted), modifier = Modifier.padding(horizontal = 10.dp))
+                        Box(Modifier.weight(1f).height(1.dp).background(D.Line2))
+                    }
                 }
             }
         }
@@ -943,5 +973,215 @@ private fun PhoneDock(nri: Boolean, dial: String?, required: Boolean, error: Str
         )
         ErrorLine(error)
         if (!required) Quiet("I would rather not give a number", onNone)
+    }
+}
+
+// ---- Opening an account (lexon Enrolment) ---------------------------------------------
+
+/** The firm's note on a registration it sent back, pinned above the dock. */
+@Composable
+private fun AcctNote(note: String) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 6.dp).height(IntrinsicSize.Min)
+        .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)).background(D.Mark)) {
+        Box(Modifier.width(2.dp).fillMaxHeight().background(D.Gold))
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text("The Firm’s Note", style = body(12f, D.Ink, FontWeight.SemiBold))
+            Text(note, style = body(13.5f, D.Ink.copy(alpha = 0.85f)))
+        }
+    }
+}
+
+/** The summary, in the desk's line: each group, with Change, Replace and Add while it is the question. */
+@Composable
+private fun AcctSummary(p: Para.Summary, onAcct: (AcctChip) -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, D.Line2, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        p.groups.forEach { g ->
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(g.title.uppercase(), style = TextStyle(fontFamily = Mono, fontSize = 10.5.sp, letterSpacing = 0.8.sp, color = D.Muted), modifier = Modifier.weight(1f))
+                    if (g.change && p.live) AcctLink("Change", "Change ${g.title}") { onAcct(AcctChip("edit:" + g.id, "Change: " + g.title)) }
+                }
+                g.rows.forEach { r ->
+                    Column {
+                        Text(r.label, style = body(12f, D.Muted))
+                        Text(r.value, style = body(14f))
+                        if (r.from.isNotBlank()) Text(r.from, style = body(11.5f, D.Muted))
+                    }
+                }
+                g.documents.forEach { d ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(d.label, style = body(12f, D.Muted))
+                            Text(d.value + if (d.status.isNotBlank()) "  ·  " + d.status else "", style = body(14f))
+                        }
+                        if (p.live) AcctLink(d.action.label, d.action.label + " " + d.label) { onAcct(d.action.copy(label = d.action.label + ": " + d.label)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcctLink(label: String, description: String, onClick: () -> Unit) {
+    Text(label, style = body(13f, D.Gold, FontWeight.SemiBold).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClickLabel = description, onClick = onClick).padding(horizontal = 6.dp, vertical = 8.dp))
+}
+
+/** What answers the server's turn: a document, a card, the code, the final tick, chips; More beneath. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AcctDockView(
+    t: AcctTurn, onChip: (AcctChip) -> Unit, onScan: () -> Unit, onPick: () -> Unit,
+    onFields: (Map<String, String>, Map<String, String>, String) -> Unit, onCode: (String) -> Unit, onSubmit: () -> Unit,
+) {
+    var more by remember(t) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        t.progress?.let { (at, of) ->
+            Box(Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(2.dp)).background(D.Line)) {
+                Box(Modifier.fillMaxWidth(at.toFloat() / of).height(2.dp).background(D.Gold))
+            }
+        }
+        var ownButton = false
+        when (val d = t.dock) {
+            is AcctDock.Upload -> {
+                ownButton = true
+                if (d.why.isNotBlank()) Text(d.why, style = body(13f, D.Muted))
+                Chips(listOf(Triple("Scan With Camera", true, onScan), Triple("Choose A File", false, onPick)))
+            }
+            is AcctDock.Card -> { ownButton = true; AcctCard(d, onFields, onChip) }
+            is AcctDock.Code -> { ownButton = true; AcctCode(d, onCode) }
+            is AcctDock.Final -> { ownButton = true; AcctFinal(d, t.error, onSubmit) }
+            else -> Unit
+        }
+        if (t.chips.isNotEmpty()) AcctChips(t.chips, main = !ownButton, onChip)
+        if (t.more.isNotEmpty()) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Quiet("More") { more = !more } }
+            if (more) AcctChips(t.more, main = false, onChip)
+        }
+    }
+}
+
+/** Chips, the first leading; one with a wait counts down to being pressed (Send A New Code In 0:42). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AcctChips(chips: List<AcctChip>, main: Boolean, onChip: (AcctChip) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        chips.forEachIndexed { i, c ->
+            var left by remember(c) { mutableIntStateOf(c.wait) }
+            LaunchedEffect(c) { while (left > 0) { delay(1_000); left-- } }
+            val lead = main && i == 0
+            val label = if (left > 0) "%s In %d:%02d".format(c.label, left / 60, left % 60) else c.label
+            Box(
+                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).background(if (lead) D.Gold else Color.Transparent)
+                    .border(1.5.dp, if (lead) D.Gold else D.Line2, RoundedCornerShape(50))
+                    .clickable(enabled = left == 0) { onChip(c) }.padding(horizontal = 18.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(label, style = body(14f, if (lead) D.OnGold else if (left > 0) D.Muted else D.Ink, FontWeight.SemiBold)) }
+        }
+    }
+}
+
+/** A card of fields: labels above, errors under, locked readings shaded. */
+@Composable
+private fun AcctCard(d: AcctDock.Card, onFields: (Map<String, String>, Map<String, String>, String) -> Unit, onChip: (AcctChip) -> Unit) {
+    val values = remember(d) { mutableStateMapOf<String, String>().apply { d.fields.forEach { put(it.name, it.value) } } }
+    Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        d.fields.forEach { f ->
+            Column {
+                Text(f.label, style = body(13f, D.Ink.copy(alpha = 0.85f), FontWeight.Medium), modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+                if (f.select != null) {
+                    var open by remember { mutableStateOf(false) }
+                    Box {
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(D.Raise).border(1.dp, if (f.error.isNotBlank()) D.Warn else D.Line2, RoundedCornerShape(12.dp))
+                            .clickable { open = true }.padding(14.dp)) {
+                            Text(f.select.firstOrNull { it.first == values[f.name] }?.second ?: "Choose…", style = body(15f, if (values[f.name].isNullOrBlank()) D.Muted else D.Ink))
+                        }
+                        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                            f.select.forEach { (v, l) -> androidx.compose.material3.DropdownMenuItem(text = { Text(l) }, onClick = { values[f.name] = v; open = false }) }
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (f.locked) D.Mark else D.Raise)
+                        .border(1.dp, if (f.error.isNotBlank()) D.Warn else D.Line2, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        if (f.prefix.isNotBlank()) { Text(f.prefix, style = body(15f, D.Muted)); Spacer(Modifier.width(8.dp)) }
+                        BasicTextField(values[f.name].orEmpty(), { if (!f.locked) values[f.name] = it }, readOnly = f.locked,
+                            textStyle = body(15f, D.MeInk), cursorBrush = SolidColor(D.Gold), singleLine = !f.multiline,
+                            keyboardOptions = KeyboardOptions(keyboardType = when { f.phone && f.prefix.isBlank() -> KeyboardType.Phone; f.numeric -> KeyboardType.Number; else -> KeyboardType.Text },
+                                capitalization = if (f.numeric || f.phone) KeyboardCapitalization.None else KeyboardCapitalization.Words),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = if (f.multiline) 56.dp else 0.dp))
+                    }
+                }
+                if (f.error.isNotBlank()) Text(f.error, style = body(12.5f, D.Warn), modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+                else if (f.hint.isNotBlank()) Text(f.hint, style = body(12f, D.Muted), modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+            }
+        }
+        if (d.under.isNotBlank()) Text(d.under, style = body(12.5f, D.Muted))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1f))
+            d.cancel?.let { c -> Chips(listOf(Triple(c, false) { onChip(AcctChip("cancel", c)) })) }
+            Chips(listOf(Triple(d.button, true) {
+                val editable = d.fields.filterNot { it.locked }
+                onFields(editable.associate { it.name to values[it.name].orEmpty().trim() },
+                    editable.associate { it.name to it.label } + editable.filter { it.select != null }.associate { it.name to it.label },
+                    d.button)
+            }))
+        }
+    }
+}
+
+/** The code: six digits, sent on their own when complete; errors under it. */
+@Composable
+private fun AcctCode(d: AcctDock.Code, onCode: (String) -> Unit) {
+    var v by remember(d) { mutableStateOf("") }
+    Column {
+        Text("Code", style = body(13f, D.Ink.copy(alpha = 0.85f), FontWeight.Medium), modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(D.Raise).border(1.dp, if (d.error.isNotBlank()) D.Warn else D.Line2, RoundedCornerShape(12.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp)) {
+                BasicTextField(v, { s -> v = s.filter { it.isDigit() }.take(6); if (v.length == 6) onCode(v) },
+                    textStyle = body(17f, D.MeInk).copy(letterSpacing = 4.sp), cursorBrush = SolidColor(D.Gold), singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
+            }
+            Chips(listOf(Triple("Confirm", v.length == 6) { if (v.length == 6) onCode(v) }))
+        }
+        if (d.error.isNotBlank()) Text(d.error, style = body(12.5f, D.Warn), modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+    }
+}
+
+/** The final tick: the consent, then Open My Account (or Send Again). */
+@Composable
+private fun AcctFinal(d: AcctDock.Final, error: String, onSubmit: () -> Unit) {
+    var ticked by remember(d) { mutableStateOf(false) }
+    var asked by remember(d) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, D.Line2, RoundedCornerShape(14.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.clickable { ticked = !ticked }, verticalAlignment = Alignment.Top) {
+            androidx.compose.material3.Checkbox(checked = ticked, onCheckedChange = { ticked = it },
+                colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = D.Gold, checkmarkColor = D.OnGold, uncheckedColor = D.Line2))
+            Text(d.consent, style = body(13.5f), modifier = Modifier.padding(top = 12.dp))
+        }
+        if (asked && !ticked) Text("Please tick the box to confirm.", style = body(12.5f, D.Warn))
+        else if (error.isNotBlank()) Text(error, style = body(12.5f, D.Warn))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            Chips(listOf(Triple(d.button, true) { if (ticked) onSubmit() else asked = true }))
+        }
+    }
+}
+
+/** A document going up and being read: the lines at 20 and 60 seconds, then Stop Waiting. */
+@Composable
+private fun AcctReadingDock(d: Dock.AcctReading, onStop: () -> Unit) {
+    var now by remember(d) { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(d) { while (true) { delay(1_000); now = System.currentTimeMillis() } }
+    val s = (now - d.since) / 1_000
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        WaitLine(when {
+            s >= 60 -> "This copy is taking a little longer. You can wait, or upload a clearer one."
+            s >= 20 -> "Still reading your document…"
+            else -> "Reading your ${d.label}…"
+        })
+        if (s >= 60) Chips(listOf(Triple("Stop Waiting", false, onStop)))
     }
 }

@@ -79,6 +79,8 @@ class AuthRepository(
         } else {
             val st = (d["status"] as? String).orEmpty().ifBlank { "lead" }
             SessionRole.reviewNote.value = (d["review_note"] as? String).orEmpty()
+            SessionRole.canRegister.value = d["can_register"] != false
+            SessionRole.accountDesk.value = d["account_desk"] == true
             tokens.saveLeadStatus(st)
             st
         }

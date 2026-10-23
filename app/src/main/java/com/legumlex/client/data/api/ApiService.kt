@@ -687,6 +687,20 @@ interface ApiService {
     @POST("lead/onboarding/reopen")
     suspend fun leadOnboardingReopen(): Map<String, Any?>
 
+    /** The registrant's mobile, confirmed by a code: request (number) | status | sms | verify (code). */
+    @FormUrlEncoded
+    @POST("lead/onboarding/phone/{step}")
+    suspend fun leadOnboardingPhone(@Path("step") step: String, @FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    // Opening an account in the desk's conversation (lexon Enrolment): the
+    // server's turn, an answer, and a document read for the conversation.
+    @GET("lead/onboarding/turn")
+    suspend fun leadOnboardingTurn(@Query("open") open: Int = 0): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/onboarding/answer")
+    suspend fun leadOnboardingAnswer(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
     /** The Legum Lex site's public notice tracker (cases/landing/ajax_track), by its own URL. */
     @FormUrlEncoded
     @Headers("X-Skip-Auth: 1")
