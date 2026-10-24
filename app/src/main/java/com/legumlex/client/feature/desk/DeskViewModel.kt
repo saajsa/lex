@@ -319,7 +319,17 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         guest = false
         terms = loadTerms()
         // Asked for an account before signing in: straight to it.
-        if (acctWish) { acctWish = false; go { enterAccount(false) }; return }
+        if (acctWish) {
+            acctWish = false
+            go {
+                // A Google address that is already a client's: their account is open.
+                if (!com.legumlex.client.data.auth.SessionRole.isLead) {
+                    say(Para.Text("Your account with the firm is already open. To open another account, such as one for a business, please write to the firm from My Matters."))
+                    dock(Dock.Actions(listOf(Action("acct_home", "Back To Home", main = true))))
+                } else enterAccount(false)
+            }
+            return
+        }
         go { next() }
     }
 
@@ -649,6 +659,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             "acct_offer_yes" -> go { me("Open My Account"); enterAccount(false, said = true) }
             "acct_offer_no" -> go { me("No, I Have A Question"); leaveAccount() }
             "acct_retry" -> go { me("Try Again"); fetchTurn(false) }
+            "acct_home" -> _events.tryEmit(DeskEvent.Home)
             "acct_ok" -> pendingConfirm?.let { c -> pendingConfirm = null; c.confirm?.let { acctAnswer(it.ok.id, bubble = it.ok.label) } }
             "acct_cancel" -> go { me(pendingConfirm?.confirm?.cancel ?: "Keep Going"); pendingConfirm = null; turn?.let { dock(Dock.Acct(it)) } }
         }
@@ -671,7 +682,14 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun enterAccount(explicit: Boolean, said: Boolean = false) {
         _ui.update { it.copy(opened = true, acct = true) }
         if (explicit && !said) me("I would like to open an account")
-        if (guest) { acctWish = true; signInDock(); return }
+        if (guest) {
+            // Signed out (the sign-in screen's Open An Account): Google first, said as the website says it.
+            acctWish = true
+            signinSaid = true
+            say(Para.Text("I can help you open an account with the firm. Please sign in with Google first; then I will ask for your identity documents."))
+            dock(Dock.SignIn)
+            return
+        }
         fetchTurn(!explicit && !said)
     }
 

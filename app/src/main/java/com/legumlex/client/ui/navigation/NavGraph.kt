@@ -121,6 +121,8 @@ fun LegumNavGraph(navController: NavHostController) {
                     }
                 },
                 onAskLexIntelligence = { navController.navigate(Route.NewConsultation.build()) },
+                // Lex Intelligence opens the account: Google first, then the documents.
+                onOpenAccount = { navController.navigate(Route.NewConsultation.build(account = true)) },
             )
         }
 

@@ -77,6 +77,8 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     /** Lex Intelligence before sign-in: the desk, as a guest. */
     onAskLexIntelligence: () -> Unit = {},
+    /** New here? Open An Account: Lex Intelligence, opening an account (owner, 2026-10-24). */
+    onOpenAccount: () -> Unit = {},
 ) {
     val spacing  = LocalSpacing.current
     val context  = LocalContext.current
@@ -88,6 +90,11 @@ fun LoginScreen(
     val mobile by vm.mobile.collectAsState()
 
     val isLoading = state is LoginState.Loading
+    // Whether newcomers may open an account (google_config's sign_up), as the web's sign-in page asks.
+    var signUp by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        signUp = runCatching { ApiClient.get(context).googleConfig()["sign_up"] == true }.getOrDefault(false)
+    }
 
     LaunchedEffect(state) {
         if (state is LoginState.Success) onLoginSuccess()
@@ -127,7 +134,7 @@ fun LoginScreen(
         Spacer(Modifier.height(spacing.s2))
         Text(
             when (view) {
-                LoginView.Choose -> "Clients see their matters here. New to the firm? Ask Lex Intelligence."
+                LoginView.Choose -> "Clients see their matters here."
                 LoginView.Mobile -> "Sign in with a code sent to your mobile."
                 LoginView.Email  -> "Sign in with your email and password."
             },
@@ -173,13 +180,22 @@ fun LoginScreen(
         ) { v ->
             Column(Modifier.fillMaxWidth()) {
                 when (v) {
-                    LoginView.Choose -> ChooseView(
+                    LoginView.Choose -> {
+                    ChooseView(
                         busy     = isLoading,
                         onGoogle = signInWithGoogle,
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
                     )
+                    if (signUp) {
+                        Spacer(Modifier.height(spacing.s4))
+                        Row(Modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                            Text("New here?", style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
+                            LinkButton(text = "Open An Account", enabled = !isLoading, onClick = onOpenAccount)
+                        }
+                    }
+                    }
                     LoginView.Mobile -> MobileView(vm = vm, mobile = mobile, busy = isLoading)
                     LoginView.Email  -> EmailView(vm = vm, busy = isLoading)
                 }
