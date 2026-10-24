@@ -148,7 +148,7 @@ fun LeadHomeScreen(
         if (status != "awaiting_approval" && status != "rejected" && canRegister) {
             Eyebrow("Become A Client", modifier = Modifier.padding(start = 4.dp, top = 4.dp))
             LexCard {
-                MenuRow(Icons.Outlined.HowToReg, "Open An Account",
+                MenuRow(Icons.Outlined.HowToReg, "Onboard Now",
                     if (accountDesk) "Lex Intelligence asks for your identity documents, one at a time. The firm approves every new account; this app then opens as your client app."
                     else "Register with your identity documents. The firm approves every new account; this app then opens as your client app.", openAccount)
                 if (accountDesk) {

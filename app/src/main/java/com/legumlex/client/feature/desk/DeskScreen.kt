@@ -268,7 +268,7 @@ fun DeskScreen(
                     Intro(vm.guest)
                     // Opening an account, for a lead the desk does that for.
                     if (ui.terms.accountDesk && !vm.guest) Box(Modifier.padding(start = 18.dp, top = 18.dp)) {
-                        Chips(listOf(Triple("Open An Account", false) { vm.startAccount() }))
+                        Chips(listOf(Triple("Onboard Now", false) { vm.startAccount() }))
                     }
                 }
                 if (!typing) {

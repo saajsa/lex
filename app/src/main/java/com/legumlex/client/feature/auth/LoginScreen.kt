@@ -77,7 +77,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     /** Lex Intelligence before sign-in: the desk, as a guest. */
     onAskLexIntelligence: () -> Unit = {},
-    /** New here? Open An Account: Lex Intelligence, opening an account (owner, 2026-10-24). */
+    /** New here? Onboard Now: Lex Intelligence, opening an account (owner, 2026-10-24). */
     onOpenAccount: () -> Unit = {},
 ) {
     val spacing  = LocalSpacing.current
@@ -192,7 +192,7 @@ fun LoginScreen(
                         Spacer(Modifier.height(spacing.s4))
                         Row(Modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                             Text("New here?", style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
-                            LinkButton(text = "Open An Account", enabled = !isLoading, onClick = onOpenAccount)
+                            LinkButton(text = "Onboard Now", enabled = !isLoading, onClick = onOpenAccount)
                         }
                     }
                     }
