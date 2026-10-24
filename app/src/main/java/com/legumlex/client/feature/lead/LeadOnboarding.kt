@@ -310,7 +310,7 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
                     Text("Your documents on file are kept; replace only what the firm asks for. Account type: ${s.types.firstOrNull { it.first == s.entityType }?.second ?: s.entityType.orEmpty()}.",
                         style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
                 } else {
-                    Title("Open An Account", "Your account with the firm is opened from your identity documents. The firm reviews every new account before it opens.")
+                    Title("Become A Client", "Your account with the firm is opened from your identity documents. The firm reviews every new account before it opens.")
                     if (s?.problem?.isNotBlank() == true) {
                         LexCard { Text(s.problem, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp)) }
                     } else LexCard {

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.HowToReg
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Smartphone
@@ -189,11 +190,32 @@ fun LoginScreen(
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
                     )
                     if (signUp) {
-                        Spacer(Modifier.height(spacing.s4))
-                        Row(Modifier.align(Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                            Text("New here?", style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
-                            LinkButton(text = "Onboard Now", enabled = !isLoading, onClick = onOpenAccount)
+                        // A newcomer's own way in (owner, 2026-10-24): set apart
+                        // from signing in, as a button of its own.
+                        Spacer(Modifier.height(spacing.s5))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f).height(1.dp).background(BorderColor))
+                            Text("New To The Firm?", style = MaterialTheme.typography.labelMedium, color = SecondaryText,
+                                modifier = Modifier.padding(horizontal = 12.dp))
+                            Box(Modifier.weight(1f).height(1.dp).background(BorderColor))
                         }
+                        Spacer(Modifier.height(spacing.s4))
+                        OutlinedButton(
+                            onClick  = onOpenAccount,
+                            enabled  = !isLoading,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape    = RoundedCornerShape(50),
+                            border   = BorderStroke(1.dp, PrimaryText),
+                            colors   = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryText),
+                        ) {
+                            Icon(Icons.Outlined.HowToReg, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Onboard Now", style = MaterialTheme.typography.labelLarge)
+                        }
+                        Spacer(Modifier.height(spacing.s2))
+                        Text("Your PAN, Aadhaar and mobile number. The firm approves every new account.",
+                            style = MaterialTheme.typography.bodySmall, color = SecondaryText,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                     }
                     LoginView.Mobile -> MobileView(vm = vm, mobile = mobile, busy = isLoading)

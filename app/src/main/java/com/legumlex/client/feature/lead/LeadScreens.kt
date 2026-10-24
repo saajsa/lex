@@ -13,7 +13,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material.icons.outlined.HowToReg
+import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.*
@@ -131,6 +133,29 @@ fun LeadHomeScreen(
                 }
             }
         }
+        // Becoming a client leads the page (owner, 2026-10-24): what it takes,
+        // then the one button; the form stays beneath when the desk does it.
+        if (status != "awaiting_approval" && status != "rejected" && canRegister) {
+            LexCard(title = "Become A Client") {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        if (accountDesk) "Lex Intelligence asks for your documents one at a time and checks them as you go."
+                        else "A short form, step by step, with your identity documents.",
+                        style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground,
+                    )
+                    OnboardNeed(Icons.Outlined.CreditCard, "Your PAN Card")
+                    OnboardNeed(Icons.Outlined.Badge, "Your Aadhaar, or your passport if you live abroad")
+                    OnboardNeed(Icons.Outlined.PhoneAndroid, "Your mobile, for a one-time code")
+                    Text("The firm approves every new account; this app then opens as your client app.",
+                        style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                    com.legumlex.client.feature.healthchecks.funnel.FunnelPrimaryButton("Onboard Now",
+                        modifier = Modifier.fillMaxWidth(), onClick = openAccount)
+                    if (accountDesk) TextButton(onClick = onOpenForm, modifier = Modifier.fillMaxWidth()) {
+                        Text("Or Use The Form", color = Lex.colors.foreground)
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Eyebrow("Ask", modifier = Modifier.padding(start = 4.dp))
         LexCard {
@@ -145,20 +170,20 @@ fun LeadHomeScreen(
                 when (n) { 0 -> "The questions you ask, and the advocates' replies."; 1 -> "One enquiry, and the advocates' replies."; else -> "$n enquiries, and the advocates' replies." },
                 onEnquiries)
         }
-        if (status != "awaiting_approval" && status != "rejected" && canRegister) {
-            Eyebrow("Become A Client", modifier = Modifier.padding(start = 4.dp, top = 4.dp))
-            LexCard {
-                MenuRow(Icons.Outlined.HowToReg, "Onboard Now",
-                    if (accountDesk) "Lex Intelligence asks for your identity documents, one at a time. The firm approves every new account; this app then opens as your client app."
-                    else "Register with your identity documents. The firm approves every new account; this app then opens as your client app.", openAccount)
-                if (accountDesk) {
-                    HorizontalDivider(color = Lex.colors.border)
-                    MenuRow(Icons.Outlined.HowToReg, "Or Use The Form", "The same registration, as a form, step by step.", onOpenForm)
-                }
-            }
-        }
         Spacer(Modifier.height(8.dp))
     }
+    }
+}
+
+/** One thing onboarding asks for, on the Become A Client card. */
+@Composable
+private fun OnboardNeed(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(Lex.colors.muted), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = Lex.colors.foreground, modifier = Modifier.size(17.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
     }
 }
 
