@@ -22,6 +22,7 @@ import com.pusher.pushnotifications.fcm.MessagingService
  *   route=consultation, consultation_id=42, kind=reply | doc_request | ...
  *   route=invoice,      invoice_id=17
  *   route=hearing,      hearing_id=99
+ *   route=project,      project_id=12   (a stage moved, concluded, or needs the client)
  */
 class ClientFcmService : MessagingService() {
 
@@ -99,6 +100,9 @@ class ClientFcmService : MessagingService() {
             "hearing" -> data["hearing_id"]
                 ?.takeIf { it.isNotBlank() }
                 ?.let { Uri.parse("legumlex://hearing/$it") }
+            "project" -> data["project_id"]
+                ?.takeIf { it.isNotBlank() }
+                ?.let { Uri.parse("legumlex://project/$it") }
             else -> null
         }
     }
@@ -114,6 +118,7 @@ class ClientFcmService : MessagingService() {
             m.data["consultation_id"]
                 ?: m.data["invoice_id"]
                 ?: m.data["hearing_id"]
+                ?: m.data["project_id"]
                 ?: System.currentTimeMillis().toString()
         )
         return key.hashCode()

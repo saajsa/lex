@@ -59,6 +59,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="legumlex" android:host="invoice" />
             </intent-filter>
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="legumlex" android:host="project" />
+            </intent-filter>
         </activity>
 
         <!-- Tell FCM which channel + icon to use for any payload that doesn't

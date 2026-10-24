@@ -168,6 +168,35 @@ private fun parseSummary(m: Map<String, Any?>): ProjectSummary {
         tasksTotal    = jInt(m["tasks_total"]) ?: 0,
         tasksOpen     = jInt(m["tasks_open"]) ?: 0,
         nextMilestone = parseNextMilestone(m["next_milestone"]),
+        stages        = parseStages(m["stages"]),
+    )
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun parseStages(raw: Any?): ClientStages? {
+    val m = raw as? Map<String, Any?> ?: return null
+    fun stage(x: Map<String, Any?>) = ClientStage(
+        milestoneId       = jId(x["milestone_id"]) ?: "",
+        name              = x["name"] as? String ?: "",
+        number            = jInt(x["number"]),
+        state             = x["state"] as? String ?: "pending",
+        outcome           = jBool(x["outcome"]),
+        clientLine        = x["client_line"] as? String ?: "",
+        enteredAt         = parseDate((x["entered_at"] as? String)?.take(10)),
+        reachedAt         = parseDate((x["reached_at"] as? String)?.take(10)),
+        officialDate      = parseDate(x["official_date"] as? String),
+        officialDateLabel = x["official_date_label"] as? String ?: "",
+        reference         = x["reference"] as? String ?: "",
+    )
+    val outcome = m["outcome"] as? Map<String, Any?>
+    return ClientStages(
+        typeName      = m["type_name"] as? String ?: "",
+        chip          = m["chip"] as? String ?: "",
+        current       = (m["current"] as? Map<String, Any?>)?.let(::stage),
+        currentHidden = jBool(m["current_hidden"]),
+        outcomeName   = (outcome?.get("name") as? String)?.takeIf { it.isNotBlank() },
+        outcomeLine   = (outcome?.get("outcome_line") as? String)?.takeIf { it.isNotBlank() },
+        stages        = (m["stages"] as? List<*>)?.mapNotNull { (it as? Map<String, Any?>)?.let(::stage) }.orEmpty(),
     )
 }
 
@@ -230,6 +259,9 @@ private fun parseDetail(m: Map<String, Any?>): ProjectDetail {
             milestonesTotal = i(countsMap, "milestones_total"),
             filesTotal      = i(countsMap, "files_total"),
         ),
+        needs = (m["needs"] as? List<*>)?.mapNotNull { n ->
+            (n as? Map<String, Any?>)?.let { NeedItem(jId(it["id"]) ?: return@let null, it["name"] as? String ?: "") }
+        }.orEmpty(),
     )
 }
 
@@ -255,6 +287,9 @@ private fun parseMilestone(m: Map<String, Any?>): Milestone = Milestone(
     description = (m["description"] as? String)?.takeIf { it.isNotBlank() },
     tasksTotal  = jInt(m["tasks_total"]) ?: 0,
     tasksDone   = jInt(m["tasks_done"]) ?: 0,
+    stageState  = (m["stage_state"] as? String)?.takeIf { it.isNotBlank() },
+    enteredAt   = parseDate((m["entered_at"] as? String)?.take(10)),
+    reachedAt   = parseDate((m["reached_at"] as? String)?.take(10)),
 )
 
 private fun parseFile(m: Map<String, Any?>): ProjectFile {

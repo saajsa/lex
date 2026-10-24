@@ -137,7 +137,9 @@ fun ProjectMilestonesScreen(projectId: String, onBack: () -> Unit) {
     }
 }
 
-private fun Milestone.complete() = tasksTotal > 0 && tasksDone >= tasksTotal
+// A project's stage is complete by its state, not its tasks.
+private fun Milestone.complete() = stageState?.let { it == "reached" || it == "skipped" || it == "not_applicable" }
+    ?: (tasksTotal > 0 && tasksDone >= tasksTotal)
 
 @Composable
 private fun MilestonesReady(milestones: List<Milestone>) {
@@ -235,6 +237,13 @@ private fun MilestoneCard(m: Milestone, today: LocalDate, isNearest: Boolean) {
 }
 
 @androidx.compose.runtime.Composable private fun dueGlance(m: Milestone, today: LocalDate, done: Boolean, soon: Boolean, week: Boolean, days: Long?): Triple<ImageVector, String, Color> {
+    // A stage carries no planned date for the client: when it started and completed only.
+    when (m.stageState) {
+        "reached" -> return Triple(Icons.Outlined.CheckCircle, m.reachedAt?.let { "Completed ${it.format(dayFmt)}" } ?: "Completed", LlColor.InkFaint)
+        "skipped", "not_applicable" -> return Triple(Icons.Outlined.CheckCircle, "Not needed", LlColor.InkFaint)
+        "current" -> return Triple(Icons.Outlined.Flag, m.enteredAt?.let { "In This Stage Since ${it.format(dayFmt)}" } ?: "The current stage", LlColor.InkMuted)
+        "pending" -> return Triple(Icons.Outlined.Schedule, "Not yet started", LlColor.InkFaint)
+    }
     if (done) return Triple(Icons.Outlined.CheckCircle, m.dueDate?.let { "Reached ${it.format(dayFmt)}" } ?: "Completed", LlColor.InkFaint)
     val d = m.dueDate ?: return Triple(Icons.Outlined.Schedule, "No due date set", LlColor.InkFaint)
     val label = when {
@@ -250,7 +259,10 @@ private fun MilestoneCard(m: Milestone, today: LocalDate, isNearest: Boolean) {
 @Composable
 private fun MsStatusPill(m: Milestone) {
     val (bg, fg, label) = when {
+        m.stageState == "skipped" || m.stageState == "not_applicable" -> Triple(LlColor.Paper2, LlColor.InkMuted, "Not Needed")
         m.complete() -> Triple(LlColor.VerdantSoft, LlColor.Verdant, "Complete")
+        m.stageState == "current" -> Triple(LlColor.SlateSoft, LlColor.SlateMid, "Current Stage")
+        m.stageState == "pending" -> Triple(LlColor.Paper2, LlColor.InkMuted, "Not Started")
         m.tasksDone > 0 -> Triple(LlColor.SlateSoft, LlColor.SlateMid, "In Progress")
         else -> Triple(LlColor.Paper2, LlColor.InkMuted, "Not Started")
     }

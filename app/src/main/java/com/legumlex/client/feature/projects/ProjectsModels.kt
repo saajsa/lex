@@ -61,7 +61,43 @@ data class ProjectSummary(
     val tasksTotal: Int,
     val tasksOpen: Int,
     val nextMilestone: NextMilestoneRef?,
+    /** Where a typed project stands (cases Project Types); null for a blank one, or milestones not shared. */
+    val stages: ClientStages? = null,
 )
+
+/**
+ * A typed project's stages as the client sees them: only the ones shown to
+ * them, numbered over those, never a planned date. [chip] is the portal's
+ * whose-move wording: Waiting On You, With The Firm, With The {authority},
+ * Closed, On Hold, Work Stopped.
+ */
+data class ClientStages(
+    val typeName: String,
+    val chip: String,
+    val current: ClientStage?,
+    val currentHidden: Boolean,
+    val outcomeName: String?,
+    val outcomeLine: String?,
+    val stages: List<ClientStage>,
+)
+
+data class ClientStage(
+    val milestoneId: String,
+    val name: String,
+    val number: Int?,
+    /** pending · current · reached · skipped · not_applicable */
+    val state: String,
+    val outcome: Boolean,
+    val clientLine: String,
+    val enteredAt: LocalDate?,
+    val reachedAt: LocalDate?,
+    val officialDate: LocalDate?,
+    val officialDateLabel: String,
+    val reference: String,
+)
+
+/** Something the firm is waiting on the client for: an open task of theirs on the current stage. */
+data class NeedItem(val id: String, val name: String)
 
 data class ProjectSettings(
     val viewTasks: Boolean,
@@ -101,6 +137,7 @@ data class ProjectDetail(
     val estimatedHours: Double?,
     val settings: ProjectSettings,
     val counts: ProjectCounts,
+    val needs: List<NeedItem> = emptyList(),
 )
 
 data class TaskSummary(
@@ -125,6 +162,10 @@ data class Milestone(
     val description: String?,
     val tasksTotal: Int,
     val tasksDone: Int,
+    /** A project's stage: its state, and when it was started and completed (no planned dates). */
+    val stageState: String? = null,
+    val enteredAt: LocalDate? = null,
+    val reachedAt: LocalDate? = null,
 )
 
 data class ProjectFile(

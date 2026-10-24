@@ -194,6 +194,18 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(p.name, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+                // A typed project says where it stands and whose move it is, as the portal's card.
+                p.stages?.let { st ->
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(st.outcomeName?.let { "Concluded: $it" } ?: st.current?.name ?: st.typeName,
+                            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false))
+                        Spacer(Modifier.width(8.dp))
+                        StatusChip(st.chip, if (st.chip == "Closed") Lex.colors.success else Lex.colors.neutral)
+                    }
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Lex.colors.secondary)) {
@@ -211,7 +223,8 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
         HorizontalDivider(color = Lex.colors.border)
         Column(Modifier.background(Lex.colors.muted.copy(alpha = 0.5f))) {
             Row(Modifier.height(IntrinsicSize.Min)) {
-                PFact("Next Milestone",
+                if (p.stages != null) PFact("Stage", p.stages.outcomeName ?: p.stages.current?.name ?: "—", Modifier.weight(1f))
+                else PFact("Next Milestone",
                     p.nextMilestone?.let { m ->
                         val passed = m.dueDate?.isBefore(java.time.LocalDate.now()) == true
                         listOfNotNull(m.name, m.dueDate?.let { (if (passed) "Passed " else "") + pdate(it) }).joinToString(" · ")
@@ -225,7 +238,9 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
                 PFact("Started", p.startDate?.let { pdate(it) } ?: "Not Recorded", Modifier.weight(1f))
                 Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
                 // A deadline behind us is said to have passed, not only coloured.
-                val passed = !done && p.deadline?.isBefore(today) == true
+                // Not while the work sits with an authority: that wait is not late work.
+                val withAuthority = p.stages?.chip?.let { it.startsWith("With The ") && it != "With The Firm" } == true
+                val passed = !done && !withAuthority && p.deadline?.isBefore(today) == true
                 PFact(if (passed) "Deadline Passed" else "Deadline", p.deadline?.let { pdate(it) } ?: "No Deadline Set", Modifier.weight(1f),
                     alarm = passed)
             }

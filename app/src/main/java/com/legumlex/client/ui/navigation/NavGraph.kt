@@ -615,6 +615,10 @@ fun LegumNavGraph(navController: NavHostController) {
         composable(
             route     = Route.ProjectDetail.path,
             arguments = listOf(navArgument(Route.ProjectDetail.ARG) { type = NavType.StringType }),
+            // Deep-link target for project-stage pushes (ClientFcmService).
+            deepLinks = listOf(navDeepLink {
+                uriPattern = "legumlex://project/{${Route.ProjectDetail.ARG}}"
+            }),
         ) { entry ->
             val id = entry.arguments?.getString(Route.ProjectDetail.ARG).orEmpty()
             ProjectDetailScreen(
