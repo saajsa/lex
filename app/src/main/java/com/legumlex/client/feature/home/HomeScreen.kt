@@ -376,7 +376,7 @@ private fun HomeContent(
                 // 0. The workspaces, and the consultations' four figures — the
                 // top of Mylex's home. Consult is the bottom bar's centre button.
                 Column {
-                    SectionHeader(title = "Workspace")
+                    SectionHeader(title = "Services")
                 WorkspaceEntrances(
                     ws           = data.workspaces,
                     onLitigation = onOpenLitigation,
