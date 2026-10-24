@@ -24,6 +24,23 @@ class CasesRepository(private val api: ApiService) {
         parseDetail(data)
     }
 
+    /** The case's notices, roots only (replies live on the notice's page). */
+    suspend fun notices(caseId: String): Result<List<CaseNotice>> = runCatching {
+        @Suppress("UNCHECKED_CAST")
+        val data = api.caseNotices(caseId)["data"] as? List<Map<String, Any?>> ?: emptyList()
+        data.map { n ->
+            CaseNotice(
+                id = n["id"]?.toString()?.substringBefore('.').orEmpty(),
+                reference = (n["reference_number"] as? String).orEmpty(),
+                inbound = n["direction"] == "inbound",
+                type = (n["notice_type"] as? String)?.takeIf { it.isNotBlank() } ?: "Legal Notice",
+                counterparty = (n["counterparty"] as? String).orEmpty(),
+                statusLabel = (n["status_label"] as? String)?.takeIf { it.isNotBlank() } ?: (n["status"] as? String).orEmpty(),
+                date = parseDate((n["created_at"] as? String)?.take(10)),
+            )
+        }
+    }
+
     suspend fun timeline(caseId: String): Result<List<TimelineEvent>> = runCatching {
         val response = api.caseTimeline(caseId)
         @Suppress("UNCHECKED_CAST")
@@ -98,6 +115,16 @@ private fun parseDetail(m: Map<String, Any?>): CaseDetail {
         documents           = docs,
         upcomingHearings    = upcoming,
         pastHearings        = past,
+        counsel             = (m["counsel"] as? List<Map<String, Any?>>).orEmpty().map { c ->
+            CounselOnRecord(
+                name = (c["name"] as? String).orEmpty(),
+                honorific = (c["honorific"] as? String).orEmpty(),
+                designation = (c["designation"] as? String).orEmpty(),
+                intro = (c["intro"] as? String).orEmpty(),
+                photoUrl = (c["photo_url"] as? String)?.takeIf { it.isNotBlank() },
+                lead = c["lead"] == true,
+            )
+        },
     )
 }
 

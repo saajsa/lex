@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.legumlex.client.ahc.components.LlAvatar
 import com.legumlex.client.ahc.theme.Inter
 import com.legumlex.client.ahc.theme.Mono
 import com.legumlex.client.ui.caseTitlePlain
@@ -70,7 +69,8 @@ import java.util.Locale
 // over tabs — in this app's own grey and ink, carrying only what the client
 // API gives a client. The client reads, opens and messages; nothing here
 // records, uploads or deletes. Tabs: Hearings (what is coming, the orders,
-// what has been), Documents, About (court, parties, acts, advocate), Activity.
+// what has been), Documents, Notices, Counsel (counsel on record, lead
+// first). The court, the parties and the acts are under the head's "i".
 // -----------------------------------------------------------------------------
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -82,6 +82,7 @@ fun CaseDetailScreen(
     onOpenDocument: (CaseFile) -> Unit = {},
     onOpenOrderDocument: (CaseOrder) -> Unit = {},
     onOpenHearing: (String) -> Unit = {},
+    onOpenNotice: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -98,7 +99,7 @@ fun CaseDetailScreen(
             is CaseDetailUiState.Loading -> Skeleton()
             is CaseDetailUiState.Error -> ErrorState(s.message, vm::load)
             is CaseDetailUiState.Ready -> PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::refresh) {
-                Page(s.detail, s.timeline, tab, { tab = it }, onOpenConsultation, onOpenDocument, onOpenOrderDocument, onOpenHearing)
+                Page(s.detail, s.notices, tab, { tab = it }, onOpenConsultation, onOpenDocument, onOpenOrderDocument, onOpenHearing, onOpenNotice)
             }
         }
     }
@@ -108,13 +109,14 @@ fun CaseDetailScreen(
 @Composable
 private fun Page(
     d: CaseDetail,
-    timeline: List<TimelineEvent>,
+    notices: List<CaseNotice>,
     tab: String,
     onTab: (String) -> Unit,
     onOpenConsultation: (String) -> Unit,
     onOpenDocument: (CaseFile) -> Unit,
     onOpenOrderDocument: (CaseOrder) -> Unit,
     onOpenHearing: (String) -> Unit,
+    onOpenNotice: (String) -> Unit,
 ) {
     val hearings = d.upcomingHearings.size + d.pastHearings.size
     // The head scrolls away; the parties, the figures and the tabs stay.
@@ -123,8 +125,8 @@ private fun Page(
         stickyHeader {
             Pinned(d) {
                 Segments(
-                    listOf("hearings" to "Hearings", "documents" to "Documents", "about" to "About", "activity" to "Activity"),
-                    tab, mapOf("hearings" to hearings, "documents" to d.documents.size), onTab,
+                    listOf("hearings" to "Hearings", "documents" to "Documents", "notices" to "Notices", "counsel" to "Counsel"),
+                    tab, mapOf("hearings" to hearings, "documents" to d.documents.size, "notices" to notices.size, "counsel" to d.counsel.size), onTab,
                 )
             }
         }
@@ -133,8 +135,8 @@ private fun Page(
                 when (tab) {
                     "hearings" -> HearingsTab(d, onOpenOrderDocument, onOpenHearing)
                     "documents" -> DocumentsTab(d, onOpenDocument)
-                    "about" -> AboutTab(d, onOpenConsultation)
-                    else -> ActivityTab(timeline)
+                    "notices" -> NoticesTab(notices, onOpenNotice)
+                    else -> CounselTab(d.counsel)
                 }
             }
         }
@@ -307,9 +309,21 @@ private fun InfoDialog(d: CaseDetail, onClose: () -> Unit) {
                     d.courtNumber?.let { "Court No." to it },
                     d.benchType?.let { "Bench" to it },
                     formatJudge(d.judge, d.court)?.let { "Presiding" to it },
-                    d.filedDate?.let { "Filed" to it.format(DayYear) },
+                    d.filedDate?.let { "Filed" to it.format(DayYear) + " · " + age(it) },
                     "Status" to d.summary.status.label,
                 ), boxed = false)
+                val p = d.parties
+                if (p.petitioners.isNotEmpty() || p.respondents.isNotEmpty() || p.others.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("PARTIES", color = TertiaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.sp)
+                    Rows(p.petitioners.map { (it.role ?: "Petitioner") to it.name } + p.respondents.map { (it.role ?: "Respondent") to it.name } +
+                        p.others.map { (it.role ?: "Other Party") to it.name }, boxed = false)
+                }
+                if (d.acts.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("ACTS AND SECTIONS", color = TertiaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.sp)
+                    Rows(d.acts.map { it.name to (it.sections ?: "—") }, boxed = false)
+                }
             }
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Close", color = PrimaryText) } },
@@ -688,133 +702,118 @@ private fun FileRow(f: CaseFile, onOpen: (CaseFile) -> Unit) {
 }
 
 // =============================================================================
-// About
+// Notices
 // =============================================================================
 
+/** The case's notices: what was sent or received, to or from whom, and where it stands; a row opens the notice. */
 @Composable
-private fun AboutTab(d: CaseDetail, onOpenConsultation: (String) -> Unit) {
+private fun NoticesTab(notices: List<CaseNotice>, onOpen: (String) -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp)) {
-        Section("The Court")
-        Rows(listOfNotNull(
-            "Court" to (d.court ?: "—"),
-            d.courtNumber?.let { "Court No." to it },
-            d.benchType?.let { "Bench" to it },
-            formatJudge(d.judge, d.court)?.let { "Presiding" to it },
-            d.filedDate?.let { "Filed" to it.format(DayYear) + " · " + age(it) },
-        ))
-
-        val p = d.parties
-        if (p.petitioners.isNotEmpty() || p.respondents.isNotEmpty() || p.others.isNotEmpty()) {
-            Spacer(Modifier.height(18.dp))
-            Section("Parties")
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp)).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                p.petitioners.forEach { PartyLine(it, "Petitioner", "Counsel") }
-                p.respondents.forEach { PartyLine(it, "Respondent", "Opposing Counsel") }
-                p.others.forEach { PartyLine(it, "Other Party", "Counsel") }
-            }
-        }
-
-        if (d.acts.isNotEmpty()) {
-            Spacer(Modifier.height(18.dp))
-            Section("Acts And Sections")
-            Rows(d.acts.map { it.name to (it.sections ?: "—") })
-        }
-
-        if (!d.advocate.isNullOrBlank()) {
-            Spacer(Modifier.height(18.dp))
-            Section("Your Advocate")
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LlAvatar(initials = initials(d.advocate), size = 44.dp, avatarUrl = d.advocateAvatarUrl)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(d.advocate, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    d.advocateDesignation?.let { Text(it, color = SecondaryText, fontFamily = Inter, fontSize = 12.sp) }
-                }
-                d.originConsultationId?.let { id ->
-                    Row(
-                        Modifier.clip(RoundedCornerShape(8.dp)).background(AccentInk).clickable { onOpenConsultation(id) }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Outlined.Forum, contentDescription = null, tint = InverseText, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Message", color = InverseText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
-                    }
-                }
-            }
-        }
-
-        d.originConsultationId?.let { id ->
-            Spacer(Modifier.height(10.dp))
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface2).clickable { onOpenConsultation(id) }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Outlined.NorthEast, contentDescription = null, tint = PrimaryText, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Started As A Consultation", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text("The conversation this matter grew from.", color = SecondaryText, fontFamily = Inter, fontSize = 12.sp)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = TertiaryText, modifier = Modifier.size(20.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PartyLine(p: Party, role: String, counsel: String) {
-    Column {
-        Text((p.role ?: role).uppercase(), color = TertiaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.sp)
-        Text(p.name, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 19.sp,
-            modifier = Modifier.padding(top = 2.dp))
-        p.advocateName?.let { Text("$counsel · $it", color = SecondaryText, fontFamily = Inter, fontSize = 12.5.sp) }
-    }
-}
-
-// =============================================================================
-// Activity
-// =============================================================================
-
-@Composable
-private fun ActivityTab(timeline: List<TimelineEvent>) {
-    Column(Modifier.padding(horizontal = 16.dp)) {
-        if (timeline.isEmpty()) {
-            Empty(Icons.Outlined.History, "Nothing Recorded Yet", "What happens on the matter — hearings listed, documents shared, transfers — appears here.")
+        if (notices.isEmpty()) {
+            Empty(Icons.Outlined.MarkEmailRead, "No Notices On This Case",
+                "A notice the firm sends or receives on this matter appears here, with where it stands.")
             return@Column
         }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp)).padding(18.dp)) {
-            timeline.forEachIndexed { i, e -> ActivityItem(e, first = i == 0, last = i == timeline.lastIndex) }
+        Section("Notices", notices.size)
+        notices.forEach { n ->
+            Row(
+                Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1)
+                    .border(1.dp, BorderColor, RoundedCornerShape(12.dp)).clickable { if (n.id.isNotBlank()) onOpen(n.id) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(Surface2), contentAlignment = Alignment.Center) {
+                    Icon(if (n.inbound) Icons.Outlined.MoveToInbox else Icons.Outlined.Outbox, contentDescription = if (n.inbound) "Received" else "Sent",
+                        tint = PrimaryText, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(n.type, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(listOfNotNull(
+                        n.counterparty.takeIf { it.isNotBlank() }?.let { if (n.inbound) "From $it" else "To $it" },
+                        n.reference.takeIf { it.isNotBlank() },
+                    ).joinToString(" · "), color = SecondaryText, fontFamily = Inter, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (n.statusLabel.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(n.statusLabel, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Surface2).padding(horizontal = 8.dp, vertical = 3.dp))
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Counsel on record
+// =============================================================================
+
+/**
+ * Counsel on record, as a fund names its managers (owner, 2026-10-24): one
+ * card each — the salutation, the name, the designation, the introduction,
+ * and Lead Counsel or Assisting Counsel — the portrait down one side,
+ * alternating right, left, right.
+ */
+@Composable
+private fun CounselTab(counsel: List<CounselOnRecord>) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        if (counsel.isEmpty()) {
+            Empty(Icons.Outlined.Groups, "No Counsel On Record", "The advocates handling this matter will appear here.")
+            return@Column
+        }
+        counsel.forEachIndexed { i, c ->
+            CounselCard(c, photoRight = i % 2 == 0)
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
 
 @Composable
-private fun ActivityItem(e: TimelineEvent, first: Boolean, last: Boolean) {
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Column(Modifier.width(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(3.dp))
-            Box(Modifier.size(12.dp).clip(CircleShape).background(if (first) AccentInk else Surface1)
-                .border(2.dp, if (first) AccentInk else BorderStrong, CircleShape))
-            if (!last) Box(Modifier.width(1.dp).weight(1f).background(BorderColor))
+private fun CounselCard(c: CounselOnRecord, photoRight: Boolean) {
+    val salute = when (c.honorific.trim().trimEnd('.').lowercase()) {
+        "adv" -> "Advocate"
+        "sr. adv", "sr adv" -> "Senior Advocate"
+        else -> c.honorific.trim()
+    }
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).heightIn(min = 150.dp).clip(RoundedCornerShape(12.dp)).background(Surface1)
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+    ) {
+        if (!photoRight) Portrait(c)
+        Column(Modifier.weight(1f).fillMaxHeight().padding(16.dp), verticalArrangement = Arrangement.Center) {
+            if (salute.isNotBlank()) Text(salute.uppercase(), color = TertiaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+                fontSize = 10.sp, letterSpacing = 1.sp)
+            Text(c.name, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 22.sp)
+            if (c.designation.isNotBlank()) Text(c.designation, color = SecondaryText, fontFamily = Inter, fontSize = 12.5.sp)
+            if (c.intro.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(c.intro, color = SecondaryText, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp,
+                    maxLines = 4, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(if (c.lead) "Lead Counsel" else "Assisting Counsel",
+                color = if (c.lead) InverseText else PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                    .then(if (c.lead) Modifier.background(AccentInk) else Modifier.border(1.dp, BorderStrong, RoundedCornerShape(6.dp)))
+                    .padding(horizontal = 8.dp, vertical = 4.dp))
         }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f).padding(bottom = if (last) 0.dp else 18.dp)) {
-            Text(e.title, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 18.sp)
-            stripHtml(e.description)?.let {
-                Spacer(Modifier.height(3.dp))
-                Text(it, color = SecondaryText, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp)
-            }
-            e.at?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it.format(DayYear), color = TertiaryText, fontFamily = Inter, fontSize = 11.5.sp)
-            }
+        if (photoRight) Portrait(c)
+    }
+}
+
+/** The counsel's portrait filling its side of the card, or their initials on grey. */
+@Composable
+private fun Portrait(c: CounselOnRecord) {
+    Box(Modifier.width(118.dp).fillMaxHeight().background(Surface2), contentAlignment = Alignment.Center) {
+        if (c.photoUrl != null) {
+            coil.compose.AsyncImage(
+                model = c.photoUrl, contentDescription = c.name,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(initials(c.name), color = TertiaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 28.sp)
         }
     }
 }
@@ -942,10 +941,3 @@ private fun age(filed: LocalDate): String {
 
 private fun initials(name: String?): String =
     name?.split(" ")?.filter { it.isNotBlank() }?.take(2)?.joinToString("") { it.first().uppercase() }?.ifBlank { "?" } ?: "?"
-
-private fun stripHtml(s: String?): String? {
-    val t = s?.takeIf { it.isNotBlank() } ?: return null
-    return t.replace(Regex("<[^>]+>"), "")
-        .replace("&#039;", "'").replace("&amp;", "&").replace("&quot;", "\"")
-        .replace("&middot;", "·").replace("&nbsp;", " ").trim().ifBlank { null }
-}

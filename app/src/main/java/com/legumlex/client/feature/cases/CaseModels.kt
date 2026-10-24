@@ -83,6 +83,29 @@ data class CaseDetail(
     val documents: List<CaseFile>,
     val upcomingHearings: List<HearingRow>,
     val pastHearings: List<HearingRow>,
+    /** Counsel on record, lead first (cases_case_counsel). */
+    val counsel: List<CounselOnRecord> = emptyList(),
+)
+
+/** One counsel on the case, as a fund names its managers (owner, 2026-10-24). */
+data class CounselOnRecord(
+    val name: String,
+    val honorific: String,
+    val designation: String,
+    val intro: String,
+    val photoUrl: String?,
+    val lead: Boolean,
+)
+
+/** A notice of this case, as the client's notices list words it. */
+data class CaseNotice(
+    val id: String,
+    val reference: String,
+    val inbound: Boolean,
+    val type: String,
+    val counterparty: String,
+    val statusLabel: String,
+    val date: LocalDate?,
 )
 
 data class Parties(

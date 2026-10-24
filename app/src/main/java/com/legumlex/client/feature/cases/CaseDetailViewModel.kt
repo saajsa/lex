@@ -16,7 +16,7 @@ sealed interface CaseDetailUiState {
     data object Loading : CaseDetailUiState
     data class Ready(
         val detail: CaseDetail,
-        val timeline: List<TimelineEvent>,
+        val notices: List<CaseNotice>,
     ) : CaseDetailUiState
     data class Error(val message: String) : CaseDetailUiState
 }
@@ -54,12 +54,10 @@ class CaseDetailViewModel(
     private suspend fun fetch(preserveCurrent: Boolean) {
         try {
             coroutineScope {
-                // Detail is the canary; timeline is best-effort.
-                val detailDeferred   = async { repo.detail(caseId).getOrThrow() }
-                val timelineDeferred = async { repo.timeline(caseId).getOrNull() ?: emptyList() }
-                val detail   = detailDeferred.await()
-                val timeline = timelineDeferred.await()
-                _state.value = CaseDetailUiState.Ready(detail, timeline)
+                // Detail is the canary; the notices are best-effort.
+                val detailDeferred  = async { repo.detail(caseId).getOrThrow() }
+                val noticesDeferred = async { repo.notices(caseId).getOrNull() ?: emptyList() }
+                _state.value = CaseDetailUiState.Ready(detailDeferred.await(), noticesDeferred.await())
             }
         } catch (e: Throwable) {
             val msg = when (e) {

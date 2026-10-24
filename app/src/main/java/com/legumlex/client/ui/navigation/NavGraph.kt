@@ -396,6 +396,7 @@ fun LegumNavGraph(navController: NavHostController) {
                     navController.navigate(Route.CaseDocViewer.build("file", file.id, file.name))
                 },
                 onOpenHearing      = { id -> navController.navigate(Route.HearingDetail.build(id)) },
+                onOpenNotice       = { id -> navController.navigate(Route.NoticeDetail.build(id)) },
             )
         }
 

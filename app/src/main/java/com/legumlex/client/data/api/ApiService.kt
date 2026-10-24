@@ -198,6 +198,10 @@ interface ApiService {
     @GET("notices")
     suspend fun notices(): Map<String, Any?>
 
+    /** One case's notices: raised from it, or the notice it grew out of. */
+    @GET("notices")
+    suspend fun caseNotices(@retrofit2.http.Query("case_id") caseId: String): Map<String, Any?>
+
 
     @GET("notices/{id}")
     suspend fun notice(@retrofit2.http.Path("id") id: String): Map<String, Any?>
