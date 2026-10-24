@@ -154,7 +154,7 @@ sealed class Route(val path: String) {
 
     /**
      * Inline viewer for a case document. kind = "order" (id = order id, streams
-     * the certified copy) or "file" (id = file id, streams a shared case file).
+     * the order copy) or "file" (id = file id, streams a shared case file).
      */
     data object CaseDocViewer : Route("matters/doc/{kind}/{id}?name={name}") {
         const val ARG_KIND = "kind"

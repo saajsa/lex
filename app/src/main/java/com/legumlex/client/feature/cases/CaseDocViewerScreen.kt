@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Inline viewer for a case document — an order's certified copy ("order" kind,
+ * Inline viewer for a case document — an order's copy on file ("order" kind,
  * id = order id) or a shared case file ("file" kind, id = file id). Streams the
  * PDF from the customers_api and renders it in-app via the platform PdfRenderer
  * (images decoded directly), so the client never leaves the app. Mirrors

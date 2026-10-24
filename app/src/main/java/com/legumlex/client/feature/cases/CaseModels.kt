@@ -111,7 +111,7 @@ data class CaseOrder(
     val coram: String?,        // bench as printed on the order
     val nextDate: LocalDate?,
     val purposeNext: String?,
-    val hasDocument: Boolean,  // a client-visible certified copy exists
+    val hasDocument: Boolean,  // the order itself is on file and shared with the client
     val documentName: String?,
     val ocrStatus: String,     // pending | done | failed — gates the summary state
 )

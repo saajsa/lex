@@ -31,7 +31,7 @@ class CasesRepository(private val api: ApiService) {
         data.map(::parseTimelineEvent)
     }
 
-    /** Stream an order's certified-copy PDF — caller closes the body. */
+    /** Stream an order's PDF (the copy on file) — caller closes the body. */
     suspend fun downloadOrderDocument(orderId: String) = api.downloadCaseOrderDocument(orderId)
 
     /** Stream a client-visible case file — caller closes the body. */

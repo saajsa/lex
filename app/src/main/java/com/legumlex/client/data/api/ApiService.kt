@@ -164,7 +164,7 @@ interface ApiService {
     @GET("cases/timeline/{id}")
     suspend fun caseTimeline(@retrofit2.http.Path("id") id: String): Map<String, Any?>
 
-    // Certified-copy PDF backing a court order (streamed; caller closes the body).
+    // The PDF of a court order (the order copy on file) (streamed; caller closes the body).
     @Streaming
     @GET("cases/order-document/{orderId}")
     suspend fun downloadCaseOrderDocument(@retrofit2.http.Path("orderId") orderId: String): ResponseBody

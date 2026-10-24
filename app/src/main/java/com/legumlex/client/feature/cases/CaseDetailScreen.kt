@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -194,13 +195,13 @@ private fun Pinned(d: CaseDetail, tabs: @Composable () -> Unit) {
     val orders = d.orders.size
     Column(Modifier.fillMaxWidth().background(BodyBg)) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
                 .background(AccentInk).padding(bottom = 16.dp),
         ) {
             Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp)) { Versus(d) }
             Row(
                 Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp).fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp)).background(Surface1).padding(horizontal = 8.dp, vertical = 12.dp),
+                    .clip(RoundedCornerShape(12.dp)).background(Surface1).padding(horizontal = 8.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Figure(Modifier.weight(1f), d.upcomingHearings.size + d.pastHearings.size, "Hearings")
@@ -229,7 +230,7 @@ private fun Versus(d: CaseDetail) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Side(Modifier.weight(1f), if (left.size > 1) "Petitioners" else "Petitioner", left, Alignment.Start)
         Box(
-            Modifier.padding(horizontal = 10.dp).clip(RoundedCornerShape(50)).background(InverseText)
+            Modifier.padding(horizontal = 10.dp).clip(RoundedCornerShape(8.dp)).background(InverseText)
                 .padding(horizontal = 10.dp, vertical = 5.dp),
         ) { Text("v.", color = AccentInk, fontFamily = Inter, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic, fontSize = 13.sp) }
         Side(Modifier.weight(1f), if (right.size > 1) "Respondents" else "Respondent", right, Alignment.End)
@@ -266,27 +267,26 @@ private fun Figure(modifier: Modifier, value: Int, label: String) {
     }
 }
 
-/** The tabs as one grey bar, the chosen one in ink, counts as small badges. */
+/** The tabs: the client's own toggle group (Mylex kt-toggle-group), stretched across, with counts. */
 @Composable
 private fun Segments(items: List<Pair<String, String>>, selected: String, badges: Map<String, Int>, onSelect: (String) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Surface2).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(MaterialTheme.shapes.medium)
+            .border(1.dp, Lex.colors.input, MaterialTheme.shapes.medium),
     ) {
-        items.forEach { (key, label) ->
+        items.forEachIndexed { i, (key, label) ->
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.input))
             val on = key == selected
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (on) AccentInk else Color.Transparent)
-                    .clickable { onSelect(key) }.padding(vertical = 10.dp),
+                Modifier.weight(1f).background(if (on) Lex.colors.muted else Lex.colors.card)
+                    .clickable { onSelect(key) }.padding(vertical = 9.dp),
                 horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(label, color = if (on) InverseText else SecondaryText, fontFamily = Inter,
-                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, fontSize = 12.5.sp, maxLines = 1)
+                Text(label, style = MaterialTheme.typography.labelMedium, color = if (on) PrimaryText else SecondaryText, maxLines = 1)
                 val n = badges[key] ?: 0
                 if (n > 0) {
-                    Spacer(Modifier.width(5.dp))
-                    Text("$n", color = if (on) InverseText.copy(alpha = 0.7f) else TertiaryText, fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text("$n", style = MaterialTheme.typography.labelSmall, color = TertiaryText)
                 }
             }
         }
@@ -373,11 +373,11 @@ private fun HearingsTab(d: CaseDetail, onOpenOrderDocument: (CaseOrder) -> Unit,
 private fun UpcomingCard(h: HearingRow, today: LocalDate, lead: Boolean, expanded: Boolean, onOpen: () -> Unit, onMore: () -> Unit) {
     val date = h.date ?: return
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(AccentInk).clickable(onClick = onOpen).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(AccentInk).clickable(onClick = onOpen).padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(
-                Modifier.width(if (lead) 64.dp else 56.dp).clip(RoundedCornerShape(14.dp)).background(InverseText).padding(vertical = 8.dp),
+                Modifier.width(if (lead) 64.dp else 56.dp).clip(RoundedCornerShape(12.dp)).background(InverseText).padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(), color = AccentInk, fontFamily = Inter,
@@ -389,7 +389,7 @@ private fun UpcomingCard(h: HearingRow, today: LocalDate, lead: Boolean, expande
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.clip(RoundedCornerShape(50)).background(InverseText).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(InverseText).padding(horizontal = 8.dp, vertical = 2.dp)) {
                         Text(countdown(date, today), color = AccentInk, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                     }
                     h.time?.let {
@@ -414,7 +414,7 @@ private fun UpcomingCard(h: HearingRow, today: LocalDate, lead: Boolean, expande
         }
         h.clientInstructions?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(10.dp))
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(InverseText.copy(alpha = 0.1f)).padding(12.dp)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(InverseText.copy(alpha = 0.1f)).padding(12.dp)) {
                 Text("FROM YOUR ADVOCATE", color = InverseText.copy(alpha = 0.6f), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                     fontSize = 9.5.sp, letterSpacing = 1.sp)
                 Spacer(Modifier.height(4.dp))
@@ -429,7 +429,7 @@ private fun UpcomingCard(h: HearingRow, today: LocalDate, lead: Boolean, expande
         if (expanded) {
             Spacer(Modifier.height(12.dp))
             Row(
-                Modifier.clip(RoundedCornerShape(50)).border(1.dp, InverseText.copy(alpha = 0.35f), RoundedCornerShape(50))
+                Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, InverseText.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                     .clickable(onClick = onMore).padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -467,7 +467,7 @@ private fun ConcludedRow(
             Box(Modifier.align(Alignment.TopCenter).padding(top = 13.dp).size(8.dp).clip(CircleShape).background(TertiaryText))
         }
         Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f).padding(bottom = 16.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(top = 6.dp)) {
+        Column(Modifier.weight(1f).padding(bottom = 16.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(top = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(h.purpose?.takeIf { it.isNotBlank() } ?: "Hearing", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -516,14 +516,14 @@ private fun Outcome(status: String) {
 
 /**
  * An order: its kind, the relief, and the summary when there is one. A tap
- * opens it in place — the order as read, and its certified copy.
+ * opens it in place — the order as read, and the order itself to open.
  */
 @Composable
 private fun OrderLine(o: CaseOrder, d: CaseDetail, onOpenOrderDocument: (CaseOrder) -> Unit, showDate: Boolean) {
     var open by rememberSaveable(o.id) { mutableStateOf(false) }
     val body = !o.fullText.isNullOrBlank() || !o.summary.isNullOrBlank()
     Column(
-        Modifier.padding(bottom = 6.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface2)
+        Modifier.padding(bottom = 6.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Surface2)
             .clickable { if (body) open = !open else if (o.hasDocument) onOpenOrderDocument(o) }.padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -566,17 +566,17 @@ private fun orderKind(type: String): String = when (type.lowercase()) {
     else -> "Order"
 }
 
-/** The certified copy, or that there is none on file yet. */
+/** The order itself, to open; or that it is not on file yet. Never "certified": only a court certifies a copy. */
 @Composable
 private fun CopyLink(o: CaseOrder, onOpen: (CaseOrder) -> Unit) {
     if (o.hasDocument) Row(
-        Modifier.clip(RoundedCornerShape(50)).background(AccentInk).clickable { onOpen(o) }.padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(8.dp)).background(AccentInk).clickable { onOpen(o) }.padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Outlined.Description, contentDescription = null, tint = InverseText, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(6.dp))
-        Text("Certified Copy", color = InverseText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-    } else Text("No certified copy on file yet", color = TertiaryText, fontFamily = Inter, fontSize = 12.sp)
+        Text("Open Order", color = InverseText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+    } else Text("The order is not on file yet", color = TertiaryText, fontFamily = Inter, fontSize = 12.sp)
 }
 
 /** The order as read from the paper, on a sheet: the court, the coram, then its paragraphs. */
@@ -586,8 +586,8 @@ private fun OrderPaper(o: CaseOrder, d: CaseDetail) {
     val paragraphs = (o.fullText ?: o.summary).orEmpty().split(Regex("\\n\\s*\\n")).map { it.trim() }.filter { it.isNotEmpty() }
     if (paragraphs.isEmpty()) return
     Column(
-        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(10.dp)).background(Surface1)
-            .border(1.dp, BorderColor, RoundedCornerShape(10.dp)).padding(14.dp),
+        Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(8.dp)).background(Surface1)
+            .border(1.dp, BorderColor, RoundedCornerShape(8.dp)).padding(14.dp),
     ) {
         d.court?.let { Text(it, color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp,
             textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
@@ -605,7 +605,7 @@ private fun OrderPaper(o: CaseOrder, d: CaseDetail) {
 @Composable
 private fun Disposal(d: CaseDetail) {
     val s = d.summary
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(16.dp))) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp))) {
         Row(Modifier.fillMaxWidth().background(AccentInk).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Gavel, contentDescription = null, tint = InverseText, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
@@ -621,7 +621,7 @@ private fun Disposal(d: CaseDetail) {
             }
             if (d.appealDeadline != null || !d.appealNote.isNullOrBlank()) {
                 Spacer(Modifier.height(12.dp))
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Surface2).padding(12.dp)) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Surface2).padding(12.dp)) {
                     Text("APPEAL WINDOW", color = SecondaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 1.sp)
                     d.appealDeadline?.let { Text("Last day · ${it.format(DayYear)}", color = PrimaryText, fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp)) }
@@ -663,11 +663,11 @@ private fun FileRow(f: CaseFile, onOpen: (CaseFile) -> Unit) {
     val ext = f.name.substringAfterLast('.', "").uppercase().takeIf { it.length in 2..4 }
         ?: f.fileType?.substringAfterLast('/')?.uppercase()?.takeIf { it.length in 2..4 }
     Row(
-        Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface1)
-            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)).clickable { onOpen(f) }.padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1)
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)).clickable { onOpen(f) }.padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Surface2), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(Surface2), contentAlignment = Alignment.Center) {
             Icon(if (ext in setOf("JPG", "JPEG", "PNG")) Icons.Outlined.Image else Icons.Outlined.Description, contentDescription = null,
                 tint = PrimaryText, modifier = Modifier.size(20.dp))
         }
@@ -707,7 +707,7 @@ private fun AboutTab(d: CaseDetail, onOpenConsultation: (String) -> Unit) {
         if (p.petitioners.isNotEmpty() || p.respondents.isNotEmpty() || p.others.isNotEmpty()) {
             Spacer(Modifier.height(18.dp))
             Section("Parties")
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(14.dp)).padding(16.dp),
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp)).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 p.petitioners.forEach { PartyLine(it, "Petitioner", "Counsel") }
                 p.respondents.forEach { PartyLine(it, "Respondent", "Opposing Counsel") }
@@ -725,7 +725,7 @@ private fun AboutTab(d: CaseDetail, onOpenConsultation: (String) -> Unit) {
             Spacer(Modifier.height(18.dp))
             Section("Your Advocate")
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(14.dp))
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp))
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -737,7 +737,7 @@ private fun AboutTab(d: CaseDetail, onOpenConsultation: (String) -> Unit) {
                 }
                 d.originConsultationId?.let { id ->
                     Row(
-                        Modifier.clip(RoundedCornerShape(50)).background(AccentInk).clickable { onOpenConsultation(id) }
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(AccentInk).clickable { onOpenConsultation(id) }
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -752,7 +752,7 @@ private fun AboutTab(d: CaseDetail, onOpenConsultation: (String) -> Unit) {
         d.originConsultationId?.let { id ->
             Spacer(Modifier.height(10.dp))
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface2).clickable { onOpenConsultation(id) }
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface2).clickable { onOpenConsultation(id) }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -789,7 +789,7 @@ private fun ActivityTab(timeline: List<TimelineEvent>) {
             Empty(Icons.Outlined.History, "Nothing Recorded Yet", "What happens on the matter — hearings listed, documents shared, transfers — appears here.")
             return@Column
         }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(14.dp)).padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp)).padding(18.dp)) {
             timeline.forEachIndexed { i, e -> ActivityItem(e, first = i == 0, last = i == timeline.lastIndex) }
         }
     }
@@ -829,7 +829,7 @@ private fun Section(text: String, count: Int? = null) {
         Text(text.uppercase(), color = SecondaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, letterSpacing = 1.2.sp)
         count?.let {
             Spacer(Modifier.width(8.dp))
-            Box(Modifier.clip(RoundedCornerShape(5.dp)).background(AccentInk).padding(horizontal = 6.dp, vertical = 1.dp)) {
+            Box(Modifier.clip(RoundedCornerShape(4.dp)).background(AccentInk).padding(horizontal = 6.dp, vertical = 1.dp)) {
                 Text("$it", color = InverseText, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
@@ -840,7 +840,7 @@ private fun Section(text: String, count: Int? = null) {
 @Composable
 private fun Rows(rows: List<Pair<String, String>>, boxed: Boolean = true) {
     Column(
-        if (boxed) Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(14.dp))
+        if (boxed) Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface1).border(1.dp, BorderColor, RoundedCornerShape(12.dp))
             .padding(horizontal = 16.dp, vertical = 6.dp) else Modifier.fillMaxWidth(),
     ) {
         rows.forEach { (k, v) ->
@@ -855,7 +855,7 @@ private fun Rows(rows: List<Pair<String, String>>, boxed: Boolean = true) {
 @Composable
 private fun Empty(icon: ImageVector, title: String, body: String) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, BorderStrong, RoundedCornerShape(16.dp)).padding(vertical = 28.dp, horizontal = 24.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, BorderStrong, RoundedCornerShape(12.dp)).padding(vertical = 28.dp, horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, contentDescription = null, tint = TertiaryText, modifier = Modifier.size(28.dp))
@@ -869,17 +869,17 @@ private fun Empty(icon: ImageVector, title: String, body: String) {
 @Composable
 private fun Skeleton() {
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)).background(AccentInk).padding(20.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)).background(AccentInk).padding(20.dp)) {
             Bar(InverseText.copy(alpha = 0.15f), 120.dp, 12.dp)
             Spacer(Modifier.height(22.dp))
             Bar(InverseText.copy(alpha = 0.15f), 220.dp, 18.dp)
             Spacer(Modifier.height(20.dp))
-            Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(20.dp)).background(InverseText.copy(alpha = 0.12f)))
+            Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(12.dp)).background(InverseText.copy(alpha = 0.12f)))
         }
         Column(Modifier.padding(16.dp)) {
-            Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(50)).background(Surface2))
+            Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(8.dp)).background(Surface2))
             Spacer(Modifier.height(18.dp))
-            repeat(3) { Box(Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(18.dp)).background(Surface2)); Spacer(Modifier.height(10.dp)) }
+            repeat(3) { Box(Modifier.fillMaxWidth().height(84.dp).clip(RoundedCornerShape(12.dp)).background(Surface2)); Spacer(Modifier.height(10.dp)) }
         }
     }
 }
@@ -898,7 +898,7 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
         Text(message, color = SecondaryText, fontFamily = Inter, fontSize = 13.5.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(20.dp))
         Row(
-            Modifier.clip(RoundedCornerShape(50)).background(AccentInk).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 12.dp),
+            Modifier.clip(RoundedCornerShape(8.dp)).background(AccentInk).clickable(onClick = onRetry).padding(horizontal = 22.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Outlined.Refresh, contentDescription = null, tint = InverseText, modifier = Modifier.size(18.dp))
