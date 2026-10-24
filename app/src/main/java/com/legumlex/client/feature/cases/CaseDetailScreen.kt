@@ -125,7 +125,7 @@ private fun Page(
         stickyHeader {
             Pinned(d) {
                 Segments(
-                    listOf("hearings" to "Hearings", "documents" to "Documents", "notices" to "Notices", "counsel" to "Counsel"),
+                    listOf("hearings" to "Hearings", "documents" to "Docket", "notices" to "Notices", "counsel" to "Counsel"),
                     tab, mapOf("hearings" to hearings, "documents" to d.documents.size, "notices" to notices.size, "counsel" to d.counsel.size), onTab,
                 )
             }
@@ -208,7 +208,7 @@ private fun Pinned(d: CaseDetail, tabs: @Composable () -> Unit) {
             ) {
                 Figure(Modifier.weight(1f), d.upcomingHearings.size + d.pastHearings.size, "Hearings")
                 Figure(Modifier.weight(1f), orders, "Orders")
-                Figure(Modifier.weight(1f), d.documents.size, "Documents")
+                Figure(Modifier.weight(1f), d.documents.size, "Docket")
             }
         }
         Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) { tabs() }
@@ -657,7 +657,7 @@ private fun DocumentsTab(d: CaseDetail, onOpen: (CaseFile) -> Unit) {
     val atHearings = d.documents.filter { it.relation == "hearing" }
     Column(Modifier.padding(horizontal = 16.dp)) {
         if (d.documents.isEmpty()) {
-            Empty(Icons.Outlined.FolderOpen, "No Documents Yet", "Filings, orders and copies the firm shares with you will appear here.")
+            Empty(Icons.Outlined.FolderOpen, "Nothing On The Docket Yet", "Filings and papers the firm shares with you on this case will appear here.")
             return@Column
         }
         if (inMatter.isNotEmpty()) {
