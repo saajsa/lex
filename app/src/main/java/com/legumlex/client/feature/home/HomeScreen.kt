@@ -362,6 +362,17 @@ private fun HomeContent(
                     .padding(top = 12.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
+                // What is on today, or next, leads the page (owner, 2026-10-25).
+                Column {
+                    NextEventBlock(
+                        event = ev,
+                        onOpenCalendar = onOpenCalendar,
+                        onOpenConsultation = onOpenConsultation,
+                        onOpenCase = onOpenCase,
+                        onOpenVideoLobby = onOpenVideoLobby,
+                    )
+                }
+
                 // 0. The workspaces, and the consultations' four figures — the
                 // top of Mylex's home. Consult is the bottom bar's centre button.
                 Column {
@@ -378,14 +389,6 @@ private fun HomeContent(
                 // The action queue lives behind the header's queue button now
                 // (now in Notifications, under Requires Your Attention).
 
-                // 2. Next event
-                NextEventBlock(
-                    event = ev,
-                    onOpenCalendar = onOpenCalendar,
-                    onOpenConsultation = onOpenConsultation,
-                    onOpenCase = onOpenCase,
-                    onOpenVideoLobby = onOpenVideoLobby,
-                )
 
                 // The chamber lives on its own tab now (Digital Office); Home
                 // keeps only the live-session banner above, which is urgent.
@@ -843,8 +846,9 @@ private fun NextEventBlock(
     onOpenCase: (String) -> Unit,
     onOpenVideoLobby: (String) -> Unit,
 ) {
+    // The card says when (Today, Tomorrow, the date); the heading only names the section.
     SectionHeader(
-        title = "Next Event",
+        title = "What's On",
         actionLabel = "Calendar",
         onAction = onOpenCalendar,
     )
