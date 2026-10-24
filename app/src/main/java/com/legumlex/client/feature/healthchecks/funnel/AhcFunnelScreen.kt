@@ -79,7 +79,13 @@ fun AhcFunnelScreen(
                 "The Agreement Check Could Not Start",
                 state.error ?: "Please check your connection and try again.",
                 modifier = Modifier.fillMaxSize().background(Surface1),
-                action = { androidx.compose.material3.TextButton(onClick = { vm.startNew() }) { androidx.compose.material3.Text("Try Again", color = PrimaryText) } },
+                // No app header over the funnel: Close is the way out from here.
+                action = {
+                    androidx.compose.foundation.layout.Row {
+                        androidx.compose.material3.TextButton(onClick = onExit) { androidx.compose.material3.Text("Close", color = PrimaryText) }
+                        androidx.compose.material3.TextButton(onClick = { vm.startNew() }) { androidx.compose.material3.Text("Try Again", color = PrimaryText) }
+                    }
+                },
             )
         }
         state.loading || state.session == null -> {

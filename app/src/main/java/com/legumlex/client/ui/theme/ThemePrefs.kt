@@ -13,11 +13,12 @@ object ThemePrefs {
     private const val FILE = "appearance"
     private const val KEY = "theme"
 
-    val choice = kotlinx.coroutines.flow.MutableStateFlow(ThemeChoice.SYSTEM)
+    // Light unless the client chooses otherwise (owner, 2026-10-24), as the staff app.
+    val choice = kotlinx.coroutines.flow.MutableStateFlow(ThemeChoice.LIGHT)
 
     fun load(context: Context) {
         val v = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(KEY, null)
-        choice.value = ThemeChoice.entries.firstOrNull { it.name == v } ?: ThemeChoice.SYSTEM
+        choice.value = ThemeChoice.entries.firstOrNull { it.name == v } ?: ThemeChoice.LIGHT
     }
 
     fun set(context: Context, c: ThemeChoice) {

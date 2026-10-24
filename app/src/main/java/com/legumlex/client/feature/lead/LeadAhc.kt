@@ -3,7 +3,6 @@ package com.legumlex.client.feature.lead
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -19,10 +18,11 @@ import androidx.compose.ui.unit.dp
 import com.legumlex.client.BuildConfig
 import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.feature.healthchecks.funnel.DropTile
-import com.legumlex.client.feature.healthchecks.funnel.FunnelPrimaryButton
-import com.legumlex.client.feature.healthchecks.funnel.FunnelSecondaryButton
 import com.legumlex.client.feature.healthchecks.funnel.humanSize
-import com.legumlex.client.ui.components.Eyebrow
+import com.legumlex.client.ui.components.WizardFrame
+import com.legumlex.client.ui.components.WizardHeading
+import com.legumlex.client.ui.components.WizardRows
+import com.legumlex.client.ui.components.WizardTick
 import com.legumlex.client.ui.components.LexCard
 import com.legumlex.client.ui.theme.Lex
 import kotlinx.coroutines.Dispatchers
@@ -126,78 +126,74 @@ fun LeadAhcScreen(onClose: () -> Unit, onEnquiries: () -> Unit) {
         busy = false
     }
 
-    BackHandler { if (step == 2 && !busy) step = 1 else onClose() }
-
-    Column(Modifier.fillMaxSize().background(Lex.colors.background).imePadding()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Eyebrow("Step $step of 3 · " + listOf("About", "Your Agreement", "Sent")[step - 1])
-            when (step) {
-                1 -> {
-                    Text("Agreement Check", style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
-                    Text("Send an agreement before you sign it. It is read for the terms that matter and the risks in it, and an advocate of the firm reviews the reading before it comes to you.",
-                        style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-                    LexCard {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row { Text("Fee", Modifier.weight(1f), color = Lex.colors.mutedForeground); Text(when (price) { null -> "…"; "FREE" -> "Free"; else -> price!! }, color = Lex.colors.foreground) }
-                            Row { Text("Files", Modifier.weight(1f), color = Lex.colors.mutedForeground); Text(types.joinToString(", ") { it.uppercase() } + ", up to " + humanSize(maxSize), color = Lex.colors.foreground) }
-                            Row { Text("Report", Modifier.weight(1f), color = Lex.colors.mutedForeground); Text("In My Enquiries, and by email", color = Lex.colors.foreground) }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = agreed, onCheckedChange = { agreed = it })
-                        Text("I agree to the firm reading this agreement and keeping it with my enquiry.",
-                            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-                    }
+    // The app's wizard (owner, 2026-10-24). Sent is the last step and cannot be
+    // stepped back from: Back there leaves, as close does.
+    val o = outcome
+    WizardFrame(
+        title = "Agreement Check",
+        steps = listOf("About", "Your Agreement", "Sent"),
+        step = step - 1,
+        ready = when (step) {
+            1 -> agreed && price != null
+            2 -> file != null
+            else -> true
+        },
+        saving = busy,
+        savingLabel = "Sending…",
+        nextLabel = if (step == 2) "Send The Agreement" else "Next",
+        saveLabel = when (o) {
+            is Outcome.Pay -> "Pay On The Website"
+            is Outcome.Unusable -> "Try Another File"
+            else -> "Go To My Enquiries"
+        },
+        error = error.ifBlank { null },
+        onClose = onClose,
+        onStep = { i -> if (busy) Unit else if (step == 3) onClose() else step = i + 1 },
+        onNext = if (step == 2) ({ send(); Unit }) else null,
+        onSave = {
+            when (o) {
+                is Outcome.Pay -> {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(site + "cases/landing/lead_pay/" + o.hash)))
+                    onEnquiries()
                 }
-                2 -> {
-                    Text("Your Agreement", style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
-                    Text("One file: the agreement as you have it. A scan is read as well as a typed document.",
-                        style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-                    val f = file
-                    if (f == null) DropTile(onClick = { picker.launch(arrayOf("*/*")) },
-                        hint = types.joinToString(", ") { it.uppercase() } + " — up to " + humanSize(maxSize))
-                    else LexCard {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(f.name, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-                                Text(humanSize(f.size), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                            }
-                            TextButton(onClick = { file = null }, enabled = !busy) { Text("Change", color = Lex.colors.foreground) }
+                is Outcome.Unusable -> { file = null; outcome = null; step = 2 }
+                else -> onEnquiries()
+            }
+        },
+    ) {
+        when (step) {
+            1 -> {
+                WizardHeading("Agreement Check",
+                    "Send an agreement before you sign it. It is read for the terms that matter and the risks in it, and an advocate of the firm reviews the reading before it comes to you.")
+                WizardRows(listOf(
+                    "Fee" to when (price) { null -> "…"; "FREE" -> "Free"; else -> price!! },
+                    "Files" to types.joinToString(", ") { it.uppercase() } + ", up to " + humanSize(maxSize),
+                    "Report" to "In My Enquiries, and by email",
+                ))
+                Spacer(Modifier.height(16.dp))
+                WizardTick(agreed, "I agree to the firm reading this agreement and keeping it with my enquiry.") { agreed = it }
+            }
+            2 -> {
+                WizardHeading("Your Agreement", "One file: the agreement as you have it. A scan is read as well as a typed document.")
+                val f = file
+                if (f == null) DropTile(onClick = { picker.launch(arrayOf("*/*")) },
+                    hint = types.joinToString(", ") { it.uppercase() } + " — up to " + humanSize(maxSize))
+                else LexCard {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(f.name, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+                            Text(humanSize(f.size), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                         }
-                    }
-                }
-                else -> when (val o = outcome) {
-                    is Outcome.Pay -> {
-                        Text("Pay The Fee", style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
-                        Text("Your agreement is with us. It is read once the fee is paid, on the firm's website: the first time, it asks the name and State to put on the invoice.",
-                            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-                    }
-                    is Outcome.Unusable -> {
-                        Text("This Document Could Not Be Read", style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
-                        Text(o.message, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-                    }
-                    else -> {
-                        Text("Your Agreement Is Being Read", style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
-                        Text("An advocate reviews the reading before it comes to you. It will be in My Enquiries, and we will write to you when it is ready.",
-                            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+                        TextButton(onClick = { file = null }, enabled = !busy) { Text("Change", color = Lex.colors.foreground) }
                     }
                 }
             }
-            if (error.isNotBlank()) Text(error, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText)
-        }
-        HorizontalDivider(color = Lex.colors.border)
-        Box(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-            when (step) {
-                1 -> FunnelPrimaryButton("Continue", onClick = { step = 2 }, enabled = agreed && price != null, modifier = Modifier.fillMaxWidth())
-                2 -> FunnelPrimaryButton(if (busy) "Sending…" else "Send The Agreement", onClick = { send() }, enabled = file != null && !busy, modifier = Modifier.fillMaxWidth())
-                else -> when (val o = outcome) {
-                    is Outcome.Pay -> FunnelPrimaryButton("Pay On The Website", modifier = Modifier.fillMaxWidth(), onClick = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(site + "cases/landing/lead_pay/" + o.hash)))
-                        onEnquiries()
-                    })
-                    is Outcome.Unusable -> FunnelSecondaryButton("Try Another File", modifier = Modifier.fillMaxWidth(), onClick = { file = null; outcome = null; step = 2 })
-                    else -> FunnelPrimaryButton("Go To My Enquiries", onClick = onEnquiries, modifier = Modifier.fillMaxWidth())
-                }
+            else -> when (o) {
+                is Outcome.Pay -> WizardHeading("Pay The Fee",
+                    "Your agreement is with us. It is read once the fee is paid, on the firm's website: the first time, it asks the name and State to put on the invoice.")
+                is Outcome.Unusable -> WizardHeading("This Document Could Not Be Read", o.message)
+                else -> WizardHeading("Your Agreement Is Being Read",
+                    "An advocate reviews the reading before it comes to you. It will be in My Enquiries, and we will write to you when it is ready.")
             }
         }
     }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -262,59 +263,55 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
             }
         }
 
-        AnimatedVisibility(v.open) { VerifySteps(v, vm) }
+        // Verifying a number: the app's wizard, full screen (owner, 2026-10-24).
+        if (v.open) com.legumlex.client.ui.components.WizardDialog(onDismiss = vm::closeVerify) { VerifySteps(v, vm) }
     }
 }
 
 @Composable
 private fun VerifySteps(v: VerifyFlow, vm: ProfileViewModel) {
     var code by remember(v.ref) { mutableStateOf("") }
-    Column(Modifier.padding(16.dp)) {
-        Eyebrow(if (v.ref == null) "Step 1 Of 2 · Your Number" else "Step 2 Of 2 · The Code")
-        Spacer(Modifier.height(10.dp))
-        v.error?.let { Notice(null, it, Lex.colors.danger); Spacer(Modifier.height(10.dp)) }
-        v.info?.let { Notice(null, it, Lex.colors.success); Spacer(Modifier.height(10.dp)) }
-
-        if (v.ref == null) {
-            LegumTextField(
-                value = v.number, onValueChange = vm::onNumber, label = "Mobile Number",
-                leadingIcon = Icons.Outlined.Smartphone, keyboardType = KeyboardType.Phone, enabled = !v.busy,
-                modifier = Modifier.fillMaxWidth(),
-                supportingText = "A different number replaces the one on your record once verified. The code comes on WhatsApp, or by SMS.",
+    val step = if (v.ref == null) 0 else 1
+    com.legumlex.client.ui.components.WizardFrame(
+        title = "Verify Mobile",
+        steps = listOf("Number", "Code"),
+        step = step,
+        ready = if (step == 0) v.number.isNotBlank() else code.length == 6,
+        saving = v.busy,
+        saveLabel = "Verify",
+        savingLabel = if (step == 0) "Sending…" else "Verifying…",
+        nextLabel = "Send Code",
+        error = v.error,
+        onClose = vm::closeVerify,
+        onStep = { if (it == 0) vm.changeNumber() },
+        onSave = { vm.submitCode(code) },
+        onNext = if (step == 0) vm::sendCode else null,
+    ) {
+        v.info?.let { Notice(null, it, Lex.colors.success); Spacer(Modifier.height(16.dp)) }
+        if (step == 0) {
+            com.legumlex.client.ui.components.WizardHeading("Your mobile number",
+                "A different number replaces the one on your record once verified. The code comes on WhatsApp, or by SMS.")
+            com.legumlex.client.ui.components.WizardTextField(
+                "Mobile Number", v.number, vm::onNumber, enabled = !v.busy,
+                keyboardType = KeyboardType.Phone, placeholder = "10-digit mobile number",
             )
-            Spacer(Modifier.height(12.dp))
-            LegumPrimaryButton(text = if (v.busy) "Sending…" else "Send Code", onClick = vm::sendCode,
-                enabled = v.number.isNotBlank() && !v.busy)
-            Spacer(Modifier.height(8.dp))
-            LegumSecondaryButton(text = "Cancel", onClick = vm::closeVerify)
         } else {
-            Text("A code has been sent by WhatsApp to ${v.sentTo}. Please enter the 6 digits.",
-                style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
-            Spacer(Modifier.height(12.dp))
-            LegumTextField(
-                value = code,
-                onValueChange = {
+            com.legumlex.client.ui.components.WizardHeading("The code", "A code has been sent by WhatsApp to ${v.sentTo}. Please enter the 6 digits.")
+            com.legumlex.client.ui.components.WizardTextField(
+                "6-Digit Code", code,
+                {
                     code = it.filter(Char::isDigit).take(6)
                     if (code.length == 6 && !v.busy) vm.submitCode(code)
                 },
-                label = "6-Digit Code", leadingIcon = Icons.Outlined.Lock, keyboardType = KeyboardType.NumberPassword,
-                enabled = !v.busy, modifier = Modifier.fillMaxWidth(),
+                enabled = !v.busy, keyboardType = KeyboardType.NumberPassword,
             )
-            Spacer(Modifier.height(12.dp))
-            LegumPrimaryButton(text = if (v.busy) "Verifying…" else "Verify", onClick = { vm.submitCode(code) },
-                enabled = code.length == 6 && !v.busy)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                if (v.canSms) TextButton(onClick = vm::sendBySms) { Text("Send By SMS Instead", color = Lex.colors.foreground) }
-                TextButton(onClick = vm::sendCode, enabled = v.resendIn == 0 && !v.busy) {
-                    Text(
-                        if (v.resendIn > 0) "Send A New Code In %d:%02d".format(v.resendIn / 60, v.resendIn % 60) else "Send A New Code",
-                        color = if (v.resendIn == 0) Lex.colors.foreground else Lex.colors.faint,
-                    )
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                TextButton(onClick = vm::changeNumber) { Text("Change Number", color = Lex.colors.mutedForeground) }
-                TextButton(onClick = vm::closeVerify) { Text("Cancel", color = Lex.colors.mutedForeground) }
+            Spacer(Modifier.height(8.dp))
+            if (v.canSms) TextButton(onClick = vm::sendBySms) { Text("Send By SMS Instead", color = Lex.colors.foreground) }
+            TextButton(onClick = vm::sendCode, enabled = v.resendIn == 0 && !v.busy) {
+                Text(
+                    if (v.resendIn > 0) "Send A New Code In %d:%02d".format(v.resendIn / 60, v.resendIn % 60) else "Send A New Code",
+                    color = if (v.resendIn == 0) Lex.colors.foreground else Lex.colors.faint,
+                )
             }
         }
     }

@@ -1,185 +1,48 @@
 package com.legumlex.client.feature.healthchecks.funnel
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.legumlex.client.ui.theme.*
-import com.legumlex.client.ahc.theme.Inter
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.runtime.Composable
+import com.legumlex.client.ui.components.WizardFrame
+
+/** The funnel's steps as the wizard names them (AhcStep order; short, so six fit). */
+private val FunnelSteps = listOf("Upload", "Reading", "Confirm", "Pay", "Review", "Result")
 
 /**
- * 6-dot progress ribbon. Past = small filled, current = larger filled,
- * future = hollow grey. Purely decorative — the active step is driven by
- * the server-persisted current_step.
- */
-@Composable
-fun FunnelProgress(
-    step: Int,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        (1..6).forEach { i ->
-            val isCurrent = i == step
-            val isPast    = i < step
-            val sz by animateDpAsState(
-                targetValue = if (isCurrent) 10.dp else 7.dp,
-                label = "dot-$i",
-            )
-            Box(
-                modifier = Modifier
-                    .size(sz)
-                    .clip(CircleShape)
-                    .then(
-                        if (isCurrent || isPast) Modifier.background(PrimaryText)
-                        else Modifier.border(1.5.dp, BorderStrong, CircleShape)
-                    ),
-            )
-        }
-    }
-}
-
-/** Eyebrow + H1 question + optional sub. Used inside every step's scrollable body. */
-@Composable
-fun FunnelStepHeader(
-    step: AhcStep,
-    question: String,
-    sub: String? = null,
-) {
-    Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 18.dp)) {
-        Text(
-            text = "Step ${step.ordinal1based} of 6 · ${step.title}",
-            color = SecondaryText,
-            fontFamily = Inter,
-            fontSize = 11.sp,
-            letterSpacing = 0.5.sp,
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = question,
-            color = PrimaryText,
-            fontFamily = Inter,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 22.sp,
-            letterSpacing = (-0.5).sp,
-            lineHeight = 26.sp,
-        )
-        if (!sub.isNullOrBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = sub,
-                color = SecondaryText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-}
-
-/**
- * Funnel screen wrapper — sticky top bar (back · centred 6-dot progress with
- * "Step N of 6" label · Save & exit), scrollable body, and an optional sticky
- * action bar at the bottom.
+ * The Agreement Check funnel in the app's wizard (owner, 2026-10-24): the
+ * steps named across the top, the step's body, and Back / Next.
+ *
+ * The step is the server's (current_step), so a step cannot be undone here:
+ * close, Back and the system back all ask Save And Exit ([onSaveAndExit]).
+ * Next is the step's own work ([onNext], labelled [nextLabel]); a step with
+ * nothing to press, or its own buttons, hides the pair ([showActions]).
  */
 @Composable
 fun FunnelScreen(
     step: AhcStep,
-    onBack: () -> Unit,
     onSaveAndExit: () -> Unit,
-    action: (@Composable () -> Unit)? = null,
+    ready: Boolean = false,
+    saving: Boolean = false,
+    nextLabel: String = "Next",
+    savingLabel: String = "Saving…",
+    onNext: () -> Unit = {},
+    showActions: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    // The app-wide header supplies the brand mark + back arrow; gesture/system
-    // back exits the funnel to match it.
-    BackHandler { onBack() }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Surface1)
-            // Edge-to-edge: keep the action bar above the keyboard.
-            .imePadding(),
-    ) {
-        // ── Step ribbon ────────────────────────────────────────────
-        // (Back lives in the app-wide header now; this sub-bar keeps the
-        //  wizard-specific progress ribbon + Save & exit affordance.)
-        Surface(color = Surface1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                ) {
-                    FunnelProgress(step = step.ordinal1based)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Step ${step.ordinal1based} of 6",
-                        color = SecondaryText,
-                        fontFamily = Inter,
-                        fontSize = 10.sp,
-                        letterSpacing = 0.4.sp,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "Save And Exit",
-                    color = SecondaryText,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.5.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable(onClick = onSaveAndExit)
-                        .padding(horizontal = 4.dp, vertical = 6.dp),
-                )
-            }
-        }
-        HorizontalDivider(color = BorderColor)
-
-        // ── Scrollable body ────────────────────────────────────────
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScrollIfPossible(),
-            content = content,
-        )
-
-        // ── Sticky action bar ──────────────────────────────────────
-        if (action != null) {
-            HorizontalDivider(color = BorderColor)
-            Surface(color = Surface1) {
-                Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                    action()
-                }
-            }
-        }
-    }
+    WizardFrame(
+        title = "Agreement Check",
+        steps = FunnelSteps,
+        step = step.ordinal1based - 1,
+        ready = ready,
+        saving = saving,
+        saveLabel = nextLabel,
+        savingLabel = savingLabel,
+        nextLabel = nextLabel,
+        error = null,
+        onClose = onSaveAndExit,
+        onStep = { onSaveAndExit() },
+        onSave = onNext,
+        onNext = onNext,
+        showActions = showActions,
+        body = content,
+    )
 }
-
-// Most step bodies don't need scroll, but Intake does — let the body decide.
-// This is a tiny shim so the wrapper doesn't impose a scroll modifier blindly.
-@Composable
-private fun Modifier.verticalScrollIfPossible(): Modifier = this

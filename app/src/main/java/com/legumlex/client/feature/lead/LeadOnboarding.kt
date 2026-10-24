@@ -7,7 +7,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -26,10 +34,16 @@ import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.data.auth.SessionRole
 import com.legumlex.client.data.auth.TokenStore
 import com.legumlex.client.feature.healthchecks.funnel.FunnelPrimaryButton
-import com.legumlex.client.feature.healthchecks.funnel.FunnelSecondaryButton
 import com.legumlex.client.feature.scanner.rememberDocumentScannerLauncher
 import com.legumlex.client.ui.components.Eyebrow
 import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.WizardChoice
+import com.legumlex.client.ui.components.WizardDropdown
+import com.legumlex.client.ui.components.WizardFrame
+import com.legumlex.client.ui.components.WizardHeading
+import com.legumlex.client.ui.components.WizardRows
+import com.legumlex.client.ui.components.WizardTextField
+import com.legumlex.client.ui.components.WizardTick
 import com.legumlex.client.ui.theme.Lex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -172,7 +186,7 @@ class OnboardingRepository(private val context: Context) {
 /** A refusal at submit: the field it is about, and the server's words. */
 class OnbRefused(val field: String, message: String) : Exception(message)
 
-private val Steps = listOf("Account Type", "Documents", "Details", "Address", "Contact", "Confirm")
+private val Steps = listOf("Type", "Files", "Details", "Address", "Contact", "Confirm")
 
 @Composable
 fun LeadOnboardingScreen(onClose: () -> Unit) {
@@ -294,217 +308,177 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
         busy = ""
     }
 
-    BackHandler { if (step in 1..5 && busy.isEmpty()) { error = ""; step -= 1 } else onClose() }
-
-    Column(Modifier.fillMaxSize().background(Lex.colors.background).imePadding()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (step < 6) Eyebrow("Step ${step + 1} of 6 · ${Steps[step]}")
-            val s = standing
-            when (step) {
-                0 -> if (s?.reopened == true) {
-                    Title("Correct Your Registration", "The firm checked your registration and sent it back to be corrected.")
-                    LexCard(title = "What The Firm Asks") {
-                        Text(s.reviewNote.ifBlank { "Check your details and documents, and correct what is wrong." },
-                            style = MaterialTheme.typography.bodyLarge, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp))
-                    }
-                    Text("Your documents on file are kept; replace only what the firm asks for. Account type: ${s.types.firstOrNull { it.first == s.entityType }?.second ?: s.entityType.orEmpty()}.",
-                        style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-                } else {
-                    Title("Become A Client", "Your account with the firm is opened from your identity documents. The firm reviews every new account before it opens.")
-                    if (s?.problem?.isNotBlank() == true) {
-                        LexCard { Text(s.problem, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp)) }
-                    } else LexCard {
-                        s?.types.orEmpty().forEachIndexed { i, (k, label) ->
-                            if (i > 0) HorizontalDivider(color = Lex.colors.border)
-                            Row(Modifier.fillMaxWidth().clickable { choice = k }.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = choice == k, onClick = { choice = k })
-                                Text(label, style = MaterialTheme.typography.bodyLarge, color = Lex.colors.foreground)
-                            }
-                        }
-                    }
-                }
-                1 -> {
-                    Title("Your Documents", "Scan each one with the camera, or choose a PDF, JPG or PNG of up to 10 MB. Each is read as you send it.")
-                    s?.documents.orEmpty().forEach { d ->
-                        LexCard(title = d.label + if (d.required) "" else " (Optional)") {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (d.description.isNotBlank()) Text(d.description, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                                when {
-                                    busy == d.type -> Reading(busySince)
-                                    d.kept -> {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("On file from your registration.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                                            Text(if (d.problem != null) "Needs Replacing" else "On File", style = MaterialTheme.typography.labelMedium,
-                                                color = if (d.problem != null) Lex.colors.danger.softText else Lex.colors.mutedForeground)
-                                        }
-                                        d.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText) }
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedButton(onClick = { target = d.type; scan() }, enabled = busy.isEmpty()) { Text("Scan A New One") }
-                                            OutlinedButton(onClick = { target = d.type; picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) }, enabled = busy.isEmpty()) { Text("Replace") }
-                                        }
-                                        TextButton(onClick = { confirmRemove = d }, enabled = busy.isEmpty(), contentPadding = PaddingValues(0.dp)) {
-                                            Text("Remove", color = Lex.colors.danger.softText)
-                                        }
-                                    }
-                                    d.uploaded -> {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(d.name.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                                            Text(if (d.problem != null) "Needs Replacing" else (if (reopened) "New · " else "") + (if (d.read == true) "Read" else "Not Read"),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = when { d.problem != null -> Lex.colors.danger.softText; d.read == true -> Lex.colors.foreground; else -> Lex.colors.mutedForeground })
-                                        }
-                                        d.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText) }
-                                        d.fields.forEach { (k, v) ->
-                                            Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                                                Text(v, style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground) }
-                                        }
-                                        TextButton(onClick = { confirmRemove = d }, enabled = busy.isEmpty(),
-                                            contentPadding = PaddingValues(0.dp)) { Text("Remove", color = Lex.colors.danger.softText) }
-                                    }
-                                    else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { target = d.type; scan() }, enabled = busy.isEmpty()) { Text("Scan With Camera") }
-                                        OutlinedButton(onClick = { target = d.type; picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) }, enabled = busy.isEmpty()) { Text("Choose A File") }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (notice.isNotBlank()) Text(notice, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                    if (s != null && !s.reopened) StartOver(enabled = busy.isEmpty()) {
-                        scope.launch {
-                            repo.discard().onSuccess {
-                                standing = standing?.copy(entityType = null, documents = emptyList(), allUploaded = false)
-                                choice = null; review = null; f.clear(); notice = ""; error = ""; step = 0
-                            }.onFailure { error = it.message.orEmpty() }
-                        }
-                    }
-                }
-                2 -> {
-                    val r = review
-                    Title("Check Your Details", "Your client account is opened with these details. Correct anything that was read wrongly.")
-                    if (r != null && r.unread.isNotEmpty()) Text("Your ${r.unread.joinToString(" and ")} could not be read automatically, so some fields are empty. Type them as they appear on your documents; the firm checks them against the documents.",
-                        style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                    if (!person) {
-                        if ("company" in lk) Locked("Registered Name", f["company"].orEmpty(), from(r, "company_name", "") + CLEARER)
-                        else Field(f, "company", "Registered Name", "As on the registration certificate.")
-                    }
-                    if ("firstname" in lk) {
-                        Locked("First Name", f["firstname"].orEmpty(), from(r, "name", "") + CLEARER)
-                        Locked("Last Name", f["lastname"].orEmpty(), "As on your documents.")
-                    } else {
-                        Field(f, "firstname", if (person) "First Name" else "Contact First Name", if (person) "As on your documents." else "The person who will use this account.")
-                        Field(f, "lastname", if (person) "Last Name" else "Contact Last Name", if (person) "As on your documents." else "If you use one name only, please repeat it here.")
-                    }
-                    Locked("PAN", r?.panRead.orEmpty().ifBlank { f["pan_number"].orEmpty() }, from(r, "pan_number", "") + CLEARER)
-                    when {
-                        type == "individual" || type == "proprietorship" -> r?.details?.get("aadhaar_number")?.takeIf { it.isNotBlank() }?.let {
-                            Locked("Aadhaar", it, "Only the last four digits are shown.")
-                        }
-                        nri -> {
-                            r?.details?.get("passport_number")?.takeIf { it.isNotBlank() }?.let { Locked("Passport", it, from(r, "passport_number", "")) }
-                            if ("nationality" in lk) Locked("Nationality", f["nationality"].orEmpty(), from(r, "nationality", ""))
-                            else Field(f, "nationality", "Nationality", "As on your passport, like Indian or British.")
-                        }
-                        else -> r?.details?.get("gstin")?.takeIf { it.isNotBlank() }?.let { Locked("GSTIN", it, from(r, "gstin", "")) }
-                    }
-                }
-                3 -> {
-                    Title(if (person) "Your Address" else "Registered Address", if (nri) "Where you live now, abroad." else "As on your documents.")
-                    Field(f, "address", if (person) "Address" else "Registered Address", from(review, "address", "As on your documents."), lines = 3)
-                    Field(f, "city", "City", "Town or city.")
-                    Field(f, "state", if (nri) "State or Province" else "State", if (nri) "If your country has them." else "State or union territory.")
-                    Field(f, "zip", if (nri) "Postal Code" else "Pincode", if (nri) "Postal or ZIP code." else "Six digits.", digits = !nri)
-                    if (nri) CountryPicker(review?.countries.orEmpty(), f["country"]) { f["country"] = it }
-                }
-                4 -> {
-                    Title("How We Reach You", "The firm writes to your Google address, and sends updates on your matters to your mobile.")
-                    Locked("Email", standing?.email.orEmpty(), "From your Google sign-in. You sign in with it, and the firm writes to it.")
-                    if (keepRecord) Locked("Mobile Number", review?.details?.get("phonenumber").orEmpty(), "Your mobile on record, already confirmed. To change it, please write to the firm.")
-                    else MobileStep(f, phone, nri, review?.codes == true, confirmed,
-                        onNumber = { phone = phone.copy(sent = false, error = "") },
-                        send = { resend ->
-                            phone = phone.copy(busy = true, error = "")
-                            scope.launch {
-                                repo.phone("request", mapOf("number" to if (nri) f["phonenumber"].orEmpty() else f["phonenumber"].orEmpty().filter { it.isDigit() }))
-                                    .onSuccess { d ->
-                                        if (d["ok"] == true) phone = phone.copy(sent = true, to = d["to"].s(), resendIn = (d["resend_in"] as? Number)?.toInt() ?: 60,
-                                            smsIn = (d["sms_in"] as? Number)?.toInt() ?: 30, busy = false, error = if (resend) "A new code is on its way." else "")
-                                        else phone = phone.copy(busy = false, error = d["error"].s())
-                                    }.onFailure { phone = phone.copy(busy = false, error = it.message.orEmpty()) }
-                            }
-                        },
-                        sms = {
-                            scope.launch {
-                                repo.phone("sms").onSuccess { phone = phone.copy(smsIn = Int.MAX_VALUE, error = "The code is on its way by text message.") }
-                                    .onFailure { phone = phone.copy(error = it.message.orEmpty()) }
-                            }
-                        },
-                        verify = { code ->
-                            phone = phone.copy(busy = true, error = "")
-                            scope.launch {
-                                repo.phone("verify", mapOf("code" to code)).onSuccess { d ->
-                                    phone = phone.copy(busy = false, sent = false, verified = (d["number"] as? String) ?: ("+" + digits(f["phonenumber"].orEmpty())))
-                                }.onFailure { phone = phone.copy(busy = false, error = it.message.orEmpty()) }
-                            }
-                        },
-                        change = { phone = phone.copy(sent = false, verified = null, error = "") },
-                        tick = { phone = phone.copy(resendIn = (phone.resendIn - 1).coerceAtLeast(0), smsIn = if (phone.smsIn == Int.MAX_VALUE) phone.smsIn else (phone.smsIn - 1).coerceAtLeast(0)) },
-                    )
-                }
-                5 -> {
-                    Title("Confirm", if (reopened) "Check the details. Then send your corrected registration back to the firm."
-                        else "Check the details. Then open your account: you sign in with Google, or with a code sent to your mobile.")
-                    LexCard {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOfNotNull(
-                                "Account Type" to (standing?.types?.firstOrNull { it.first == type }?.second ?: type),
-                                ("Registered Name" to f["company"].orEmpty()).takeIf { !person },
-                                "Name" to listOf(f["firstname"], f["lastname"]).filter { !it.isNullOrBlank() }.joinToString(" "),
-                                "PAN" to (review?.panRead.orEmpty().ifBlank { f["pan_number"].orEmpty().uppercase() }),
-                                "Address" to listOf(f["address"], f["city"], f["state"], f["zip"]).filter { !it.isNullOrBlank() }.joinToString(", "),
-                                "Mobile" to (if (keepRecord) review?.details?.get("phonenumber").orEmpty() else (phone.verified ?: f["phonenumber"].orEmpty()) + " · Confirmed"),
-                                "Email" to standing?.email.orEmpty(),
-                            ).forEach { (k, v) ->
-                                Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                                    Text(v, style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground) }
-                            }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = f["terms"] == "1", onCheckedChange = { f["terms"] = if (it) "1" else "" })
-                        Text(review?.consent.orEmpty().ifBlank { "I confirm these details are correct, that the documents are genuine and mine, and I agree to the firm and its service providers using them to verify my identity." },
-                            style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground)
-                    }
-                }
-                else -> {
-                    Spacer(Modifier.height(24.dp))
-                    if (reopened) Title("Sent Again", "Your corrected registration is with the firm. The firm will write to ${standing?.email.orEmpty()} when your account opens, and this app will then open as your client app.")
-                    else Title("With The Firm For Approval", "Your registration and documents have been received. The firm reviews every new account before it opens; it will write to ${standing?.email.orEmpty()} when it does, and this app will then open as your client app. You sign in with Google, or with a code sent to your mobile.")
+    /** Next, per step: Type begins (or keeps) the draft, Files reads the details, the rest check theirs. */
+    fun next() {
+        when (step) {
+            0 -> {
+                val c = choice ?: return
+                if (c == standing?.entityType) { step = 1; return }
+                scope.launch {
+                    busy = "begin"; error = ""
+                    repo.begin(c).onSuccess { standing = it; review = null; f.clear(); step = 1 }.onFailure { error = it.message.orEmpty() }
+                    busy = ""
                 }
             }
-            if (error.isNotBlank()) Text(error, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText)
+            1 -> toReview()
+            else -> { val p = problem(); if (p.isNotEmpty()) error = p else { error = ""; step += 1 } }
         }
-        HorizontalDivider(color = Lex.colors.border)
-        Box(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-            when (step) {
-                0 -> FunnelPrimaryButton("Continue", modifier = Modifier.fillMaxWidth(),
-                    enabled = choice != null && standing?.problem.isNullOrBlank() && busy.isEmpty(), onClick = {
-                        val c = choice ?: return@FunnelPrimaryButton
-                        if (c == standing?.entityType) { step = 1; return@FunnelPrimaryButton }
+    }
+
+    if (step >= 6) {
+        Sent(reopened, standing?.email.orEmpty(), onClose)
+        return
+    }
+
+    WizardFrame(
+        title = if (reopened) "Correct Your Registration" else "Become A Client",
+        steps = Steps,
+        step = step,
+        ready = busy.isEmpty() && when (step) {
+            0 -> choice != null && standing?.problem.isNullOrBlank()
+            1 -> standing?.allUploaded == true && !anyProblem
+            else -> true
+        },
+        saving = busy == "submit" || busy == "begin",
+        savingLabel = if (busy == "begin") "Starting…" else if (reopened) "Sending…" else "Opening…",
+        saveLabel = if (reopened) "Send Again" else "Open My Account",
+        error = error,
+        onClose = onClose,
+        onStep = { i -> if (busy.isEmpty()) { error = ""; step = i } },
+        onNext = if (step < 5) ({ next() }) else null,
+        onSave = { val p = problem(); if (p.isNotEmpty()) error = p else submit() },
+    ) {
+        val s = standing
+        when (step) {
+            0 -> if (s?.reopened == true) {
+                WizardHeading("What The Firm Asks", "The firm checked your registration and sent it back to be corrected.")
+                LexCard {
+                    Text(s.reviewNote.ifBlank { "Check your details and documents, and correct what is wrong." },
+                        style = MaterialTheme.typography.bodyLarge, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp))
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Your documents on file are kept; replace only what the firm asks for. Account type: ${s.types.firstOrNull { it.first == s.entityType }?.second ?: s.entityType.orEmpty()}.",
+                    style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+            } else {
+                WizardHeading("What kind of account?", "Your account with the firm is opened from your identity documents. The documents asked for depend on the kind.")
+                if (s?.problem?.isNotBlank() == true) {
+                    LexCard { Text(s.problem, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.padding(16.dp)) }
+                } else s?.types.orEmpty().forEach { (k, label) ->
+                    WizardChoice(label, on = choice == k, sub = TypeSubs[k].orEmpty()) { choice = k }
+                }
+            }
+            1 -> {
+                WizardHeading("Your documents", "Scan each one with the camera, or choose a PDF, JPG or PNG of up to 10 MB. Each is read as you send it.")
+                s?.documents.orEmpty().forEach { d ->
+                    DocCard(d, busy, busySince, reopened,
+                        onScan = { target = d.type; scan() },
+                        onPick = { target = d.type; picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) },
+                        onRemove = { confirmRemove = d })
+                    Spacer(Modifier.height(12.dp))
+                }
+                if (notice.isNotBlank()) Text(notice, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                if (s != null && !s.reopened) StartOver(enabled = busy.isEmpty()) {
+                    scope.launch {
+                        repo.discard().onSuccess {
+                            standing = standing?.copy(entityType = null, documents = emptyList(), allUploaded = false)
+                            choice = null; review = null; f.clear(); notice = ""; error = ""; step = 0
+                        }.onFailure { error = it.message.orEmpty() }
+                    }
+                }
+            }
+            2 -> {
+                val r = review
+                WizardHeading("Check your details", "Your client account is opened with these details. Correct anything that was read wrongly.")
+                if (r != null && r.unread.isNotEmpty()) {
+                    Text("Your ${r.unread.joinToString(" and ")} could not be read automatically, so some fields are empty. Type them as they appear on your documents; the firm checks them against the documents.",
+                        style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                    Spacer(Modifier.height(16.dp))
+                }
+                if (!person) {
+                    if ("company" in lk) Locked("Registered Name", f["company"].orEmpty(), from(r, "company_name", "") + CLEARER)
+                    else Field(f, "company", "Registered Name", "As on the registration certificate.")
+                }
+                if ("firstname" in lk) {
+                    Locked("First Name", f["firstname"].orEmpty(), from(r, "name", "") + CLEARER)
+                    Locked("Last Name", f["lastname"].orEmpty(), "As on your documents.")
+                } else {
+                    Field(f, "firstname", if (person) "First Name" else "Contact First Name", if (person) "As on your documents." else "The person who will use this account.")
+                    Field(f, "lastname", if (person) "Last Name" else "Contact Last Name", if (person) "As on your documents." else "If you use one name only, please repeat it here.")
+                }
+                Locked("PAN", r?.panRead.orEmpty().ifBlank { f["pan_number"].orEmpty() }, from(r, "pan_number", "") + CLEARER)
+                when {
+                    type == "individual" || type == "proprietorship" -> r?.details?.get("aadhaar_number")?.takeIf { it.isNotBlank() }?.let {
+                        Locked("Aadhaar", it, "Only the last four digits are shown.")
+                    }
+                    nri -> {
+                        r?.details?.get("passport_number")?.takeIf { it.isNotBlank() }?.let { Locked("Passport", it, from(r, "passport_number", "")) }
+                        if ("nationality" in lk) Locked("Nationality", f["nationality"].orEmpty(), from(r, "nationality", ""))
+                        else Field(f, "nationality", "Nationality", "As on your passport, like Indian or British.")
+                    }
+                    else -> r?.details?.get("gstin")?.takeIf { it.isNotBlank() }?.let { Locked("GSTIN", it, from(r, "gstin", "")) }
+                }
+            }
+            3 -> {
+                WizardHeading(if (person) "Your address" else "Registered address", if (nri) "Where you live now, abroad." else "As on your documents.")
+                Field(f, "address", if (person) "Address" else "Registered Address", from(review, "address", "As on your documents."), lines = 3)
+                Field(f, "city", "City", "Town or city.")
+                Field(f, "state", if (nri) "State or Province" else "State", if (nri) "If your country has them." else "State or union territory.")
+                Field(f, "zip", if (nri) "Postal Code" else "Pincode", if (nri) "Postal or ZIP code." else "Six digits.", digits = !nri)
+                if (nri) WizardDropdown("Country of Residence", review?.countries.orEmpty().map { it.first.toString() to it.second },
+                    f["country"].orEmpty(), placeholder = "Choose your country") { f["country"] = it }
+            }
+            4 -> {
+                WizardHeading("How we reach you", "The firm writes to your Google address, and sends updates on your matters to your mobile.")
+                Locked("Email", standing?.email.orEmpty(), "From your Google sign-in. You sign in with it, and the firm writes to it.")
+                if (keepRecord) Locked("Mobile Number", review?.details?.get("phonenumber").orEmpty(), "Your mobile on record, already confirmed. To change it, please write to the firm.")
+                else MobileStep(f, phone, nri, review?.codes == true, confirmed,
+                    onNumber = { phone = phone.copy(sent = false, error = "") },
+                    send = { resend ->
+                        phone = phone.copy(busy = true, error = "")
                         scope.launch {
-                            busy = "begin"; error = ""
-                            repo.begin(c).onSuccess { standing = it; review = null; f.clear(); step = 1 }.onFailure { error = it.message.orEmpty() }
-                            busy = ""
+                            repo.phone("request", mapOf("number" to if (nri) f["phonenumber"].orEmpty() else f["phonenumber"].orEmpty().filter { it.isDigit() }))
+                                .onSuccess { d ->
+                                    if (d["ok"] == true) phone = phone.copy(sent = true, to = d["to"].s(), resendIn = (d["resend_in"] as? Number)?.toInt() ?: 60,
+                                        smsIn = (d["sms_in"] as? Number)?.toInt() ?: 30, busy = false, error = if (resend) "A new code is on its way." else "")
+                                    else phone = phone.copy(busy = false, error = d["error"].s())
+                                }.onFailure { phone = phone.copy(busy = false, error = it.message.orEmpty()) }
                         }
-                    })
-                1 -> FunnelPrimaryButton("Go To Your Details", modifier = Modifier.fillMaxWidth(),
-                    enabled = standing?.allUploaded == true && !anyProblem && busy.isEmpty(), onClick = { toReview() })
-                in 2..4 -> FunnelPrimaryButton("Continue", modifier = Modifier.fillMaxWidth(), onClick = {
-                    val p = problem(); if (p.isNotEmpty()) error = p else { error = ""; step += 1 }
-                })
-                5 -> FunnelPrimaryButton(if (busy == "submit") (if (reopened) "Sending…" else "Opening…") else (if (reopened) "Send Again" else "Open My Account"), modifier = Modifier.fillMaxWidth(),
-                    enabled = busy.isEmpty(), onClick = { val p = problem(); if (p.isNotEmpty()) error = p else submit() })
-                else -> FunnelSecondaryButton("Back To Home", modifier = Modifier.fillMaxWidth(), onClick = onClose)
+                    },
+                    sms = {
+                        scope.launch {
+                            repo.phone("sms").onSuccess { phone = phone.copy(smsIn = Int.MAX_VALUE, error = "The code is on its way by text message.") }
+                                .onFailure { phone = phone.copy(error = it.message.orEmpty()) }
+                        }
+                    },
+                    verify = { code ->
+                        phone = phone.copy(busy = true, error = "")
+                        scope.launch {
+                            repo.phone("verify", mapOf("code" to code)).onSuccess { d ->
+                                phone = phone.copy(busy = false, sent = false, verified = (d["number"] as? String) ?: ("+" + digits(f["phonenumber"].orEmpty())))
+                            }.onFailure { phone = phone.copy(busy = false, error = it.message.orEmpty()) }
+                        }
+                    },
+                    change = { phone = phone.copy(sent = false, verified = null, error = "") },
+                    tick = { phone = phone.copy(resendIn = (phone.resendIn - 1).coerceAtLeast(0), smsIn = if (phone.smsIn == Int.MAX_VALUE) phone.smsIn else (phone.smsIn - 1).coerceAtLeast(0)) },
+                )
+            }
+            else -> {
+                WizardHeading(if (reopened) "Check and send" else "Check and open",
+                    if (reopened) "Check the details. Then send your corrected registration back to the firm."
+                    else "Check the details. Then open your account: you sign in with Google, or with a code sent to your mobile.")
+                WizardRows(listOfNotNull(
+                    "Account Type" to (standing?.types?.firstOrNull { it.first == type }?.second ?: type),
+                    ("Registered Name" to f["company"].orEmpty()).takeIf { !person },
+                    "Name" to listOf(f["firstname"], f["lastname"]).filter { !it.isNullOrBlank() }.joinToString(" "),
+                    "PAN" to (review?.panRead.orEmpty().ifBlank { f["pan_number"].orEmpty().uppercase() }),
+                    "Address" to listOf(f["address"], f["city"], f["state"], f["zip"]).filter { !it.isNullOrBlank() }.joinToString(", "),
+                    "Mobile" to (if (keepRecord) review?.details?.get("phonenumber").orEmpty() else (phone.verified ?: f["phonenumber"].orEmpty()) + " · Confirmed"),
+                    "Email" to standing?.email.orEmpty(),
+                ))
+                Spacer(Modifier.height(16.dp))
+                WizardTick(f["terms"] == "1", review?.consent.orEmpty().ifBlank { "I confirm these details are correct, that the documents are genuine and mine, and I agree to the firm and its service providers using them to verify my identity." }) {
+                    f["terms"] = if (it) "1" else ""
+                }
             }
         }
     }
@@ -520,6 +494,104 @@ fun LeadOnboardingScreen(onClose: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Keep It", color = Lex.colors.foreground) } },
             containerColor = Lex.colors.card,
         )
+    }
+}
+
+/** One line under each kind of account, saying who it is for. */
+private val TypeSubs = mapOf(
+    "individual" to "You, living in India.",
+    "nri" to "You, living abroad: your passport in place of Aadhaar.",
+    "proprietorship" to "A business you own on your own.",
+    "partnership" to "A firm with a partnership deed.",
+    "llp" to "A limited liability partnership.",
+    "pvt_ltd" to "A private limited company.",
+    "pub_ltd" to "A public limited company.",
+    "trust" to "A trust, society or NGO.",
+    "company" to "Any other company.",
+)
+
+/** One document: what it is, then Scan / Choose, its reading, or what is on file. */
+@Composable
+private fun DocCard(d: OnbDoc, busy: String, busySince: Long, reopened: Boolean,
+                    onScan: () -> Unit, onPick: () -> Unit, onRemove: () -> Unit) {
+    val bad = d.problem != null
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lex.colors.card)
+            .border(1.dp, if (bad) Lex.colors.danger.solid else Lex.colors.border, RoundedCornerShape(12.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(d.label + if (d.required) "" else " (Optional)", style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+                if (d.description.isNotBlank() && d.description != d.label)
+                    Text(d.description, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            }
+            val tag = when {
+                busy == d.type -> null
+                bad -> "Needs Replacing"
+                d.kept -> "On File"
+                d.uploaded -> (if (reopened) "New · " else "") + (if (d.read == true) "Read" else "Not Read")
+                else -> null
+            }
+            tag?.let {
+                Text(it, style = MaterialTheme.typography.labelMedium,
+                    color = if (bad) Lex.colors.danger.softText else if (d.uploaded && d.read == true || d.kept) Lex.colors.foreground else Lex.colors.mutedForeground,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Lex.colors.muted).padding(horizontal = 8.dp, vertical = 3.dp))
+            }
+        }
+        when {
+            busy == d.type -> Reading(busySince)
+            d.kept || d.uploaded -> {
+                if (d.kept) Text("On file from your registration.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                else if (!d.name.isNullOrBlank()) Text(d.name, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                d.problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText) }
+                d.fields.forEach { (k, v) ->
+                    Row { Text(k, Modifier.width(120.dp), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                        Text(v, style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (d.kept || bad) {
+                        DocButton("Scan Again", Icons.Outlined.DocumentScanner, busy.isEmpty(), onScan)
+                        DocButton("Replace", Icons.Outlined.UploadFile, busy.isEmpty(), onPick)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onRemove, enabled = busy.isEmpty()) { Text("Remove", color = Lex.colors.danger.softText) }
+                }
+            }
+            else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DocButton("Scan", Icons.Outlined.DocumentScanner, busy.isEmpty(), onScan)
+                DocButton("Choose File", Icons.Outlined.UploadFile, busy.isEmpty(), onPick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Lex.colors.input, RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = if (enabled) Lex.colors.foreground else Lex.colors.faint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge, color = if (enabled) Lex.colors.foreground else Lex.colors.faint)
+    }
+}
+
+/** After sending: the tick, what happens now, and the way home. */
+@Composable
+private fun Sent(reopened: Boolean, email: String, onClose: () -> Unit) {
+    BackHandler(onBack = onClose)
+    Column(Modifier.fillMaxSize().background(Lex.colors.background).padding(24.dp), verticalArrangement = Arrangement.Center) {
+        Box(Modifier.size(64.dp).clip(CircleShape).background(Lex.colors.primary), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Check, contentDescription = null, tint = Lex.colors.primaryForeground, modifier = Modifier.size(32.dp))
+        }
+        Spacer(Modifier.height(24.dp))
+        WizardHeading(if (reopened) "Sent again" else "With the firm for approval",
+            if (reopened) "Your corrected registration is with the firm. The firm will write to $email when your account opens, and this app will then open as your client app."
+            else "Your registration and documents have been received. The firm reviews every new account before it opens; it will write to $email when it does, and this app will then open as your client app. You sign in with Google, or with a code sent to your mobile.")
+        FunnelPrimaryButton("Back To Home", modifier = Modifier.fillMaxWidth(), onClick = onClose)
     }
 }
 
@@ -540,35 +612,26 @@ private fun MobileStep(f: MutableMap<String, String>, p: OnbPhone, nri: Boolean,
         return
     }
     if (!p.sent) {
-        OutlinedTextField(
-            value = f["phonenumber"].orEmpty(),
-            onValueChange = { v -> f["phonenumber"] = if (nri) v.filter { it.isDigit() || it == '+' || it == ' ' } else v.filter { it.isDigit() }.take(10); onNumber() },
-            label = { Text("Mobile Number") }, singleLine = true, enabled = !p.busy,
-            supportingText = { Text(if (nri) "The whole number with its country code, starting with +." else "Ten digits, starting with 6, 7, 8 or 9. The firm sends a code to confirm it.") },
-            keyboardOptions = KeyboardOptions(keyboardType = if (nri) KeyboardType.Phone else KeyboardType.Number),
-            prefix = if (!nri) ({ Text("+91 ") }) else null,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        WizardTextField("Mobile Number", f["phonenumber"].orEmpty(),
+            { v -> f["phonenumber"] = if (nri) v.filter { it.isDigit() || it == '+' || it == ' ' } else v.filter { it.isDigit() }.take(10); onNumber() },
+            help = if (nri) "The whole number with its country code, starting with +." else "Ten digits, starting with 6, 7, 8 or 9. The firm sends a code to confirm it.",
+            enabled = !p.busy, prefix = if (!nri) "+91" else "",
+            keyboardType = if (nri) KeyboardType.Phone else KeyboardType.Number)
         if (!codes) Text("Mobile numbers cannot be confirmed just now, so your registration cannot be completed yet. Everything you have given is saved; please try again a little later.",
             style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-        else OutlinedButton(onClick = { send(false) }, enabled = !p.busy && f["phonenumber"].orEmpty().isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-            Text(if (p.busy) "Sending…" else "Send Code")
-        }
+        else FunnelPrimaryButton(if (p.busy) "Sending…" else "Send Code", modifier = Modifier.fillMaxWidth(),
+            enabled = !p.busy && f["phonenumber"].orEmpty().isNotBlank(), onClick = { send(false) })
     } else {
         LaunchedEffect(p.to) { while (true) { kotlinx.coroutines.delay(1000); tick() } }
         var code by remember(p.to) { mutableStateOf("") }
         Text("A six-digit code was sent to ${p.to} by WhatsApp or text message. Please type it below.",
             style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-        OutlinedTextField(
-            value = code,
-            onValueChange = { v -> code = v.filter { it.isDigit() }.take(6); if (code.length == 6 && !p.busy) verify(code) },
-            label = { Text("Code") }, singleLine = true, enabled = !p.busy,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedButton(onClick = { verify(code) }, enabled = code.length == 6 && !p.busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (p.busy) "Confirming…" else "Confirm")
-        }
+        Spacer(Modifier.height(14.dp))
+        WizardTextField("Code", code, { v -> code = v.filter { it.isDigit() }.take(6); if (code.length == 6 && !p.busy) verify(code) },
+            enabled = !p.busy, placeholder = "Six digits", keyboardType = KeyboardType.NumberPassword)
+        FunnelPrimaryButton(if (p.busy) "Confirming…" else "Confirm", modifier = Modifier.fillMaxWidth(),
+            enabled = code.length == 6 && !p.busy, onClick = { verify(code) })
+        Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (p.smsIn != Int.MAX_VALUE) TextButton(onClick = sms, enabled = p.smsIn == 0 && !p.busy) {
                 Text(if (p.smsIn > 0) "Send By SMS In %d:%02d".format(p.smsIn / 60, p.smsIn % 60) else "Send By SMS",
@@ -625,42 +688,12 @@ private fun from(r: OnbReview?, key: String, otherwise: String): String =
     r?.sources?.get(key)?.takeIf { it.isNotBlank() }?.let { "Read from your $it." } ?: otherwise
 
 @Composable
-private fun Title(title: String, sub: String) {
-    Text(title, style = MaterialTheme.typography.headlineSmall, color = Lex.colors.foreground)
-    Text(sub, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-}
-
-@Composable
 private fun Field(f: MutableMap<String, String>, key: String, label: String, help: String, upper: Boolean = false,
                   lines: Int = 1, digits: Boolean = false, phone: Boolean = false) {
-    OutlinedTextField(
-        value = f[key].orEmpty(),
-        onValueChange = { v -> f[key] = if (upper) v.uppercase() else v },
-        label = { Text(label) },
-        supportingText = if (help.isNotBlank()) ({ Text(help) }) else null,
-        singleLine = lines == 1, minLines = lines,
-        keyboardOptions = KeyboardOptions(keyboardType = when { digits -> KeyboardType.Number; phone -> KeyboardType.Phone; else -> KeyboardType.Text }),
-        prefix = if (key == "phonenumber" && digits) ({ Text("+91 ") }) else null,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    WizardTextField(label, f[key].orEmpty(), { v -> f[key] = if (upper) v.uppercase() else v }, help = help, lines = lines,
+        keyboardType = when { digits -> KeyboardType.Number; phone -> KeyboardType.Phone; else -> KeyboardType.Text },
+        prefix = if (key == "phonenumber" && digits) "+91" else "")
 }
 
 @Composable
-private fun Locked(label: String, value: String, help: String) {
-    OutlinedTextField(value = value, onValueChange = {}, readOnly = true, enabled = false, label = { Text(label) },
-        supportingText = if (help.isNotBlank()) ({ Text(help) }) else null, modifier = Modifier.fillMaxWidth())
-}
-
-@Composable
-private fun CountryPicker(countries: List<Pair<Int, String>>, selected: String?, onPick: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    val name = countries.firstOrNull { it.first.toString() == selected }?.second
-    Box {
-        OutlinedTextField(value = name ?: "", onValueChange = {}, readOnly = true, label = { Text("Country of Residence") },
-            placeholder = { Text("Choose your country…") }, modifier = Modifier.fillMaxWidth(),
-            trailingIcon = { TextButton(onClick = { open = true }) { Text("Choose") } })
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            countries.forEach { (id, n) -> DropdownMenuItem(text = { Text(n) }, onClick = { onPick(id.toString()); open = false }) }
-        }
-    }
-}
+private fun Locked(label: String, value: String, help: String) = WizardTextField(label, value, help = help, locked = true)

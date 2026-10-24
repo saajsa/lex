@@ -257,13 +257,24 @@ private val wizardBases = setOf(
     Route.LeadOnboard.path,                             // a lead opening an account
 )
 
+/**
+ * Wizards drawn in the app's WizardFrame (owner, 2026-10-24): the frame has its
+ * own close button, title and named steps, so the app header steps aside.
+ */
+private val framedWizardBases = setOf(
+    Route.AhcFunnel.path,
+    Route.DoIntake.path.substringBefore("?"),
+    Route.LeadAhc.path,
+    Route.LeadOnboard.path,
+)
+
 /** Immersive takeovers + splash/sign-in/notifications get NO centered-logo header. */
 private val headerHiddenBases = setOf(
     Route.Splash.path,
     Route.Login.path,           // nothing to notify of before sign-in
     Route.Register.path,
     Route.Notifications.path,   // draws its own header (back · title · mark all read)
-) + immersiveBases
+) + immersiveBases + framedWizardBases
 
 /** Auth + immersive + wizards hide the footer. Everything else — tabs, lists,
  *  detail screens, the Notices hub/detail, the Digital Office landing — shows it. */

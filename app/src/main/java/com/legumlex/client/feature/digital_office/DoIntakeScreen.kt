@@ -20,7 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FamilyRestroom
@@ -52,6 +52,13 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.components.LegumSecondaryButton
+import com.legumlex.client.ui.components.WizardChoice
+import com.legumlex.client.ui.components.WizardFrame
+import com.legumlex.client.ui.components.WizardHeading
+import com.legumlex.client.ui.components.WizardLabel
+import com.legumlex.client.ui.components.WizardReview
+import com.legumlex.client.ui.components.WizardTextArea
+import com.legumlex.client.ui.components.WizardTick
 import com.legumlex.client.ui.theme.*
 import com.legumlex.client.ahc.theme.Inter
 
@@ -137,10 +144,13 @@ fun DoIntakeScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snack) },
         containerColor = MaterialTheme.colorScheme.background,
-        // The app-wide header already supplies the brand bar, back arrow, and
-        // status-bar inset — this screen no longer draws its own top bar.
+        // No app header here (a framed wizard): the wizard draws its own close
+        // button; the request's other states carry a close bar of their own.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { inner ->
+        Column(Modifier.fillMaxSize().padding(inner)) {
+        if (state !is DoIntakeUiState.Ready) CloseBar(onBack)
+        val inner = PaddingValues(0.dp)
         when (val s = state) {
             is DoIntakeUiState.Loading   -> CenteredSpinner(inner)
             is DoIntakeUiState.Error     -> ErrorBlock(inner, s.message, onRetry = vm::retry)
@@ -148,6 +158,7 @@ fun DoIntakeScreen(
                 inner   = inner,
                 state   = s,
                 onSubmit = vm::submit,
+                onClose  = onBack,
             )
             // Approval-gate flow states (server migration 106) — see VM doc.
             is DoIntakeUiState.Waiting   -> WaitingContent(
@@ -169,6 +180,22 @@ fun DoIntakeScreen(
                 onBack     = onBack,
             )
         }
+        }
+    }
+}
+
+/** The way out on the request's other states, where the wizard's own close is not shown. */
+@Composable
+private fun CloseBar(onClose: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = "Close", onClick = onClose),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Outlined.Close, contentDescription = "Close", tint = PrimaryText, modifier = Modifier.size(22.dp)) }
+        Spacer(Modifier.weight(1f))
+        Text("Digital Office", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(44.dp))
     }
 }
 
@@ -568,7 +595,6 @@ private fun TerminalStateBlock(
 private val LexClaret: Color      @Composable get() = Lex.colors.primary
 private val LexVerdant            = Color(0xFF1A5C3A)
 private val LexAmber              = Color(0xFF92400E)
-private val LexUrgent             = Color(0xFF7D1930)
 private val LexInk: Color         @Composable get() = Lex.colors.foreground
 private val LexInkMuted: Color    @Composable get() = Lex.colors.mutedForeground
 private val LexInkFaint: Color    @Composable get() = Lex.colors.faint
@@ -589,11 +615,11 @@ private val INTAKE_AREAS = listOf(
     IntakeArea("other",    "Other",    Icons.Outlined.MoreHoriz),
 )
 
-private data class IntakeUrgency(val key: String, val label: String, val color: Color)
+private data class IntakeUrgency(val key: String, val label: String, val sub: String)
 private val INTAKE_URGENCIES = listOf(
-    IntakeUrgency("low",  "Low",        LexVerdant),
-    IntakeUrgency("med",  "This Week",  LexAmber),
-    IntakeUrgency("high", "Urgent",     LexUrgent),
+    IntakeUrgency("low",  "Low",       "It can wait for a convenient time."),
+    IntakeUrgency("med",  "This Week", "It needs advice in the next few days."),
+    IntakeUrgency("high", "Urgent",    "Something is happening now or very soon."),
 )
 
 @Composable
@@ -601,9 +627,11 @@ private fun ReadyContent(
     inner: PaddingValues,
     state: DoIntakeUiState.Ready,
     onSubmit: (String) -> Unit,
+    onClose: () -> Unit,
 ) {
-    // A three-step wizard: the matter, the brief, then a review that says
-    // plainly what happens next (the advocate approves; any fee follows).
+    // A three-step wizard in the app's WizardFrame: the matter, the brief, then
+    // a review that says plainly what happens next (the advocate approves; any
+    // fee follows).
     var step     by rememberSaveable { mutableStateOf(0) }
     var area     by rememberSaveable { mutableStateOf<String?>(null) }
     var urgency  by rememberSaveable { mutableStateOf<String?>(null) }
@@ -613,100 +641,66 @@ private fun ReadyContent(
 
     val briefLen   = brief.trim().length
     val charLeft   = (maxBriefChars - brief.length).coerceAtLeast(0)
-    val stepTitles = listOf("Your Matter", "Your Brief", "Review And Send")
+    val stepTitles = listOf("Your Matter", "Your Brief", "Review")
     val canAdvance = when (step) {
         0    -> area != null && urgency != null
         1    -> briefLen >= 20
-        else -> consent && !state.submitting
+        else -> consent
     }
     val fee = if (state.sessionFee > 0) formatFee(state.sessionFee, state.currency) else null
     val advocateName = state.advocate.name
 
-    androidx.activity.compose.BackHandler(enabled = step > 0 && !state.submitting) { step -= 1 }
-
-    Column(modifier = Modifier.fillMaxSize().padding(inner).imePadding()) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 8.dp),
+    Box(Modifier.fillMaxSize().padding(inner)) {
+        WizardFrame(
+            title       = "Digital Office",
+            steps       = stepTitles,
+            step        = step,
+            ready       = canAdvance,
+            saving      = state.submitting,
+            saveLabel   = "Send For Approval",
+            savingLabel = "Sending…",
+            error       = null,
+            onClose     = onClose,
+            onStep      = { if (!state.submitting) step = it },
+            onSave      = {
+                val areaLabel    = INTAKE_AREAS.firstOrNull { it.key == area }?.label
+                val urgencyLabel = INTAKE_URGENCIES.firstOrNull { it.key == urgency }?.label
+                onSubmit(packIntake(areaLabel, urgencyLabel, brief))
+            },
         ) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text       = "STEP ${step + 1} OF 3 · ${stepTitles[step].uppercase()}",
-                fontFamily = Inter,
-                fontSize   = 10.sp,
-                letterSpacing = 1.5.sp,
-                color      = LexInkFaint,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(3) { i ->
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(if (i <= step) LexClaret else LexBorder),
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-
             when (step) {
                 0 -> {
-                    Text(
-                        text       = "What Is Your Matter About?",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 24.sp,
-                        lineHeight = 28.sp,
-                        letterSpacing = (-0.5).sp,
-                        color      = LexInk,
+                    WizardHeading(
+                        "What Is Your Matter About?",
+                        "$advocateName reads your request before accepting it, so the call starts with your matter already understood.",
                     )
-                    Spacer(Modifier.height(8.dp))
+                    WizardLabel("Area Of Law")
+                    INTAKE_AREAS.forEach { a ->
+                        WizardChoice(a.label, on = area == a.key) { area = a.key }
+                    }
                     Text(
-                        text       = "$advocateName reads your request before accepting it, so " +
-                                     "the call starts with your matter already understood.",
-                        fontFamily = Inter,
-                        fontSize   = 12.5.sp,
-                        lineHeight = 19.sp,
-                        color      = LexInkMuted,
+                        "Select the closest match; you may clarify during the session.",
+                        fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 17.sp, color = LexInkMuted,
                     )
                     Spacer(Modifier.height(22.dp))
-                    IntakeFieldLabel(
-                        label = "Area Of Law",
-                        help  = "Select the closest match; you may clarify during the session.",
-                    )
-                    AreaChipGrid(selected = area, onSelect = { area = it })
-                    Spacer(Modifier.height(22.dp))
-                    IntakeFieldLabel(label = "How Urgent Is It?")
-                    UrgencySegmentedControl(selected = urgency, onSelect = { urgency = it })
+                    WizardLabel("How Urgent Is It?")
+                    INTAKE_URGENCIES.forEach { u ->
+                        WizardChoice(u.label, on = urgency == u.key, sub = u.sub) { urgency = u.key }
+                    }
                 }
                 1 -> {
-                    Text(
-                        text       = "Describe Your Situation",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 24.sp,
-                        lineHeight = 28.sp,
-                        letterSpacing = (-0.5).sp,
-                        color      = LexInk,
+                    WizardHeading(
+                        "Describe Your Situation",
+                        "A few lines is plenty: what happened, and what you would like to achieve.",
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text       = "A few lines is plenty — what happened, and what you'd like to achieve.",
-                        fontFamily = Inter,
-                        fontSize   = 12.5.sp,
-                        lineHeight = 19.sp,
-                        color      = LexInkMuted,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    IntakeTextarea(
-                        value         = brief,
-                        onValueChange = { brief = it.take(maxBriefChars) },
-                        enabled       = !state.submitting,
+                    WizardLabel("Your Brief")
+                    WizardTextArea(
+                        value       = brief,
+                        onChange    = { if (!state.submitting) brief = it },
+                        placeholder = "e.g. My landlord changed the locks on our shop and is refusing access " +
+                            "despite a valid lease until 2027. I want to know how to regain possession quickly.",
+                        maxChars    = maxBriefChars,
+                        minHeight   = 160,
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -715,85 +709,46 @@ private fun ReadyContent(
                         Text(
                             text       = "${brief.length} / $maxBriefChars",
                             fontFamily = Inter,
-                            fontSize   = 10.sp,
-                            color      = if (charLeft == 0) LexClaret else LexInkFaint,
+                            fontSize   = 11.sp,
+                            color      = if (charLeft == 0) StatusDanger.solid else LexInkFaint,
                         )
                     }
                     if (briefLen in 1..19) {
                         Text(
                             text       = "${20 - briefLen} more character${if (20 - briefLen == 1) "" else "s"} so your advocate gets enough context.",
                             fontFamily = Inter,
-                            fontSize   = 11.sp,
-                            color      = LexAmber,
+                            fontSize   = 12.sp,
+                            color      = LexInkMuted,
                             modifier   = Modifier.padding(top = 4.dp),
                         )
                     }
                 }
                 else -> {
-                    Text(
-                        text       = "Review Your Request",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 24.sp,
-                        lineHeight = 28.sp,
-                        letterSpacing = (-0.5).sp,
-                        color      = LexInk,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    ReviewRow("Advocate", advocateName) { step = 0 }
-                    ReviewRow("Area Of Law", INTAKE_AREAS.firstOrNull { it.key == area }?.label ?: "—") { step = 0 }
-                    ReviewRow("Urgency", INTAKE_URGENCIES.firstOrNull { it.key == urgency }?.label ?: "—") { step = 0 }
-                    ReviewRow("Brief", brief.trim()) { step = 1 }
-                    Spacer(Modifier.height(14.dp))
-                    Text(
-                        text       = buildString {
+                    WizardReview(
+                        title = "Review Your Request",
+                        note  = buildString {
                             append("Your request goes to $advocateName for approval. ")
                             if (fee != null) append("Once they accept, the session fee of $fee is raised as an invoice that you pay on the firm's website; the call begins after payment. ")
                             else append("Once they accept, the call begins. ")
                             append("Nothing is charged if they decline.")
                         },
-                        fontFamily = Inter,
-                        fontSize   = 12.sp,
-                        lineHeight = 18.sp,
-                        color      = LexInkMuted,
+                        rows  = listOf(
+                            "Advocate"    to advocateName,
+                            "Area Of Law" to (INTAKE_AREAS.firstOrNull { it.key == area }?.label ?: ""),
+                            "Urgency"     to (INTAKE_URGENCIES.firstOrNull { it.key == urgency }?.label ?: ""),
+                            "Brief"       to brief.trim(),
+                        ),
                     )
                     Spacer(Modifier.height(16.dp))
-                    ConsentCheckbox(checked = consent, onToggle = { consent = !consent })
+                    WizardTick(
+                        checked  = consent,
+                        text     = "I understand this is a preliminary consultation and that an advocate–client relationship begins only once expressly agreed.",
+                        onChange = { if (!state.submitting) consent = it },
+                    )
                 }
             }
-            Spacer(Modifier.height(16.dp))
         }
-
-        IntakeActionBar(
-            submitting = state.submitting,
-            enabled    = canAdvance,
-            label      = if (step < 2) "Continue" else "Send For Approval",
-            onBack     = if (step > 0 && !state.submitting) ({ step -= 1 }) else null,
-            onClick    = {
-                if (step < 2) step += 1
-                else {
-                    val areaLabel    = INTAKE_AREAS.firstOrNull { it.key == area }?.label
-                    val urgencyLabel = INTAKE_URGENCIES.firstOrNull { it.key == urgency }?.label
-                    onSubmit(packIntake(areaLabel, urgencyLabel, brief))
-                }
-            },
-        )
     }
-}
-
-@Composable
-private fun ReviewRow(label: String, value: String, onEdit: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onEdit)
-            .padding(vertical = 8.dp),
-    ) {
-        Text(label, fontFamily = Inter, fontSize = 11.sp, color = LexInkFaint)
-        Spacer(Modifier.height(2.dp))
-        Text(value, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp, color = LexInk)
-    }
-    HorizontalDivider(color = LexBorder, thickness = 1.dp)
 }
 
 /** Money as Indian grouping (12,34,567), without trailing paise when whole. */
@@ -804,270 +759,6 @@ private fun packIntake(area: String?, urgency: String?, brief: String): String {
     val tags = listOfNotNull(area?.let { "Area: $it" }, urgency?.let { "Urgency: $it" })
     return if (tags.isEmpty()) brief.trim()
     else tags.joinToString(" · ") + "\n\n" + brief.trim()
-}
-
-@Composable
-private fun IntakeFieldLabel(label: String, help: String? = null) {
-    Text(
-        text       = label,
-        fontFamily = Inter,
-        fontWeight = FontWeight.SemiBold,
-        fontSize   = 13.sp,
-        color      = LexInk,
-        modifier   = Modifier.padding(bottom = 4.dp),
-    )
-    if (help != null) {
-        Text(
-            text       = help,
-            fontFamily = Inter,
-            fontSize   = 11.5.sp,
-            lineHeight = 16.sp,
-            color      = LexInkMuted,
-            modifier   = Modifier.padding(bottom = 10.dp),
-        )
-    } else {
-        Spacer(Modifier.height(6.dp))
-    }
-}
-
-@Composable
-private fun AreaChipGrid(selected: String?, onSelect: (String) -> Unit) {
-    // 3-column grid via Rows. Simpler than FlowRow which requires Compose 1.5+.
-    val rows = INTAKE_AREAS.chunked(3)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { area ->
-                    AreaChip(
-                        label    = area.label,
-                        icon     = area.icon,
-                        selected = selected == area.key,
-                        onClick  = { onSelect(area.key) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                // Pad with empty weight cells if last row is partial
-                repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AreaChip(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val bg     = if (selected) LexInk else LexCard
-    val fg     = if (selected) LexOnInk else LexInkMuted
-    val border = if (selected) LexInk else LexBorder
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(bg)
-            .border(BorderStroke(1.dp, border), RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(15.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text       = label,
-            fontFamily = Inter,
-            fontWeight = FontWeight.SemiBold,
-            fontSize   = 12.sp,
-            color      = fg,
-            maxLines   = 1,
-        )
-    }
-}
-
-@Composable
-private fun UrgencySegmentedControl(selected: String?, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        INTAKE_URGENCIES.forEach { u ->
-            val isSel = selected == u.key
-            val bg     = if (isSel) u.color else LexCard
-            val fg     = if (isSel) Color.White else LexInkMuted
-            val border = if (isSel) u.color else LexBorder
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(bg)
-                    .border(BorderStroke(1.dp, border), RoundedCornerShape(8.dp))
-                    .clickable { onSelect(u.key) }
-                    .padding(vertical = 13.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment     = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text       = u.label,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 12.sp,
-                    color      = fg,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun IntakeTextarea(
-    value: String,
-    onValueChange: (String) -> Unit,
-    enabled: Boolean,
-) {
-    OutlinedTextField(
-        value         = value,
-        onValueChange = onValueChange,
-        placeholder   = {
-            Text(
-                "e.g. My landlord changed the locks on our shop and is refusing access " +
-                "despite a valid lease until 2027. I want to know how to regain possession quickly.",
-                color = LexInkFaint,
-                fontFamily = Inter,
-                fontSize = 12.5.sp,
-                lineHeight = 18.sp,
-            )
-        },
-        minLines      = 5,
-        maxLines      = 8,
-        modifier      = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(
-            capitalization = KeyboardCapitalization.Sentences,
-            imeAction      = ImeAction.Default,
-        ),
-        enabled       = enabled,
-        shape         = RoundedCornerShape(12.dp),
-        colors        = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor   = LexInk,
-            unfocusedBorderColor = LexBorder,
-            disabledBorderColor  = LexBorder,
-            cursorColor          = LexClaret,
-            focusedContainerColor   = LexCard,
-            unfocusedContainerColor = LexCard,
-            disabledContainerColor  = LexCard,
-        ),
-    )
-}
-
-@Composable
-private fun ConsentCheckbox(checked: Boolean, onToggle: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LexSurface1)
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(top = 1.dp)
-                .size(20.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (checked) LexVerdant else com.legumlex.client.ui.theme.Lex.colors.card)
-                .border(
-                    BorderStroke(1.5.dp, if (checked) LexVerdant else LexBorderStrong),
-                    RoundedCornerShape(6.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (checked) {
-                Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(15.dp))
-            }
-        }
-        Spacer(Modifier.width(11.dp))
-        Text(
-            text = buildString {
-                append("I understand this is a preliminary consultation and that an advocate–client ")
-                append("relationship begins only once expressly agreed. ")
-            },
-            fontFamily = Inter,
-            fontSize   = 11.5.sp,
-            lineHeight = 16.sp,
-            color      = LexInkMuted,
-            modifier   = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun IntakeActionBar(
-    submitting: Boolean,
-    enabled: Boolean,
-    label: String,
-    onBack: (() -> Unit)?,
-    onClick: () -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth().background(LexPaper)) {
-        HorizontalDivider(color = LexBorder, thickness = 1.dp)
-        Row(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onBack != null) {
-                OutlinedButton(
-                    onClick = onBack,
-                    shape   = RoundedCornerShape(12.dp),
-                    border  = BorderStroke(1.dp, LexBorderStrong),
-                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 15.dp),
-                ) {
-                    Text("Back", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LexInkMuted)
-                }
-            }
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (enabled && !submitting) LexClaret else LexInkFaint)
-                    .clickable(enabled = enabled && !submitting, onClick = onClick)
-                    .padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment     = Alignment.CenterVertically,
-            ) {
-                if (submitting) {
-                    CircularProgressIndicator(
-                        color       = LexOnInk,
-                        strokeWidth = 2.dp,
-                        modifier    = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text       = "Sending…",
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 13.sp,
-                        color      = LexOnInk,
-                    )
-                } else {
-                    Text(
-                        text       = label,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize   = 13.sp,
-                        color      = LexOnInk,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = null,
-                        tint = LexOnInk,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable

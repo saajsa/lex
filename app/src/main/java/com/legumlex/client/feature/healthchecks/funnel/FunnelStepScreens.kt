@@ -36,6 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.ui.components.EyebrowText
 import com.legumlex.client.ui.components.RiskBadge
+import com.legumlex.client.ui.components.WizardChoice
+import com.legumlex.client.ui.components.WizardHeading
+import com.legumlex.client.ui.components.WizardLabel
+import com.legumlex.client.ui.components.WizardTextArea
+import com.legumlex.client.ui.components.WizardTextField
 import com.legumlex.client.ui.theme.*
 import com.legumlex.client.ahc.theme.Inter
 
@@ -61,47 +66,32 @@ fun StepUploadScreen(
 
     FunnelScreen(
         step = AhcStep.UPLOAD,
-        onBack = onBack,
         onSaveAndExit = onSaveAndExit,
-        action = {
-            FunnelPrimaryButton(
-                label = "Analyse",
-                onClick = vm::advanceFromUpload,
-                enabled = docs.isNotEmpty() && pending.none { it.state == PendingUploadState.UPLOADING } && !state.saving,
-            )
-        },
+        ready = docs.isNotEmpty() && pending.none { it.state == PendingUploadState.UPLOADING },
+        saving = state.saving,
+        nextLabel = "Analyse",
+        savingLabel = "Sending…",
+        onNext = vm::advanceFromUpload,
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        ) {
-            FunnelStepHeader(
-                step = AhcStep.UPLOAD,
-                question = "Upload The Agreement",
-                sub = "The details will be read from the document and filled in for you. PDF, DOCX, JPG or PNG, up to 25 MB.",
-            )
-
-            if (docs.isEmpty() && pending.isEmpty()) {
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    DropTile(onClick = { picker.launch("*/*") })
+        WizardHeading(
+            "Upload The Agreement",
+            "The details will be read from the document and filled in for you. PDF, DOCX, JPG or PNG, up to 25 MB.",
+        )
+        if (docs.isEmpty() && pending.isEmpty()) {
+            DropTile(onClick = { picker.launch("*/*") })
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                docs.forEach { d ->
+                    ServerFileRow(doc = d, onRemove = { vm.removeServerFile(d.id) })
                 }
-            } else {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    docs.forEach { d ->
-                        ServerFileRow(doc = d, onRemove = { vm.removeServerFile(d.id) })
-                    }
-                    pending.forEach { p ->
-                        PendingFileRow(file = p, onRemove = { vm.removePending(p.localId) })
-                    }
-                    if (canAdd) {
-                        Spacer(Modifier.height(4.dp))
-                        AddAnotherDocumentRow(onClick = { picker.launch("*/*") })
-                    }
+                pending.forEach { p ->
+                    PendingFileRow(file = p, onRemove = { vm.removePending(p.localId) })
+                }
+                if (canAdd) {
+                    Spacer(Modifier.height(4.dp))
+                    AddAnotherDocumentRow(onClick = { picker.launch("*/*") })
                 }
             }
-            Spacer(Modifier.height(28.dp))
         }
     }
 }
@@ -127,16 +117,11 @@ fun StepExtractingScreen(
 ) {
     LaunchedEffect(Unit) { vm.pollExtracting() }
 
-    FunnelScreen(
-        step = AhcStep.EXTRACTING,
-        onBack = onBack,
-        onSaveAndExit = onSaveAndExit,
-        action = null,
-    ) {
+    // Nothing to press while the document is read: the step moves on by itself.
+    FunnelScreen(step = AhcStep.EXTRACTING, onSaveAndExit = onSaveAndExit, showActions = false) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 40.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
         ) {
             Box(modifier = Modifier.size(96.dp), contentAlignment = Alignment.Center) {
                 PulsingRing(delayMillis = 0)
@@ -183,17 +168,7 @@ fun StepExtractingScreen(
                 }
             }
             Spacer(Modifier.height(28.dp))
-            Text(
-                "Run In Background",
-                color = SecondaryText,
-                fontFamily = Inter,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onRunInBackground)
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-            )
+            FunnelSecondaryButton(label = "Run In Background", onClick = onRunInBackground)
         }
     }
 }
@@ -237,97 +212,66 @@ fun StepConfirmScreen(
 
     FunnelScreen(
         step = AhcStep.CONFIRM,
-        onBack = onBack,
         onSaveAndExit = onSaveAndExit,
-        action = {
-            FunnelPrimaryButton(
-                label = "Confirm And Continue",
-                onClick = vm::submitConfirm,
-                enabled = draft.isComplete && !state.saving,
-            )
-        },
+        ready = draft.isComplete,
+        saving = state.saving,
+        nextLabel = "Confirm",
+        onNext = vm::submitConfirm,
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        ) {
-            val question = if (extraction?.ok == true) "Looks right?" else "Fill in the details"
-            val sub = when {
-                extraction == null -> null
-                extraction.ok && extraction.isLowConfidence ->
-                    "Our initial reading found these — double-check before continuing."
-                extraction.ok -> "Pre-filled from an initial reading of your document. Please correct anything inaccurate."
-                else -> "The document could not be processed automatically. Please enter the details."
-            }
-            FunnelStepHeader(step = AhcStep.CONFIRM, question = question, sub = sub)
+        val question = if (extraction?.ok == true) "Looks Right?" else "Fill In The Details"
+        val sub = when {
+            extraction == null -> ""
+            extraction.ok && extraction.isLowConfidence ->
+                "Our initial reading found these — double-check before continuing."
+            extraction.ok -> "Pre-filled from an initial reading of your document. Please correct anything inaccurate."
+            else -> "The document could not be processed automatically. Please enter the details."
+        }
+        WizardHeading(question, sub)
 
-            // Preliminary analysis card (only when extraction succeeded)
-            if (extraction?.ok == true && extraction.summary.isNotBlank()) {
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    PreliminaryAnalysisCard(extraction)
-                }
-                Spacer(Modifier.height(16.dp))
-            }
+        // Preliminary analysis card (only when extraction succeeded)
+        if (extraction?.ok == true && extraction.summary.isNotBlank()) {
+            PreliminaryAnalysisCard(extraction)
+            Spacer(Modifier.height(20.dp))
+        }
 
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                // Contract type — 3×2 grid, pre-selected from extraction
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        EyebrowText("Contract Type")
-                        if (extraction?.ok == true && extraction.contractType != null
-                            && extraction.contractType == draft.contractType) {
-                            Spacer(Modifier.width(8.dp))
-                            PreFilledPill()
-                        }
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    AhcContractType.values().toList().chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            row.forEach { t ->
-                                ContractTypeTile(
-                                    type = t,
-                                    selected = draft.contractType == t,
-                                    onClick = { vm.setConfirmType(t) },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
-                }
-
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        EyebrowText("Parties")
-                        if (extraction?.ok == true && extraction.parties.isNotBlank()
-                            && extraction.parties == draft.parties) {
-                            Spacer(Modifier.width(8.dp))
-                            PreFilledPill()
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    AhcField(
-                        label = "",
-                        value = draft.parties,
-                        onValueChange = vm::setConfirmParties,
-                        placeholder = "e.g. Acme Pvt Ltd ↔ your company",
-                    )
-                }
-
-                AhcField(
-                    label = "Any specific concerns? (Optional)",
-                    value = draft.concern,
-                    onValueChange = vm::setConfirmConcern,
-                    placeholder = "Describe any specific concerns…",
-                    multiline = true,
-                )
-
-                Spacer(Modifier.height(8.dp))
+        // Contract type, pre-selected from the reading
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            WizardLabelInline("Contract Type")
+            if (extraction?.ok == true && extraction.contractType != null
+                && extraction.contractType == draft.contractType) {
+                Spacer(Modifier.width(8.dp))
+                PreFilledPill()
             }
         }
+        Spacer(Modifier.height(8.dp))
+        AhcContractType.values().forEach { t ->
+            WizardChoice(label = t.label, on = draft.contractType == t, onClick = { vm.setConfirmType(t) })
+        }
+        Spacer(Modifier.height(14.dp))
+
+        WizardTextField(
+            label = "Parties",
+            value = draft.parties,
+            onChange = vm::setConfirmParties,
+            placeholder = "e.g. Acme Pvt Ltd ↔ your company",
+            help = if (extraction?.ok == true && extraction.parties.isNotBlank() && extraction.parties == draft.parties)
+                "Pre-filled from the reading of your document." else "",
+        )
+        Spacer(Modifier.height(18.dp))
+
+        WizardLabel("Any Specific Concerns? (Optional)")
+        WizardTextArea(
+            value = draft.concern,
+            onChange = vm::setConfirmConcern,
+            placeholder = "Describe any specific concerns…",
+        )
     }
+}
+
+/** A wizard label that sits in a row (with the Pre-Filled pill beside it). */
+@Composable
+private fun WizardLabelInline(text: String) {
+    Text(text, color = SecondaryText, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp)
 }
 
 @Composable
@@ -414,72 +358,65 @@ fun StepPaymentScreen(
     val price = state.session?.pricePaise ?: 0
     // No fee: nothing to ask; the document goes to the advocate at once.
     LaunchedEffect(price) { if (price <= 0) vm.startPayment() }
+    val amount = com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00")
 
+    // Next pays (the invoice, on the website); "I Have Paid" sits in the body
+    // once the invoice has been opened. No fee: nothing to press.
     FunnelScreen(
         step = AhcStep.PAYMENT,
-        onBack = onBack,
         onSaveAndExit = onSaveAndExit,
-        action = if (price > 0) {
-            {
-                Column {
-                    FunnelPrimaryButton(
-                        label = when {
-                            state.paying      -> "Opening the Invoice…"
-                            state.invoiceOpen -> "Open the Invoice Again"
-                            else              -> "Pay ${com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00")} on the Website"
-                        },
-                        onClick = { vm.startPayment() },
-                        enabled = !state.paying,
-                    )
-                    if (state.invoiceOpen) {
-                        Spacer(Modifier.height(8.dp))
-                        FunnelSecondaryButton(label = "I Have Paid", onClick = { vm.checkPaid(asked = true) })
-                    }
-                }
-            }
-        } else null,
+        ready = true,
+        saving = state.paying,
+        nextLabel = if (state.invoiceOpen) "Open The Invoice Again" else "Pay $amount",
+        savingLabel = "Opening The Invoice…",
+        onNext = { vm.startPayment() },
+        showActions = price > 0,
     ) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 24.dp)) {
-            FunnelStepHeader(step = AhcStep.PAYMENT, question = if (price > 0) "The Agreement Check Fee" else "Sending to Your Advocate")
-            Spacer(Modifier.height(16.dp))
-            if (price > 0) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp), color = Lex.colors.card,
-                    border = BorderStroke(1.dp, BorderColor), modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(Modifier.padding(18.dp)) {
-                        EyebrowText("Agreement Check")
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            com.legumlex.client.feature.finance.formatMoney(price / 100.0, "₹").removeSuffix(".00"),
-                            color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, letterSpacing = (-0.5).sp,
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            "The fee covers an advocate's review of your agreement and the written report. It is an invoice from the firm, paid on the website; your document goes to the advocate once the payment is confirmed.",
-                            color = SecondaryText, style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "The invoice opens in your browser and is paid through Razorpay. You can save and pay later; your agreement stays here.",
-                    color = TertiaryText, style = MaterialTheme.typography.bodySmall,
-                )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(color = PrimaryText, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text("There is no fee for this check. Your agreement is going to the advocate.", color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+        WizardHeading(
+            if (price > 0) "The Agreement Check Fee" else "Sending To Your Advocate",
+            if (price > 0) "Paid on the website, as an invoice from the firm." else "",
+        )
+        if (price > 0) {
+            Surface(
+                shape = RoundedCornerShape(12.dp), color = Lex.colors.card,
+                border = BorderStroke(1.dp, BorderColor), modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    EyebrowText("Agreement Check")
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        amount,
+                        color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, letterSpacing = (-0.5).sp,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "The fee covers an advocate's review of your agreement and the written report. It is an invoice from the firm, paid on the website; your document goes to the advocate once the payment is confirmed.",
+                        color = SecondaryText, style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
-            state.payError?.let {
-                Spacer(Modifier.height(14.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                if (price <= 0) {
-                    Spacer(Modifier.height(10.dp))
-                    FunnelSecondaryButton(label = "Try Again", onClick = { vm.startPayment() })
-                }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "The invoice opens in your browser and is paid through Razorpay. You can save and pay later; your agreement stays here.",
+                color = TertiaryText, style = MaterialTheme.typography.bodySmall,
+            )
+            if (state.invoiceOpen) {
+                Spacer(Modifier.height(16.dp))
+                FunnelSecondaryButton(label = "I Have Paid", onClick = { vm.checkPaid(asked = true) })
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(color = PrimaryText, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("There is no fee for this check. Your agreement is going to the advocate.", color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        state.payError?.let {
+            Spacer(Modifier.height(14.dp))
+            Text(it, color = StatusDanger.solid, style = MaterialTheme.typography.bodyMedium)
+            if (price <= 0) {
+                Spacer(Modifier.height(10.dp))
+                FunnelSecondaryButton(label = "Try Again", onClick = { vm.startPayment() })
             }
         }
     }

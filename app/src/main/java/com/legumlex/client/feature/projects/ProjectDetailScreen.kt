@@ -22,14 +22,11 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -152,8 +149,8 @@ private fun ProjectDetailReady(
     }
 
     if (showSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(onDismissRequest = { showSheet = false }, sheetState = sheetState, containerColor = LlColor.Paper) {
+        // The app's wizard, full screen over the project (owner, 2026-10-24).
+        com.legumlex.client.ui.components.WizardDialog(onDismiss = { showSheet = false }) {
             CreateTaskSheet(
                 projectName = detail.summary.name, milestones = s.milestones, inFlight = actionInFlight,
                 onCancel = { showSheet = false },
@@ -468,7 +465,7 @@ private fun CreateTaskSheet(
     var milestoneId by rememberSaveable { mutableStateOf<String?>(null) }
     var start by remember { mutableStateOf(LocalDate.now()) }
     var due by remember { mutableStateOf<LocalDate?>(null) }
-    val steps = listOf("Details", "Priority & Milestone", "Dates", "Review")
+    val steps = listOf("Details", "Priority", "Dates", "Review")
     val milestone = milestones.firstOrNull { it.id == milestoneId }
     val datesOk = due == null || !due!!.isBefore(start)
     val canNext = when (step) { 0 -> name.isNotBlank(); 2 -> datesOk; else -> true }
@@ -479,99 +476,71 @@ private fun CreateTaskSheet(
         dlg.show()
     }
 
-    Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 24.dp)) {
-        Text(projectName.uppercase(), fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.14.em, color = LlColor.InkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(5.dp))
-        Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink)
-        Text("Step ${step + 1} of ${steps.size} · ${steps[step]}", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 4.dp))
-        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            steps.indices.forEach { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i <= step) LlColor.Ink else LlColor.Paper2)) }
-        }
-
+    com.legumlex.client.ui.components.WizardFrame(
+        title = "New Task",
+        steps = steps,
+        step = step,
+        ready = canNext,
+        saving = inFlight,
+        saveLabel = "Create Task",
+        savingLabel = "Creating…",
+        error = null,
+        onClose = onCancel,
+        onStep = { step = it },
+        onSave = { onSubmit(name.trim(), start.format(iso), due?.format(iso), priority, milestone?.id?.let { jInt(it) } ?: 0, desc.trim().ifBlank { null }) },
+    ) {
         when (step) {
             0 -> {
-                FieldLabel("Task Name")
-                OutlinedTextField(value = name, onValueChange = { name = it }, placeholder = { Text("e.g. Send revised logo files") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
-                FieldLabel("Details (Optional)")
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, placeholder = { Text("Add any context for your chamber…") }, maxLines = 4, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+                com.legumlex.client.ui.components.WizardHeading("What is the task?", "For ${projectName}. Your chamber sees it on the project.")
+                com.legumlex.client.ui.components.WizardTextField("Task Name", name, { name = it }, placeholder = "e.g. Send revised logo files")
+                Spacer(Modifier.height(16.dp))
+                com.legumlex.client.ui.components.WizardLabel("Details (Optional)")
+                com.legumlex.client.ui.components.WizardTextArea(desc, { desc = it }, "Add any context for your chamber…")
             }
             1 -> {
-                FieldLabel("Priority")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    ProjectPriority.ALL.forEach { p ->
-                        val on = priority == p.code
-                        Row(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(if (on) LlColor.Ink else LlColor.Surface).border(LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.Border, RoundedCornerShape(8.dp)).clickable { priority = p.code }.padding(vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(priorityDot(p.code)))
-                            Spacer(Modifier.width(5.dp))
-                            Text(p.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = if (on) LlColor.Paper else LlColor.InkMuted)
-                        }
-                    }
+                com.legumlex.client.ui.components.WizardHeading("How urgent is it?", "Its priority, and the milestone it belongs to, if any.")
+                com.legumlex.client.ui.components.WizardLabel("Priority")
+                ProjectPriority.ALL.forEach { p ->
+                    com.legumlex.client.ui.components.WizardChoice(p.label, priority == p.code) { priority = p.code }
                 }
-                FieldLabel("Milestone (Optional)")
+                Spacer(Modifier.height(12.dp))
+                com.legumlex.client.ui.components.WizardLabel("Milestone (Optional)")
                 if (milestones.isEmpty()) {
-                    Text("This project has no milestones, so the task will stand on its own.", fontFamily = Inter, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+                    Text("This project has no milestones, so the task will stand on its own.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 18.sp, color = LlColor.InkMuted)
                 } else {
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))) {
-                        (listOf<Milestone?>(null) + milestones).forEachIndexed { i, m ->
-                            val on = milestoneId == m?.id
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
-                            Row(Modifier.fillMaxWidth().background(if (on) LlColor.Paper1 else LlColor.Surface).clickable { milestoneId = m?.id }.padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(Modifier.size(14.dp).clip(RoundedCornerShape(50)).border(if (on) 4.dp else LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.BorderStrong, RoundedCornerShape(50)))
-                                Column(Modifier.weight(1f)) {
-                                    Text(m?.name ?: "No Milestone", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    m?.dueDate?.let { Text("Due ${it.format(dayYearFmt)}", fontFamily = Inter, fontSize = 10.5.sp, color = LlColor.InkFaint) }
-                                }
-                            }
-                        }
+                    (listOf<Milestone?>(null) + milestones).forEach { m ->
+                        com.legumlex.client.ui.components.WizardChoice(
+                            m?.name ?: "No Milestone", milestoneId == m?.id,
+                            sub = m?.dueDate?.let { "Due ${it.format(dayYearFmt)}" } ?: "",
+                        ) { milestoneId = m?.id }
                     }
                 }
             }
             2 -> {
-                FieldLabel("Start Date")
+                com.legumlex.client.ui.components.WizardHeading("When?", "The day it starts, and the day it is due, if there is one.")
+                com.legumlex.client.ui.components.WizardLabel("Start Date")
                 DateField(start.format(dayYearFmt), false) { pick(start, null) { start = it } }
-                FieldLabel("Due Date (Optional)")
+                Spacer(Modifier.height(16.dp))
+                com.legumlex.client.ui.components.WizardLabel("Due Date (Optional)")
                 DateField(due?.format(dayYearFmt) ?: "Choose a date", due == null) { pick(due ?: start, start) { due = it } }
-                if (due != null) Text("Clear the due date", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 8.dp).clickable { due = null })
-                if (!datesOk) Text("The due date cannot be earlier than the start date.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Claret, modifier = Modifier.padding(top = 8.dp))
+                if (due != null) Text("Clear the due date", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, color = LlColor.InkMuted, modifier = Modifier.padding(top = 10.dp).clickable { due = null })
+                if (!datesOk) Text("The due date cannot be earlier than the start date.", fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.Claret, modifier = Modifier.padding(top = 10.dp))
                 milestone?.dueDate?.let { md ->
-                    if (due?.isAfter(md) == true) Text("This is after the milestone's own date, ${md.format(dayYearFmt)}.", fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.Amber, modifier = Modifier.padding(top = 8.dp))
+                    if (due?.isAfter(md) == true) Text("This is after the milestone's own date, ${md.format(dayYearFmt)}.", fontFamily = Inter, fontSize = 12.5.sp, color = LlColor.Amber, modifier = Modifier.padding(top = 10.dp))
                 }
             }
-            else -> {
-                Spacer(Modifier.height(14.dp))
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ReviewLine("Task", name.trim())
-                    desc.trim().takeIf { it.isNotEmpty() }?.let { ReviewLine("Details", it) }
-                    ReviewLine("Priority", ProjectPriority.ALL.firstOrNull { it.code == priority }?.label ?: "—")
-                    ReviewLine("Milestone", milestone?.name ?: "None")
-                    ReviewLine("Starts", start.format(dayYearFmt))
-                    ReviewLine("Due", due?.format(dayYearFmt) ?: "No due date")
-                }
-            }
-        }
-
-        Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(LlColor.Surface).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(12.dp)).clickable(enabled = !inFlight) { if (step == 0) onCancel() else step-- }.padding(vertical = 13.dp), contentAlignment = Alignment.Center) {
-                Text(if (step == 0) "Cancel" else "Back", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.InkMuted)
-            }
-            val last = step == steps.lastIndex
-            val enabled = canNext && !inFlight
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (enabled) Lex.colors.primary else LlColor.Paper2)
-                    .clickable(enabled = enabled) {
-                        if (!last) step++
-                        else onSubmit(name.trim(), start.format(iso), due?.format(iso), priority, milestone?.id?.let { jInt(it) } ?: 0, desc.trim().ifBlank { null })
-                    }
-                    .padding(vertical = 13.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                val fg = if (enabled) Lex.colors.primaryForeground else LlColor.InkFaint
-                if (inFlight) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = LlColor.InkMuted)
-                else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (last) Icon(Icons.Outlined.Add, null, tint = fg, modifier = Modifier.size(17.dp))
-                    Text(if (last) "Create Task" else "Next", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = fg)
-                }
-            }
+            else -> com.legumlex.client.ui.components.WizardReview(
+                title = "Check and create",
+                note = "The task is added to ${projectName}.",
+                rows = listOfNotNull(
+                    "Task" to name.trim(),
+                    desc.trim().takeIf { it.isNotEmpty() }?.let { "Details" to it },
+                    "Priority" to (ProjectPriority.ALL.firstOrNull { it.code == priority }?.label ?: "—"),
+                    "Milestone" to (milestone?.name ?: "None"),
+                    "Starts" to start.format(dayYearFmt),
+                    "Due" to (due?.format(dayYearFmt) ?: "No due date"),
+                ),
+            )
         }
     }
 }
@@ -589,14 +558,6 @@ private fun DateField(text: String, placeholder: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ReviewLine(label: String, value: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, fontFamily = Inter, fontSize = 11.5.sp, color = LlColor.InkFaint, modifier = Modifier.width(78.dp))
-        Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp, lineHeight = 17.sp, color = LlColor.Ink, modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
 private fun FailedSections(failed: Set<ProjectSection>, busy: Boolean, onRetry: () -> Unit) {
     val names = failed.joinToString(", ") { it.name.lowercase() }
     Row(
@@ -609,11 +570,6 @@ private fun FailedSections(failed: Set<ProjectSection>, busy: Boolean, onRetry: 
         Text("Retry", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink,
             modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = !busy, onClick = onRetry).padding(horizontal = 8.dp, vertical = 5.dp))
     }
-}
-
-@Composable
-private fun FieldLabel(text: String) {
-    Text(text.uppercase(), fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.12.em, color = LlColor.InkFaint, modifier = Modifier.padding(top = 15.dp, bottom = 7.dp))
 }
 
 // =============================================================================
