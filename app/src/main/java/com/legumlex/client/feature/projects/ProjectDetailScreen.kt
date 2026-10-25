@@ -16,6 +16,9 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.WorkOutline
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.History
@@ -54,16 +57,14 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 // -----------------------------------------------------------------------------
-// "Client Project Detail.html" (Plot/Lexcore). No tabs, single scroll: masthead
-// → "At a glance" bento → Tasks (Open·Done) → "More" drill rows. The bento tiles
-// and More rows push the dedicated Milestones / Files / Discussions / Activity
-// routes; tasks open individually. Back + centred logo come from the app-wide
-// header (MainActivity); this screen draws no top bar of its own.
+// A project, most important first (owner, 2026-10-25: no repetition, little
+// scrolling). A fixed head says what it is and how far along; the tabs below
+// hold the rest, each scrolling on its own: Stages (where it stands, what the
+// firm needs from you, the stages), Tasks, Files, Discussions. The ⓘ holds the
+// rest: the description, the dates, the team and the activity. Back + centred
+// logo come from the app-wide header (MainActivity).
 // -----------------------------------------------------------------------------
 
-private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = Lex.colors.muted
-private val ClaretMidFix: Color @androidx.compose.runtime.Composable get() = Lex.colors.foreground   // was the claret accent; red is kept for urgency
-private val ClaretBorderFix: Color @androidx.compose.runtime.Composable get() = Lex.colors.border
 private val AmberBorderFix: Color @androidx.compose.runtime.Composable get() = Lex.colors.border
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +77,7 @@ fun ProjectDetailScreen(
     onOpenFiles: (String) -> Unit = {},
     onOpenDiscussions: (String) -> Unit = {},
     onOpenActivity: (String) -> Unit = {},
+    onOpenThread: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -99,9 +101,8 @@ fun ProjectDetailScreen(
             when (val s = state) {
                 is ProjectDetailUiState.Loading -> ProjectDetailSkeleton()
                 is ProjectDetailUiState.Error -> ProjectDetailError(s.message, vm::load)
-                is ProjectDetailUiState.Ready -> PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = vm::refresh) {
-                    ProjectDetailReady(s, vm, onOpenTask, onOpenMilestones, onOpenFiles, onOpenDiscussions, onOpenActivity)
-                }
+                is ProjectDetailUiState.Ready ->
+                    ProjectDetailReady(s, vm, isRefreshing, onOpenTask, onOpenActivity, onOpenThread)
             }
         }
     }
@@ -112,42 +113,63 @@ fun ProjectDetailScreen(
 private fun ProjectDetailReady(
     s: ProjectDetailUiState.Ready,
     vm: ProjectDetailViewModel,
+    isRefreshing: Boolean,
     onOpenTask: (String, Boolean) -> Unit,
-    onOpenMilestones: (String) -> Unit,
-    onOpenFiles: (String) -> Unit,
-    onOpenDiscussions: (String) -> Unit,
     onOpenActivity: (String) -> Unit,
+    onOpenThread: (String) -> Unit,
 ) {
     val detail = s.detail
     val settings = detail.settings
     val pid = detail.summary.id
+    val st = detail.summary.stages
     val today = remember { LocalDate.now() }
     val actionInFlight by vm.actionInFlight.collectAsState()
 
     var seg by rememberSaveable(pid) { mutableStateOf("open") }
     var showSheet by remember { mutableStateOf(false) }
+    var info by remember { mutableStateOf(false) }
     val openTask = { id: String -> onOpenTask(id, settings.commentOnTasks) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-        Masthead(detail, today)
+    // Only what the firm shares with the client (the project's settings).
+    val tabs = buildList {
+        if (st != null) add("stages" to "Stages") else if (settings.viewMilestones) add("stages" to "Milestones")
+        if (settings.viewTasks) add("tasks" to "Tasks")
+        if (settings.viewFiles) add("files" to "Files")
+        if (settings.viewDiscussions) add("talk" to "Discussions")
+    }
+    val badges = mapOf("tasks" to detail.counts.tasksOpen, "files" to detail.counts.filesTotal, "talk" to s.discussions.size)
+    var tab by rememberSaveable(pid) { mutableStateOf(tabs.firstOrNull()?.first.orEmpty()) }
+
+    Column(Modifier.fillMaxSize()) {
+        Head(detail, today, onInfo = { info = true })
         if (s.failed.isNotEmpty()) FailedSections(s.failed, actionInFlight, vm::refresh)
-        detail.summary.stages?.let { StageTracker(it, detail.needs, openTask) }
-        detail.description?.let { About(it) }
-        AtAGlance(
-            detail, s.discussions.size, today,
-            onMilestones = { onOpenMilestones(pid) },
-            onFiles = { onOpenFiles(pid) },
-            onDiscussions = { onOpenDiscussions(pid) },
+        if (tabs.size > 1) {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 10.dp)) {
+                Segments(tabs, tab, badges) { tab = it }
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (tab) {
+                "stages" -> if (st != null) Scrolled(isRefreshing, vm::refresh) { StageTracker(st, detail.needs, openTask) }
+                            else ProjectMilestonesScreen(pid, onBack = {}, embedded = true)
+                "tasks" -> Scrolled(isRefreshing, vm::refresh) {
+                    TasksSection(s.tasks, seg, { seg = it }, settings.createTasks, { showSheet = true }, openTask)
+                }
+                "files" -> ProjectFilesScreen(pid, onBack = {}, embedded = true)
+                "talk" -> ProjectDiscussionsScreen(pid, onOpenThread = onOpenThread, embedded = true)
+                else -> Scrolled(isRefreshing, vm::refresh) {
+                    EmptySection(Icons.Outlined.WorkOutline, "Nothing More To Show", "The firm shares the progress of this project with you here as the work moves.")
+                }
+            }
+        }
+    }
+
+    if (info) {
+        InfoDialog(
+            detail,
+            onActivity = if (settings.viewActivityLog) { { info = false; onOpenActivity(pid) } } else null,
+            onClose = { info = false },
         )
-        if (settings.viewTasks) TasksSection(s.tasks, seg, { seg = it }, settings.createTasks, { showSheet = true }, openTask)
-        MoreRows(
-            detail, s,
-            onOpenMilestones = { onOpenMilestones(pid) },
-            onOpenFiles = { onOpenFiles(pid) },
-            onOpenDiscussions = { onOpenDiscussions(pid) },
-            onOpenActivity = { onOpenActivity(pid) },
-        )
-        Spacer(Modifier.height(8.dp))
     }
 
     if (showSheet) {
@@ -163,28 +185,47 @@ private fun ProjectDetailReady(
 }
 
 // =============================================================================
-// Masthead (in-content heading; the app header sits above it)
+// The head, the tabs and the ⓘ
 // =============================================================================
 
+/**
+ * What the project is and how far along: the kind of work, the name, the
+ * progress and its status and date. Fixed above the tabs; the ⓘ opens the rest.
+ */
 @Composable
-private fun Masthead(detail: ProjectDetail, today: LocalDate) {
+private fun Head(detail: ProjectDetail, today: LocalDate, onInfo: () -> Unit) {
     val s = detail.summary
-    Column(Modifier.fillMaxWidth().background(Lex.colors.background).padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 15.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("PROJECT", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.13.em, color = Lex.colors.mutedForeground)
+    Column(Modifier.fillMaxWidth().background(Lex.colors.background).padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                com.legumlex.client.ui.components.Eyebrow(s.stages?.typeName ?: "Project")
+                Spacer(Modifier.height(6.dp))
+                Text(s.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, lineHeight = 26.sp, color = Lex.colors.foreground)
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Lex.colors.border, RoundedCornerShape(8.dp)).clickable(onClick = onInfo),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.Info, "This Project", tint = Lex.colors.foreground, modifier = Modifier.size(18.dp)) }
         }
-        Spacer(Modifier.height(9.dp))
-        Text(s.name, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 23.sp, letterSpacing = (-0.02).em, lineHeight = 28.sp, color = Lex.colors.foreground)
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Lex.colors.muted)) {
+                Box(Modifier.fillMaxWidth(s.progress.coerceIn(0, 100) / 100f).fillMaxHeight().background(s.status.meter()))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text("${s.progress}%", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Lex.colors.foreground)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             StatusPill(s.status.label, statusTone(s.status))
-            val milestoneDue = s.nextMilestone?.dueDate
+            val milestoneDue = s.nextMilestone?.dueDate.takeIf { s.stages == null }
             (milestoneDue ?: s.deadline)?.let {
                 // A date already behind us is said to have passed, not merely coloured.
                 val passed = it.isBefore(today) && s.status != ProjectStatus.Finished && s.status != ProjectStatus.Cancelled
                 val what = if (milestoneDue != null) "Milestone" else "Deadline"
                 Text(
                     if (passed) "$what Passed · ${it.format(dowFmt)}" else "Due ${it.format(dowFmt)}",
-                    fontFamily = Inter, fontWeight = if (passed) FontWeight.SemiBold else FontWeight.Normal, fontSize = 10.5.sp,
+                    fontFamily = Inter, fontWeight = if (passed) FontWeight.SemiBold else FontWeight.Normal, fontSize = 11.5.sp,
                     color = if (passed) Lex.colors.danger.softText else Lex.colors.mutedForeground,
                 )
             }
@@ -192,158 +233,84 @@ private fun Masthead(detail: ProjectDetail, today: LocalDate) {
     }
 }
 
-// =============================================================================
-// At a glance — bento
-// =============================================================================
-
+/** The tabs, as the case page draws them: one bordered row of equal segments. */
 @Composable
-private fun AtAGlance(detail: ProjectDetail, discussionCount: Int, today: LocalDate, onMilestones: () -> Unit, onFiles: () -> Unit, onDiscussions: () -> Unit) {
+private fun Segments(items: List<Pair<String, String>>, selected: String, badges: Map<String, Int>, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(MaterialTheme.shapes.medium)
+            .border(1.dp, Lex.colors.input, MaterialTheme.shapes.medium),
+    ) {
+        items.forEachIndexed { i, (key, label) ->
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.input))
+            val on = key == selected
+            Row(
+                Modifier.weight(1f).background(if (on) Lex.colors.muted else Lex.colors.card)
+                    .clickable { onSelect(key) }.padding(vertical = 9.dp),
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, style = MaterialTheme.typography.labelMedium,
+                    color = if (on) Lex.colors.foreground else Lex.colors.secondaryForeground, maxLines = 1)
+                val n = badges[key] ?: 0
+                if (n > 0) {
+                    Spacer(Modifier.width(4.dp))
+                    Text("$n", style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground)
+                }
+            }
+        }
+    }
+}
+
+/** A tab's own scroll, pulled down to refresh the project. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Scrolled(refreshing: Boolean, onRefresh: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), content = content)
+    }
+}
+
+/** The ⓘ: what the head has no room for: the description, the dates, the team, the activity. */
+@Composable
+private fun InfoDialog(detail: ProjectDetail, onActivity: (() -> Unit)?, onClose: () -> Unit) {
     val s = detail.summary
-    val done = (s.tasksTotal - s.tasksOpen).coerceAtLeast(0)
-    val settings = detail.settings
-    val days = s.nextMilestone?.dueDate?.let { ChronoUnit.DAYS.between(today, it) }   // negative once passed
-
-    Slabel("At a Glance", first = true)
-    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Hero tile (informational — tasks sit just below; not a navigation target)
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lex.colors.card)
-                .border(LlDimen.HairlineWidth, Lex.colors.border, RoundedCornerShape(12.dp)).padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 15.dp),
-        ) {
-            Text("OVERALL PROGRESS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = Lex.colors.mutedForeground)
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                Text("${s.progress}%", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 44.sp, letterSpacing = (-0.03).em, lineHeight = 38.sp, color = Lex.colors.foreground)
-                Column(Modifier.weight(1f).padding(bottom = 3.dp)) {
-                    val st = s.stages
-                    if (st != null) {
-                        // A typed project's progress is its stages', as the portal shows it.
-                        val ordinary = st.stages.filter { !it.outcome }
-                        val passed = ordinary.count { it.state != "pending" && it.state != "current" }
-                        Text(if (st.outcomeName != null) "Concluded" else "$passed of ${ordinary.size} stages complete", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Lex.colors.foreground)
-                        Text(st.chip, fontFamily = Inter, fontSize = 10.5.sp, color = Lex.colors.mutedForeground, modifier = Modifier.padding(top = 3.dp))
-                    } else {
-                        Text(if (s.tasksTotal == 0) "No tasks yet" else "$done of ${s.tasksTotal} tasks complete", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Lex.colors.foreground)
-                        Text("${s.tasksOpen} open", fontFamily = Inter, fontSize = 10.5.sp, color = Lex.colors.mutedForeground, modifier = Modifier.padding(top = 3.dp))
+    val about = remember(detail.description) { detail.description?.let { plainActivityData(it) }.orEmpty() }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("This Project", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (about.isNotBlank()) {
+                    Text(about, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = Lex.colors.secondaryForeground)
+                    Spacer(Modifier.height(14.dp))
+                }
+                val rows = listOfNotNull(
+                    // Only what the head does not already say.
+                    s.startDate?.let { "Started" to it.format(dayYearFmt) },
+                    s.deadline?.takeIf { s.stages == null && s.nextMilestone?.dueDate != null }?.let { "Deadline" to it.format(dayYearFmt) },
+                    detail.dateFinished?.let { "Finished" to it.toLocalDate().format(dayYearFmt) },
+                    s.team.takeIf { it.isNotEmpty() && detail.settings.viewTeamMembers }?.let { t -> "Team" to t.joinToString(", ") { it.name } },
+                )
+                rows.forEachIndexed { i, (k, v) ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
+                        Text(k, fontFamily = Inter, fontSize = 12.sp, color = Lex.colors.mutedForeground, modifier = Modifier.width(84.dp))
+                        Text(v, fontFamily = Inter, fontSize = 13.sp, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
                     }
+                    if (i < rows.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(Lex.colors.muted))
                 }
             }
-            Box(Modifier.fillMaxWidth().padding(top = 14.dp).height(5.dp).clip(RoundedCornerShape(4.dp)).background(Lex.colors.muted)) {
-                Box(Modifier.fillMaxWidth(s.progress.coerceIn(0, 100) / 100f).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(s.status.meter()))
-            }
-            s.nextMilestone?.let { ms ->
-                val passed = days != null && days < 0
-                val soon = days != null && days <= 3
-                val cdBg = if (soon) Lex.colors.danger.softBg else Lex.colors.warning.softBg
-                val cdBorder = if (soon) Lex.colors.danger.softBg else AmberBorderFix
-                val accent = if (soon) Lex.colors.danger.softText else Lex.colors.warning.softText
-                val accentMid = if (soon) Lex.colors.danger.solid else Lex.colors.warning.solid
-                Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Lex.colors.muted))
-                Spacer(Modifier.height(14.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    Column(
-                        Modifier.widthIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).background(cdBg).border(LlDimen.HairlineWidth, cdBorder, RoundedCornerShape(8.dp)).padding(horizontal = 9.dp, vertical = 7.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(if (days == null || days == 0L) "•" else "${kotlin.math.abs(days)}", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, color = accent)
-                        Text(if (days == null) "DUE" else when { days == 0L -> "TODAY"; days == -1L -> "DAY LATE"; days < 0L -> "DAYS LATE"; days == 1L -> "DAY"; else -> "DAYS" }, fontFamily = Inter, fontSize = 8.sp, letterSpacing = 0.12.em, color = accentMid, modifier = Modifier.padding(top = 3.dp))
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(accentMid))
-                            Text(if (passed) "MILESTONE PASSED" else "NEXT MILESTONE", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.13.em, color = accentMid)
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(ms.name, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Lex.colors.foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        ms.dueDate?.let {
-                            val word = if (days == null) "" else when {
-                                days < -1L -> "Passed ${-days} days ago · "
-                                days == -1L -> "Passed yesterday · "
-                                days == 0L -> "Today · "
-                                days == 1L -> "Tomorrow · "
-                                else -> "In $days days · "
-                            }
-                            Text(word + it.format(dowFmt), fontFamily = Inter, fontSize = 10.5.sp, color = Lex.colors.secondaryForeground, modifier = Modifier.padding(top = 3.dp))
-                        }
-                    }
-                }
-            }
-        }
-        // Metric tiles, two to a row — only for the parts this project shows its client.
-        val tiles = buildList<@Composable (Modifier) -> Unit> {
-            if (settings.viewTasks) add { m -> MetricTile(m, Icons.Outlined.Checklist, "Open Tasks", "${detail.counts.tasksOpen}", "of ${detail.counts.tasksTotal} total", false, onClick = null) }
-            if (settings.viewMilestones && s.stages != null) add { m ->
-                val st = s.stages
-                MetricTileText(m, Icons.Outlined.Flag, "Stage", st.outcomeName ?: st.current?.name ?: "—", st.chip, false, onClick = onMilestones)
-            } else if (settings.viewMilestones) add { m ->
-                val next = s.nextMilestone
-                val late = next?.dueDate?.isBefore(today) == true
-                MetricTileText(m, Icons.Outlined.Flag, "Next Milestone", next?.name ?: "—", next?.dueDate?.let { if (late) "Passed · ${it.format(dowFmt)}" else "Due ${it.format(dowFmt)}" }, late, onClick = onMilestones)
-            }
-            if (settings.viewFiles) add { m -> MetricTile(m, Icons.Outlined.Folder, "Files", "${detail.counts.filesTotal}", null, false, onClick = onFiles) }
-            if (settings.viewDiscussions) add { m -> MetricTile(m, Icons.Outlined.Forum, "Discussions", "$discussionCount", null, false, onClick = onDiscussions) }
-        }
-        tiles.chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { tile -> tile(Modifier.weight(1f)) }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onClose) { Text("Close", color = Lex.colors.foreground) } },
+        dismissButton = onActivity?.let { go -> { androidx.compose.material3.TextButton(onClick = go) { Text("Activity", color = Lex.colors.foreground) } } },
+    )
 }
-
-@Composable
-private fun MetricTile(modifier: Modifier, icon: ImageVector, key: String, number: String, sub: String?, alert: Boolean, onClick: (() -> Unit)?) {
-    val base = modifier.heightIn(min = 104.dp).clip(RoundedCornerShape(12.dp)).background(Lex.colors.card).border(LlDimen.HairlineWidth, Lex.colors.border, RoundedCornerShape(12.dp))
-    Box((if (onClick != null) base.clickable(onClick = onClick) else base).padding(14.dp)) {
-        if (onClick != null) Icon(Icons.Outlined.ChevronRight, null, tint = Lex.colors.input, modifier = Modifier.align(Alignment.TopEnd).size(16.dp))
-        Column {
-            TileKey(icon, key)
-            Text(number, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 34.sp, letterSpacing = (-0.03).em, lineHeight = 34.sp, color = Lex.colors.foreground, modifier = Modifier.padding(top = 14.dp))
-            sub?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, color = if (alert) ClaretMidFix else Lex.colors.mutedForeground, modifier = Modifier.padding(top = 6.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun MetricTileText(modifier: Modifier, icon: ImageVector, key: String, value: String, sub: String?, alert: Boolean, onClick: (() -> Unit)?) {
-    val base = modifier.heightIn(min = 104.dp).clip(RoundedCornerShape(12.dp)).background(Lex.colors.card).border(LlDimen.HairlineWidth, Lex.colors.border, RoundedCornerShape(12.dp))
-    Box((if (onClick != null) base.clickable(onClick = onClick) else base).padding(14.dp)) {
-        if (onClick != null) Icon(Icons.Outlined.ChevronRight, null, tint = Lex.colors.input, modifier = Modifier.align(Alignment.TopEnd).size(16.dp))
-        Column {
-            TileKey(icon, key)
-            Text(value, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, letterSpacing = (-0.012).em, lineHeight = 19.sp, color = Lex.colors.foreground, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 13.dp))
-            sub?.let { Text(it, fontFamily = Inter, fontSize = 10.sp, color = if (alert) ClaretMidFix else Lex.colors.mutedForeground, modifier = Modifier.padding(top = 6.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun TileKey(icon: ImageVector, key: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(icon, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(14.dp))
-        Text(key.uppercase(), fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.12.em, color = Lex.colors.mutedForeground)
-    }
-}
-
-// =============================================================================
-// Where it stands — a typed project's stages (cases Project Types), as the
-// portal's tracker: the whose-move chip, the current stage and its line, what
-// the firm needs from the client, then the stages they can see. No planned
-// dates: only when a stage was started and completed.
-// =============================================================================
 
 @Composable
 private fun StageTracker(st: ClientStages, needs: List<NeedItem>, onOpenTask: (String) -> Unit) {
-    Slabel("Where It Stands")
-    Column(Modifier.padding(horizontal = 16.dp)) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
         com.legumlex.client.ui.components.LexCard {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
-                        com.legumlex.client.ui.components.Eyebrow(st.typeName)
-                        Spacer(Modifier.height(6.dp))
                         Text(st.outcomeName?.let { "Concluded: $it" } ?: st.current?.name ?: "—", fontFamily = Inter,
                             fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = Lex.colors.foreground)
                     }
@@ -448,19 +415,6 @@ private fun StageLine(x: ClientStage, here: Boolean, last: Boolean) {
     }
 }
 
-/** The project's description, as text: the firm writes it in the web's editor. */
-@Composable
-private fun About(html: String) {
-    val text = remember(html) { plainActivityData(html) }
-    if (text.isBlank()) return
-    Slabel("About")
-    Column(Modifier.padding(horizontal = 16.dp)) {
-        com.legumlex.client.ui.components.LexCard {
-            Text(text, fontFamily = Inter, fontSize = 13.sp, lineHeight = 20.sp, color = Lex.colors.secondaryForeground, modifier = Modifier.padding(16.dp))
-        }
-    }
-}
-
 // =============================================================================
 // Tasks
 // =============================================================================
@@ -471,24 +425,23 @@ private fun TasksSection(tasks: List<TaskSummary>, seg: String, onSeg: (String) 
     val done = tasks.filter { it.status == TaskStatus.Complete }
     val list = if (seg == "done") done else open
 
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("TASKS", fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = Lex.colors.mutedForeground)
-        CountChip(tasks.size)
-        Box(Modifier.weight(1f).height(1.dp).background(Lex.colors.muted))
-        if (canCreate) {
-            // An ordinary action: ink outline, never the danger red.
-            Row(Modifier.clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted).border(LlDimen.HairlineWidth, Lex.colors.border, RoundedCornerShape(8.dp)).clickable(onClick = onCreate).padding(start = 8.dp, end = 10.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(Icons.Outlined.Add, null, tint = Lex.colors.foreground, modifier = Modifier.size(15.dp))
-                Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Lex.colors.foreground)
+    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                com.legumlex.client.ui.components.SegmentedToggle(
+                    options = listOf("open" to "Open · ${open.size}", "done" to "Done · ${done.size}"),
+                    selected = seg, onSelect = onSeg,
+                )
+            }
+            if (canCreate) {
+                Spacer(Modifier.width(10.dp))
+                // An ordinary action: ink outline, never the danger red.
+                Row(Modifier.clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted).border(LlDimen.HairlineWidth, Lex.colors.border, RoundedCornerShape(8.dp)).clickable(onClick = onCreate).padding(start = 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.Add, null, tint = Lex.colors.foreground, modifier = Modifier.size(15.dp))
+                    Text("New Task", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Lex.colors.foreground)
+                }
             }
         }
-    }
-
-    Column(Modifier.padding(horizontal = 16.dp)) {
-        com.legumlex.client.ui.components.SegmentedToggle(
-            options = listOf("open" to "Open · ${open.size}", "done" to "Done · ${done.size}"),
-            selected = seg, onSelect = onSeg,
-        )
         Spacer(Modifier.height(12.dp))
         if (list.isEmpty()) {
             EmptySection(Icons.Outlined.Checklist, if (seg == "done") "Nothing Done Yet" else "No Open Tasks", if (canCreate && seg == "open") "Add a task with New Task, or your chamber will add tasks as the work moves." else "Tasks will appear here.")
@@ -532,62 +485,6 @@ private fun TaskRow(t: TaskSummary, onClick: () -> Unit) {
 
 // =============================================================================
 // More — drill-down rows (open dedicated routes)
-// =============================================================================
-
-@Composable
-private fun MoreRows(detail: ProjectDetail, s: ProjectDetailUiState.Ready, onOpenMilestones: () -> Unit, onOpenFiles: () -> Unit, onOpenDiscussions: () -> Unit, onOpenActivity: () -> Unit) {
-    val settings = detail.settings
-    Slabel("More")
-    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        if (settings.viewMilestones) {
-            val next = detail.summary.nextMilestone
-            val st = detail.summary.stages
-            DrillRow(Icons.Outlined.Flag, if (st != null) "Stages And Milestones" else "Milestones", detail.counts.milestonesTotal, false,
-                if (st != null) (st.outcomeName?.let { "Concluded · $it" } ?: st.current?.let { "Now · ${it.name}" } ?: "Where the work stands")
-                else next?.let { "Next · ${it.name}" + (it.dueDate?.let { d -> if (d.isBefore(java.time.LocalDate.now())) " · Passed ${d.format(dowFmt)}" else " · Due ${d.format(dowFmt)}" } ?: "") } ?: "No upcoming milestone", onOpenMilestones)
-        }
-        if (settings.viewFiles) {
-            DrillRow(Icons.Outlined.Folder, "Files", detail.counts.filesTotal, false,
-                s.files.firstOrNull()?.let { "Latest · ${it.originalFileName ?: it.fileName}" } ?: "No files yet", onOpenFiles)
-        }
-        if (settings.viewDiscussions) {
-            // Nothing records what the client has read here: no "unread" accent.
-            DrillRow(Icons.Outlined.Forum, "Discussions", s.discussions.size, false,
-                s.discussions.firstOrNull()?.let { "Latest · ${it.subject}" + (it.authorName?.let { a -> " · $a" } ?: "") } ?: "No discussions yet", onOpenDiscussions)
-        }
-        if (settings.viewActivityLog) {
-            DrillRow(Icons.Outlined.History, "Activity", null, false,
-                s.activity.firstOrNull()?.let { (it.actorName?.let { a -> "$a · " } ?: "") + humanizeKey(it.descriptionKey) + (it.additionalData?.let(::plainActivityData)?.takeIf { d -> d.isNotBlank() }?.let { d -> " · $d" } ?: "") } ?: "No activity yet", onOpenActivity)
-        }
-    }
-}
-
-@Composable
-private fun DrillRow(icon: ImageVector, label: String, count: Int?, unread: Boolean, preview: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lex.colors.card).border(LlDimen.HairlineWidth, Lex.colors.border, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(if (unread) ClaretSoftFix else Lex.colors.muted).border(LlDimen.HairlineWidth, if (unread) ClaretBorderFix else Lex.colors.border, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = if (unread) ClaretMidFix else Lex.colors.secondaryForeground, modifier = Modifier.size(19.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, letterSpacing = (-0.01).em, color = Lex.colors.foreground)
-                count?.takeIf { it > 0 }?.let {
-                    Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(if (unread) ClaretSoftFix else Lex.colors.muted).padding(horizontal = 5.dp), contentAlignment = Alignment.Center) {
-                        Text("$it", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = if (unread) Lex.colors.danger.softText else Lex.colors.secondaryForeground)
-                    }
-                }
-            }
-            Text(preview, fontFamily = Inter, fontSize = 10.5.sp, color = Lex.colors.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
-        }
-        Icon(Icons.Outlined.ChevronRight, null, tint = Lex.colors.input, modifier = Modifier.size(19.dp))
-    }
-}
-
-// =============================================================================
-// Create-task sheet
 // =============================================================================
 
 @Composable
@@ -716,21 +613,6 @@ private fun FailedSections(failed: Set<ProjectSection>, busy: Boolean, onRetry: 
 // =============================================================================
 // Shared pieces
 // =============================================================================
-
-@Composable
-private fun Slabel(name: String, first: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = if (first) 16.dp else 20.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(name.uppercase(), fontFamily = Inter, fontSize = 10.sp, letterSpacing = 0.15.em, color = Lex.colors.mutedForeground)
-        Box(Modifier.weight(1f).height(1.dp).background(Lex.colors.muted))
-    }
-}
-
-@Composable
-private fun CountChip(n: Int) {
-    Box(Modifier.heightIn(min = 16.dp).widthIn(min = 16.dp).clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
-        Text("$n", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = Lex.colors.secondaryForeground)
-    }
-}
 
 @Composable
 private fun Card(content: @Composable ColumnScope.() -> Unit) {

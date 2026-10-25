@@ -629,6 +629,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpenFiles = { pid -> navController.navigate(Route.ProjectFiles.build(pid)) },
                 onOpenDiscussions = { pid -> navController.navigate(Route.ProjectDiscussions.build(pid)) },
                 onOpenActivity = { pid -> navController.navigate(Route.ProjectActivity.build(pid)) },
+                onOpenThread = { did -> navController.navigate(Route.ProjectDiscussionThread.build(id, did)) },
             )
         }
         composable(

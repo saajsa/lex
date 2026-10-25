@@ -103,7 +103,7 @@ class ProjectActivityViewModel(app: Application, private val projectId: String) 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProjectActivityScreen(projectId: String, onBack: () -> Unit) {
+fun ProjectActivityScreen(projectId: String, onBack: () -> Unit, embedded: Boolean = false) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
     val vm: ProjectActivityViewModel = viewModel(
@@ -117,7 +117,7 @@ fun ProjectActivityScreen(projectId: String, onBack: () -> Unit) {
         Box(Modifier.fillMaxSize().padding(inner)) {
             Column(Modifier.fillMaxSize()) {
                 val ready = state as? ActivityUiState.Ready
-                SubBar(ready?.let { "${it.projectRef} · ${it.projectName}" }, onBack)
+                if (!embedded) SubBar(ready?.let { "${it.projectRef} · ${it.projectName}" }, onBack)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (val s = state) {
                         is ActivityUiState.Loading -> ActSkeleton()

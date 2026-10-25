@@ -108,7 +108,7 @@ class ProjectMilestonesViewModel(app: Application, private val projectId: String
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProjectMilestonesScreen(projectId: String, onBack: () -> Unit) {
+fun ProjectMilestonesScreen(projectId: String, onBack: () -> Unit, embedded: Boolean = false) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
     val vm: ProjectMilestonesViewModel = viewModel(
@@ -122,7 +122,7 @@ fun ProjectMilestonesScreen(projectId: String, onBack: () -> Unit) {
         Box(Modifier.fillMaxSize().padding(inner)) {
             Column(Modifier.fillMaxSize()) {
                 val title = (state as? MilestonesUiState.Ready)?.let { it.projectRef + " · " + it.projectName }
-                SubBar("Milestones", (state as? MilestonesUiState.Ready)?.milestones?.size, title, onBack)
+                if (!embedded) SubBar("Milestones", (state as? MilestonesUiState.Ready)?.milestones?.size, title, onBack)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (val s = state) {
                         is MilestonesUiState.Loading -> MsSkeleton()

@@ -158,7 +158,7 @@ class ProjectFilesViewModel(app: Application, private val projectId: String) : A
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProjectFilesScreen(projectId: String, onBack: () -> Unit) {
+fun ProjectFilesScreen(projectId: String, onBack: () -> Unit, embedded: Boolean = false) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
     val scope = rememberCoroutineScope()
@@ -190,7 +190,8 @@ fun ProjectFilesScreen(projectId: String, onBack: () -> Unit) {
         Box(Modifier.fillMaxSize().padding(inner)) {
             Column(Modifier.fillMaxSize()) {
                 val ready = state as? FilesUiState.Ready
-                FilesSubBar(ready?.files?.size, ready?.let { it.projectRef + " · " + it.projectName }, false /* the dropzone below is the one upload control; it also shows progress */, onBack, onUpload = { filePicker.launch("*/*") })
+                // Under the project's tabs, the tabs are the heading.
+                if (!embedded) FilesSubBar(ready?.files?.size, ready?.let { it.projectRef + " · " + it.projectName }, false /* the dropzone below is the one upload control; it also shows progress */, onBack, onUpload = { filePicker.launch("*/*") })
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (val s = state) {
                         is FilesUiState.Loading -> FilesSkeleton()

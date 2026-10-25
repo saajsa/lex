@@ -154,6 +154,7 @@ fun ProjectDiscussionsScreen(
     discussionId: String? = null,
     onBack: () -> Unit = {},
     onOpenThread: (String) -> Unit = {},
+    embedded: Boolean = false,
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -195,7 +196,7 @@ fun ProjectDiscussionsScreen(
                     }
                     Composer(posting) { vm.postReply(discussionId, it) }
                 } else {
-                    Heading("Discussions", ready?.discussions?.size, ready?.projectName)
+                    if (!embedded) Heading("Discussions", ready?.discussions?.size, ready?.projectName)
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when (val s = state) {
                             is DiscUiState.Loading -> DiscSkeleton()
