@@ -1,5 +1,11 @@
 package com.legumlex.client.feature.projects
 
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.outlined.Add
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -70,7 +76,7 @@ private val ClaretSoftFix: Color @androidx.compose.runtime.Composable get() = Ll
 
 sealed interface DiscUiState {
     data object Loading : DiscUiState
-    data class Ready(val projectName: String, val projectRef: String, val discussions: List<DiscussionSummary>) : DiscUiState
+    data class Ready(val projectName: String, val projectRef: String, val discussions: List<DiscussionSummary>, val canStart: Boolean = false) : DiscUiState
     data class Error(val message: String) : DiscUiState
 }
 
@@ -103,7 +109,7 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
                 val detail = async { repo.detail(projectId).getOrThrow() }
                 val disc = async { repo.discussions(projectId).getOrNull().orEmpty() }
                 val d = detail.await()
-                _state.value = DiscUiState.Ready(d.summary.name, d.summary.status.label, disc.await())
+                _state.value = DiscUiState.Ready(d.summary.name, d.summary.status.label, disc.await(), d.settings.openDiscussions)
             }
         } catch (e: Throwable) {
             if (!(preserve && _state.value is DiscUiState.Ready)) {
@@ -126,6 +132,18 @@ class ProjectDiscussionsViewModel(app: Application, private val projectId: Strin
     }
 
     fun closeThread() { _thread.value = null }
+
+    /** The client starts a discussion, as the portal's New Discussion does; opens it when saved. */
+    fun startDiscussion(subject: String, description: String, onDone: (String) -> Unit) {
+        if (_posting.value) return
+        viewModelScope.launch {
+            _posting.value = true
+            repo.startDiscussion(projectId, subject.trim(), description.trim())
+                .onSuccess { id -> _toast.value = "Discussion started"; fetch(true); onDone(id) }
+                .onFailure { e -> _toast.value = serverMessage(e, "The discussion could not be started. Please try again.") }
+            _posting.value = false
+        }
+    }
 
     fun postReply(id: String, content: String) {
         val text = content.trim()
@@ -175,6 +193,7 @@ fun ProjectDiscussionsScreen(
     LaunchedEffect(discussionId) { if (discussionId != null) vm.openThread(discussionId) }
 
     val ready = state as? DiscUiState.Ready
+    var starting by remember { mutableStateOf(false) }
 
     Scaffold(containerColor = LlColor.Paper, contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {
@@ -202,11 +221,18 @@ fun ProjectDiscussionsScreen(
                             is DiscUiState.Loading -> DiscSkeleton()
                             is DiscUiState.Error -> DiscError(s.message, vm::load)
                             is DiscUiState.Ready -> PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
-                                DiscList(s.discussions) { id -> onOpenThread(id) }
+                                DiscList(s.discussions, s.canStart, onNew = { starting = true }) { id -> onOpenThread(id) }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+    if (starting && ready != null) {
+        com.legumlex.client.ui.components.WizardDialog(onDismiss = { starting = false }) {
+            NewDiscussionWizard(ready.projectName, posting, onClose = { starting = false }) { subj, body ->
+                vm.startDiscussion(subj, body) { id -> starting = false; onOpenThread(id) }
             }
         }
     }
@@ -217,10 +243,58 @@ fun ProjectDiscussionsScreen(
 // =============================================================================
 
 @Composable
-private fun DiscList(discussions: List<DiscussionSummary>, onOpen: (String) -> Unit) {
-    if (discussions.isEmpty()) { DiscEmpty(); return }
+private fun DiscList(discussions: List<DiscussionSummary>, canStart: Boolean, onNew: () -> Unit, onOpen: (String) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Starting one, where the firm allows it (the project's open_discussions), as the portal does.
+        if (canStart) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(
+                Modifier.clip(RoundedCornerShape(8.dp)).background(LlColor.Paper1).border(LlDimen.HairlineWidth, LlColor.Border, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onNew).padding(start = 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(Icons.Outlined.Add, null, tint = LlColor.Ink, modifier = Modifier.size(15.dp))
+                Text("New Discussion", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LlColor.Ink)
+            }
+        }
+        if (discussions.isEmpty()) DiscEmpty(canStart)
         discussions.forEach { ThreadRow(it) { onOpen(it.id) } }
+    }
+}
+
+/** New Discussion: Subject → Details → Review, as every form in the app. */
+@Composable
+private fun NewDiscussionWizard(projectName: String, saving: Boolean, onClose: () -> Unit, onSave: (String, String) -> Unit) {
+    var step by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
+    var subject by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var body by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    com.legumlex.client.ui.components.WizardFrame(
+        title = "New Discussion",
+        steps = listOf("Subject", "Details", "Review"),
+        step = step,
+        ready = when (step) { 0 -> subject.isNotBlank(); 1 -> body.isNotBlank(); else -> true },
+        saving = saving,
+        saveLabel = "Start Discussion",
+        savingLabel = "Starting…",
+        error = null,
+        onClose = onClose,
+        onStep = { step = it },
+        onSave = { onSave(subject, body) },
+    ) {
+        when (step) {
+            0 -> {
+                com.legumlex.client.ui.components.WizardHeading("What is it about?", "On $projectName. The firm's counsel on it are told.")
+                com.legumlex.client.ui.components.WizardTextField("Subject", subject, { subject = it.take(191) }, placeholder = "e.g. Documents for the annual return")
+            }
+            1 -> {
+                com.legumlex.client.ui.components.WizardHeading("What would you like to say?", "The first message of the thread. Replies follow under it.")
+                com.legumlex.client.ui.components.WizardTextArea(body, { body = it }, "Write your message…")
+            }
+            else -> com.legumlex.client.ui.components.WizardReview(
+                title = "Check and start",
+                note = "The firm sees this discussion on the project and can reply here.",
+                rows = listOf("Project" to projectName, "Subject" to subject.trim(), "Message" to body.trim()),
+            )
+        }
     }
 }
 
@@ -336,7 +410,7 @@ private fun Heading(title: String, count: Int?, contextLine: String?) {
 }
 
 @Composable
-private fun DiscEmpty() {
+private fun DiscEmpty(canStart: Boolean = false) {
     Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.SlateSoft).border(LlDimen.HairlineWidth, LlColor.SlateBorder, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.Forum, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
@@ -344,7 +418,8 @@ private fun DiscEmpty() {
         Spacer(Modifier.height(20.dp))
         Text("No Discussions Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text("When the firm needs your input — a clause to confirm, a document to send — it opens a thread here. You are notified, and can reply right away.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
+        Text("When the firm needs your input — a clause to confirm, a document to send — it opens a thread here. You are notified, and can reply right away." +
+            (if (canStart) " You can start one too, with New Discussion." else ""), fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }
 }
 

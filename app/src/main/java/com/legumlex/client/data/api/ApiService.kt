@@ -552,6 +552,15 @@ interface ApiService {
     @GET("projects/discussions/{id}")
     suspend fun projectDiscussion(@Path("id") discussionId: String): Map<String, Any?>
 
+    /** Client starts a discussion on a project (gated by open_discussions). */
+    @FormUrlEncoded
+    @POST("projects/{id}/discussions")
+    suspend fun startProjectDiscussion(
+        @Path("id") projectId: String,
+        @Field("subject") subject: String,
+        @Field("description") description: String,
+    ): Map<String, Any?>
+
     /** Client replies in a discussion thread. */
     @FormUrlEncoded
     @POST("projects/discussions/{id}/comments")

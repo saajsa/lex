@@ -144,6 +144,14 @@ class ProjectsRepository(private val api: ApiService) {
         parseDiscussionDetail(data)
     }
 
+    /** Starts a discussion; the new thread's id. */
+    suspend fun startDiscussion(projectId: String, subject: String, description: String): Result<String> = runCatching {
+        val response = api.startProjectDiscussion(projectId, subject, description)
+        if (response["status"] != true) error(response["message"]?.toString() ?: "Could not start the discussion")
+        @Suppress("UNCHECKED_CAST")
+        ((response["data"] as? Map<String, Any?>)?.get("id"))?.let { (it as? Number)?.toLong()?.toString() ?: it.toString() } ?: error("No id")
+    }
+
     suspend fun postDiscussionComment(id: String, content: String): Result<DiscussionComment> = runCatching {
         val response = api.postDiscussionComment(id, content)
         if (response["status"] != true) error(response["message"]?.toString() ?: "Could not post comment")
