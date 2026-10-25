@@ -346,7 +346,8 @@ private fun StageTracker(st: ClientStages, needs: List<NeedItem>, onOpenTask: (S
                 Spacer(Modifier.height(14.dp))
                 val shown = st.stages.filter { !it.outcome || it.state == "reached" }
                 shown.forEachIndexed { i, x ->
-                    val here = st.current?.milestoneId == x.milestoneId && st.outcomeName == null
+                    // Not on a stage the firm keeps from the client: there, "current" is the last one they saw, already done.
+                    val here = st.current?.milestoneId == x.milestoneId && st.outcomeName == null && !st.currentHidden
                     StageLine(x, here, last = i == shown.lastIndex)
                 }
             }
