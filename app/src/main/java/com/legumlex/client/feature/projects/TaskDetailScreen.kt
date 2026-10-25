@@ -212,7 +212,7 @@ private fun KeyFacts(task: TaskDetail) {
                 if (who != null) Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft), contentAlignment = Alignment.Center) {
                     Text(initialsOf(who), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LlColor.Slate)
                 }
-                Text(who ?: "The Firm", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(who ?: if (task.yours) "You" else "The Firm", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

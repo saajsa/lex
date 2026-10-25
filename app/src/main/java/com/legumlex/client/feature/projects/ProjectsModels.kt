@@ -231,6 +231,8 @@ data class TaskDetail(
     val canViewComments: Boolean? = null,
     /** The task's milestone is a stage of a typed project (tasks/{id} `staged`). */
     val staged: Boolean = false,
+    /** The client's own task (tasks/{id} `owner` = client): theirs to do, not the firm's. */
+    val yours: Boolean = false,
 )
 
 // --- Discussions ------------------------------------------------------------
