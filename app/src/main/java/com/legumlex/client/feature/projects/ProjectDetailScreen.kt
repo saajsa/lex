@@ -218,8 +218,13 @@ private fun Head(detail: ProjectDetail, today: LocalDate, onInfo: () -> Unit) {
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             StatusPill(s.status.label, statusTone(s.status))
+            // A finished project says when it finished, not when it was due.
+            val finished = detail.dateFinished?.toLocalDate()?.takeIf { s.status == ProjectStatus.Finished }
+            if (finished != null) {
+                Text("Completed ${finished.format(dowFmt)}", fontFamily = Inter, fontSize = 11.5.sp, color = Lex.colors.mutedForeground)
+            }
             val milestoneDue = s.nextMilestone?.dueDate.takeIf { s.stages == null }
-            (milestoneDue ?: s.deadline)?.let {
+            if (finished == null) (milestoneDue ?: s.deadline)?.let {
                 // A date already behind us is said to have passed, not merely coloured.
                 val passed = it.isBefore(today) && s.status != ProjectStatus.Finished && s.status != ProjectStatus.Cancelled
                 val what = if (milestoneDue != null) "Milestone" else "Deadline"
@@ -284,7 +289,10 @@ private fun InfoDialog(detail: ProjectDetail, onActivity: (() -> Unit)?, onClose
                     Spacer(Modifier.height(14.dp))
                 }
                 val rows = listOfNotNull(
-                    // Only what the head does not already say.
+                    // Only what the head does not already say; as the web's overview.
+                    "Reference" to "#${s.id}",
+                    detail.projectCost?.takeIf { detail.settings.viewFinanceOverview && s.billingType == 1 && it > 0 }
+                        ?.let { "Fee" to com.legumlex.client.feature.finance.formatMoney(it, "₹") },
                     s.startDate?.let { "Started" to it.format(dayYearFmt) },
                     s.deadline?.takeIf { s.stages == null && s.nextMilestone?.dueDate != null }?.let { "Deadline" to it.format(dayYearFmt) },
                     detail.dateFinished?.let { "Finished" to it.toLocalDate().format(dayYearFmt) },
@@ -318,7 +326,8 @@ private fun StageTracker(st: ClientStages, needs: List<NeedItem>, onOpenTask: (S
                     com.legumlex.client.ui.components.StatusChip(st.chip,
                         if (st.chip == "Closed") Lex.colors.success else Lex.colors.neutral)
                 }
-                val line = st.outcomeLine?.let { "The project has concluded: $it" }
+                // The title already says it concluded; the line says how.
+                val line = st.outcomeLine?.let { o -> o.replaceFirstChar { it.uppercase() }.let { if (it.endsWith(".")) it else "$it." } }
                     ?: st.current?.takeIf { !st.currentHidden }?.clientLine?.takeIf { it.isNotBlank() }
                 line?.let {
                     Spacer(Modifier.height(8.dp))
@@ -405,10 +414,10 @@ private fun StageLine(x: ClientStage, here: Boolean, last: Boolean) {
             val sub = when (x.state) {
                 "reached" -> listOfNotNull(x.reachedAt?.let { "Completed ${it.format(dayFmt)}" } ?: "Completed",
                     x.officialDate?.let { "${x.officialDateLabel.ifBlank { "Date" }} ${it.format(dayFmt)}" },
-                    x.reference.takeIf { it.isNotBlank() }?.let { "Ref. $it" }).joinToString(" · ")
-                "skipped", "not_applicable" -> "Not needed"
+                    x.reference.takeIf { it.isNotBlank() }?.let(::refText)).joinToString(" · ")
+                "skipped", "not_applicable" -> "Not Needed"
                 else -> if (here) listOfNotNull(x.officialDate?.let { "${x.officialDateLabel.ifBlank { "Date" }} ${it.format(dayFmt)}" },
-                    x.reference.takeIf { it.isNotBlank() }?.let { "Ref. $it" }).joinToString(" · ") else ""
+                    x.reference.takeIf { it.isNotBlank() }?.let(::refText)).joinToString(" · ") else ""
             }
             if (sub.isNotBlank()) Text(sub, fontFamily = Inter, fontSize = 11.sp, color = Lex.colors.mutedForeground, modifier = Modifier.padding(top = 2.dp))
         }
@@ -444,7 +453,7 @@ private fun TasksSection(tasks: List<TaskSummary>, seg: String, onSeg: (String) 
         }
         Spacer(Modifier.height(12.dp))
         if (list.isEmpty()) {
-            EmptySection(Icons.Outlined.Checklist, if (seg == "done") "Nothing Done Yet" else "No Open Tasks", if (canCreate && seg == "open") "Add a task with New Task, or your chamber will add tasks as the work moves." else "Tasks will appear here.")
+            EmptySection(Icons.Outlined.Checklist, if (seg == "done") "Nothing Done Yet" else "No Open Tasks", if (canCreate && seg == "open") "Add a task with New Task, or the firm adds tasks as the work moves." else "Tasks will appear here.")
         } else {
             Card {
                 list.forEachIndexed { i, t ->
@@ -529,11 +538,11 @@ private fun CreateTaskSheet(
     ) {
         when (step) {
             0 -> {
-                com.legumlex.client.ui.components.WizardHeading("What is the task?", "For ${projectName}. Your chamber sees it on the project.")
+                com.legumlex.client.ui.components.WizardHeading("What is the task?", "For ${projectName}. The firm sees it on the project.")
                 com.legumlex.client.ui.components.WizardTextField("Task Name", name, { name = it }, placeholder = "e.g. Send revised logo files")
                 Spacer(Modifier.height(16.dp))
                 com.legumlex.client.ui.components.WizardLabel("Details (Optional)")
-                com.legumlex.client.ui.components.WizardTextArea(desc, { desc = it }, "Add any context for your chamber…")
+                com.legumlex.client.ui.components.WizardTextArea(desc, { desc = it }, "Add any context for the firm…")
             }
             1 -> {
                 com.legumlex.client.ui.components.WizardHeading("How urgent is it?", "Its priority, and the milestone it belongs to, if any.")
@@ -722,6 +731,9 @@ private val dayYearFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM y
 @androidx.compose.runtime.Composable private fun priorityDot(code: Int): Color = when (code) {
     4 -> Lex.colors.danger.solid; 3 -> Lex.colors.warning.solid; 2 -> Lex.colors.neutral.solid; else -> Lex.colors.mutedForeground
 }
+
+/** A stage's reference; "Ref." only when it does not already name itself ("Registration No. …"). */
+private fun refText(r: String): String = if (Regex("""\bNo\.|:""").containsMatchIn(r)) r else "Ref. $r"
 
 private fun humanizeKey(key: String): String =
     key.removePrefix("project_activity_").removePrefix("not_").replace('_', ' ').trim().replaceFirstChar { it.uppercase() }.ifBlank { "Activity" }

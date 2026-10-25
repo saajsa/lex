@@ -218,11 +218,11 @@ private fun FilesReady(s: FilesUiState.Ready, uploading: Boolean, onUpload: () -
             item("empty") { FilesEmpty() }
         } else {
             if (chamber.isNotEmpty()) {
-                item("h1") { Slabel("Shared by your chamber", chamber.size) }
+                item("h1") { Slabel("Shared By The Firm", chamber.size) }
                 item("c1") { FileCard(chamber, today, onOpen) }
             }
             if (mine.isNotEmpty()) {
-                item("h2") { Slabel("Uploaded by you", mine.size) }
+                item("h2") { Slabel("Uploaded By You", mine.size) }
                 item("c2") { FileCard(mine, today, onOpen) }
             }
         }
@@ -241,7 +241,7 @@ private fun UploadDropzone(uploading: Boolean, onUpload: () -> Unit) {
             else Icon(Icons.Outlined.UploadFile, null, tint = LlColor.InkMuted, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(if (uploading) "Uploading…" else "Upload a file", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
+            Text(if (uploading) "Uploading…" else "Upload A File", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LlColor.Ink)
             Text(if (uploading) "Please wait" else "PDF, image or document", fontFamily = Inter, fontSize = 10.sp, color = LlColor.InkFaint, modifier = Modifier.padding(top = 3.dp))
         }
     }
@@ -331,9 +331,9 @@ private fun FilesEmpty() {
             Icon(Icons.Outlined.FolderOpen, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(18.dp))
-        Text("No files yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("No Files Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(9.dp))
-        Text("Documents your chamber shares — drafts, certificates, opinions — will appear here, alongside anything you upload.", fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 20.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 282.dp))
+        Text("Documents the firm shares — drafts, certificates, opinions — will appear here, alongside anything you upload.", fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 20.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 282.dp))
     }
 }
 

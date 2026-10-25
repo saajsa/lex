@@ -270,7 +270,7 @@ private fun ThreadContent(d: DiscussionDetail) {
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.width(26.dp).height(1.dp).background(LlColor.Paper2))
-                    Text("Replies are shared with your chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
+                    Text("Replies are shared with the firm", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.06.em, color = LlColor.InkFaint)
                     Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
                 }
             }
@@ -342,9 +342,9 @@ private fun DiscEmpty() {
             Icon(Icons.Outlined.Forum, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("No discussions yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("No Discussions Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text("When your chamber needs your input — a clause to confirm, a document to send — they'll open a thread here. You will be notified, and you can reply right away.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
+        Text("When the firm needs your input — a clause to confirm, a document to send — it opens a thread here. You are notified, and can reply right away.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }
 }
 

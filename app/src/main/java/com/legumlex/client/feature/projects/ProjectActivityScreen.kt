@@ -221,7 +221,7 @@ private fun ActEmpty() {
             Icon(Icons.Outlined.History, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("Nothing logged yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("Nothing Logged Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text("As work begins — tasks created, files shared, milestones reached — every step is recorded here, newest first, in plain language.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }

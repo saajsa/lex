@@ -241,16 +241,16 @@ private fun MilestoneCard(m: Milestone, today: LocalDate, isNearest: Boolean) {
     // A stage carries no planned date for the client: when it started and completed only.
     when (m.stageState) {
         "reached" -> return Triple(Icons.Outlined.CheckCircle, m.reachedAt?.let { "Completed ${it.format(dayFmt)}" } ?: "Completed", LlColor.InkFaint)
-        "skipped", "not_applicable" -> return Triple(Icons.Outlined.CheckCircle, "Not needed", LlColor.InkFaint)
-        "current" -> return Triple(Icons.Outlined.Flag, m.enteredAt?.let { "In This Stage Since ${it.format(dayFmt)}" } ?: "The current stage", LlColor.InkMuted)
-        "pending" -> return Triple(Icons.Outlined.Schedule, "Not yet started", LlColor.InkFaint)
+        "skipped", "not_applicable" -> return Triple(Icons.Outlined.CheckCircle, "Not Needed", LlColor.InkFaint)
+        "current" -> return Triple(Icons.Outlined.Flag, m.enteredAt?.let { "In This Stage Since ${it.format(dayFmt)}" } ?: "The Current Stage", LlColor.InkMuted)
+        "pending" -> return Triple(Icons.Outlined.Schedule, "Not Yet Started", LlColor.InkFaint)
     }
     if (done) return Triple(Icons.Outlined.CheckCircle, m.dueDate?.let { "Reached ${it.format(dayFmt)}" } ?: "Completed", LlColor.InkFaint)
-    val d = m.dueDate ?: return Triple(Icons.Outlined.Schedule, "No due date set", LlColor.InkFaint)
+    val d = m.dueDate ?: return Triple(Icons.Outlined.Schedule, "No Due Date", LlColor.InkFaint)
     val label = when {
         days != null && days < 0 -> "Overdue · ${d.format(dayFmt)}"
-        days == 0L -> "Due today"
-        days == 1L -> "Due tomorrow"
+        days == 0L -> "Due Today"
+        days == 1L -> "Due Tomorrow"
         else -> "Due ${if (week) "this week · " else if (days != null && days <= 3) "in $days days · " else ""}${d.format(dowFmt)}"
     }
     val color = when { soon -> LlColor.ClaretMid; week -> LlColor.AmberMid; else -> LlColor.InkMuted }
@@ -316,9 +316,9 @@ private fun MsEmpty() {
             Icon(Icons.Outlined.Flag, null, tint = LlColor.Slate, modifier = Modifier.size(31.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("No milestones yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
+        Text("No Milestones Yet", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
-        Text("Your chamber will break this project into milestones — filing dates, approvals, deliverables — and they'll appear here with progress and due dates as work begins.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
+        Text("The firm breaks this project into milestones — filing dates, approvals, deliverables — and they appear here with progress and due dates as the work begins.", fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp))
     }
 }
 
