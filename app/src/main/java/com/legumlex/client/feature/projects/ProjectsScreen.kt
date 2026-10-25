@@ -7,6 +7,8 @@ import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.components.Eyebrow
 import com.legumlex.client.ui.components.SegmentedToggle
 import com.legumlex.client.ui.components.LexCard
+import com.legumlex.client.ui.components.RevealAction
+import com.legumlex.client.ui.components.SwipeRevealRow
 import com.legumlex.client.ui.components.StatusBadge
 import com.legumlex.client.ui.components.StatusChip
 import com.legumlex.client.ui.components.StatCard
@@ -32,7 +34,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.HourglassEmpty
-import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
@@ -197,7 +199,7 @@ private fun ProjectsReady(
  * A project's card, as the reference: compact — the name in its chip, the
  * progress bar, whose move it is, the status and the team — and, tapped, open
  * in place: the count pill, the stages as a tree, the status rows and the team
- * by name. The ⋯ opens the project.
+ * by name. Swiped left, it shows Open, which opens the project.
  */
 @Composable
 private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) {
@@ -206,9 +208,11 @@ private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit
     // A deadline behind us is said to have passed — not while an authority has the work.
     val withAuthority = p.stages?.chip?.let { it.startsWith("With The ") && it != "With The Firm" } == true
     val passed = !done && !withAuthority && p.deadline?.isBefore(today) == true
-    LexCard(onClick = { open = !open }) {
-        Column(Modifier.fillMaxWidth().animateContentSize(tween(260)).padding(14.dp)) {
-            if (!open) CardCompact(p, passed) else CardOpen(p, passed, onClick)
+    SwipeRevealRow(listOf(RevealAction("Open", Icons.AutoMirrored.Outlined.OpenInNew, Lex.colors.primary, Lex.colors.primaryForeground, onClick)), actionsAtTop = open) {
+        LexCard(onClick = { open = !open }) {
+            Column(Modifier.fillMaxWidth().animateContentSize(tween(260)).padding(14.dp)) {
+                if (!open) CardCompact(p, passed) else CardOpen(p, passed)
+            }
         }
     }
 }
@@ -249,24 +253,13 @@ private fun CardCompact(p: ProjectSummary, passed: Boolean) {
 }
 
 @Composable
-private fun CardOpen(p: ProjectSummary, passed: Boolean, onOpen: () -> Unit) {
+private fun CardOpen(p: ProjectSummary, passed: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         TypeTile(36.dp)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             p.stages?.let { Eyebrow(it.typeName) }
             Text(p.name, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
-        }
-        Spacer(Modifier.width(8.dp))
-        Box {
-            var menu by remember { mutableStateOf(false) }
-            Box(
-                Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Lex.colors.border, RoundedCornerShape(8.dp)).clickable { menu = true },
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Outlined.MoreHoriz, "More", tint = Lex.colors.foreground, modifier = Modifier.size(18.dp)) }
-            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                androidx.compose.material3.DropdownMenuItem(text = { Text("Open Project") }, onClick = { menu = false; onOpen() })
-            }
         }
     }
     Spacer(Modifier.height(12.dp))
