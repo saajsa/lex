@@ -541,8 +541,10 @@ private fun MoreRows(detail: ProjectDetail, s: ProjectDetailUiState.Ready, onOpe
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         if (settings.viewMilestones) {
             val next = detail.summary.nextMilestone
-            DrillRow(Icons.Outlined.Flag, "Milestones", detail.counts.milestonesTotal, false,
-                next?.let { "Next · ${it.name}" + (it.dueDate?.let { d -> if (d.isBefore(java.time.LocalDate.now())) " · Passed ${d.format(dowFmt)}" else " · Due ${d.format(dowFmt)}" } ?: "") } ?: "No upcoming milestone", onOpenMilestones)
+            val st = detail.summary.stages
+            DrillRow(Icons.Outlined.Flag, if (st != null) "Stages And Milestones" else "Milestones", detail.counts.milestonesTotal, false,
+                if (st != null) (st.outcomeName?.let { "Concluded · $it" } ?: st.current?.let { "Now · ${it.name}" } ?: "Where the work stands")
+                else next?.let { "Next · ${it.name}" + (it.dueDate?.let { d -> if (d.isBefore(java.time.LocalDate.now())) " · Passed ${d.format(dowFmt)}" else " · Due ${d.format(dowFmt)}" } ?: "") } ?: "No upcoming milestone", onOpenMilestones)
         }
         if (settings.viewFiles) {
             DrillRow(Icons.Outlined.Folder, "Files", detail.counts.filesTotal, false,

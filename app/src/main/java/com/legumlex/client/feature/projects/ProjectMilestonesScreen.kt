@@ -228,7 +228,8 @@ private fun MilestoneCard(m: Milestone, today: LocalDate, isNearest: Boolean) {
             stripHtmlM(m.description)?.let {
                 Text(it, fontFamily = Inter, fontSize = 11.5.sp, lineHeight = 16.sp, color = LlColor.InkMuted, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
             }
-            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // A stage not yet given its tasks has no meter to show.
+            if (m.stageState == null || m.tasksTotal > 0) Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Meter(Modifier.weight(1f), frac, meterColor)
                 Text("${m.tasksDone}/${m.tasksTotal} tasks", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LlColor.InkMuted)
             }
