@@ -430,7 +430,7 @@ private fun ProjectsEmpty() {
             fontSize = 21.sp, letterSpacing = (-0.02).em, color = LlColor.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
-            "When your chamber opens a piece of transactional work — a filing, a contract, a compliance retainer — it will appear here, with its tasks, milestones and progress kept up to date.",
+            "When the firm opens a piece of transactional work — a filing, a contract, a compliance retainer — it appears here, with its tasks, stages and progress kept up to date.",
             fontFamily = Inter, fontSize = 13.sp, lineHeight = 21.sp, color = LlColor.InkMuted,
             textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 288.dp),
         )
