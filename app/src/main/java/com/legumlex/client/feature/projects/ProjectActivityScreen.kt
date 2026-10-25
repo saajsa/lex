@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -186,7 +187,11 @@ private data class ActKind(val color: Color, val bg: Color, val icon: ImageVecto
 @androidx.compose.runtime.Composable private fun activityKind(key: String): ActKind {
     val k = key.lowercase()
     return when {
+        // A typed project's stages (cases Project Types): moved, set up, concluded.
+        k.contains("stage") || k.contains("set_up_as") || k.contains("concluded") -> ActKind(ClaretMidFix, ClaretSoftFix, Icons.Outlined.Flag, "Stage")
         k.contains("milestone") -> ActKind(ClaretMidFix, ClaretSoftFix, Icons.Outlined.Flag, "Milestone")
+        k == "project_activity_created" || k.contains("marked_as_finished") || k.contains("project_status") ->
+            ActKind(LlColor.SlateMid, LlColor.SlateSoft, Icons.Outlined.WorkOutline, "Project")
         k.contains("file") || k.contains("attach") -> ActKind(LlColor.AmberMid, LlColor.AmberSoft, Icons.Outlined.UploadFile, "File")
         k.contains("discussion") || k.contains("comment") -> ActKind(LlColor.Violet, LlColor.VioletSoft, Icons.Outlined.Forum, "Discussion")
         else -> ActKind(LlColor.SlateMid, LlColor.SlateSoft, Icons.Outlined.TaskAlt, "Task")

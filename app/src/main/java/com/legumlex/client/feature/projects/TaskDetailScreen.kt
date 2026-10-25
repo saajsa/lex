@@ -202,7 +202,7 @@ private fun NeedsYou(canComment: Boolean) {
 @Composable
 private fun KeyFacts(task: TaskDetail) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        Fact(Modifier.weight(1f), Icons.Outlined.Flag, "Milestone") {
+        Fact(Modifier.weight(1f), Icons.Outlined.Flag, if (task.staged) "Stage" else "Milestone") {
             Text(task.milestoneName ?: "—", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, letterSpacing = (-0.008).em, lineHeight = 17.sp, color = LlColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Fact(Modifier.weight(1f), Icons.Outlined.Group, "Assigned") {
@@ -212,7 +212,7 @@ private fun KeyFacts(task: TaskDetail) {
                 if (who != null) Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(LlColor.SlateSoft), contentAlignment = Alignment.Center) {
                     Text(initialsOf(who), fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LlColor.Slate)
                 }
-                Text(who ?: "Your chamber", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(who ?: "The Firm", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -255,7 +255,7 @@ private fun Checklist(task: TaskDetail) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(LlColor.Paper2))
         Row(Modifier.padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Icon(Icons.Outlined.Lock, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
-            Text("WORKED BY YOUR CHAMBER · READ-ONLY", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
+            Text("WORKED BY THE FIRM · READ-ONLY", fontFamily = Inter, fontSize = 9.sp, letterSpacing = 0.1.em, color = LlColor.InkFaint)
         }
         task.checklist.sortedBy { it.order }.forEachIndexed { i, c ->
             if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 46.dp).height(1.dp).background(LlColor.Paper2))
@@ -285,8 +285,8 @@ private fun Conversation(task: TaskDetail, canComment: Boolean) {
     Slabel("Conversation", count = task.comments.size.takeIf { it > 0 })
     if (task.comments.isEmpty()) {
         EmptySection(Icons.Outlined.Forum, "No Comments Yet",
-            if (canComment) "Have a question about this task, or something to add for your chamber? Start the conversation below."
-            else "Comments from your chamber on this task will appear here.")
+            if (canComment) "Have a question about this task, or something to add for the firm? Start the conversation below."
+            else "Comments from the firm on this task appear here.")
         return
     }
     Column(Modifier.padding(horizontal = 16.dp)) {
@@ -296,7 +296,7 @@ private fun Conversation(task: TaskDetail, canComment: Boolean) {
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.width(26.dp).height(1.dp).background(LlColor.Paper2))
-            Text("Comments are shared with your chamber", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.02.em, color = LlColor.InkFaint)
+            Text("Comments are shared with the firm", fontFamily = Inter, fontSize = 9.5.sp, letterSpacing = 0.02.em, color = LlColor.InkFaint)
             Box(Modifier.weight(1f).height(1.dp).background(LlColor.Paper2))
         }
     }
@@ -312,7 +312,7 @@ private fun Message(c: TaskComment) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(c.authorName?.takeIf { it.isNotBlank() } ?: if (you) "You" else "Staff", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = LlColor.Ink)
-                Text(if (you) "YOU" else "CHAMBER", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.06.em, color = if (you) ClaretMidFix else LlColor.SlateMid,
+                Text(if (you) "YOU" else "THE FIRM", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 8.5.sp, letterSpacing = 0.06.em, color = if (you) ClaretMidFix else LlColor.SlateMid,
                     modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (you) ClaretSoftFix else LlColor.SlateSoft).padding(horizontal = 6.dp, vertical = 1.dp))
                 Spacer(Modifier.weight(1f))
                 c.dateAdded?.let { Text(it.toLocalDate().format(dayFmt), fontFamily = Inter, fontSize = 9.5.sp, color = LlColor.InkFaint) }

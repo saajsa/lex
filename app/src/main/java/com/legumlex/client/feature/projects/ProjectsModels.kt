@@ -229,6 +229,8 @@ data class TaskDetail(
     val canComment: Boolean? = null,
     /** The firm shows task comments to the client (tasks/{id} `can_view_comments`); null when the server does not say. */
     val canViewComments: Boolean? = null,
+    /** The task's milestone is a stage of a typed project (tasks/{id} `staged`). */
+    val staged: Boolean = false,
 )
 
 // --- Discussions ------------------------------------------------------------

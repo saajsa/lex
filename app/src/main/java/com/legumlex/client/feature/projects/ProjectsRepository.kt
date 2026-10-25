@@ -378,6 +378,7 @@ private fun parseTaskDetail(m: Map<String, Any?>): TaskDetail {
         assignees     = assignees,
         canComment    = m["can_comment"]?.let { jBool(it) },
         canViewComments = m["can_view_comments"]?.let { jBool(it) },
+        staged        = jBool(m["staged"]),
     )
 }
 
