@@ -222,7 +222,8 @@ private fun CardCompact(p: ProjectSummary, passed: Boolean) {
         ) {
             TypeTile(22.dp)
             Spacer(Modifier.width(8.dp))
-            Text(p.name, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // The whole name, over as many lines as it takes.
+            Text(p.name, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
         }
         Spacer(Modifier.width(12.dp))
         ProgressBar(p.progress, Modifier.width(64.dp))
