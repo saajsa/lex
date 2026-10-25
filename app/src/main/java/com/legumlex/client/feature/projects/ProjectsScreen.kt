@@ -28,6 +28,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.animateContentSize
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.RadioButtonChecked
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.outlined.Cancel
@@ -185,78 +193,226 @@ private fun ProjectsReady(
     }
 }
 
+/**
+ * A project's card, as the reference: compact — the name in its chip, the
+ * progress bar, whose move it is, the status and the team — and, tapped, open
+ * in place: the count pill, the stages as a tree, the status rows and the team
+ * by name. The ⋯ opens the project.
+ */
 @Composable
 private fun ProjectCard(p: ProjectSummary, today: LocalDate, onClick: () -> Unit) {
+    var open by rememberSaveable(p.id) { mutableStateOf(false) }
     val done = p.isFinished()
-    LexCard(onClick = onClick) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.width(4.dp).height(48.dp).clip(RoundedCornerShape(2.dp)).background(p.status.palette.solid))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(p.name, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
-                // A typed project says where it stands and whose move it is, as the portal's card.
-                p.stages?.let { st ->
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(st.outcomeName?.let { "Concluded: $it" } ?: st.current?.name ?: st.typeName,
-                            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false))
-                        Spacer(Modifier.width(8.dp))
-                        StatusChip(st.chip, if (st.chip == "Closed") Lex.colors.success else Lex.colors.neutral)
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Lex.colors.secondary)) {
-                        Box(Modifier.fillMaxWidth(p.progress.coerceIn(0, 100) / 100f).fillMaxHeight()
-                            .clip(RoundedCornerShape(3.dp)).background(Lex.colors.primary))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(if (p.status == ProjectStatus.Cancelled) "—" else "${p.progress}%",
-                        style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            StatusBadge(p.status.label, p.status.palette)
-        }
-        HorizontalDivider(color = Lex.colors.border)
-        Column(Modifier.background(Lex.colors.muted.copy(alpha = 0.5f))) {
-            Row(Modifier.height(IntrinsicSize.Min)) {
-                if (p.stages != null) PFact("Stage", p.stages.outcomeName ?: p.stages.current?.name ?: "—", Modifier.weight(1f))
-                else PFact("Next Milestone",
-                    p.nextMilestone?.let { m ->
-                        val passed = m.dueDate?.isBefore(java.time.LocalDate.now()) == true
-                        listOfNotNull(m.name, m.dueDate?.let { (if (passed) "Passed " else "") + pdate(it) }).joinToString(" · ")
-                    } ?: "No Milestone Set",
-                    Modifier.weight(1f))
-                Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
-                PFact("Tasks", if (p.tasksTotal == 0) "No Tasks Yet" else "${p.tasksDone()} of ${p.tasksTotal} done", Modifier.weight(1f))
-            }
-            HorizontalDivider(color = Lex.colors.border)
-            Row(Modifier.height(IntrinsicSize.Min)) {
-                PFact("Started", p.startDate?.let { pdate(it) } ?: "Not Recorded", Modifier.weight(1f))
-                Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.border))
-                // A deadline behind us is said to have passed, not only coloured.
-                // Not while the work sits with an authority: that wait is not late work.
-                val withAuthority = p.stages?.chip?.let { it.startsWith("With The ") && it != "With The Firm" } == true
-                val passed = !done && !withAuthority && p.deadline?.isBefore(today) == true
-                PFact(if (passed) "Deadline Passed" else "Deadline", p.deadline?.let { pdate(it) } ?: "No Deadline Set", Modifier.weight(1f),
-                    alarm = passed)
-            }
+    // A deadline behind us is said to have passed — not while an authority has the work.
+    val withAuthority = p.stages?.chip?.let { it.startsWith("With The ") && it != "With The Firm" } == true
+    val passed = !done && !withAuthority && p.deadline?.isBefore(today) == true
+    LexCard(onClick = { open = !open }) {
+        Column(Modifier.fillMaxWidth().animateContentSize(tween(260)).padding(14.dp)) {
+            if (!open) CardCompact(p, passed) else CardOpen(p, passed, onClick)
         }
     }
 }
 
 @Composable
-private fun PFact(label: String, value: String, modifier: Modifier, alarm: Boolean = false) {
-    Column(modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Eyebrow(label)
-        Spacer(Modifier.height(3.dp))
-        Text(value, style = MaterialTheme.typography.bodyMedium,
-            color = if (alarm) Lex.colors.danger.solid else Lex.colors.foreground, maxLines = 2)
+private fun CardCompact(p: ProjectSummary, passed: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.weight(1f, fill = false).clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted).padding(start = 4.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TypeTile(22.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(p.name, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(12.dp))
+        ProgressBar(p.progress, Modifier.width(64.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(if (p.status == ProjectStatus.Cancelled) "—" else "${p.progress}%", style = MaterialTheme.typography.labelMedium, color = Lex.colors.secondaryForeground)
+    }
+    Spacer(Modifier.height(12.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // The flag takes what the status and the avatars leave it.
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            val (flag, alarm) = flagText(p, passed)
+            Icon(Icons.Outlined.Flag, null, tint = if (alarm) Lex.colors.danger.solid else Lex.colors.mutedForeground, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(flag, style = MaterialTheme.typography.bodySmall, color = if (alarm) Lex.colors.danger.solid else Lex.colors.secondaryForeground,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Spacer(Modifier.width(12.dp))
+            Icon(Icons.Outlined.HourglassEmpty, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(p.status.label, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, maxLines = 1, softWrap = false)
+        }
+        if (p.team.isNotEmpty()) { Spacer(Modifier.width(10.dp)); AvatarStack(p.team) }
     }
 }
+
+@Composable
+private fun CardOpen(p: ProjectSummary, passed: Boolean, onOpen: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TypeTile(36.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            p.stages?.let { Eyebrow(it.typeName) }
+            Text(p.name, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+        }
+        Spacer(Modifier.width(8.dp))
+        Box {
+            var menu by remember { mutableStateOf(false) }
+            Box(
+                Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Lex.colors.border, RoundedCornerShape(8.dp)).clickable { menu = true },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.MoreHoriz, "More", tint = Lex.colors.foreground, modifier = Modifier.size(18.dp)) }
+            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                androidx.compose.material3.DropdownMenuItem(text = { Text("Open Project") }, onClick = { menu = false; onOpen() })
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    val st = p.stages
+    // The count pill: stages for a typed project, tasks otherwise.
+    val ordinary = st?.stages?.filter { !it.outcome }.orEmpty()
+    val (doneN, totalN, unit) = if (st != null) Triple(ordinary.count { it.state != "pending" && it.state != "current" }, ordinary.size, "")
+        else Triple((p.tasksTotal - p.tasksOpen).coerceAtLeast(0), p.tasksTotal, " tasks")
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).border(1.dp, Lex.colors.border, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.CheckCircle, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("$doneN of $totalN$unit", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
+        Spacer(Modifier.width(10.dp))
+        ProgressBar(p.progress, Modifier.width(90.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("${p.progress}%", style = MaterialTheme.typography.labelMedium, color = Lex.colors.secondaryForeground)
+    }
+    if (st != null) {
+        val shown = st.stages.filter { !it.outcome || it.state == "reached" }
+        Column(Modifier.padding(start = 12.dp)) {
+            shown.forEachIndexed { i, x -> TreeLine(x, last = i == shown.lastIndex) }
+        }
+    }
+    Spacer(Modifier.height(14.dp))
+    val (flag, alarm) = flagText(p, passed)
+    InfoRow(Icons.Outlined.Flag, if (st != null) "Where It Is" else "Deadline") {
+        StatusChip(flag, if (alarm) Lex.colors.danger else if (st?.chip == "Closed") Lex.colors.success else Lex.colors.neutral)
+    }
+    Spacer(Modifier.height(8.dp))
+    InfoRow(Icons.Outlined.HourglassEmpty, "Status") { StatusChip(p.status.label, p.status.palette) }
+    if (st != null && p.deadline != null) {
+        Spacer(Modifier.height(8.dp))
+        InfoRow(Icons.Outlined.Event, "Deadline") {
+            StatusChip(if (passed) "Passed ${pdate(p.deadline)}" else pdate(p.deadline), if (passed) Lex.colors.danger else Lex.colors.neutral)
+        }
+    }
+    if (p.team.isNotEmpty()) {
+        Spacer(Modifier.height(14.dp))
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            p.team.forEach { m ->
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).border(1.dp, Lex.colors.border, RoundedCornerShape(50)).padding(start = 3.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Avatar(m, 24.dp)
+                    Spacer(Modifier.width(6.dp))
+                    Text(m.name.substringBefore(' ').ifBlank { m.name }, style = MaterialTheme.typography.bodySmall, color = Lex.colors.foreground)
+                }
+            }
+        }
+    }
+}
+
+/** What the flag says: whose move it is for a typed project, else the deadline. True when it is red. */
+private fun flagText(p: ProjectSummary, passed: Boolean): Pair<String, Boolean> {
+    val st = p.stages
+    if (st != null) return (st.outcomeName?.let { "Concluded: $it" } ?: st.chip) to false
+    val d = p.deadline ?: return "No Deadline Set" to false
+    return (if (passed) "Passed ${sdate(d)}" else "Due ${sdate(d)}") to passed
+}
+
+@Composable
+private fun TypeTile(size: androidx.compose.ui.unit.Dp) {
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(6.dp)).background(Lex.colors.card).border(1.dp, Lex.colors.border, RoundedCornerShape(6.dp)),
+        contentAlignment = Alignment.Center,
+    ) { Icon(Icons.Outlined.WorkOutline, null, tint = Lex.colors.foreground, modifier = Modifier.size(size * 0.55f)) }
+}
+
+@Composable
+private fun ProgressBar(pct: Int, modifier: Modifier) {
+    Box(modifier.height(6.dp).clip(RoundedCornerShape(4.dp)).background(Lex.colors.secondary)) {
+        Box(Modifier.fillMaxWidth(pct.coerceIn(0, 100) / 100f).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(Lex.colors.success.solid))
+    }
+}
+
+/** One branch of the stage tree: the rail, the elbow, the state mark and the name. */
+@Composable
+private fun TreeLine(x: ClientStage, last: Boolean) {
+    val rail = Lex.colors.border
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(16.dp).fillMaxHeight()) {
+            Box(Modifier.width(1.dp).fillMaxHeight(if (last) 0.5f else 1f).background(rail))
+            Box(Modifier.align(Alignment.CenterStart).width(12.dp).height(1.dp).background(rail))
+        }
+        val (icon, tint) = when (x.state) {
+            "reached" -> Icons.Filled.CheckCircle to Lex.colors.foreground
+            "current" -> Icons.Outlined.RadioButtonChecked to Lex.colors.foreground
+            "skipped", "not_applicable" -> Icons.Outlined.RemoveCircleOutline to Lex.colors.mutedForeground
+            else -> Icons.Outlined.RadioButtonUnchecked to Lex.colors.mutedForeground
+        }
+        Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(9.dp))
+        Text(
+            x.name, style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (x.state == "current") FontWeight.SemiBold else FontWeight.Normal,
+            color = if (x.state == "reached" || x.state == "current") Lex.colors.foreground else Lex.colors.mutedForeground,
+            modifier = Modifier.padding(vertical = 7.dp),
+        )
+    }
+}
+
+@Composable
+private fun InfoRow(icon: ImageVector, label: String, value: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground, modifier = Modifier.width(92.dp))
+        value()
+    }
+}
+
+@Composable
+private fun AvatarStack(team: List<TeamMember>) {
+    Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+        team.take(3).forEach { Avatar(it, 26.dp, ring = true) }
+        if (team.size > 3) Box(
+            Modifier.size(26.dp).clip(RoundedCornerShape(50)).background(Lex.colors.muted).border(2.dp, Lex.colors.card, RoundedCornerShape(50)),
+            contentAlignment = Alignment.Center,
+        ) { Text("+${team.size - 3}", style = MaterialTheme.typography.labelSmall, color = Lex.colors.secondaryForeground) }
+    }
+}
+
+/** A member's photo, over their initials (which show while it loads, or if it can't). */
+@Composable
+private fun Avatar(m: TeamMember, size: androidx.compose.ui.unit.Dp, ring: Boolean = false) {
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(50)).background(Lex.colors.secondary)
+            .then(if (ring) Modifier.border(2.dp, Lex.colors.card, RoundedCornerShape(50)) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(m.initials, fontSize = (size.value * 0.36f).sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground, maxLines = 1, softWrap = false)
+        m.image?.let {
+            coil.compose.AsyncImage(it, m.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(50)))
+        }
+    }
+}
+
+
+/** "3 Aug" this year, "3 Aug 2027" otherwise. */
+private fun sdate(d: LocalDate): String =
+    if (d.year == LocalDate.now().year) d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)) else pdate(d)
 
 private fun pdate(d: LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
 

@@ -63,7 +63,12 @@ data class ProjectSummary(
     val nextMilestone: NextMilestoneRef?,
     /** Where a typed project stands (cases Project Types); null for a blank one, or milestones not shared. */
     val stages: ClientStages? = null,
+    /** The project's team, when the project shows it to the client. */
+    val team: List<TeamMember> = emptyList(),
 )
+
+/** One member of a project's team, for a card's avatars. [image] is an absolute URL or null. */
+data class TeamMember(val name: String, val initials: String, val image: String?)
 
 /**
  * A typed project's stages as the client sees them: only the ones shown to

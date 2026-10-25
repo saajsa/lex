@@ -169,7 +169,21 @@ private fun parseSummary(m: Map<String, Any?>): ProjectSummary {
         tasksOpen     = jInt(m["tasks_open"]) ?: 0,
         nextMilestone = parseNextMilestone(m["next_milestone"]),
         stages        = parseStages(m["stages"]),
+        team          = parseTeam(m["team"]),
     )
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun parseTeam(raw: Any?): List<TeamMember> {
+    // The server sends a site-relative image path; it resolves against the host the app calls.
+    val site = com.legumlex.client.BuildConfig.API_BASE_URL.substringBefore("customers_api/").trimEnd('/')
+    return (raw as? List<*>)?.mapNotNull { it as? Map<String, Any?> }?.map { x ->
+        TeamMember(
+            name     = x["name"] as? String ?: "",
+            initials = x["initials"] as? String ?: "",
+            image    = (x["image"] as? String)?.takeIf { it.isNotBlank() }?.let { "$site/${it.trimStart('/')}" },
+        )
+    }.orEmpty()
 }
 
 @Suppress("UNCHECKED_CAST")
