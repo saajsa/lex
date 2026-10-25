@@ -335,7 +335,7 @@ private fun StageTracker(st: ClientStages, needs: List<NeedItem>, onOpenTask: (S
                 }
                 st.current?.takeIf { !st.currentHidden && st.outcomeName == null }?.enteredAt?.let {
                     Spacer(Modifier.height(4.dp))
-                    Text("In This Stage Since ${it.format(dayFmt)}", fontFamily = Inter, fontSize = 11.sp, color = Lex.colors.mutedForeground)
+                    Text("In This Stage Since ${it.let(::sday)}", fontFamily = Inter, fontSize = 11.sp, color = Lex.colors.mutedForeground)
                 }
                 if (st.chip == "Waiting On You") {
                     Spacer(Modifier.height(14.dp))
@@ -413,11 +413,11 @@ private fun StageLine(x: ClientStage, here: Boolean, last: Boolean) {
                 }
             }
             val sub = when (x.state) {
-                "reached" -> listOfNotNull(x.reachedAt?.let { "Completed ${it.format(dayFmt)}" } ?: "Completed",
-                    x.officialDate?.let { "${x.officialDateLabel.ifBlank { "Date" }} ${it.format(dayFmt)}" },
+                "reached" -> listOfNotNull(x.reachedAt?.let { "Completed ${it.let(::sday)}" } ?: "Completed",
+                    x.officialDate?.let { "${x.officialDateLabel.ifBlank { "Date" }} ${it.let(::sday)}" },
                     x.reference.takeIf { it.isNotBlank() }?.let(::refText)).joinToString(" · ")
                 "skipped", "not_applicable" -> "Not Needed"
-                else -> if (here) listOfNotNull(x.officialDate?.let { "${x.officialDateLabel.ifBlank { "Date" }} ${it.format(dayFmt)}" },
+                else -> if (here) listOfNotNull(x.officialDate?.let { "${x.officialDateLabel.ifBlank { "Date" }} ${it.let(::sday)}" },
                     x.reference.takeIf { it.isNotBlank() }?.let(::refText)).joinToString(" · ") else ""
             }
             if (sub.isNotBlank()) Text(sub, fontFamily = Inter, fontSize = 11.sp, color = Lex.colors.mutedForeground, modifier = Modifier.padding(top = 2.dp))
@@ -485,7 +485,7 @@ private fun TaskRow(t: TaskSummary, onClick: () -> Unit) {
                 if (t.commentsCount > 0) add("${t.commentsCount} comment${if (t.commentsCount == 1) "" else "s"}")
                 t.milestoneName?.let { add(it) }
                 // A due date gone by says so, as the project card does.
-                t.dueDate?.let { add(if (it.isBefore(java.time.LocalDate.now()) && t.status != TaskStatus.Complete) "Due date passed ${it.format(dayFmt)}" else "Due ${it.format(dayFmt)}") }
+                t.dueDate?.let { add(if (it.isBefore(java.time.LocalDate.now()) && t.status != TaskStatus.Complete) "Due date passed ${it.let(::sday)}" else "Due ${it.let(::sday)}") }
             }.joinToString("  ·  ")
             if (meta.isNotBlank()) Text(meta, fontFamily = Inter, fontSize = 10.sp, color = Lex.colors.mutedForeground, modifier = Modifier.padding(top = 8.dp))
         }
@@ -699,6 +699,9 @@ private fun ProjectDetailError(message: String, onRetry: () -> Unit) {
 
 private val dowFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, d MMM")
 private val dayFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM")
+
+/** "11 Aug" this year, "19 Nov 2025" otherwise, so a stage list reads in order. */
+private fun sday(d: LocalDate): String = if (d.year == LocalDate.now().year) d.format(dayFmt) else d.format(dayYearFmt)
 private val dayYearFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy")
 
 @androidx.compose.runtime.Composable private fun statusTone(s: ProjectStatus): Pair<Color, Color> = when (s) {
