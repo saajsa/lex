@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- The Test copy sits beside the Play app: its own name. -->
-    <string name="app_name">Legum Lex Test</string>
-</resources>

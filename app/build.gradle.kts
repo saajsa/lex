@@ -63,16 +63,6 @@ android {
     }
 
     signingConfigs {
-        // The Test copy's own key (local.properties TEST_STORE_*): never the
-        // Play key, so a Test build can never pass for the Play app.
-        localProps.getProperty("TEST_STORE_FILE")?.let { f ->
-            create("test") {
-                storeFile     = file(f)
-                storePassword = localProps.getProperty("TEST_STORE_PASSWORD")
-                keyAlias      = localProps.getProperty("TEST_KEY_ALIAS") ?: "test"
-                keyPassword   = localProps.getProperty("TEST_STORE_PASSWORD")
-            }
-        }
         if (keystoreProps != null) {
             create("release") {
                 storeFile     = file(keystoreProps.getProperty("storeFile"))
@@ -130,23 +120,6 @@ android {
             // release. See keystore.properties.sample to configure the upload key.
             signingConfig = signingConfigs.findByName("release")
         }
-        // The Test copy (owner, 2026-10-30): the release build, installed
-        // beside the Play app as "Legum Lex Test", talking to production, that
-        // updates itself from www.legumlex.com (customers_api app_update, for
-        // contacts on app_test_contacts). Play forbids that in a Play app, so
-        // the updater lives only in src/preview/; release and debug carry a
-        // no-op. Built and published by tools/publish.sh (-PtestCode=…).
-        create("preview") {
-            initWith(getByName("release"))
-            applicationIdSuffix = ".test"
-            versionNameSuffix = "-test"
-            signingConfig = signingConfigs.findByName("test")
-            matchingFallbacks += listOf("release")
-            // Production, unless -PtestApi=<url> (a dev check of the updater itself).
-            (project.findProperty("testApi") as String?)?.let {
-                buildConfigField("String", "API_BASE_URL", "\"$it\"")
-            }
-        }
     }
 
     compileOptions {
@@ -161,16 +134,6 @@ android {
     }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    }
-}
-
-// A Test build's version code rises every minute (tools/publish.sh), so the
-// updater can tell each build is newer than the last.
-androidComponents {
-    onVariants(selector().withBuildType("preview")) { variant ->
-        (project.findProperty("testCode") as String?)?.toIntOrNull()?.let { code ->
-            variant.outputs.forEach { it.versionCode.set(code) }
-        }
     }
 }
 
