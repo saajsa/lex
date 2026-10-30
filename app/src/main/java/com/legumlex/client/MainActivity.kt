@@ -65,6 +65,8 @@ class MainActivity : ComponentActivity() {
                 com.legumlex.client.ui.theme.ThemeChoice.SYSTEM -> system
             }) {
                 AppShell(latestIntent)
+                // The Test copy offers its own updates; the Play build has a no-op here.
+                com.legumlex.client.update.TestUpdateGate()
             }
         }
     }
