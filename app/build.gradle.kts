@@ -63,16 +63,6 @@ android {
     }
 
     signingConfigs {
-        // The Test copy's own key (local.properties TEST_STORE_*): never the
-        // Play key, so a Test build can never pass for the Play app.
-        localProps.getProperty("TEST_STORE_FILE")?.let { f ->
-            create("test") {
-                storeFile     = file(f)
-                storePassword = localProps.getProperty("TEST_STORE_PASSWORD")
-                keyAlias      = localProps.getProperty("TEST_KEY_ALIAS") ?: "test"
-                keyPassword   = localProps.getProperty("TEST_STORE_PASSWORD")
-            }
-        }
         if (keystoreProps != null) {
             create("release") {
                 storeFile     = file(keystoreProps.getProperty("storeFile"))
@@ -129,16 +119,6 @@ android {
             // unsigned artifact and fails loudly — never a silent debug-signed
             // release. See keystore.properties.sample to configure the upload key.
             signingConfig = signingConfigs.findByName("release")
-        }
-        // The Test copy (owner, 2026-10-30): the release build on production,
-        // installed over USB beside the Play app as "Legum Lex Test" (Play
-        // re-signs its builds, so a build from here cannot replace the Play app).
-        create("preview") {
-            initWith(getByName("release"))
-            applicationIdSuffix = ".test"
-            versionNameSuffix = "-test"
-            signingConfig = signingConfigs.findByName("test")
-            matchingFallbacks += listOf("release")
         }
     }
 
