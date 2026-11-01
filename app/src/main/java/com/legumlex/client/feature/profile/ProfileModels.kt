@@ -28,6 +28,8 @@ data class Mobile(
     val number: String?,
     val verified: Boolean,
     val updates: Boolean,     // case updates on WhatsApp/SMS
+    /** The firm marked this contact as the same person as another: that account's name; its number is used. */
+    val sharedWith: String? = null,
 )
 
 @Suppress("UNCHECKED_CAST")
@@ -59,4 +61,5 @@ internal fun parseMobile(m: Map<String, Any?>) = Mobile(
     number    = (m["number"] as? String)?.takeIf { it.isNotBlank() },
     verified  = m["verified"] == true,
     updates   = m["updates"] == true,
+    sharedWith = ((m["shared_with"] as? Map<*, *>)?.get("label") as? String)?.takeIf { it.isNotBlank() },
 )

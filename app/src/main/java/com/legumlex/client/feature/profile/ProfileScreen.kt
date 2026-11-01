@@ -98,6 +98,9 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
     ) {
         PageHeader(eyebrow = "Your Account", title = "Your Profile")
 
+        // A person with more than one client account moves between them here.
+        AccountsCard()
+
         Notice(
             title = "Held As On Record",
             body = "Your name and email address appear on filings and on service of notice, so they are held as we have them. To correct one, write to us and we will update the record for you. Your mobile number is changed by verifying a new one below.",
@@ -209,6 +212,26 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
             },
             containerColor = Lex.colors.card,
         )
+    }
+    // Linked to the person's other account: its number serves this one too, and is not verified here.
+    if (m.sharedWith != null) {
+        LexCard(title = "Mobile Number", trailing = { StatusBadge("Shared With Your Other Account", Lex.colors.info) }) {
+            m.number?.let {
+                KeyValueRow("Number", it)
+                HorizontalDivider(color = Lex.colors.border)
+            }
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "Your case updates for this account come to the mobile number of your account ${m.sharedWith}." +
+                        if (m.number != null) " A sign-in code to it opens that account." else " They start once that number is verified.",
+                    style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("To use a different number for this account, please ask the firm.",
+                    style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            }
+        }
+        return
     }
     LexCard(title = "Mobile Number", trailing = {
         if (m.verified) StatusBadge("Verified", Lex.colors.success) else StatusBadge("Not Verified", Lex.colors.neutral)

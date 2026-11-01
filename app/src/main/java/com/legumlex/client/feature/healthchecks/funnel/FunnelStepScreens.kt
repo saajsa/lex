@@ -397,7 +397,7 @@ fun StepPaymentScreen(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "The invoice opens in your browser and is paid through Razorpay. You can save and pay later; your agreement stays here.",
+                "The invoice opens here in the app, on its payment page. You can save and pay later; your agreement stays here.",
                 color = TertiaryText, style = MaterialTheme.typography.bodySmall,
             )
             if (state.invoiceOpen) {

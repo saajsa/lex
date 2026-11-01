@@ -26,6 +26,12 @@
         android:supportsRtl="false"
         android:theme="@style/Theme.LegumLex">
 
+        <!-- Paying a fee on its invoice page inside the app (feature/finance/PayActivity). -->
+        <activity
+            android:name=".feature.finance.PayActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

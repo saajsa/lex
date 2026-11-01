@@ -97,6 +97,25 @@ interface ApiService {
         @Field("on") on: String? = null,
     ): Map<String, Any?>
 
+    /** One person's client accounts: {accounts: [{id, client, label, kind, current}], proved}. */
+    @GET("accounts")
+    suspend fun accounts(): Map<String, Any?>
+
+    /** Move to another of the person's accounts: {token, contact, client}, or {code, to, ref} when a code is needed. */
+    @FormUrlEncoded
+    @POST("accounts/switch")
+    suspend fun accountSwitch(@Field("to") to: Int): Map<String, Any?>
+
+    /** The switch code: step = status|sms|verify. */
+    @FormUrlEncoded
+    @POST("accounts/switch/{step}")
+    suspend fun accountSwitchStep(
+        @Path("step") step: String,
+        @Field("ref") ref: String,
+        @Field("to") to: Int? = null,
+        @Field("code") code: String? = null,
+    ): Map<String, Any?>
+
     @GET("registry")
     suspend fun registry(): Map<String, Any?>
 

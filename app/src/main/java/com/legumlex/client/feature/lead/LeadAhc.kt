@@ -142,7 +142,7 @@ fun LeadAhcScreen(onClose: () -> Unit, onEnquiries: () -> Unit) {
         savingLabel = "Sending…",
         nextLabel = if (step == 2) "Send The Agreement" else "Next",
         saveLabel = when (o) {
-            is Outcome.Pay -> "Pay On The Website"
+            is Outcome.Pay -> "Pay The Fee"
             is Outcome.Unusable -> "Try Another File"
             else -> "Go To My Enquiries"
         },
@@ -153,7 +153,7 @@ fun LeadAhcScreen(onClose: () -> Unit, onEnquiries: () -> Unit) {
         onSave = {
             when (o) {
                 is Outcome.Pay -> {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(site + "cases/landing/lead_pay/" + o.hash)))
+                    com.legumlex.client.feature.finance.PayActivity.open(context, site + "cases/landing/lead_pay/" + o.hash)
                     onEnquiries()
                 }
                 is Outcome.Unusable -> { file = null; outcome = null; step = 2 }

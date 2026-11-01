@@ -924,7 +924,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                         _events.tryEmit(DeskEvent.OpenUrl(p.url))
                         if (!said.contains("invoice")) {
                             said += "invoice"
-                            say(Para.Text("The fee is an invoice from the firm, open in your browser. Pay it there, and your enquiry goes to the advocates as soon as the payment is confirmed."))
+                            say(Para.Text("The fee is an invoice from the firm, open here in the app. Pay it there, and your enquiry goes to the advocates as soon as the payment is confirmed."))
                         }
                         dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
                     }

@@ -118,8 +118,8 @@ fun DoIntakeScreen(
                     ev.consultationId?.let(onSubmitted) ?: onBack()
                 }
                 is DoIntakeEvent.OpenUrl -> runCatching {
-                    // The fee is an invoice, paid on its page on the website.
-                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(ev.url)))
+                    // The fee is an invoice, paid on its page, inside the app.
+                    com.legumlex.client.feature.finance.PayActivity.open(context, ev.url)
                 }
                 is DoIntakeEvent.OfferJoinQueue -> {
                     // Cabin is occupied — surface a snackbar with a Join action.
@@ -268,7 +268,7 @@ private fun WaitingContent(
             Text(
                 text       = if (paying)
                     "${state.advocate.name} has accepted. The fee of $fee is an invoice from the firm, " +
-                    "open in your browser. Pay it within three minutes and your consultation starts here."
+                    "open here in the app. Pay it within three minutes and your consultation starts."
                 else
                     "${state.advocate.name} is reviewing your brief" +
                     (state.approvalWindowMinutes?.let { " and has $it minute${if (it == 1) "" else "s"} to respond" } ?: "") +

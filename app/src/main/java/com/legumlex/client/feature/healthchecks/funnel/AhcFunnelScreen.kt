@@ -42,7 +42,7 @@ fun AhcFunnelScreen(
                 AhcFunnelViewModel.Event.NavigateToHome -> onExit()
                 is AhcFunnelViewModel.Event.Toast -> { /* handled by host snackbar if needed */ }
                 is AhcFunnelViewModel.Event.OpenUrl -> runCatching {
-                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(event.url)))
+                    com.legumlex.client.feature.finance.PayActivity.open(context, event.url)
                 }
             }
         }

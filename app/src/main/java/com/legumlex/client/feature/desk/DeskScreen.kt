@@ -186,7 +186,9 @@ fun DeskScreen(
                 DeskEvent.OpenMatters -> onOpenMatters()
                 is DeskEvent.OpenConsultation -> onOpenConsultation(e.id)
                 is DeskEvent.OpenUrl -> runCatching {
-                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(e.url)))
+                    // A fee's invoice is paid inside the app; any other link opens in the browser.
+                    if (e.url.contains("/invoice/") || e.url.contains("/lead_pay/")) com.legumlex.client.feature.finance.PayActivity.open(context, e.url)
+                    else context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(e.url)))
                 }
                 DeskEvent.OpenForm -> onOpenForm()
                 DeskEvent.Home -> onHome()

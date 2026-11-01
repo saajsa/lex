@@ -386,7 +386,7 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
                         verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Pay on the Website", fontFamily = Inter, fontWeight = FontWeight.Bold,
+                        Text("Pay Invoice", fontFamily = Inter, fontWeight = FontWeight.Bold,
                             fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
                     }
                     Box(Modifier.width(LlDimen.HairlineWidth).height(22.dp).background(LlColor.Paper.copy(alpha = 0.22f)))
@@ -400,7 +400,7 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
                 verticalAlignment = Alignment.CenterVertically, ) {
                 Icon(Icons.Outlined.Verified, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Opens the invoice in your browser · paid through Razorpay", fontFamily = Inter,
+                Text("Opens the invoice's payment page here in the app", fontFamily = Inter,
                     fontSize = 9.5.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint)
             }
             Spacer(Modifier.height(11.dp))
@@ -735,11 +735,8 @@ private fun DocFooter(detail: InvoiceDetail) {
 // --- open actions -----------------------------------------------------------
 
 private fun openPaymentPage(context: android.content.Context, inv: Invoice) {
-    val url = paymentUrlFor(inv)
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-    try { context.startActivity(intent) } catch (e: Exception) {
-        Toast.makeText(context, "No browser installed.", Toast.LENGTH_LONG).show()
-    }
+    // On the invoice's own page, inside the app (PayActivity).
+    PayActivity.open(context, paymentUrlFor(inv))
 }
 
 private fun sharePaymentLink(context: android.content.Context, inv: Invoice) {

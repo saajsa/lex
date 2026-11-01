@@ -106,6 +106,21 @@ class AuthRepository(
         clearDocumentCache()
     }
 
+    /**
+     * Moved to another of the person's client accounts (v1/Accounts): the new
+     * token replaces this one, the documents of the account left behind go,
+     * and the phone stays registered for every account the person has used
+     * here, so updates for all of them still arrive.
+     */
+    suspend fun switchedTo(jwt: String, clientId: Int, contactId: Int) {
+        com.legumlex.client.feature.profile.ProfileHub.clear()
+        com.legumlex.client.feature.notifications.NotificationHub.clear()
+        com.legumlex.client.feature.home.ActionHub.clear()
+        clearDocumentCache()
+        tokens.save(jwt, clientId.toString(), contactId.toString(), role = "client")
+        PushSetup.registerContact(contactId)
+    }
+
     // Legal documents opened in the app are cached as plain files; the next
     // person to sign in on this device must not find them.
     private suspend fun clearDocumentCache() {
