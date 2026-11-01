@@ -127,7 +127,7 @@ private fun SessionStateCard(s: DoSession, spacing: Spacing) {
             icon  = Icons.Outlined.Payments,
             tint  = StatusOngoing.solid,
             title = "Accepted · Fee Due",
-            sub   = "Your advocate has accepted. Pay the fee's invoice on the firm's website; the call opens once it is paid.",
+            sub   = "Your advocate has accepted. Pay the fee's invoice; the call opens once it is paid.",
         )
         DoSessionStatus.AWAITING_APPROVAL -> StateInfo(
             icon  = Icons.Outlined.Schedule,

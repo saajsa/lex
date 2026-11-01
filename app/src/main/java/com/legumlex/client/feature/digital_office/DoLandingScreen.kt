@@ -412,7 +412,7 @@ private fun BenefitsBlock() {
                 BenefitRow(
                     icon  = Icons.Outlined.Savings,
                     title = "Nothing Charged Until They Agree",
-                    sub   = "The fee is invoiced only once the advocate has agreed, and paid on the firm's website",
+                    sub   = "The fee is invoiced only once the advocate has agreed",
                 )
                 BenefitRow(
                     icon  = Icons.Outlined.Summarize,

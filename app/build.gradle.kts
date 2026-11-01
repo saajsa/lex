@@ -137,6 +137,15 @@ android {
     }
 }
 
+// Razorpay's checkout POM requests `com.razorpay:standard-core:latest.integration`;
+// a dynamic version makes Gradle list versions on Maven Central, which can
+// answer 403. A pinned version resolves with a plain GET.
+configurations.all {
+    resolutionStrategy {
+        force("com.razorpay:standard-core:1.7.14")
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
@@ -182,6 +191,10 @@ dependencies {
     // ML Kit document scanner (PDF + JPEG output) — used by the doc-request
     // fulfilment flow to let clients scan documents directly from camera.
     implementation(libs.mlkit.document.scanner)
+
+    // Razorpay Checkout: an invoice paid in the app (feature/finance/Checkout.kt).
+    // The host Activity implements PaymentResultWithDataListener.
+    implementation("com.razorpay:checkout:1.6.40")
 
     // Firebase Messaging + Pusher Beams. Beams uses FCM under the hood; we
     // subscribe to `contact-{id}` interests after login and the server fires

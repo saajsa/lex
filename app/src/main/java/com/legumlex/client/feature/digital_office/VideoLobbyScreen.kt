@@ -302,7 +302,7 @@ private fun LobbyBody(
                         Spacer(Modifier.height(26.dp))
                         Reassure(
                             if (ui.session?.status == DoSessionStatus.APPROVED_AWAITING_PAYMENT)
-                                "$advName has accepted. Pay the fee's invoice on the firm's website; the call opens here once it is paid."
+                                "$advName has accepted. Pay the fee's invoice; the call opens here once it is paid."
                             else
                                 "$advName is reading your matter before accepting the call" +
                                 (ui.session?.approvalWindowMinutes?.let { " (they have $it minutes to respond)" } ?: "") +
@@ -347,8 +347,8 @@ private fun LobbyBody(
                 frame is LobbyFrame.BeingApproved -> {
                     ui.session?.invoicePayUrl?.takeIf { ui.session?.status == DoSessionStatus.APPROVED_AWAITING_PAYMENT }?.let { url ->
                         val ctx = LocalContext.current
-                        SolidButton("Open The Invoice", Icons.Outlined.OpenInNew, busy = false) {
-                            runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        SolidButton("Pay The Fee", Icons.Outlined.Payments, busy = false) {
+                            com.legumlex.client.feature.finance.PayActivity.open(ctx, url)
                         }
                         Spacer(Modifier.height(14.dp))
                     }

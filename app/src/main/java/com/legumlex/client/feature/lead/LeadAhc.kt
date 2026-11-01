@@ -190,7 +190,7 @@ fun LeadAhcScreen(onClose: () -> Unit, onEnquiries: () -> Unit) {
             }
             else -> when (o) {
                 is Outcome.Pay -> WizardHeading("Pay The Fee",
-                    "Your agreement is with us. It is read once the fee is paid, on the firm's website: the first time, it asks the name and State to put on the invoice.")
+                    "Your agreement is with us. It is read once the fee is paid. The first time, you are asked the name and State to put on the invoice.")
                 is Outcome.Unusable -> WizardHeading("This Document Could Not Be Read", o.message)
                 else -> WizardHeading("Your Agreement Is Being Read",
                     "An advocate reviews the reading before it comes to you. It will be in My Enquiries, and we will write to you when it is ready.")

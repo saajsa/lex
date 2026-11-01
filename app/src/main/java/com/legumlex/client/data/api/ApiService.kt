@@ -487,6 +487,33 @@ interface ApiService {
     @GET("invoices")
     suspend fun invoices(@Query("id") id: String? = null): Map<String, Any?>
 
+    /** What paying this invoice offers: {due, due_formatted, can_change_amount, minimum, gateways:[{id,label}], refusal}. */
+    @GET("invoices/{id}/pay")
+    suspend fun invoicePayOptions(@Path("id") id: Int): Map<String, Any?>
+
+    /**
+     * Start a payment of [amount] (rupees) through [gateway]: Razorpay's order
+     * {gateway: razorpay, order_id, key_id, amount_paise, …}, PayU's signed
+     * form {gateway: payu, action, fields, txnid}, or {choose, labels}.
+     */
+    @FormUrlEncoded
+    @POST("invoices/{id}/pay")
+    suspend fun invoicePay(@Path("id") id: Int, @Field("amount") amount: String, @Field("gateway") gateway: String?): Map<String, Any?>
+
+    /** A Razorpay payment the sheet returned, verified and recorded by the server. */
+    @FormUrlEncoded
+    @POST("invoices/{id}/pay/verify")
+    suspend fun invoicePayVerify(
+        @Path("id") id: Int,
+        @Field("razorpay_order_id") orderId: String,
+        @Field("razorpay_payment_id") paymentId: String,
+        @Field("razorpay_signature") signature: String,
+    ): Map<String, Any?>
+
+    /** A PayU checkout after its page closed: {state: open|pending|captured|failed|flagged, message, due}. */
+    @GET("invoices/{id}/pay/status")
+    suspend fun invoicePayStatus(@Path("id") id: Int, @Query("txnid") txnid: String): Map<String, Any?>
+
     // --- Documents ---
 
     @GET("documents")

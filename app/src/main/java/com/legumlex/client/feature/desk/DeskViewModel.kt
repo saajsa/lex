@@ -924,9 +924,9 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                         _events.tryEmit(DeskEvent.OpenUrl(p.url))
                         if (!said.contains("invoice")) {
                             said += "invoice"
-                            say(Para.Text("The fee is an invoice from the firm, open here in the app. Pay it there, and your enquiry goes to the advocates as soon as the payment is confirmed."))
+                            say(Para.Text("The fee is an invoice from the firm. Once it is paid, your enquiry goes to the advocates."))
                         }
-                        dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
+                        dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Pay The Fee"), Action("discard", "Set It Aside"))))
                     }
                 }
             }
@@ -942,7 +942,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         repo.pay(hash).onFailure { e ->
             if (asked) {
                 say(Para.Text(e.message ?: "The payment could not be checked. Please try again."), note = true, warn = true)
-                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
+                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Pay The Fee"), Action("discard", "Set It Aside"))))
             }
         }.onSuccess { p ->
             if (p is PayStart.Sent) {
@@ -951,7 +951,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                 delivered(savedEmail)
             } else if (asked) {
                 say(Para.Text("The payment has not yet been confirmed. If you have just paid, please wait a minute and try again."), note = true)
-                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Open The Invoice Again"), Action("discard", "Set It Aside"))))
+                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Pay The Fee"), Action("discard", "Set It Aside"))))
             }
         }
     }

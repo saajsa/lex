@@ -22,6 +22,9 @@
 }
 -keepattributes JavascriptInterface
 -keepattributes *Annotation*
+# Razorpay Checkout: R8 must keep the SDK's WebView bridge classes.
+-dontwarn com.razorpay.**
+-keep class com.razorpay.** { *; }
 -optimizations !method/inlining/*
 -keepclasseswithmembers class * {
     public void onPayment*(...);

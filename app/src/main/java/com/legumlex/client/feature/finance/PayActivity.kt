@@ -1,7 +1,6 @@
 package com.legumlex.client.feature.finance
 
 import android.annotation.SuppressLint
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -11,7 +10,6 @@ import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
@@ -42,16 +40,15 @@ import com.legumlex.client.ahc.theme.LlColor
 import com.legumlex.client.ui.theme.LegumLexTheme
 
 /**
- * Paying a fee inside the app (owner, 1 Nov 2026): the invoice's own public
- * page on the website, shown in the app instead of the browser. The page
- * offers what the issuing business accepts (Razorpay, and PayU for Legum
- * Lex), so the app builds no checkout, holds no key and records nothing:
- * the server records the payment from the gateway's return or webhook.
+ * A page of the firm's site shown inside the app: an invoice to read in
+ * full, or a lead's fee page (cases/landing/lead_pay), which first asks
+ * what to put on the invoice. An invoice to pay goes to the app's own
+ * checkout instead ([open] hands invoice links to [CheckoutActivity]).
  *
- * It closes itself once the payment comes back to the page it started on
- * (or to PayU's done page), and the screen beneath re-reads its state on
- * resume, as it did when the browser was used. UPI and other app links the
- * gateways open (upi://, intent://) are handed to the phone's apps.
+ * It closes itself once a payment comes back to the page it started on (or
+ * to PayU's done page), and the screen beneath re-reads its state on
+ * resume. UPI and other app links the gateways open (upi://, intent://)
+ * are handed to the phone's apps.
  */
 class PayActivity : ComponentActivity() {
 
@@ -103,7 +100,7 @@ class PayActivity : ComponentActivity() {
                                         val url = req.url
                                         val scheme = url.scheme.orEmpty()
                                         if (scheme != "http" && scheme != "https") {
-                                            openOutside(url.toString())
+                                            openGatewayLink(this@PayActivity, url.toString()) { w.loadUrl(it) }
                                             return true
                                         }
                                         return false
@@ -132,23 +129,6 @@ class PayActivity : ComponentActivity() {
         }
     }
 
-    /** UPI, intent:// and other app links: the phone's apps, with the gateway's fallback page if none answers. */
-    private fun openOutside(link: String) {
-        try {
-            val i = if (link.startsWith("intent:")) Intent.parseUri(link, Intent.URI_INTENT_SCHEME) else Intent(Intent.ACTION_VIEW, Uri.parse(link))
-            i.addCategory(Intent.CATEGORY_BROWSABLE)
-            i.component = null
-            i.selector = null
-            startActivity(i)
-        } catch (e: ActivityNotFoundException) {
-            val fallback = runCatching { Intent.parseUri(link, Intent.URI_INTENT_SCHEME).getStringExtra("browser_fallback_url") }.getOrNull()
-            if (fallback != null) web?.loadUrl(fallback)
-            else Toast.makeText(this, "No app on this phone can open that payment option.", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "That payment option could not be opened.", Toast.LENGTH_LONG).show()
-        }
-    }
-
     override fun onDestroy() {
         web?.destroy()
         web = null
@@ -158,8 +138,14 @@ class PayActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_URL = "url"
 
-        /** Pay on the invoice's page inside the app. */
+        /** Pay: an invoice in the app's checkout; any other fee page (a lead's) here. */
         fun open(context: Context, url: String) {
+            val invoice = CheckoutActivity.invoiceIn(url)
+            if (invoice != null) CheckoutActivity.open(context, invoice) else view(context, url)
+        }
+
+        /** Show the page itself (an invoice to read, a lead's fee page). */
+        fun view(context: Context, url: String) {
             context.startActivity(Intent(context, PayActivity::class.java).putExtra(EXTRA_URL, url))
         }
     }

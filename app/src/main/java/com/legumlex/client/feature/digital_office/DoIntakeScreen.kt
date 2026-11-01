@@ -267,8 +267,8 @@ private fun WaitingContent(
             Spacer(Modifier.height(9.dp))
             Text(
                 text       = if (paying)
-                    "${state.advocate.name} has accepted. The fee of $fee is an invoice from the firm, " +
-                    "open here in the app. Pay it within three minutes and your consultation starts."
+                    "${state.advocate.name} has accepted. The fee of $fee is an invoice from the firm. " +
+                    "Pay it within three minutes and your consultation starts."
                 else
                     "${state.advocate.name} is reviewing your brief" +
                     (state.approvalWindowMinutes?.let { " and has $it minute${if (it == 1) "" else "s"} to respond" } ?: "") +
@@ -321,7 +321,7 @@ private fun WaitingContent(
                     colors   = ButtonDefaults.buttonColors(containerColor = LexInk, contentColor = LexPaper),
                 ) {
                     Text(
-                        text       = if (state.payUrl == null) "Opening the Invoice…" else "Open the Invoice · $fee",
+                        text       = if (state.payUrl == null) "Preparing The Fee…" else "Pay The Fee · $fee",
                         fontFamily = Inter,
                         fontWeight = FontWeight.SemiBold,
                         fontSize   = 13.sp,
@@ -728,7 +728,7 @@ private fun ReadyContent(
                         title = "Review Your Request",
                         note  = buildString {
                             append("Your request goes to $advocateName for approval. ")
-                            if (fee != null) append("Once they accept, the session fee of $fee is raised as an invoice that you pay on the firm's website; the call begins after payment. ")
+                            if (fee != null) append("Once they accept, the session fee of $fee is raised as an invoice for you to pay; the call begins after payment. ")
                             else append("Once they accept, the call begins. ")
                             append("Nothing is charged if they decline.")
                         },

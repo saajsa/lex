@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -372,8 +373,7 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
 
     Column(Modifier.padding(horizontal = 18.dp).padding(top = 18.dp)) {
         if (payable) {
-            // Paid on the invoice's own page on the website, where every bill
-            // of the firm is paid (the app takes no payments itself).
+            // Paid in the app's checkout (CheckoutActivity): all or part of the balance.
             Surface(
                 onClick = { openPaymentPage(context, inv) },
                 color = LlColor.Claret,
@@ -384,7 +384,7 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f).padding(start = 16.dp, top = 15.dp, bottom = 15.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Payments, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Pay Invoice", fontFamily = Inter, fontWeight = FontWeight.Bold,
                             fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
@@ -394,14 +394,6 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
                         fontSize = 14.sp, color = LlColor.Paper,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp))
                 }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically, ) {
-                Icon(Icons.Outlined.Verified, null, tint = LlColor.InkFaint, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Opens the invoice's payment page here in the app", fontFamily = Inter,
-                    fontSize = 9.5.sp, letterSpacing = 0.04.em, color = LlColor.InkFaint)
             }
             Spacer(Modifier.height(11.dp))
             GhostRow(context, inv, settled = false)
@@ -417,7 +409,7 @@ private fun GhostRow(context: android.content.Context, inv: Invoice, settled: Bo
     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         if (settled) {
             // One page on the website holds the invoice and its payments.
-            GhostAction(Icons.AutoMirrored.Outlined.OpenInNew, "View On The Website", { openPaymentPage(context, inv) }, Modifier.weight(1f))
+            GhostAction(Icons.AutoMirrored.Outlined.OpenInNew, "View Full Invoice", { PayActivity.view(context, paymentUrlFor(inv)) }, Modifier.weight(1f))
         } else {
             // Unpaid: Pay above already opens the page; the link can be passed on.
             GhostAction(Icons.Outlined.Share, "Share Link", { sharePaymentLink(context, inv) }, Modifier.weight(1f))
@@ -735,8 +727,7 @@ private fun DocFooter(detail: InvoiceDetail) {
 // --- open actions -----------------------------------------------------------
 
 private fun openPaymentPage(context: android.content.Context, inv: Invoice) {
-    // On the invoice's own page, inside the app (PayActivity).
-    PayActivity.open(context, paymentUrlFor(inv))
+    inv.id.toIntOrNull()?.let { CheckoutActivity.open(context, it) } ?: PayActivity.open(context, paymentUrlFor(inv))
 }
 
 private fun sharePaymentLink(context: android.content.Context, inv: Invoice) {

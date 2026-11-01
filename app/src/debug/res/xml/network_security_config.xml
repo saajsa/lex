@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only (replaces main's): the local dev hosts, and PayU's test
+     sandbox, which sends its result back over plain http
+     (testtxncdn.payubiz.in). Release keeps main's: HTTPS everywhere else. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">lex.localhost</domain>
+        <domain includeSubdomains="true">payubiz.in</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

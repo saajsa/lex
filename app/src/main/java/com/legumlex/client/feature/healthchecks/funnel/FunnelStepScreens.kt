@@ -367,14 +367,14 @@ fun StepPaymentScreen(
         onSaveAndExit = onSaveAndExit,
         ready = true,
         saving = state.paying,
-        nextLabel = if (state.invoiceOpen) "Open The Invoice Again" else "Pay $amount",
-        savingLabel = "Opening The Invoice…",
+        nextLabel = "Pay $amount",
+        savingLabel = "Preparing The Fee…",
         onNext = { vm.startPayment() },
         showActions = price > 0,
     ) {
         WizardHeading(
             if (price > 0) "The Agreement Check Fee" else "Sending To Your Advocate",
-            if (price > 0) "Paid on the website, as an invoice from the firm." else "",
+            if (price > 0) "An invoice from the firm." else "",
         )
         if (price > 0) {
             Surface(
@@ -390,14 +390,14 @@ fun StepPaymentScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "The fee covers an advocate's review of your agreement and the written report. It is an invoice from the firm, paid on the website; your document goes to the advocate once the payment is confirmed.",
+                        "The fee covers an advocate's review of your agreement and the written report. It is an invoice from the firm; your document goes to the advocate once the payment is confirmed.",
                         color = SecondaryText, style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "The invoice opens here in the app, on its payment page. You can save and pay later; your agreement stays here.",
+                "You can save and pay later; your agreement stays here.",
                 color = TertiaryText, style = MaterialTheme.typography.bodySmall,
             )
             if (state.invoiceOpen) {
