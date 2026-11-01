@@ -133,8 +133,18 @@ fun InvoiceDetailScreen(invoiceId: String, onBack: () -> Unit) {
         },
     )
     val state by vm.state.collectAsState()
+    val pay by vm.pay.collectAsState()
     val snack = remember { SnackbarHostState() }
-    // Paid on the website: read again on coming back to the app.
+    // A payment made in the app (CheckoutActivity) comes back confirmed: say what came of it.
+    LaunchedEffect(invoiceId) {
+        PaymentEvents.events.collect { o ->
+            if (o.invoiceId.toString() == invoiceId) {
+                vm.paid()
+                snack.showSnackbar(PaymentEvents.text(o), withDismissAction = true, duration = SnackbarDuration.Long)
+            }
+        }
+    }
+    // Read again on coming back to the app.
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -153,7 +163,7 @@ fun InvoiceDetailScreen(invoiceId: String, onBack: () -> Unit) {
             when (val s = state) {
                 is InvoiceDetailUiState.Loading -> Skeleton()
                 is InvoiceDetailUiState.Error   -> ErrorView(s.message, vm::load)
-                is InvoiceDetailUiState.Ready   -> Sheet(state = s)
+                is InvoiceDetailUiState.Ready   -> Sheet(state = s, pay = pay)
             }
         }
     }
@@ -166,6 +176,7 @@ fun InvoiceDetailScreen(invoiceId: String, onBack: () -> Unit) {
 @Composable
 private fun Sheet(
     state: InvoiceDetailUiState.Ready,
+    pay: PayOptions?,
 ) {
     val detail = state.detail
     val inv = detail.invoice
@@ -187,7 +198,7 @@ private fun Sheet(
                 StatusPill(inv)
                 if (!inv.projectName.isNullOrBlank()) MatterBlock(inv)
                 BalanceHero(detail)
-                ActionStack(state)
+                ActionStack(state, pay)
                 AmountSummary(detail)
                 PaymentsSection(detail)
                 ExpandableBreakdown(detail)
@@ -364,7 +375,7 @@ private fun HeroSub(label: String, value: String, valueColor: Color, modifier: M
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ActionStack(state: InvoiceDetailUiState.Ready) {
+private fun ActionStack(state: InvoiceDetailUiState.Ready, pay: PayOptions?) {
     val context = LocalContext.current
     val inv = state.detail.invoice
     val sym = inv.currencySymbol
@@ -373,28 +384,10 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
 
     Column(Modifier.padding(horizontal = 18.dp).padding(top = 18.dp)) {
         if (payable) {
-            // Paid in the app's checkout (CheckoutActivity): all or part of the balance.
-            Surface(
-                onClick = { openPaymentPage(context, inv) },
-                color = LlColor.Claret,
-                contentColor = LlColor.Paper,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f).padding(start = 16.dp, top = 15.dp, bottom = 15.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Payments, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Pay Invoice", fontFamily = Inter, fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
-                    }
-                    Box(Modifier.width(LlDimen.HairlineWidth).height(22.dp).background(LlColor.Paper.copy(alpha = 0.22f)))
-                    Text(formatMoney(inv.leftToPay, sym), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp, color = LlColor.Paper,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp))
-                }
-            }
+            // The amount (all or part, when the firm allows) and the gateway are
+            // chosen here; CheckoutActivity carries the payment and returns once
+            // it is confirmed.
+            PayInline(inv, pay)
             Spacer(Modifier.height(11.dp))
             GhostRow(context, inv, settled = false)
         } else {
@@ -402,6 +395,109 @@ private fun ActionStack(state: InvoiceDetailUiState.Ready) {
             GhostRow(context, inv, settled = inv.status == InvoiceStatus.PAID)
         }
     }
+}
+
+@Composable
+private fun PayInline(inv: Invoice, pay: PayOptions?) {
+    val context = LocalContext.current
+    val sym = inv.currencySymbol
+    var amount by rememberSaveable(inv.leftToPay) { mutableStateOf(plainAmount(inv.leftToPay)) }
+    var gateway by rememberSaveable(pay?.gateways) { mutableStateOf(pay?.gateways?.firstOrNull()?.id.orEmpty()) }
+    val due = pay?.due ?: inv.leftToPay
+    val value = amount.toDoubleOrNull()
+    val problem = when {
+        pay == null || pay.refusal != null -> ""
+        value == null -> "Enter the amount to pay."
+        value < pay.minimum -> "The minimum payable amount is ${formatMoney(pay.minimum, sym)}."
+        value > due + 0.001 -> "That is more than the balance due of ${formatMoney(due, sym)}."
+        else -> ""
+    }
+    val ready = pay != null && pay.refusal == null && pay.gateways.isNotEmpty() && problem.isEmpty()
+
+    if (pay?.refusal != null) {
+        Text(pay.refusal, fontFamily = Inter, fontSize = 12.sp, lineHeight = 17.sp, color = LlColor.InkMuted)
+        Spacer(Modifier.height(10.dp))
+    } else if (pay != null) {
+        Text("AMOUNT TO PAY", fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 9.5.sp,
+            letterSpacing = 0.1.em, color = LlColor.InkFaint)
+        Spacer(Modifier.height(7.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                .background(if (pay.canChange) LlColor.Surface else LlColor.Paper)
+                .border(LlDimen.HairlineWidth, if (problem.isNotEmpty()) LlColor.Claret else LlColor.BorderStrong, RoundedCornerShape(10.dp))
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(sym, fontFamily = Inter, fontSize = 16.sp, color = LlColor.InkMuted)
+            Spacer(Modifier.width(6.dp))
+            androidx.compose.foundation.text.BasicTextField(
+                value = amount,
+                onValueChange = { v -> amount = cleanAmount(v) },
+                enabled = pay.canChange,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                textStyle = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = LlColor.Ink),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(LlColor.Ink),
+                modifier = Modifier.weight(1f),
+            )
+            if (pay.canChange && value != null && value < due - 0.001) {
+                Text("Pay All", fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = LlColor.Ink,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { amount = plainAmount(due) }.padding(horizontal = 8.dp, vertical = 4.dp))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(problem.ifEmpty { if (pay.canChange) "You may pay the whole balance or part of it." else "The balance due on this invoice." },
+            fontFamily = Inter, fontSize = 11.5.sp, color = if (problem.isNotEmpty()) LlColor.Claret else LlColor.InkFaint)
+        if (pay.gateways.size > 1) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pay.gateways.forEach { g ->
+                    val on = gateway == g.id
+                    Box(
+                        Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                            .background(if (on) LlColor.Ink else LlColor.Surface)
+                            .border(LlDimen.HairlineWidth, if (on) LlColor.Ink else LlColor.BorderStrong, RoundedCornerShape(10.dp))
+                            .clickable { gateway = g.id }.padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(g.label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                            color = if (on) LlColor.Paper else LlColor.Ink)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+
+    Surface(
+        onClick = { inv.id.toIntOrNull()?.let { CheckoutActivity.open(context, it, amount, gateway.ifBlank { null }) } },
+        enabled = ready,
+        color = if (ready) LlColor.Claret else LlColor.Claret.copy(alpha = 0.45f),
+        contentColor = LlColor.Paper,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).padding(start = 16.dp, top = 15.dp, bottom = 15.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Payments, null, tint = LlColor.Paper, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Pay Invoice", fontFamily = Inter, fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp, letterSpacing = 0.03.em, color = LlColor.Paper)
+            }
+            Box(Modifier.width(LlDimen.HairlineWidth).height(22.dp).background(LlColor.Paper.copy(alpha = 0.22f)))
+            Text(formatMoney(value ?: 0.0, sym), fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp, color = LlColor.Paper,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 15.dp))
+        }
+    }
+}
+
+/** Digits and one point, at most two decimals. */
+private fun cleanAmount(v: String): String {
+    val s = v.filter { it.isDigit() || it == '.' }
+    val dot = s.indexOf('.')
+    return (if (dot < 0) s else s.substring(0, dot + 1) + s.substring(dot + 1).replace(".", "").take(2)).take(12)
 }
 
 @Composable
@@ -725,10 +821,6 @@ private fun DocFooter(detail: InvoiceDetail) {
 }
 
 // --- open actions -----------------------------------------------------------
-
-private fun openPaymentPage(context: android.content.Context, inv: Invoice) {
-    inv.id.toIntOrNull()?.let { CheckoutActivity.open(context, it) } ?: PayActivity.open(context, paymentUrlFor(inv))
-}
 
 private fun sharePaymentLink(context: android.content.Context, inv: Invoice) {
     val url = paymentUrlFor(inv)

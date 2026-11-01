@@ -20,6 +20,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,39 +52,40 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.ui.components.WizardChoice
-import com.legumlex.client.ui.components.WizardFrame
-import com.legumlex.client.ui.components.WizardHeading
-import com.legumlex.client.ui.components.WizardRows
-import com.legumlex.client.ui.components.WizardTextField
 import com.legumlex.client.ui.theme.BodyBg
 import com.legumlex.client.ui.theme.LegumLexTheme
 import com.legumlex.client.ui.theme.PrimaryText
+import com.legumlex.client.ui.theme.SecondaryText
 import com.razorpay.Checkout
 import com.razorpay.PaymentData
 import com.razorpay.PaymentResultWithDataListener
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import retrofit2.HttpException
 import java.util.Locale
 
 /*
- * An invoice paid in the app (owner, 1 Nov 2026): the gateway itself opens
- * here, as on the invoice's page: the amount (part of the balance when the
- * firm allows it, as Perfex's "allow the amount to be modified"), the
- * gateway when the issuing business takes two, then Razorpay's own sheet or
- * PayU's checkout in place. The server makes the order and records the
- * payment (customers_api invoices/{id}/pay, /verify, /status); the app holds
- * no secret and signs nothing.
+ * An invoice paid in the app (owner, 1 Nov 2026). The amount, and the
+ * gateway where the issuing business takes two, are chosen on the invoice
+ * itself; this Activity only carries the payment: it asks the server for the
+ * order (customers_api invoices/{id}/pay), opens Razorpay's own sheet or
+ * PayU's checkout, and stays up, confirming, until the server has recorded
+ * the payment (/verify, /status). Only then does the client go back, with
+ * the outcome (PaymentEvents). The app holds no secret and signs nothing.
  */
 
 data class PayGateway(val id: String, val label: String)
 
+/** What paying an invoice offers (GET invoices/{id}/pay). */
 data class PayOptions(
-    val number: String,
     val due: Double,
     val dueText: String,
     val canChange: Boolean,
@@ -91,25 +94,52 @@ data class PayOptions(
     val refusal: String?,
 )
 
+@Suppress("UNCHECKED_CAST")
+fun payOptionsFrom(r: Map<String, Any?>): PayOptions {
+    val d = r["data"] as? Map<String, Any?> ?: emptyMap()
+    return PayOptions(
+        due = (d["due"] as? Number)?.toDouble() ?: 0.0,
+        dueText = d["due_formatted"] as? String ?: "",
+        canChange = d["can_change_amount"] == true,
+        minimum = (d["minimum"] as? Number)?.toDouble() ?: 1.0,
+        gateways = (d["gateways"] as? List<*>).orEmpty().mapNotNull { it as? Map<*, *> }
+            .map { PayGateway(it["id"] as? String ?: "", it["label"] as? String ?: "") }.filter { it.id.isNotBlank() },
+        refusal = (d["refusal"] as? String)?.takeIf { it.isNotBlank() },
+    )
+}
+
+sealed interface PayOutcome {
+    val invoiceId: Int
+    data class Paid(override val invoiceId: Int, val amount: String, val note: String = "") : PayOutcome
+    data class NotPaid(override val invoiceId: Int, val message: String) : PayOutcome
+    data class Confirming(override val invoiceId: Int, val message: String) : PayOutcome
+}
+
+/** What a checkout came to, for the screen it returns to (the invoice shows it). */
+object PaymentEvents {
+    private val _events = MutableSharedFlow<PayOutcome>(extraBufferCapacity = 4)
+    val events: SharedFlow<PayOutcome> = _events.asSharedFlow()
+
+    /** True when a screen took it; else the caller says it another way. */
+    fun emit(o: PayOutcome): Boolean = _events.subscriptionCount.value > 0 && _events.tryEmit(o)
+
+    /** The invoice a screen has just read again after a payment: the checkout closes only then. */
+    val refreshed = MutableStateFlow(0)
+
+    fun text(o: PayOutcome): String = when (o) {
+        is PayOutcome.Paid -> o.note.ifBlank { "Payment of ${o.amount} received. Thank you." }
+        is PayOutcome.NotPaid -> o.message
+        is PayOutcome.Confirming -> o.message
+    }
+}
+
 /** PayU's signed form, posted by the WebView as a browser would. */
 data class PayuForm(val action: String, val fields: Map<String, String>, val txnid: String)
 
-sealed interface PayOutcome {
-    data class Paid(val amount: String, val note: String = "") : PayOutcome
-    data class NotPaid(val message: String) : PayOutcome
-    data class Confirming(val message: String) : PayOutcome
-}
-
 data class CheckoutState(
-    val loading: Boolean = true,
-    val options: PayOptions? = null,
-    val step: Int = 0,
-    val amount: String = "",
-    val gateway: String = "",
-    val busy: Boolean = false,
-    /** Paid at the gateway; the server is confirming and recording it. */
-    val confirming: Boolean = false,
-    val error: String? = null,
+    /** What the screen says while it works ("Opening Razorpay…", "Confirming Your Payment…"). */
+    val working: String = "Opening Payment…",
+    val choose: List<PayGateway> = emptyList(),
     val payu: PayuForm? = null,
     val outcome: PayOutcome? = null,
 )
@@ -118,120 +148,88 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
     private val api = ApiClient.get(app)
     private val _state = MutableStateFlow(CheckoutState())
     val state: StateFlow<CheckoutState> = _state.asStateFlow()
-    var invoiceId = 0
-        private set
+    private var invoiceId = 0
+    private var amount: String? = null
+    private var started = false
+    private var paying = 0.0
 
     /** Razorpay's order, kept for the verify call when the sheet answers. */
     var razorpay: JSONObject? = null
         private set
-    private var paying = 0.0
 
-    fun load(id: Int) {
-        if (invoiceId == id) return
+    fun begin(id: Int, amount: String?, gateway: String?, onRazorpay: (JSONObject) -> Unit) {
+        if (started) return
+        started = true
         invoiceId = id
+        this.amount = amount
+        pay(gateway, onRazorpay)
+    }
+
+    /** The business takes both and none was chosen yet: the client picks. */
+    fun choose(gateway: String, onRazorpay: (JSONObject) -> Unit) {
+        _state.value = _state.value.copy(choose = emptyList())
+        pay(gateway, onRazorpay)
+    }
+
+    private fun pay(gateway: String?, onRazorpay: (JSONObject) -> Unit) {
+        _state.value = _state.value.copy(working = "Opening Payment…")
         viewModelScope.launch {
-            runCatching {
-                @Suppress("UNCHECKED_CAST")
-                val d = api.invoicePayOptions(id)["data"] as? Map<String, Any?> ?: emptyMap()
-                PayOptions(
-                    number = d["number"] as? String ?: "",
-                    due = (d["due"] as? Number)?.toDouble() ?: 0.0,
-                    dueText = d["due_formatted"] as? String ?: "",
-                    canChange = d["can_change_amount"] == true,
-                    minimum = (d["minimum"] as? Number)?.toDouble() ?: 1.0,
-                    gateways = (d["gateways"] as? List<*>).orEmpty().mapNotNull { it as? Map<*, *> }
-                        .map { PayGateway(it["id"] as? String ?: "", it["label"] as? String ?: "") }.filter { it.id.isNotBlank() },
-                    refusal = (d["refusal"] as? String)?.takeIf { it.isNotBlank() },
-                )
-            }.onSuccess { o ->
-                _state.value = _state.value.copy(loading = false, options = o, amount = plain(o.due),
-                    gateway = o.gateways.singleOrNull()?.id ?: "")
-            }.onFailure { _state.value = _state.value.copy(loading = false, error = message(it)) }
-        }
-    }
-
-    fun amount(v: String) {
-        val clean = v.filter { it.isDigit() || it == '.' }.let { s ->
-            val dot = s.indexOf('.')
-            if (dot < 0) s else s.substring(0, dot + 1) + s.substring(dot + 1).replace(".", "").take(2)
-        }
-        _state.value = _state.value.copy(amount = clean.take(12), error = null)
-    }
-
-    fun gateway(id: String) { _state.value = _state.value.copy(gateway = id, error = null) }
-    fun step(i: Int) { _state.value = _state.value.copy(step = i, error = null) }
-
-    /** Why the amount entered can't be paid, or "". */
-    fun amountProblem(s: CheckoutState = _state.value): String {
-        val o = s.options ?: return ""
-        val a = s.amount.toDoubleOrNull() ?: return "Enter the amount to pay."
-        return when {
-            a < o.minimum -> "The minimum payable amount is ${money(o.minimum)}."
-            a > o.due + 0.001 -> "That is more than the balance due of ${o.dueText}."
-            else -> ""
-        }
-    }
-
-    /** Ask the server for the order (Razorpay) or the signed form (PayU). */
-    fun start(onRazorpay: (JSONObject) -> Unit) {
-        val s = _state.value
-        if (s.busy || amountProblem(s).isNotEmpty()) return
-        _state.value = s.copy(busy = true, error = null)
-        viewModelScope.launch {
-            runCatching { api.invoicePay(invoiceId, s.amount, s.gateway.ifBlank { null }) }
+            runCatching { api.invoicePay(invoiceId, amount.orEmpty(), gateway) }
                 .onSuccess { r ->
                     @Suppress("UNCHECKED_CAST")
                     val d = r["data"] as? Map<String, Any?> ?: emptyMap()
-                    paying = (d["amount"] as? Number)?.toDouble() ?: s.amount.toDoubleOrNull() ?: 0.0
-                    when (d["gateway"]) {
-                        "payu" -> {
+                    paying = (d["amount"] as? Number)?.toDouble() ?: amount?.toDoubleOrNull() ?: 0.0
+                    when {
+                        d["choose"] is List<*> -> {
+                            @Suppress("UNCHECKED_CAST")
+                            val labels = d["labels"] as? Map<String, Any?> ?: emptyMap()
+                            _state.value = _state.value.copy(choose = (d["choose"] as List<*>).mapNotNull { it as? String }
+                                .map { PayGateway(it, labels[it] as? String ?: it) })
+                        }
+                        d["gateway"] == "payu" -> {
                             @Suppress("UNCHECKED_CAST")
                             val f = (d["fields"] as? Map<String, Any?>).orEmpty().mapValues { it.value?.toString().orEmpty() }
-                            _state.value = _state.value.copy(busy = false,
-                                payu = PayuForm(d["action"] as? String ?: "", f, d["txnid"] as? String ?: ""))
+                            _state.value = _state.value.copy(payu = PayuForm(d["action"] as? String ?: "", f, d["txnid"] as? String ?: ""))
                         }
-                        "razorpay" -> {
+                        else -> {
                             val o = razorpayOptions(d)
-                            if (o == null) {
-                                _state.value = _state.value.copy(busy = false, error = "Payments are not set up yet. Please contact the firm.")
-                            } else {
+                            if (o == null) finish(PayOutcome.NotPaid(invoiceId, "Payments are not set up yet. Please contact the firm."))
+                            else {
                                 razorpay = o
+                                _state.value = _state.value.copy(working = "Opening Razorpay…")
                                 onRazorpay(o)
                             }
                         }
-                        // Both offered and none chosen: should not happen, as the
-                        // Method step always sends one. Ask again.
-                        else -> _state.value = _state.value.copy(busy = false, error = "Choose how to pay.")
                     }
                 }
-                .onFailure { _state.value = _state.value.copy(busy = false, error = message(it)) }
+                .onFailure { finish(PayOutcome.NotPaid(invoiceId, message(it))) }
         }
     }
 
     fun razorpayPaid(paymentId: String, orderId: String, signature: String) {
-        _state.value = _state.value.copy(busy = true, confirming = true)
+        _state.value = _state.value.copy(working = CONFIRMING)
         viewModelScope.launch {
             runCatching { api.invoicePayVerify(invoiceId, orderId, paymentId, signature) }
-                .onSuccess { finish(PayOutcome.Paid(money(paying))) }
+                .onSuccess { finish(PayOutcome.Paid(invoiceId, money(paying))) }
                 .onFailure {
-                    finish(PayOutcome.Confirming("Your payment was made, but it could not be confirmed here. It will show on the invoice once the firm's records have it."))
+                    finish(PayOutcome.Confirming(invoiceId, "Your payment was made, but it could not be confirmed yet. It will show on the invoice once the firm's records have it."))
                 }
         }
     }
 
     fun razorpayFailed(code: Int) {
-        finish(PayOutcome.NotPaid(if (code == Checkout.PAYMENT_CANCELED) "No payment was made."
+        finish(PayOutcome.NotPaid(invoiceId, if (code == Checkout.PAYMENT_CANCELED) "No payment was made."
             else "The payment did not go through. Nothing was charged; you can try again."))
     }
 
-    /** PayU's page closed (finished, or closed by the client): ask the server what happened. */
+    /** PayU's page closed (finished, or closed by the client): ask the server until it knows. */
     fun payuClosed() {
         val f = _state.value.payu ?: return
-        _state.value = _state.value.copy(payu = null, busy = true, confirming = true)
+        _state.value = _state.value.copy(payu = null, working = CONFIRMING)
         viewModelScope.launch {
             var last: Map<String, Any?> = emptyMap()
             // The return records at once; a UPI payment may take a little longer.
-            for (i in 0 until 10) {
+            for (i in 0 until 20) {
                 @Suppress("UNCHECKED_CAST")
                 last = runCatching { api.invoicePayStatus(invoiceId, f.txnid)["data"] as? Map<String, Any?> }.getOrNull() ?: last
                 if (last["state"] in setOf("captured", "failed", "flagged", "open")) break
@@ -239,23 +237,17 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
             }
             val msg = last["message"] as? String ?: ""
             finish(when (last["state"]) {
-                "captured" -> PayOutcome.Paid(money(paying))
-                "flagged" -> PayOutcome.Paid(money(paying), msg)
-                "failed", "open" -> PayOutcome.NotPaid(msg.ifBlank { "No payment was made." })
-                else -> PayOutcome.Confirming(msg.ifBlank { "Your payment is being confirmed. It will show on the invoice once PayU confirms it." })
+                "captured" -> PayOutcome.Paid(invoiceId, money(paying))
+                "flagged" -> PayOutcome.Paid(invoiceId, money(paying), msg)
+                "failed", "open" -> PayOutcome.NotPaid(invoiceId, msg.ifBlank { "No payment was made." })
+                else -> PayOutcome.Confirming(invoiceId, msg.ifBlank { "Your payment is being confirmed. It will show on the invoice once PayU confirms it." })
             })
         }
     }
 
-    /** Pay again from the first step. */
-    fun again() {
-        _state.value = _state.value.copy(outcome = null, step = 0, busy = false, error = null)
-        val id = invoiceId
-        invoiceId = 0
-        load(id)
-    }
+    fun cancel() = finish(PayOutcome.NotPaid(invoiceId, "No payment was made."))
 
-    private fun finish(o: PayOutcome) { _state.value = _state.value.copy(busy = false, confirming = false, outcome = o) }
+    private fun finish(o: PayOutcome) { _state.value = _state.value.copy(outcome = o) }
 
     private fun razorpayOptions(d: Map<String, Any?>): JSONObject? {
         val key = (d["key_id"] as? String)?.takeIf { it.isNotBlank() } ?: return null
@@ -286,7 +278,8 @@ class CheckoutViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
-        fun plain(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else String.format(Locale.US, "%.2f", v)
+        const val CONFIRMING = "Confirming Your Payment…"
+
         fun money(v: Double): String = "₹" + java.text.NumberFormat.getNumberInstance(Locale("en", "IN"))
             .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(v)
     }
@@ -300,13 +293,31 @@ class CheckoutActivity : ComponentActivity(), PaymentResultWithDataListener {
         enableEdgeToEdge()
         val id = intent.getIntExtra(EXTRA_INVOICE, 0)
         if (id < 1) { finish(); return }
-        vm.load(id)
+        val openRazorpay: (JSONObject) -> Unit = { o -> Checkout().apply { setKeyID(o.getString("key")) }.open(this, o) }
+        vm.begin(id, intent.getStringExtra(EXTRA_AMOUNT), intent.getStringExtra(EXTRA_GATEWAY), openRazorpay)
         setContent {
             LegumLexTheme {
+                val s by vm.state.collectAsState()
+                LaunchedEffect(s.outcome) {
+                    s.outcome?.let { o ->
+                        // The screen beneath shows it, read again first so nothing stale shows
+                        // behind; with none listening, a toast does.
+                        PaymentEvents.refreshed.value = 0
+                        if (PaymentEvents.emit(o)) {
+                            kotlinx.coroutines.withTimeoutOrNull(5000) { PaymentEvents.refreshed.first { it == o.invoiceId } }
+                        } else {
+                            Toast.makeText(this@CheckoutActivity, PaymentEvents.text(o), Toast.LENGTH_LONG).show()
+                        }
+                        finish()
+                    }
+                }
                 Box(Modifier.fillMaxSize().background(BodyBg).statusBarsPadding().navigationBarsPadding()) {
-                    CheckoutScreen(vm, onClose = ::finish, onRazorpay = { o ->
-                        Checkout().apply { setKeyID(o.getString("key")) }.open(this@CheckoutActivity, o)
-                    })
+                    val f = s.payu
+                    when {
+                        f != null -> PayuPage(f, id, onDone = vm::payuClosed)
+                        s.choose.isNotEmpty() -> ChooseGateway(s.choose, onChoose = { vm.choose(it, openRazorpay) }, onCancel = vm::cancel)
+                        else -> Working(s.working)
+                    }
                 }
             }
         }
@@ -314,22 +325,20 @@ class CheckoutActivity : ComponentActivity(), PaymentResultWithDataListener {
 
     // Razorpay's sheet answers the Activity that opened it.
     override fun onPaymentSuccess(paymentId: String?, data: PaymentData?) {
-        val order = data?.orderId ?: vm.razorpay?.optString("order_id")
-        val sig = data?.signature
-        if (paymentId == null || order == null || sig == null) {
-            vm.razorpayPaid(paymentId.orEmpty(), order.orEmpty(), sig.orEmpty())
-        } else {
-            vm.razorpayPaid(paymentId, order, sig)
-        }
+        vm.razorpayPaid(paymentId.orEmpty(), data?.orderId ?: vm.razorpay?.optString("order_id").orEmpty(), data?.signature.orEmpty())
     }
 
     override fun onPaymentError(code: Int, response: String?, data: PaymentData?) = vm.razorpayFailed(code)
 
     companion object {
         private const val EXTRA_INVOICE = "invoice_id"
+        private const val EXTRA_AMOUNT = "amount"
+        private const val EXTRA_GATEWAY = "gateway"
 
-        fun open(context: Context, invoiceId: Int) {
-            context.startActivity(Intent(context, CheckoutActivity::class.java).putExtra(EXTRA_INVOICE, invoiceId))
+        /** Pay [amount] (null: the whole balance) through [gateway] (null: the business's own, asked if it has two). */
+        fun open(context: Context, invoiceId: Int, amount: String? = null, gateway: String? = null) {
+            context.startActivity(Intent(context, CheckoutActivity::class.java).putExtra(EXTRA_INVOICE, invoiceId)
+                .putExtra(EXTRA_AMOUNT, amount).putExtra(EXTRA_GATEWAY, gateway))
         }
 
         /** The invoice id in an invoice page link (…/invoice/{id}/{hash}), or null. */
@@ -337,82 +346,34 @@ class CheckoutActivity : ComponentActivity(), PaymentResultWithDataListener {
     }
 }
 
+/** While the order is made, or the payment is being confirmed: nothing to press, nothing to leave by. */
 @Composable
-private fun CheckoutScreen(vm: CheckoutViewModel, onClose: () -> Unit, onRazorpay: (JSONObject) -> Unit) {
-    val s by vm.state.collectAsState()
-    val o = s.options
-
-    s.payu?.let { f ->
-        PayuPage(f, vm.invoiceId, onDone = vm::payuClosed)
-        return
-    }
-    if (s.loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PrimaryText) }
-        return
-    }
-    val outcome = s.outcome
-    if (o == null || o.refusal != null || outcome != null) {
-        // One step: the answer, then Done (or Try Again).
-        val again = outcome is PayOutcome.NotPaid
-        WizardFrame(
-            title = "Pay Invoice", steps = listOf("Payment"), step = 0, ready = true, saving = false,
-            saveLabel = if (again) "Try Again" else "Done", error = if (o == null) s.error else null,
-            onClose = onClose, onStep = {}, onSave = { if (again) vm.again() else onClose() },
-        ) {
-            when {
-                outcome is PayOutcome.Paid -> {
-                    WizardHeading("Payment Received", outcome.note.ifBlank { "Thank you. Your payment has been recorded on the invoice." })
-                    WizardRows(listOf("Invoice" to (o?.number ?: ""), "Paid" to outcome.amount))
-                }
-                outcome is PayOutcome.Confirming -> WizardHeading("Payment Being Confirmed", outcome.message)
-                outcome is PayOutcome.NotPaid -> WizardHeading("Payment Not Made", outcome.message)
-                o == null -> WizardHeading("Pay Invoice", "The invoice could not be opened for payment.")
-                else -> {
-                    WizardHeading("This Invoice Can't Be Paid Here", o.refusal.orEmpty())
-                    WizardRows(listOf("Invoice" to o.number, "Balance Due" to o.dueText))
-                }
-            }
+private fun Working(text: String) {
+    BackHandler { }
+    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        CircularProgressIndicator(color = PrimaryText)
+        Spacer(Modifier.height(20.dp))
+        Text(text, color = PrimaryText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        if (text == CheckoutViewModel.CONFIRMING) {
+            Spacer(Modifier.height(8.dp))
+            Text("Please keep the app open. This can take a few seconds.", color = SecondaryText, fontSize = 14.sp, textAlign = TextAlign.Center)
         }
-        return
     }
+}
 
-    val choose = o.gateways.size > 1
-    val steps = if (choose) listOf("Amount", "Method") else listOf("Amount")
-    val last = s.step == steps.lastIndex
-    val problem = vm.amountProblem(s)
-    val payLabel = "Pay " + (s.amount.toDoubleOrNull()?.let { CheckoutViewModel.money(it) } ?: "")
-    WizardFrame(
-        title = "Pay Invoice",
-        steps = steps,
-        step = s.step,
-        ready = problem.isEmpty() && (!last || s.gateway.isNotBlank()),
-        saving = s.busy,
-        saveLabel = payLabel,
-        savingLabel = if (s.confirming) "Confirming…" else "Opening…",
-        error = s.error,
-        onClose = onClose,
-        onStep = vm::step,
-        onSave = { vm.start(onRazorpay) },
-    ) {
-        when (s.step) {
-            0 -> {
-                WizardHeading("Amount", if (o.canChange) "You may pay the whole balance or part of it now." else "The balance due on this invoice.")
-                WizardRows(listOf("Invoice" to o.number, "Balance Due" to o.dueText))
-                Spacer(Modifier.height(18.dp))
-                WizardTextField(
-                    "Amount To Pay", s.amount, vm::amount,
-                    help = if (o.canChange) "Up to ${o.dueText}." else "",
-                    error = if (s.amount.isNotEmpty()) problem else "",
-                    locked = !o.canChange, prefix = "₹", keyboardType = KeyboardType.Decimal,
-                )
-            }
-            else -> {
-                WizardHeading("Method", "Choose how to pay. Cards, UPI, net banking and wallets are taken by both.")
-                o.gateways.forEach { g ->
-                    WizardChoice("Pay With ${g.label}", s.gateway == g.id) { vm.gateway(g.id) }
-                }
-            }
-        }
+/** A fee from a business that takes both gateways, opened without one chosen. */
+@Composable
+private fun ChooseGateway(list: List<PayGateway>, onChoose: (String) -> Unit, onCancel: () -> Unit) {
+    BackHandler(onBack = onCancel)
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Center) {
+        Text("Choose How To Pay", color = PrimaryText, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Text("Cards, UPI, net banking and wallets are taken by both.", color = SecondaryText, fontSize = 14.sp)
+        Spacer(Modifier.height(20.dp))
+        list.forEach { g -> WizardChoice("Pay With ${g.label}", false) { onChoose(g.id) } }
+        Spacer(Modifier.height(8.dp))
+        Text("Cancel", color = PrimaryText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clickable(onClick = onCancel).padding(vertical = 12.dp))
     }
 }
 
