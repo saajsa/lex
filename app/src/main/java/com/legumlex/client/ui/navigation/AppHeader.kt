@@ -59,6 +59,8 @@ fun AppHeader(
     /** A lead has no notifications: the bell is the client's. */
     showBell: Boolean = true,
     subtitle: String = "Client Portal",
+    /** The account switch, beside the bell (shown only to a person with more than one account). */
+    accountSwitch: (@Composable () -> Unit)? = null,
 ) {
     // Chrome: a solid step deeper than the page, with a hairline where they meet.
     Surface(color = Lex.colors.chrome, tonalElevation = 0.dp, shadowElevation = 0.dp) {
@@ -83,6 +85,7 @@ fun AppHeader(
                 if (onOffice != null) IconButton(onClick = onOffice) {
                     Icon(Icons.Outlined.Videocam, contentDescription = "Digital Office", tint = Lex.colors.secondaryForeground)
                 }
+                accountSwitch?.invoke()
                 if (showBell) Box {
                     IconButton(onClick = onNotifications) {
                         Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = Lex.colors.secondaryForeground)

@@ -170,6 +170,11 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                     showBell = !lead,
                     subtitle = if (lead) "Enquiries" else "Client Portal",
+                    // Keyed to the signed-in contact: a sign-out and in as someone
+                    // else (same Activity) reads their accounts afresh.
+                    accountSwitch = profile?.takeIf { !lead }?.let { p ->
+                        { com.legumlex.client.feature.profile.AccountSwitch(androidx.lifecycle.viewmodel.compose.viewModel(key = "accounts-" + p.email.orEmpty())) }
+                    },
                 )
             }
         },

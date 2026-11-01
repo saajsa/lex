@@ -98,9 +98,6 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
     ) {
         PageHeader(eyebrow = "Your Account", title = "Your Profile")
 
-        // A person with more than one client account moves between them here.
-        AccountsCard()
-
         Notice(
             title = "Held As On Record",
             body = "Your name and email address appear on filings and on service of notice, so they are held as we have them. To correct one, write to us and we will update the record for you. Your mobile number is changed by verifying a new one below.",

@@ -2,14 +2,19 @@ package com.legumlex.client.feature.profile
 
 import android.app.Application
 import android.content.Intent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.outlined.SwitchAccount
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,8 +36,6 @@ import com.legumlex.client.MainActivity
 import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.data.auth.AuthRepository
 import com.legumlex.client.data.auth.TokenStore
-import com.legumlex.client.ui.components.LexCard
-import com.legumlex.client.ui.components.StatusBadge
 import com.legumlex.client.ui.components.WizardDialog
 import com.legumlex.client.ui.components.WizardFrame
 import com.legumlex.client.ui.components.WizardHeading
@@ -177,43 +179,48 @@ class AccountsViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
-/** "Your Accounts": shown only to a person the firm has given more than one account. */
+/**
+ * The account switch beside the bell (owner, 1 Nov 2026): shown only to a
+ * person the firm has given more than one account; its menu lists them, the
+ * open one ticked. A code, when one is needed, is asked in a wizard dialog.
+ */
 @Composable
-fun AccountsCard(vm: AccountsViewModel = viewModel()) {
+fun AccountSwitch(vm: AccountsViewModel = viewModel()) {
     val s by vm.state.collectAsState()
     val ctx = LocalContext.current
+    var open by remember { mutableStateOf(false) }
     LaunchedEffect(s.switched) {
         // Everything is read again for the account now open: the app starts afresh in it.
         if (s.switched) {
             ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
         }
     }
+    LaunchedEffect(s.error, s.code) {
+        // A switch refused before any code was sent: said here, the menu being closed.
+        if (s.error != null && s.code == null) android.widget.Toast.makeText(ctx, s.error, android.widget.Toast.LENGTH_LONG).show()
+    }
     if (s.accounts.size < 2) return
 
-    LexCard(title = "Your Accounts") {
-        Text(
-            "You are a client of the firm in more than one name. Choose the account to open.",
-            style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-        )
-        s.accounts.forEachIndexed { i, a ->
-            if (i > 0) HorizontalDivider(color = Lex.colors.border)
-            Row(
-                Modifier.fillMaxWidth().clickable(enabled = !a.current && !s.busy) { vm.choose(a) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(a.label, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-                    Text(a.kind, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                }
-                if (a.current) StatusBadge("Current", Lex.colors.success)
-                else TextButton(onClick = { vm.choose(a) }, enabled = !s.busy) { Text("Switch", color = Lex.colors.foreground) }
-            }
+    Box {
+        IconButton(onClick = { open = true }, enabled = !s.busy) {
+            Icon(Icons.Outlined.SwitchAccount, contentDescription = "Switch Account", tint = Lex.colors.secondaryForeground)
         }
-        if (s.error != null && s.code == null) {
-            Text(s.error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Lex.colors.card) {
+            Text("Switch Account", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                color = Lex.colors.mutedForeground, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            s.accounts.forEach { a ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(a.label, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                            Text(a.kind, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                        }
+                    },
+                    trailingIcon = if (a.current) ({ Icon(Icons.Outlined.Check, contentDescription = "Open now", tint = Lex.colors.foreground) }) else null,
+                    enabled = !a.current,
+                    onClick = { open = false; vm.choose(a) },
+                )
+            }
         }
     }
 
