@@ -1,6 +1,6 @@
 # Client API Contract
 
-> Part of the Legum Lex Android knowledge base. Verified against: client app 6c069eb, staff app e52a8ca, customers_api 97de5b4, api 9df1506, cases cb0a820 (2026-11-07). The full `customers_api` contract the client app uses, with the app screen behind each route.
+> Part of the Legum Lex Android knowledge base. Verified against: client app 6c069eb, staff app e52a8ca, customers_api ee69445, api 9df1506, cases 00bd1f0 (2026-11-07; REQ-001 deltas applied on top of the 97de5b4 and cb0a820 review). The full `customers_api` contract the client app uses, with the app screen behind each route.
 >
 > This file is identical in legum-lex-android/docs/kb and legum-lex-staff/docs/kb.
 
@@ -19,7 +19,7 @@ Paths are relative to `…/customers_api/v1/`. Module paths are relative to `mod
 | REST layer | `rest_auth`, `rest_enable_keys`, `rest_enable_limits` all false; auth is in the controllers | [CODE customers_api@97de5b4 config/customer_rest.php:113,326,489] |
 | Token | JWT in `Authorization` (`Bearer ` optional). 7 days from `API_TIME`. Signed with `hash_hmac('sha256','customers_api.token.v1',APP_ENC_KEY)` since e3027f0 (2026-11-04); before that the key came from `base_url()` (public) | [CODE customers_api@97de5b4 config/jwt.php:26,38; libraries/Authorization_token.php:69-96] [GIT e3027f0 2026-11-04] |
 | Contact token | `customers_api_contact_token()` → `{client_id, contact_id, client_logged_in, API_TIME}` (+ `person` when the contact is the person's holder); stored as the contact's **single** live token in `tblcontacts.customer_api_key`. Response adds `token, email, name, picture` | [CODE customers_api@97de5b4 helpers/customers_api_helper.php:66-89; controllers/v1/Authentication.php:167-172] |
-| `isAuthorized()` order | (1) module inactive → 404; (2) JWT invalid/expired → 401; (3) no `contact_id` (lead token) → 401; (4) contact missing, empty key or header ≠ stored token → 401 `login_to_continue`; (5) contact inactive → 401; (6) register contact permissions 7-10; (7) client inactive → 401; (8) `cases_view_only_refusal()` → 403 `view_only` (**inert headlessly**, see [wiring-and-traps.md](wiring-and-traps.md)); (9) sets `$GLOBALS['cases_api_actor']` | [CODE customers_api@97de5b4 helpers/customers_api_helper.php:133-251] |
+| `isAuthorized()` order | (1) module inactive → 404; (2) JWT invalid/expired → 401; (3) no `contact_id` (lead token) → 401; (4) contact missing, empty key or header ≠ stored token → 401 `login_to_continue`; (5) contact inactive → 401; (6) register contact permissions 7-10; (7) client inactive → 401; (8) `cases_view_only_refusal()` → 403 `view_only` (active on app requests since cases@b18dfd3, REQ-001; invoice `pay`, `pay/verify` and `pay/status` are exempt since cases@00bd1f0, owner Q9; see [wiring-and-traps.md](wiring-and-traps.md)); (9) sets `$GLOBALS['cases_api_actor']` | [CODE customers_api@97de5b4 helpers/customers_api_helper.php:133-251] |
 | Contact permission | `has_contact_permission(x)`: cases 7, consultations 8, agreements 9, notices 10, plus Perfex invoices, projects, contracts, estimates, proposals, support. Fail → 403 `{message: not_permission_to_perform_this_action}` | [CODE cases@cb0a820 helpers/cases_permissions_helper.php:28-54] |
 | Lead token | `isLeadAuthorized()` → `customers_api_lead_from_request()`: reads the `lead`/`lead_key` claims **without checking the signature**, then requires the whole token to `hash_equals` `tblcustomers_api_leads.token`. 7 days. Lead tokens reach only `lead/*` and `guest/desk` (and lexon's website funnel, which also accepts them) | [CODE customers_api@97de5b4 helpers/customers_api_lead_helper.php:16-59] [CODE lexon@7f56a67 controllers/Funnel.php:226-231] |
 | CSRF | `customers_api\/.+` excluded | [CODE customers_api@97de5b4 config/csrf_exclude_uris.php] |
@@ -145,12 +145,12 @@ All return `{s,d:shape,m?}` [CODE customers_api@97de5b4 controllers/v1/Ahc_funne
 | GET | notices | index_get | case_id | `{s,d:[rows]}`; rows carry `fee` (null or `{state,amount,invoice_id,pay_url,held}`) since 97de5b4 | none | ✓ | NoticesScreen; CaseDetail Notices tab (`case_id`) |
 | GET | notices/{id} | view_get | none | detail; status may read "Awaiting Payment" since 97de5b4 | 404 | ✓ | NoticeDetailScreen |
 | PUT | notices/{id}/approve | approve_put | none | detail (+fee) | 404, **409** (shared approval refused) | ✓ | NoticeDetailScreen approve footer |
-| GET | notices/{id}/document/{fileId} | document_get (stream; only `visible_to_customer=1`) | none | stream | 404 | ✓ | NoticeDocViewerScreen |
+| GET | notices/{id}/document/{fileId} | document_get (stream; only `visible_to_customer=1`) | none | stream | 403 `{status:false, code:'notice_fee_unpaid', message}` while a pay-first notice's fee is unpaid (customers_api@ee69445); 404 | ✓ | NoticeDocViewerScreen |
 | GET | notices/types | types_get | none | `{s,d}` | none | ✗ | none |
 | POST | notices (fallback → index_post) | index_post | notice fields | `{s,d,code}` | 201, **403** `not_permitted`, 404, 422, 500 | ✗ | none by design (rule F16) |
 | POST | legal_notices/extract (default routing) | extract_post | file | `{s,code,m}` | 400, 403 | ✗ | none |
 
-The `fee`, "Awaiting Payment", pay-first `next_step` and the 409 are **inert in the app API today** because `cases_fee_helper.php` is not loaded; the endpoint falls back to a direct `client_approved_at` update [CODE customers_api@97de5b4 controllers/v1/Legal_notices.php:335-352]. The app reads `status_label`, `needs_approval` and `next_step` from the server, so the text would appear without an app change once the helper loads; `fee` is not read at all [CODE lex@6c069eb feature/notices/NoticesRepository.kt:38,45,98].
+[Corrected 2026-11-07, REQ-001: since cases@b18dfd3 the fee helper loads on app requests, so `fee`, "Awaiting Payment", pay-first `next_step` and the 409 are live; while held, the detail lists `documents: []` (customers_api@ee69445). Verified over HTTP on dev against the `selftest-req001` fixture.] Previously: the `fee`, "Awaiting Payment", pay-first `next_step` and the 409 were **inert in the app API** because `cases_fee_helper.php` was not loaded; the endpoint falls back to a direct `client_approved_at` update [CODE customers_api@97de5b4 controllers/v1/Legal_notices.php:335-352]. The app reads `status_label`, `needs_approval` and `next_step` from the server, so the text would appear without an app change once the helper loads; `fee` is not read at all [CODE lex@6c069eb feature/notices/NoticesRepository.kt:38,45,98].
 
 ### 2.9 Documents, Registry
 
@@ -258,11 +258,14 @@ Mismatches visible in code: (1) notice `fee`, "Awaiting Payment", `view_only`, `
 |---|---|---|---|
 | e6eb3e1 | 2026-11-03 | Project files view-only, `?download` 403, headers, Files-tab gate | App never sends `download`; ignores the signals |
 | e3027f0 | 2026-11-04 | Token key from `APP_ENC_KEY` | One forced sign-in per client; lead tokens unaffected (stored-token equality) |
-| 3cbc2a5 | 2026-11-05 | View-only write refusal | Inert headlessly; no app handling |
+| 3cbc2a5 | 2026-11-05 | View-only write refusal | Inert headlessly; no app handling [Corrected 2026-11-07, REQ-001: active on app requests since cases@b18dfd3] |
 | 33f7a37 | 2026-11-05 | Access-log actor global | None (logger not registered headlessly) |
 | eab7c0a | 2026-11-05 | Action items by notices/consultations permission | Works over HTTP |
-| e68688b | 2026-11-05 | Approval through `cases_notice_approve()`; 409 | Inert headlessly |
-| 97de5b4 | 2026-11-07 | Notice `fee` object, "Awaiting Payment" | Inert headlessly; not read |
+| e68688b | 2026-11-05 | Approval through `cases_notice_approve()`; 409 | Inert headlessly [Corrected 2026-11-07, REQ-001: active on app requests since cases@b18dfd3] |
+| 97de5b4 | 2026-11-07 | Notice `fee` object, "Awaiting Payment" | Inert headlessly; not read [Corrected 2026-11-07, REQ-001: active on app requests since cases@b18dfd3] |
+| cases b18dfd3 | 2026-11-07 | Plan and fee helpers + paid-invoice listeners load on app requests (REQ-001) | View-only writes now 403 `view_only`; notice approve may 409; `fee` populated. App does not yet handle 403/409 (shows "session expired" on approve, `NoticesViewModel.kt:194`): app work U1-U4 is a later REQ |
+| customers_api ee69445 | 2026-11-07 | Held pay-first notice: document 403 `notice_fee_unpaid`, `documents: []` | App shows no files for a held notice; a stale file link answers 403 |
+| cases 00bd1f0 | 2026-11-07 | View-only contacts may pay: invoices pay, pay/verify, pay/status exempt (owner Q9) | None needed |
 
 ## Open questions
 
