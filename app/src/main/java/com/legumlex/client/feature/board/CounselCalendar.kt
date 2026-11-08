@@ -34,6 +34,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
@@ -126,9 +128,9 @@ internal fun MonthsRow(date: LocalDate, onPick: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClick = onPick).padding(top = 10.dp),
         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text(prev, fontFamily = Display, fontWeight = FontWeight.Medium, fontSize = 26.sp, color = Color(0xFFC9C6BF), maxLines = 1, softWrap = false, modifier = Modifier.offset(x = (-28).dp))
-        Text(cur, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 34.sp, color = Lex.colors.foreground, maxLines = 1, softWrap = false, modifier = Modifier.offset(x = (-28).dp))
-        Text(next, fontFamily = Display, fontWeight = FontWeight.Medium, fontSize = 26.sp, color = Color(0xFFC9C6BF), maxLines = 1, softWrap = false, modifier = Modifier.offset(x = (-28).dp))
+        Text(prev, fontFamily = Display, fontWeight = FontWeight.Medium, fontSize = 26.sp, color = Color(0xFFC9C6BF), maxLines = 1, softWrap = false, modifier = Modifier.alignByBaseline().offset(x = (-28).dp))
+        Text(cur, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 34.sp, color = Lex.colors.foreground, maxLines = 1, softWrap = false, modifier = Modifier.alignByBaseline().offset(x = (-28).dp))
+        Text(next, fontFamily = Display, fontWeight = FontWeight.Medium, fontSize = 26.sp, color = Color(0xFFC9C6BF), maxLines = 1, softWrap = false, modifier = Modifier.alignByBaseline().offset(x = (-28).dp))
     }
 }
 
@@ -179,40 +181,51 @@ internal fun WeekRow(selected: LocalDate, today: LocalDate, counts: Map<String, 
     }
 }
 
-private val VsContent = mapOf(
-    "vs" to InlineTextContent(Placeholder(28.sp, 17.sp, PlaceholderVerticalAlign.Center)) {
-        Box(Modifier.size(width = 26.dp, height = 17.dp).clip(RoundedCornerShape(4.dp)).border(1.dp, Color(0xFF8A877F), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
-            Text("VS", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = Color(0xFF8A877F), maxLines = 1, softWrap = false)
-        }
-    },
-)
-
-private fun titleText(c: BoardCase): AnnotatedString = buildAnnotatedString {
-    val p = parties(c)
-    if (p == null) append(c.title.ifBlank { c.cnr })
-    else { append(p.first); append(" "); appendInlineContent("vs", "VS"); append(" "); append(p.second) }
+/**
+ * "Petitioner vs. Respondent": "vs." in italic and a muted colour at the text's own size and weight (no box, no outline).
+ * The parties come from the server's two names, else the title split at its "v." / "vs" / "v/s".
+ */
+internal fun partiesText(petitioner: String, respondent: String, title: String, fallback: String, muted: Color): AnnotatedString = buildAnnotatedString {
+    val pair = if (petitioner.isNotBlank() && respondent.isNotBlank()) petitioner.trim() to respondent.trim()
+    else Regex("""^(.+?)\s+(?:v\.?|vs\.?|v/s)\s+(.+)$""", RegexOption.IGNORE_CASE).find(title.trim())?.let { it.groupValues[1].trim() to it.groupValues[2].trim() }
+    if (pair == null) append(title.ifBlank { fallback })
+    else {
+        append(pair.first); append(" ")
+        pushStyle(SpanStyle(fontStyle = FontStyle.Italic, color = muted, fontWeight = FontWeight.Normal)); append("vs."); pop()
+        append(" "); append(pair.second)
+    }
 }
 
-/** One case on the day's timeline: case number, the parties with a small VS between, the judge, the court. Full text. */
+internal fun partiesText(c: BoardCase, muted: Color): AnnotatedString = partiesText(c.petitioner, c.respondent, c.title, c.cnr, muted)
+
+/**
+ * One case on the day's timeline. The rail and the node are drawn together here so they always meet: the line runs from the
+ * first node to the last without a break (each case carries it to the next one's top), and every text shares one left edge,
+ * the Needs Your Eye card's text included (its card reaches out to the rail instead).
+ */
 @Composable
-internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye, DateAnswer) -> Unit, today: LocalDate) {
+internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye, DateAnswer) -> Unit, today: LocalDate, first: Boolean = true, last: Boolean = true) {
     val eye = c.needsEye && c.ecourtsDate != null
     val numberColour = if (eye) Color(0xFF55524C) else SheetMuted
     val titleColour = if (eye) Lex.colors.foreground else Color.White
     val judgeColour = if (eye) Color(0xFF3D3B37) else SheetSoft
     val courtColour = if (eye) Color(0xFF55524C) else SheetMuted
+    val vsColour = if (eye) Color(0xFF8A877F) else Color(0xFF8A877F)
+    val nodeY = if (eye) 22.5.dp else 10.5.dp
     val body: @Composable () -> Unit = {
         Text(c.heading, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = numberColour)
-        Text(titleText(c), inlineContent = VsContent, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = titleColour)
+        Text(partiesText(c, vsColour), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = titleColour)
         c.judgeShown.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.5.sp, fontStyle = FontStyle.Italic, color = judgeColour) }
         c.courtShown.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.5.sp, color = courtColour) }
     }
-    Box(Modifier.fillMaxWidth().padding(start = 22.dp)) {
-        // The node on the rail: a white dot, or a red one on the case that needs a look.
-        Box(
-            Modifier.offset(x = (-22).dp, y = if (eye) 16.dp else 5.dp).size(if (eye) 13.dp else 9.dp).clip(CircleShape)
-                .background(if (eye) EyeRed else Color.White).then(if (eye) Modifier.border(2.dp, SheetBlack, CircleShape) else Modifier),
-        )
+    Box(
+        Modifier.fillMaxWidth().drawBehind {
+            val x = 6.dp.toPx(); val y = nodeY.toPx()
+            drawLine(Color(0xFF3A3936), Offset(x, if (first) y else 0f), Offset(x, if (last) y else size.height + 16.dp.toPx()), strokeWidth = 1.dp.toPx())
+            if (eye) { drawCircle(SheetBlack, 6.5.dp.toPx(), Offset(x, y)); drawCircle(EyeRed, 4.5.dp.toPx(), Offset(x, y)) }
+            else drawCircle(Color.White, 4.5.dp.toPx(), Offset(x, y))
+        }.padding(start = 14.dp),
+    ) {
         if (eye) Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF3F2EE)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -225,7 +238,7 @@ internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye,
                 IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { onAnswer(ne, DateAnswer.EcourtsRight) }, look = ActionLook.Ink, size = 48.dp)
                 IconAction(Icons.Outlined.EventAvailable, "Keep my date", { onAnswer(ne, DateAnswer.KeepMine) }, look = ActionLook.Outline, size = 48.dp)
             }
-        } else Column(Modifier.fillMaxWidth().clickable(onClick = onOpen), verticalArrangement = Arrangement.spacedBy(3.dp)) { body() }
+        } else Column(Modifier.fillMaxWidth().padding(start = 14.dp).clickable(onClick = onOpen), verticalArrangement = Arrangement.spacedBy(3.dp)) { body() }
     }
 }
 

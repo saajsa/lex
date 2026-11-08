@@ -302,12 +302,9 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         }
                     }
                     else -> item {
-                        // The rail runs behind the cases; a node marks each.
-                        Box {
-                            Box(Modifier.padding(start = 4.dp).matchParentSize().padding(vertical = 6.dp)) { Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0xFF3A3936))) }
-                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                items.forEach { c -> TimelineCase(c, { onOpenCase(c.id) }, { n, a -> answering = n to a }, today) }
-                            }
+                        // Each case draws its own stretch of the rail and its node, so the line runs unbroken from the first node to the last.
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            items.forEachIndexed { i, c -> TimelineCase(c, { onOpenCase(c.id) }, { n, a -> answering = n to a }, today, first = i == 0, last = i == items.lastIndex) }
                         }
                     }
                 }
@@ -393,7 +390,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
 private fun SearchHit(c: BoardCase, today: LocalDate, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(c.heading, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = Color(0xFFA3A19A))
-        Text(c.title.ifBlank { c.cnr }, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+        Text(partiesText(c, Color(0xFF8A877F)), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
         if (c.courtLine.isNotBlank()) Text(c.courtLine, fontSize = 12.5.sp, color = Color(0xFFA3A19A))
         Text(c.nextDate?.let { "Next: ${BoardDates.show(it, today)}" } ?: "No Next Date", fontSize = 12.sp, color = Color(0xFFD6D4CF))
     }
@@ -470,7 +467,7 @@ internal fun NeedsEyeCard(items: List<NeedsEye>, today: LocalDate, onKeep: (Need
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        listOf(c.heading, c.title).filter { it.isNotBlank() }.joinToString("  ·  "),
+                        androidx.compose.ui.text.buildAnnotatedString { if (c.heading.isNotBlank()) append(c.heading + "  ·  "); append(partiesText("", "", c.title, c.cnr, Color(0xFF8A877F))) },
                         style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground,
                     )
                     Text(eyeLine(c, today), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
@@ -611,7 +608,7 @@ fun MismatchDialog(items: List<Mismatch>, today: LocalDate, onDone: () -> Unit) 
             Column(Modifier.verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 left.forEach { m ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(listOf(m.heading, m.title).filter { it.isNotBlank() }.joinToString("  ·  "), style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+                        Text(androidx.compose.ui.text.buildAnnotatedString { if (m.heading.isNotBlank()) append(m.heading + "  ·  "); append(partiesText("", "", m.title, m.cnr, Color(0xFF8A877F))) }, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
                         Text(
                             "eCourts shows ${BoardDates.show(m.ecourtsDate, today).ifBlank { "a different date" }}; your file had ${BoardDates.show(m.yourDate, today).ifBlank { "none" }}",
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,

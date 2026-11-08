@@ -60,7 +60,7 @@ internal fun CaseListRow(c: BoardCase, today: java.time.LocalDate, onClick: () -
         Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).clickable(onClick = onClick).padding(12.dp),
     ) {
         Text(c.heading, style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground, maxLines = 1)
-        Text(c.title.ifBlank { c.cnr }, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+        Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
         Text(
             c.courtLine,
             style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
@@ -110,7 +110,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
             if (error != null) LexCard { LexEmpty("This Case Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { load() }) }) }
             else Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) }
         } else {
-            Text(x.title.ifBlank { x.cnr }, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+            Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
             CaseChips(x)
             if (x.needsEye && x.ecourtsDate != null) {
                 NeedsEyeCard(
