@@ -860,6 +860,10 @@ interface ApiService {
     @GET("board/sheet")
     suspend fun boardSheet(@Query("date") date: String, @Query("junior") junior: String? = null): ResponseBody
 
+    /** The counsel's Home: profile, specialty score and four tiles. */
+    @GET("board/home")
+    suspend fun boardHome(): Map<String, Any?>
+
     /** The number of cases listed on each of n days from a date (zeros included). */
     @GET("board/days")
     suspend fun boardDays(@Query("from") from: String, @Query("n") n: Int = 7): Map<String, Any?>

@@ -36,9 +36,14 @@ object BoardHub {
     val chip: StateFlow<Chip?> = _chip.asStateFlow()
     fun setChip(balance: Int, low: Boolean) { _chip.value = Chip(balance, low) }
 
+    /** The day chosen on the Calendar (yyyy-MM-dd): the bar's Print prints it; null until a day is chosen (today then). */
+    private val _chosen = MutableStateFlow<String?>(null)
+    val chosen: StateFlow<String?> = _chosen.asStateFlow()
+    fun choose(date: String?) { _chosen.value = date }
+
     val statuses: List<String> get() = (_access.value as? BoardAccess.Yes)?.summary?.statuses.orEmpty()
 
-    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null }
+    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null }
 
     fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary) }
 

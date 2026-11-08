@@ -3,78 +3,95 @@ package com.legumlex.client.feature.board
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.legumlex.client.ui.components.Eyebrow
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import com.legumlex.client.ui.theme.Display
 import com.legumlex.client.ui.theme.Lex
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 
 // -----------------------------------------------------------------------------
-// Today as the calendar flow (REQ-008 round 3, canvas 5a): a week strip of day chips with the
-// number listed on each (board/days), the chosen day's card, and that day's cases (board/day).
-// The strip's pattern is the staff app's DateChipStrip, in the client kit: radius 8, black on gold
-// for the chosen day, the Mylex palette elsewhere.
+// The Calendar (REQ-008 round 4, canvas 6a; it was Today): months across the top, a week with the chosen
+// day as a black pill and a dot where cases are listed, then a black sheet with the day and its cases as
+// a timeline. The week is Sunday to Saturday; a swipe moves it by a week.
 // -----------------------------------------------------------------------------
 
-/** The strip shows a week of days. */
-internal const val StripDays = 7
+internal val SheetBlack = Color(0xFF111110)
+private val SheetMuted = Color(0xFFA3A19A)
+private val SheetSoft = Color(0xFFD6D4CF)
+private val SheetLine = Color(0xFF3A3936)
+private val EyeRed = Color(0xFFA3261B)
 
-/** The window that puts the chosen day in the middle of the week (the web's strip does the same). */
-internal fun windowStart(selected: LocalDate): LocalDate = selected.minusDays(3)
+/** The Sunday on or before a date (the week starts on Sunday, as the canvas has it). */
+internal fun weekStart(d: LocalDate): LocalDate = d.minusDays((d.dayOfWeek.value % 7).toLong())
 
-internal fun stripDays(start: LocalDate, n: Int = StripDays): List<LocalDate> = (0 until n).map { start.plusDays(it.toLong()) }
+/** The seven days of the week a date is in, Sunday first. */
+internal fun weekDays(d: LocalDate): List<LocalDate> = weekStart(d).let { s -> (0 until 7).map { s.plusDays(it.toLong()) } }
 
-/** Previous and next move the window by a week, as on the web. */
-internal fun shiftWindow(start: LocalDate, weeks: Int): LocalDate = start.plusWeeks(weeks.toLong())
+/** A swipe moves the chosen day by a week, so the black pill stays on the same weekday. */
+internal fun shiftWeek(d: LocalDate, weeks: Int): LocalDate = d.plusWeeks(weeks.toLong())
 
-private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
+private fun monthName(d: LocalDate) = d.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
 
-/** "6 – 12 Nov", or "29 Oct – 4 Nov" across a month. */
-internal fun windowLabel(start: LocalDate, n: Int = StripDays): String {
-    val end = start.plusDays((n - 1).toLong())
-    return if (start.month == end.month && start.year == end.year) "${start.dayOfMonth} – ${end.format(DAY_MONTH)}"
-    else "${start.format(DAY_MONTH)} – ${end.format(DAY_MONTH)}"
-}
+/** The month before, the month of the date, the month after, by name ("October", "November", "December"). */
+internal fun monthsAround(d: LocalDate): Triple<String, String, String> =
+    Triple(monthName(d.minusMonths(1)), monthName(d), monthName(d.plusMonths(1)))
 
-/** "NOVEMBER 2026". */
-internal fun monthHeading(d: LocalDate): String = d.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)).uppercase()
-
-/** "MONDAY, 9 NOV", the chosen day's card heading. */
-internal fun dayHeading(d: LocalDate): String = d.format(DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.ENGLISH)).uppercase()
+/** "Today", or "Monday, 9 Nov": the sheet's heading. */
+internal fun sheetHeading(d: LocalDate, today: LocalDate): String =
+    if (d == today) "Today" else d.format(DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.ENGLISH))
 
 private fun plural(n: Int, one: String, many: String) = if (n == 1) one else many
 
 internal fun listedText(n: Int): String = "$n ${plural(n, "case", "cases")} listed"
+
+/** "3 cases · eCourts checked 7:05 AM": the checked time only on today. */
+internal fun daySubline(count: Int, isToday: Boolean, checked: String?): String =
+    "$count ${plural(count, "case", "cases")}" + if (isToday && checked != null) " · eCourts checked $checked" else ""
 
 /** "11 cases tracked · 99 days of checks left"; the days part is left out when no case is on the daily check. */
 internal fun checksLine(tracked: Int, daysLeft: Int?): String {
@@ -94,102 +111,121 @@ internal fun eyeText(n: Int): String = if (n == 1) "1 date needs your eye" else 
 internal fun parseDays(d: Map<String, Any?>): Map<String, Int> =
     d["days"].list().associate { it["date"].str() to it["listed"].int() }
 
+/** The two parties of a case: the petitioner and respondent when the server names both, else the title split at "v." / "vs" / "v/s". */
+internal fun parties(c: BoardCase): Pair<String, String>? {
+    if (c.petitioner.isNotBlank() && c.respondent.isNotBlank()) return c.petitioner.trim() to c.respondent.trim()
+    val m = Regex("""^(.+?)\s+(?:v\.?|vs\.?|v/s)\s+(.+)$""", RegexOption.IGNORE_CASE).find(c.title.trim()) ?: return null
+    return m.groupValues[1].trim() to m.groupValues[2].trim()
+}
+
+/** The months across the top: the month of the chosen day in bold, its neighbours faded. Tap for the picker. */
 @Composable
-internal fun MonthHeading(month: String, line: String) {
-    Column {
-        Text(month, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 30.sp, lineHeight = 32.sp, letterSpacing = 0.5.sp, color = Lex.colors.foreground)
-        Text(line, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
+internal fun MonthsRow(date: LocalDate, onPick: () -> Unit) {
+    val (prev, cur, next) = monthsAround(date)
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onPick).padding(top = 10.dp),
+        verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Text(prev, fontFamily = Display, fontWeight = FontWeight.Medium, fontSize = 26.sp, color = Color(0xFFC9C6BF), maxLines = 1, softWrap = false, modifier = Modifier.offset(x = (-28).dp))
+        Text(cur, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 34.sp, color = Lex.colors.foreground, maxLines = 1, softWrap = false, modifier = Modifier.offset(x = (-28).dp))
+        Text(next, fontFamily = Display, fontWeight = FontWeight.Medium, fontSize = 26.sp, color = Color(0xFFC9C6BF), maxLines = 1, softWrap = false, modifier = Modifier.offset(x = (-28).dp))
     }
 }
 
-/** The week: arrows and the range on a line of their own, then seven chips of equal width. */
+/** The week: letters, dates, the chosen day as a black pill, a dot under each day that has cases. Swipe sideways for another week. */
 @Composable
-internal fun CalendarStrip(
-    selected: LocalDate, start: LocalDate, counts: Map<String, Int>, today: LocalDate,
-    onPick: (LocalDate) -> Unit, onShift: (Int) -> Unit, onJump: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconAction(Icons.AutoMirrored.Outlined.ArrowBack, "Previous Week", { onShift(-1) }, size = 40.dp)
-            Text(
-                windowLabel(start), modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground,
-            )
-            IconAction(Icons.AutoMirrored.Outlined.ArrowForward, "Next Week", { onShift(1) }, size = 40.dp)
-            Spacer(Modifier.width(8.dp))
-            IconAction(Icons.Outlined.CalendarMonth, "Jump To A Date", onJump, size = 40.dp)
+internal fun WeekRow(selected: LocalDate, today: LocalDate, counts: Map<String, Int>, onPick: (LocalDate) -> Unit, onSwipe: (Int) -> Unit) {
+    val days = weekDays(selected)
+    var drag by remember { mutableStateOf(0f) }
+    Column(
+        Modifier.fillMaxWidth().pointerInput(selected) {
+            detectHorizontalDragGestures(
+                onDragStart = { drag = 0f },
+                onDragEnd = { if (drag < -80f) onSwipe(1) else if (drag > 80f) onSwipe(-1); drag = 0f },
+                onDragCancel = { drag = 0f },
+            ) { _, amount -> drag += amount }
+        },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(Modifier.fillMaxWidth()) {
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach {
+                Text(it, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 11.sp, color = Lex.colors.mutedForeground)
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            stripDays(start).forEach { d ->
-                DayChip(d, counts[BoardDates.api(d)], d == selected, d == today, Modifier.weight(1f)) { onPick(d) }
+        Row(Modifier.fillMaxWidth().height(58.dp), verticalAlignment = Alignment.Top) {
+            days.forEach { d ->
+                val on = d == selected
+                val listed = (counts[BoardDates.api(d)] ?: 0) > 0
+                Column(
+                    Modifier.weight(1f).clickable { onPick(d) },
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (on) Column(
+                        Modifier.size(width = 38.dp, height = 54.dp).clip(RoundedCornerShape(19.dp)).background(Color(0xFF1D1D1B)),
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(if (d == today) "TODAY" else d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(), fontSize = 8.5.sp, letterSpacing = 0.8.sp, color = Color.White, maxLines = 1, softWrap = false)
+                        Text(d.dayOfMonth.toString(), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.White)
+                    } else {
+                        Text(
+                            d.dayOfMonth.toString(), fontWeight = FontWeight.Medium, fontSize = 16.sp, modifier = Modifier.padding(top = 14.dp),
+                            color = if (d == today) Lex.colors.foreground else if (listed) Lex.colors.foreground else Lex.colors.mutedForeground,
+                        )
+                        Box(Modifier.size(5.dp).clip(CircleShape).background(if (listed) Color(0xFF1D1D1B) else Color.Transparent))
+                    }
+                }
             }
         }
     }
 }
 
-@Composable
-private fun DayChip(date: LocalDate, listed: Int?, selected: Boolean, isToday: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    val ink = if (selected) androidx.compose.ui.graphics.Color.Black else Lex.colors.foreground
-    val soft = if (selected) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.7f) else Lex.colors.mutedForeground
-    Column(
-        modifier.clip(shape)
-            .background(if (selected) CounselGold else Lex.colors.card)
-            .border(1.dp, if (selected) CounselGold else Lex.colors.border, shape)
-            .clickable(onClick = onClick).padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH).uppercase(), fontSize = 10.sp, letterSpacing = 0.8.sp, color = soft, maxLines = 1)
-        Text(date.dayOfMonth.toString(), fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 26.sp, color = ink)
-        // A fixed line for "Today" so the chips stay one height.
-        Text(if (isToday) "Today" else " ", fontSize = 9.sp, lineHeight = 11.sp, color = soft, maxLines = 1)
-        Spacer(Modifier.height(4.dp))
-        Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) {
-            if (listed != null && listed > 0) Box(
-                Modifier.clip(RoundedCornerShape(4.dp)).background(if (selected) androidx.compose.ui.graphics.Color.White else Lex.colors.muted).padding(horizontal = 6.dp, vertical = 1.dp),
-            ) { Text(listed.toString(), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = androidx.compose.ui.graphics.Color.Black) }
+private val VsContent = mapOf(
+    "vs" to InlineTextContent(Placeholder(28.sp, 17.sp, PlaceholderVerticalAlign.Center)) {
+        Box(Modifier.size(width = 26.dp, height = 17.dp).clip(RoundedCornerShape(9.dp)).border(1.dp, Color(0xFF8A877F), RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+            Text("VS", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = Color(0xFF8A877F), maxLines = 1, softWrap = false)
         }
-    }
+    },
+)
+
+private fun titleText(c: BoardCase): AnnotatedString = buildAnnotatedString {
+    val p = parties(c)
+    if (p == null) append(c.title.ifBlank { c.cnr })
+    else { append(p.first); append(" "); appendInlineContent("vs", "VS"); append(" "); append(p.second) }
 }
 
-/** The chosen day: weekday and date, "Today" when it is, how many are listed, when eCourts was checked (today), and Print for it. */
+/** One case on the day's timeline: case number, the parties with a small VS between, the judge, the court. Full text. */
 @Composable
-internal fun DayCard(date: LocalDate, listed: Int?, today: LocalDate, checked: String?, onPrint: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Eyebrow(dayHeading(date) + if (date == today) " · TODAY" else "", color = Lex.colors.secondaryForeground)
-            Text(
-                if (listed == null) "…" else listedText(listed),
-                fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = Lex.colors.foreground,
-            )
-            if (date == today) Text(
-                checked?.let { "eCourts checked $it" } ?: "eCourts not checked yet",
-                style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground,
-            )
-        }
-        IconAction(Icons.Outlined.Print, "Print this day's cause list", onPrint, look = ActionLook.Gold)
+internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye, DateAnswer) -> Unit, today: LocalDate) {
+    val eye = c.needsEye && c.ecourtsDate != null
+    val numberColour = if (eye) Color(0xFF55524C) else SheetMuted
+    val titleColour = if (eye) Lex.colors.foreground else Color.White
+    val judgeColour = if (eye) Color(0xFF3D3B37) else SheetSoft
+    val courtColour = if (eye) Color(0xFF55524C) else SheetMuted
+    val body: @Composable () -> Unit = {
+        Text(c.heading, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = numberColour)
+        Text(titleText(c), inlineContent = VsContent, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = titleColour)
+        c.judgeShown.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.5.sp, fontStyle = FontStyle.Italic, color = judgeColour) }
+        c.courtShown.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.5.sp, color = courtColour) }
     }
-}
-
-/** One of the day's cases: "case no · title", then "court · bench", a red dot when the date needs a look. */
-@Composable
-internal fun DayCaseRow(c: BoardCase, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                listOf(c.heading, c.title).filter { it.isNotBlank() }.joinToString(" · "),
-                style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground,
-            )
-            if (c.courtLine.isNotBlank()) Text(c.courtLine, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-        }
-        if (c.needsEye) Box(Modifier.padding(start = 10.dp).size(9.dp).clip(CircleShape).background(Lex.colors.danger.solid))
+    Box(Modifier.fillMaxWidth().padding(start = 22.dp)) {
+        // The node on the rail: a white dot, or a red one on the case that needs a look.
+        Box(
+            Modifier.offset(x = (-22).dp, y = if (eye) 16.dp else 5.dp).size(if (eye) 13.dp else 9.dp).clip(CircleShape)
+                .background(if (eye) EyeRed else Color.White).then(if (eye) Modifier.border(2.dp, SheetBlack, CircleShape) else Modifier),
+        )
+        if (eye) Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF3F2EE)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text("NEEDS YOUR EYE", fontSize = 10.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.SemiBold, color = EyeRed)
+            body()
+            val ne = NeedsEye(c.id, c.cnr, c.caseNo, c.title, c.ecourtsDate, c.nextDate)
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(eyeLine(ne, today), fontSize = 12.sp, color = EyeRed, modifier = Modifier.weight(1f))
+                IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { onAnswer(ne, DateAnswer.EcourtsRight) }, look = ActionLook.Ink, size = 36.dp)
+                IconAction(Icons.Outlined.EventAvailable, "Keep my date", { onAnswer(ne, DateAnswer.KeepMine) }, look = ActionLook.Outline, size = 36.dp)
+            }
+        } else Column(Modifier.fillMaxWidth().clickable(onClick = onOpen), verticalArrangement = Arrangement.spacedBy(3.dp)) { body() }
     }
 }
 

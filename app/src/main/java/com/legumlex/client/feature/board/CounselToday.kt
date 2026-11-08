@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.SavedSearch
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -151,7 +152,7 @@ internal val OnScreenTooltip = object : androidx.compose.ui.window.PopupPosition
 }
 
 /** What a button does, by symbol; a long-press names it (TooltipBox), and a screen reader reads it. */
-enum class ActionLook { Gold, Outline, OnDark }
+enum class ActionLook { Gold, Outline, OnDark, Ink }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -163,6 +164,7 @@ fun IconAction(icon: ImageVector, name: String, onClick: () -> Unit, modifier: M
     when (look) {
         ActionLook.Gold -> { bg = CounselGold; fg = Ink; line = null }
         ActionLook.Outline -> { bg = Color.Transparent; fg = Lex.colors.foreground; line = Lex.colors.input }
+        ActionLook.Ink -> { bg = Color.Black; fg = Color.White; line = null }
         ActionLook.OnDark -> { bg = Color.Transparent; fg = Lex.colors.primaryForeground; line = Lex.colors.primaryForeground.copy(alpha = 0.45f) }
     }
     TooltipBox(
@@ -179,7 +181,7 @@ fun IconAction(icon: ImageVector, name: String, onClick: () -> Unit, modifier: M
 }
 
 @Composable
-fun CounselTodayScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit, onPrintDate: (String) -> Unit) {
+fun CounselCalendarScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
     val vm: CounselTodayViewModel = viewModel()
     val state by vm.state.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
@@ -196,133 +198,148 @@ fun CounselTodayScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit, onPrint
                 )
             }
         }
-        is TodayState.Ready -> TodayPage(s.today, refreshing, vm::refresh, onCredits, onOpenCase, onPrintDate)
+        is TodayState.Ready -> CalendarPage(s.today, vm::refresh, onCredits, onOpenCase)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Unit, onCredits: () -> Unit, onOpenCase: (Int) -> Unit, onPrintDate: (String) -> Unit) {
+private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
     val context = LocalContext.current
     val today = BoardDates.today()
-    val date = BoardDates.parse(t.date) ?: today
     var importing by rememberSaveable { mutableStateOf(false) }
     var byCnr by rememberSaveable { mutableStateOf(false) }
     var formatNote by rememberSaveable { mutableStateOf(false) }
     var answering by remember { mutableStateOf<Pair<NeedsEye, DateAnswer>?>(null) }
     var mismatches by remember { mutableStateOf<List<Mismatch>>(emptyList()) }
-    // The case list (the Cases screen, merged into Today): search, and a filter by day.
     val repo = remember { BoardRepository(context) }
     val scope = rememberCoroutineScope()
-    var q by rememberSaveable { mutableStateOf("") }
-    // The calendar flow: the chosen day, the week shown, the counts on its chips, that day's cases.
-    var selectedIso by rememberSaveable { mutableStateOf(BoardDates.api(date)) }
-    val selected = BoardDates.parse(selectedIso) ?: date
-    var startIso by rememberSaveable { mutableStateOf(BoardDates.api(windowStart(date))) }
-    val start = BoardDates.parse(startIso) ?: windowStart(date)
+    var tick by remember { mutableStateOf(0) }
+    // The chosen day (kept when the Calendar is left and opened again), the counts on the week's dots, the day's cases.
+    var selectedIso by rememberSaveable { mutableStateOf(BoardHub.chosen.value ?: BoardDates.api(today)) }
+    val selected = BoardDates.parse(selectedIso) ?: today
     var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var dayItems by remember { mutableStateOf<List<BoardCase>?>(null) }
     var dayError by remember { mutableStateOf<String?>(null) }
     var picking by remember { mutableStateOf(false) }
     var eyeOpen by rememberSaveable { mutableStateOf(false) }
-    var cases by remember { mutableStateOf<List<BoardCase>?>(null) }
-    var casesError by remember { mutableStateOf<String?>(null) }
-    var casesTick by remember { mutableStateOf(0) }
-    androidx.compose.runtime.LaunchedEffect(q, casesTick, t.casesTracked) {
-        if (t.empty || q.isBlank()) { cases = null; return@LaunchedEffect }
-        kotlinx.coroutines.delay(300)
-        repo.cases(q.trim()).onSuccess { cases = it.second; casesError = null }.onFailure { casesError = it.boardMessage() }
-    }
-
-    androidx.compose.runtime.LaunchedEffect(startIso, casesTick, t.casesTracked) {
-        if (!t.empty) repo.days(start).onSuccess { counts = it }
-    }
-    androidx.compose.runtime.LaunchedEffect(selectedIso, casesTick, t.casesTracked) {
+    var addMenu by remember { mutableStateOf(false) }
+    var q by rememberSaveable { mutableStateOf("") }
+    var found by remember { mutableStateOf<List<BoardCase>?>(null) }
+    var foundError by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(selectedIso) { BoardHub.choose(selectedIso) }
+    androidx.compose.runtime.LaunchedEffect(weekStart(selected), tick) { if (!t.empty) repo.days(weekStart(selected), 7).onSuccess { counts = it } }
+    androidx.compose.runtime.LaunchedEffect(selectedIso, tick) {
         if (t.empty) return@LaunchedEffect
         dayItems = null
         repo.day(selectedIso).onSuccess { dayItems = it.items; dayError = null }.onFailure { dayError = it.boardMessage() }
     }
+    androidx.compose.runtime.LaunchedEffect(q, tick) {
+        if (t.empty || q.isBlank()) { found = null; return@LaunchedEffect }
+        kotlinx.coroutines.delay(300)
+        repo.cases(q.trim()).onSuccess { found = it.second; foundError = null }.onFailure { foundError = it.boardMessage() }
+    }
+    val more = { tick++ }
 
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().background(Lex.colors.background)) {
+    if (t.empty) {
+        LazyColumn(Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item { DayHeading("WELCOME", "Three steps to your first cause list") }
+            item { StepOne(onCnr = { byCnr = true }, onImport = { importing = true }) }
+            item { StepTwo(onSpecimen = { formatNote = true }) }
+            item { StepThree(t.credits) }
+        }
+    } else Column(Modifier.fillMaxSize().background(Lex.colors.background)) {
+        Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            t.short?.let { sh -> ShortBanner(sh, onCredits) }
+            MonthsRow(selected) { picking = true }
+            WeekRow(
+                selected, today, counts,
+                onPick = { selectedIso = BoardDates.api(it) },
+                onSwipe = { selectedIso = BoardDates.api(shiftWeek(selected, it)) },
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        // The day, on a black sheet whose top-right corner sweeps up into the calendar. Print is the bar's.
         LazyColumn(
-            Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(topEnd = 28.dp)).background(SheetBlack),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (t.empty) {
-                item { DayHeading("WELCOME", "Three steps to your first cause list") }
-                item { StepOne(onCnr = { byCnr = true }, onImport = { importing = true }) }
-                item { StepTwo(onSpecimen = { formatNote = true }) }
-                item { StepThree(t.credits) }
-            } else {
-                t.short?.let { sh -> item { ShortBanner(sh, onCredits) } }
-                item { MonthHeading(monthHeading(selected), checksLine(t.casesTracked, t.credits.daysLeft)) }
-                item {
-                    CalendarStrip(
-                        selected, start, counts, today,
-                        onPick = { selectedIso = BoardDates.api(it) },
-                        onShift = { startIso = BoardDates.api(shiftWindow(start, it)) },
-                        onJump = { picking = true },
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(sheetHeading(selected, today), fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = Color.White)
+                    Text(
+                        daySubline(counts[selectedIso] ?: dayItems?.size ?: 0, selected == today, BoardDates.checkedLabel(t.checkedAt, today)),
+                        fontSize = 12.sp, color = Color(0xFFA3A19A),
                     )
                 }
-                item {
-                    DayCard(selected, counts[BoardDates.api(selected)] ?: dayItems?.size, today, BoardDates.checkedLabel(t.checkedAt, today)) {
-                        onPrintDate(BoardDates.api(selected))
-                    }
+            }
+            if (q.isNotBlank()) {
+                val all = found
+                when {
+                    foundError != null && all == null -> item { Text(foundError.orEmpty(), color = Color(0xFFD6D4CF), fontSize = 13.sp) }
+                    all == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Color(0xFFA3A19A)) } }
+                    all.isEmpty() -> item { Text("No case matches.", color = Color(0xFFA3A19A), fontSize = 14.sp) }
+                    else -> items(all, key = { "found-${it.id}" }) { c -> SearchHit(c, today) { onOpenCase(c.id) } }
                 }
+            } else {
                 val items = dayItems
                 when {
                     dayError != null && items == null -> item {
-                        LexCard { LexEmpty("The Day Could Not Be Opened", dayError.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { dayError = null; casesTick++ }) }) }
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(dayError.orEmpty(), color = Color(0xFFD6D4CF), fontSize = 13.sp)
+                            LegumSecondaryButton("Try Again", { dayError = null; more() })
+                        }
                     }
-                    items == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
-                    items.isEmpty() -> item { Text("Nothing is listed on this day.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
+                    items == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Color(0xFFA3A19A)) } }
+                    items.isEmpty() -> item { Text("Nothing is listed on this day.", color = Color(0xFFA3A19A), fontSize = 14.sp) }
                     else -> item {
-                        Column {
-                            items.forEachIndexed { i, c ->
-                                DayCaseRow(c) { onOpenCase(c.id) }
-                                if (i < items.lastIndex) androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
+                        // The rail runs behind the cases; a node marks each.
+                        Box {
+                            Box(Modifier.padding(start = 4.dp).matchParentSize().padding(vertical = 6.dp)) { Box(Modifier.width(1.dp).fillMaxHeight().background(Color(0xFF3A3936))) }
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                items.forEach { c -> TimelineCase(c, { onOpenCase(c.id) }, { n, a -> answering = n to a }, today) }
                             }
                         }
                     }
                 }
                 if (t.needsEye.isNotEmpty()) {
                     item { EyeLine(t.needsEye.size, eyeOpen) { eyeOpen = !eyeOpen } }
-                    if (eyeOpen) item {
-                        NeedsEyeCard(t.needsEye, today, onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight })
+                    if (eyeOpen) item { NeedsEyeCard(t.needsEye, today, onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight }) }
+                }
+            }
+            // Search and Add stay at the foot.
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Color(0xFF3A3936), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Color(0xFFA3A19A), modifier = Modifier.size(18.dp))
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = q, onValueChange = { q = it }, singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                            modifier = Modifier.weight(1f).semantics { contentDescription = "Search any case" },
+                            decorationBox = { inner -> Box { if (q.isEmpty()) Text("Search any case", color = Color(0xFFA3A19A), fontSize = 14.sp); inner() } },
+                        )
                     }
-                }
-                item {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Eyebrow("Find A Case", Modifier.weight(1f), color = Lex.colors.secondaryForeground)
-                        IconAction(Icons.Outlined.Download, "Export all cases as myCases.txt", {
-                            scope.launch {
-                                repo.export().onSuccess { shareText(context, it, "myCases.txt") }
-                                    .onFailure { Toast.makeText(context, if (it.isOffline()) "The export needs a connection." else it.boardMessage(), Toast.LENGTH_LONG).show() }
-                            }
-                        }, look = ActionLook.Outline)
-                        Spacer(Modifier.width(8.dp))
-                        IconAction(Icons.Outlined.SavedSearch, "Add a case by its CNR", { byCnr = true }, look = ActionLook.Outline)
-                        Spacer(Modifier.width(8.dp))
-                        IconAction(Icons.Outlined.FileUpload, "Import cases from the eCourts app", { importing = true }, look = ActionLook.Gold)
-                    }
-                }
-                item {
-                    com.legumlex.client.ui.components.LegumTextField(q, { q = it }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search)
-                }
-                // Search finds a case on any date; with nothing typed, the list is not shown (the day's cases are above).
-                if (q.isNotBlank()) {
-                    val all = cases
-                    when {
-                        casesError != null && all == null -> item {
-                            LexCard { LexEmpty("The Cases Could Not Be Opened", casesError.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { casesError = null; casesTick++ }) }) }
+                    Box {
+                        IconAction(Icons.Outlined.Add, "Add a case", { addMenu = true }, look = ActionLook.OnDark, size = 44.dp)
+                        androidx.compose.material3.DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Add By CNR") }, onClick = { addMenu = false; byCnr = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Import From eCourts") }, onClick = { addMenu = false; importing = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Export All Cases") }, onClick = {
+                                addMenu = false
+                                scope.launch {
+                                    repo.export().onSuccess { shareText(context, it, "myCases.txt") }
+                                        .onFailure { Toast.makeText(context, if (it.isOffline()) "The export needs a connection." else it.boardMessage(), Toast.LENGTH_LONG).show() }
+                                }
+                            })
                         }
-                        all == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
-                        all.isEmpty() -> item { Text("No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
-                        else -> items(all, key = { "case-${it.id}" }) { c -> CaseListRow(c, today) { onOpenCase(c.id) } }
                     }
                 }
             }
-            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 
@@ -332,10 +349,7 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
             onDismissRequest = { picking = false },
             confirmButton = {
                 TextButton({
-                    ps.selectedDateMillis?.let {
-                        val d = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()
-                        selectedIso = BoardDates.api(d); startIso = BoardDates.api(windowStart(d))
-                    }
+                    ps.selectedDateMillis?.let { selectedIso = BoardDates.api(java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()) }
                     picking = false
                 }) { Text("Show", color = Lex.colors.foreground) }
             },
@@ -347,18 +361,17 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
         DateAnswerDialog(c, a, today, onClose = { answering = null }, onDone = {
             answering = null
             Toast.makeText(context, if (a == DateAnswer.EcourtsRight) "eCourts' date is kept." else "Your date is kept.", Toast.LENGTH_SHORT).show()
-            onRefresh()
+            tick++; onRefresh()
         })
     }
-    if (mismatches.isNotEmpty()) MismatchDialog(mismatches, today, onDone = { mismatches = emptyList(); casesTick++; onRefresh() })
+    if (mismatches.isNotEmpty()) MismatchDialog(mismatches, today, onDone = { mismatches = emptyList(); tick++; onRefresh() })
     if (importing) ImportWizard(onClose = { importing = false }, onDone = {
-        importing = false; casesTick++
+        importing = false; tick++
         Toast.makeText(context, "${it.added} added, ${it.updated} updated", Toast.LENGTH_LONG).show()
-        // Dates follow eCourts: where the check after the import found a different date, ask which is right.
         if (it.mismatches.isNotEmpty()) mismatches = it.mismatches else onRefresh()
     })
     if (byCnr) CnrWizard(onClose = { byCnr = false }, onBuy = { byCnr = false; onCredits() }, onAdded = { _, bal ->
-        byCnr = false; casesTick++
+        byCnr = false; tick++
         Toast.makeText(context, "Case added. Balance: ${creditsText(bal)} credits.", Toast.LENGTH_LONG).show()
         onRefresh()
     })
@@ -369,6 +382,17 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
         confirmButton = { TextButton({ formatNote = false }) { Text("Understood", color = Lex.colors.foreground) } },
         containerColor = Lex.colors.card,
     )
+}
+
+/** A search hit on the black sheet: case number and parties, the court and judge, and the next date. */
+@Composable
+private fun SearchHit(c: BoardCase, today: LocalDate, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(c.heading, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = Color(0xFFA3A19A))
+        Text(c.title.ifBlank { c.cnr }, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+        if (c.courtLine.isNotBlank()) Text(c.courtLine, fontSize = 12.5.sp, color = Color(0xFFA3A19A))
+        Text(c.nextDate?.let { "Next: ${BoardDates.show(it, today)}" } ?: "No Next Date", fontSize = 12.sp, color = Color(0xFFD6D4CF))
+    }
 }
 
 // ---- the page's parts -----------------------------------------------------------

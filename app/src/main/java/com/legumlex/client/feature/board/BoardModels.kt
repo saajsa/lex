@@ -71,9 +71,18 @@ data class BoardCase(
     val hasCnr: Boolean = true,
     /** The case's Date History, newest first (only on the single-case read). */
     val history: List<DateHistoryRow> = emptyList(),
+    /** The server's "designation at place" (no room) and the judge as the bench rule addresses them ("Ld. Court" when none). */
+    val courtDesig: String = "",
+    val judgeLine: String = "",
 ) {
     /** The court line: the court, then the bench the server names (else the room). */
-    val courtLine: String get() = listOf(court, bench.ifBlank { room }).filter { it.isNotBlank() }.joinToString(" · ")
+    val courtLine: String get() = listOf(courtShown, judgeShown).filter { it.isNotBlank() }.joinToString(" · ")
+
+    /** The court as the server words it ("Civil Judge (Jr. Div.) at Ludhiana"), else the court name. */
+    val courtShown: String get() = courtDesig.ifBlank { court }
+
+    /** The judge line (no room), else the bench the server named, else the room. */
+    val judgeShown: String get() = judgeLine.ifBlank { bench.ifBlank { room } }
 
     /** The name a row leads with: the case number, else the CNR. */
     val heading: String get() = caseNo.ifBlank { cnr }
@@ -207,6 +216,8 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         needsEye = m["needs_eye"] == true,
         hasCnr = m["has_cnr"] != false,
         history = m["history"].list().map { DateHistoryRow(it["date"].str(), it["source"].str(), it["label"].str(), it["at"].strOrNull()) },
+        courtDesig = m["court_line"].str(),
+        judgeLine = m["judge_line"].str(),
     )
 }
 
@@ -373,4 +384,56 @@ fun packLasts(credits: Int, onCheck: Int, costCheck: Int, months: Int): String {
     val span = Math.round(maxOf(1, months) * 365.0 / 12).toInt()
     return if (days >= span) "Covers ${credits / (span * cost)} cases for ${maxOf(1, months)} months"
     else "About $days ${if (days == 1) "day" else "days"} at $cases ${if (cases == 1) "case" else "cases"}"
+}
+
+// ---- Home (board/home) ------------------------------------------------------------------
+
+data class HomeProfile(
+    val name: String, val displayName: String, val initials: String, val barCouncil: String, val enrolmentNo: String,
+    val yearsAtBar: Int?, val chambers: String, val email: String, val mobile: String,
+    val courts: Int, val districts: List<String>, val daysOnPlatform: Int,
+)
+
+data class Specialty(val key: String, val label: String, val side: String, val count: Int)
+
+data class HomeScore(
+    val criminal: Double, val civil: Double, val ni: Int, val lead: String,
+    val specialties: List<Specialty>, val nextCriminal: Int?, val nextCivil: Int?,
+)
+
+data class HomeTiles(
+    val ongoing: Int, val criminal: Int, val civil: Int, val ni: Int, val unknown: Int,
+    val hearings: Int, val busiestDate: String?, val busiestCount: Int,
+    val datesCaught: Int, val disposedThisYear: Int, val oldestRunningYear: Int?,
+)
+
+data class CounselHome(val profile: HomeProfile, val score: HomeScore, val tiles: HomeTiles)
+
+internal fun parseHome(d: Map<String, Any?>): CounselHome {
+    val p = d["profile"].map()
+    val sc = d["score"].map()
+    val nx = sc["next"].map()
+    val t = d["tiles"].map()
+    val dy = t["diary"].map()
+    val tm = t["this_month"].map()
+    val bz = tm["busiest"].map()
+    val ds = t["disposed"].map()
+    return CounselHome(
+        profile = HomeProfile(
+            name = p["name"].str(), displayName = p["display_name"].str(), initials = p["initials"].str(), barCouncil = p["bar_council"].str(),
+            enrolmentNo = p["enrolment_no"].str(), yearsAtBar = p["years_at_bar"].intOrNull(), chambers = p["chambers"].str(), email = p["email"].str(),
+            mobile = p["mobile"].str(), courts = p["courts"].int(), districts = (p["districts"] as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
+            daysOnPlatform = p["days_on_platform"].int(),
+        ),
+        score = HomeScore(
+            criminal = sc["criminal"].dbl(), civil = sc["civil"].dbl(), ni = sc["ni"].int(), lead = sc["lead"].str(),
+            specialties = sc["specialties"].list().map { Specialty(it["key"].str(), it["label"].str(), it["side"].str(), it["count"].int()) },
+            nextCriminal = nx["criminal"].intOrNull(), nextCivil = nx["civil"].intOrNull(),
+        ),
+        tiles = HomeTiles(
+            ongoing = dy["ongoing"].int(), criminal = dy["criminal"].int(), civil = dy["civil"].int(), ni = dy["ni"].int(), unknown = dy["unknown"].int(),
+            hearings = tm["hearings"].int(), busiestDate = bz["date"].strOrNull(), busiestCount = bz["count"].int(),
+            datesCaught = t["dates_caught"].map()["count"].int(), disposedThisYear = ds["this_year"].int(), oldestRunningYear = ds["oldest_running_year"].intOrNull(),
+        ),
+    )
 }

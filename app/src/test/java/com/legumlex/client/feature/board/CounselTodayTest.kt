@@ -121,28 +121,56 @@ class CounselTodayTest {
 
     // ---- the calendar flow ----------------------------------------------------------
 
-    @Test fun theStripPutsTheChosenDayInTheMiddleOfAWeek() {
-        val sel = LocalDate.of(2026, 11, 9)
-        val start = windowStart(sel)
-        assertEquals(LocalDate.of(2026, 11, 6), start)
-        val days = stripDays(start)
+    @Test fun theWeekRunsSundayToSaturday() {
+        val mon = LocalDate.of(2026, 11, 9)
+        assertEquals(LocalDate.of(2026, 11, 8), weekStart(mon))
+        assertEquals(LocalDate.of(2026, 11, 8), weekStart(LocalDate.of(2026, 11, 8)))   // a Sunday is its own week's start
+        assertEquals(LocalDate.of(2026, 11, 8), weekStart(LocalDate.of(2026, 11, 14)))   // the Saturday
+        val days = weekDays(mon)
         assertEquals(7, days.size)
-        assertEquals(sel, days[3])
-        assertEquals(LocalDate.of(2026, 11, 12), days.last())
+        assertEquals(LocalDate.of(2026, 11, 8), days.first())
+        assertEquals(LocalDate.of(2026, 11, 14), days.last())
+        assertTrue(mon in days)
     }
 
-    @Test fun arrowsMoveByAWeekAcrossMonthsAndYears() {
-        assertEquals(LocalDate.of(2026, 11, 13), shiftWindow(LocalDate.of(2026, 11, 6), 1))
-        assertEquals(LocalDate.of(2026, 10, 30), shiftWindow(LocalDate.of(2026, 11, 6), -1))
-        assertEquals(LocalDate.of(2027, 1, 1), shiftWindow(LocalDate.of(2026, 12, 25), 1))
-        assertEquals(LocalDate.of(2026, 12, 29), windowStart(LocalDate.of(2027, 1, 1)))
+    @Test fun aSwipeMovesTheChosenDayByAWeekAcrossMonthsAndYears() {
+        assertEquals(LocalDate.of(2026, 11, 16), shiftWeek(LocalDate.of(2026, 11, 9), 1))
+        assertEquals(LocalDate.of(2026, 11, 2), shiftWeek(LocalDate.of(2026, 11, 9), -1))
+        assertEquals(LocalDate.of(2027, 1, 1), shiftWeek(LocalDate.of(2026, 12, 25), 1))
+        assertEquals(LocalDate.of(2026, 12, 27), weekStart(LocalDate.of(2027, 1, 1)))   // the week crosses the year
     }
 
-    @Test fun theRangeLabelNamesTheMonthOnceOrTwice() {
-        assertEquals("6 – 12 Nov", windowLabel(LocalDate.of(2026, 11, 6)))
-        assertEquals("29 Oct – 4 Nov", windowLabel(LocalDate.of(2026, 10, 29)))
-        assertEquals("NOVEMBER 2026", monthHeading(LocalDate.of(2026, 11, 9)))
-        assertEquals("MONDAY, 9 NOV", dayHeading(LocalDate.of(2026, 11, 9)))
+    @Test fun theMonthsAcrossTheTopAndTheSheetHeading() {
+        assertEquals(Triple("October", "November", "December"), monthsAround(LocalDate.of(2026, 11, 9)))
+        assertEquals(Triple("December", "January", "February"), monthsAround(LocalDate.of(2027, 1, 20)))
+        val today = LocalDate.of(2026, 11, 8)
+        assertEquals("Today", sheetHeading(today, today))
+        assertEquals("Monday, 9 Nov", sheetHeading(LocalDate.of(2026, 11, 9), today))
+        assertEquals("3 cases · eCourts checked 7:05 AM", daySubline(3, true, "7:05 AM"))
+        assertEquals("2 cases", daySubline(2, false, "7:05 AM"))
+        assertEquals("1 case", daySubline(1, true, null))
+    }
+
+    @Test fun partiesComeFromTheServerOrFromTheTitle() {
+        val named = parseCase(mapOf("id" to 1.0, "petitioner" to "Sunita Devi", "respondent" to "Municipal Corporation Ludhiana", "title" to "x"))
+        assertEquals("Sunita Devi" to "Municipal Corporation Ludhiana", parties(named))
+        assertEquals("State of Punjab" to "Gurdeep Singh & Ors.", parties(parseCase(mapOf("id" to 2.0, "title" to "State of Punjab v. Gurdeep Singh & Ors."))))
+        assertEquals("A" to "B", parties(parseCase(mapOf("id" to 3.0, "title" to "A vs B"))))
+        assertNull(parties(parseCase(mapOf("id" to 4.0, "title" to "A matter with no parties"))))
+    }
+
+    @Test fun theServersCourtAndJudgeLinesAreUsedWhenPresent() {
+        val c = parseCase(mapOf("id" to 5.0, "court" to "Civil Judge (Jr. Div.) Ludhiana", "room" to "Court 3", "bench" to "Ld. Ms. Anjali Sharma",
+            "court_line" to "Civil Judge (Jr. Div.) at Ludhiana", "judge_line" to "Ld. Ms. Anjali Sharma"))
+        assertEquals("Civil Judge (Jr. Div.) at Ludhiana", c.courtShown)
+        assertEquals("Ld. Ms. Anjali Sharma", c.judgeShown)
+        assertEquals("Civil Judge (Jr. Div.) at Ludhiana · Ld. Ms. Anjali Sharma", c.courtLine)
+        // Without them (an older server) the court and the bench or room are used.
+        val old = parseCase(mapOf("id" to 6.0, "court" to "Civil Judge", "room" to "Court 3"))
+        assertEquals("Civil Judge", old.courtShown)
+        assertEquals("Court 3", old.judgeShown)
+        // No room, "Ld. Court" when no judge is known.
+        assertEquals("Ld. Court", parseCase(mapOf("id" to 7.0, "judge_line" to "Ld. Court")).judgeShown)
     }
 
     @Test fun theLinesAreWordedFromTheCounts() {

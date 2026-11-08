@@ -63,9 +63,12 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (counsel) {
-                // Four items round the notch: Today alone in the left half, centred; the gold Cause List in the
-                // notch; Credits and Account sharing the right half. Today sits where the middle of the left half is.
-                NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
+                // Home and Calendar in the left half, the gold Print in the notch, Credits and Upgrade in the right half
+                // (equal slots, so the notch stays centred).
+                Row(Modifier.weight(1f).fillMaxHeight()) {
+                    NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
+                    NavGlyph(tab(Route.CounselCalendar), on(tab(Route.CounselCalendar)), Modifier.weight(1f)) { go(tab(Route.CounselCalendar)) }
+                }
                 Spacer(Modifier.width(NotchRadius * 2))
                 Row(Modifier.weight(1f).fillMaxHeight()) {
                     NavGlyph(tab(Route.BoardCredits), on(tab(Route.BoardCredits)), Modifier.weight(1f)) { go(tab(Route.BoardCredits)) }
@@ -92,7 +95,7 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
             // Cause List, raised in the notch: today's cause list in the counsel's own format.
             Surface(
                 onClick = {
-                    navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
+                    navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardHub.chosen.value ?: com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
                 },
                 shape = CircleShape, color = DeskYellow,
                 border = androidx.compose.foundation.BorderStroke(4.dp, bar),

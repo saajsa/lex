@@ -2,6 +2,8 @@ package com.legumlex.client.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -49,6 +51,9 @@ sealed class Route(val path: String) {
     }
     data object BoardCredits  : Route("board/credits")
     /** The Counsel workspace's Upgrade (Coming Soon): an invitation to associate with the firm. */
+    /** The Counsel workspace's Calendar (it was Today), and the diary's list of cases (the Home's Diary tile). */
+    data object CounselCalendar : Route("counsel/calendar")
+    data object BoardCases : Route("counsel/cases")
     data object Upgrade : Route("counsel/upgrade")
     data object BoardSheet    : Route("board/sheet/{date}/{junior}?label={label}") {
         const val ARG_DATE = "date"
@@ -351,7 +356,8 @@ val bottomTabs = listOf(
 // The Counsel workspace's bar (REQ-008): Today (with the cases), the gold Cause List in
 // the centre (a button, not a tab), Credits and Upgrade.
 val counselTabs = listOf(
-    BottomTab(Route.Home,           R.string.nav_today,   Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
+    BottomTab(Route.Home,           R.string.nav_home,     Icons.Outlined.Home, Icons.Rounded.Home),
+    BottomTab(Route.CounselCalendar, R.string.nav_calendar, Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
     BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.CurrencyRupee, Icons.Rounded.CurrencyRupee),
     BottomTab(Route.Upgrade,        R.string.nav_upgrade, Icons.Outlined.ArrowUpward, Icons.Rounded.ArrowUpward),
 )

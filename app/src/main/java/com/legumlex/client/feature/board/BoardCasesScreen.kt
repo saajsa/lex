@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -225,6 +226,37 @@ private fun DateHistoryCard(rows: List<DateHistoryRow>, today: java.time.LocalDa
             Text("No date has been recorded for this case yet.", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         } else rows.forEach { r ->
             KeyValueRow(r.label.ifBlank { r.source.replaceFirstChar { it.uppercase() } }, BoardDates.parse(r.date)?.let { BoardDates.long(it) } ?: r.date)
+        }
+    }
+}
+
+
+/** Every case in the diary, with a search (the Home's Diary tile opens it). */
+@Composable
+fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
+    val context = LocalContext.current
+    val repo = remember { BoardRepository(context) }
+    var q by rememberSaveable { mutableStateOf("") }
+    var cases by remember { mutableStateOf<List<BoardCase>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var tick by remember { mutableStateOf(0) }
+    val today = BoardDates.today()
+    LaunchedEffect(q, tick) {
+        if (q.isNotBlank()) kotlinx.coroutines.delay(300)
+        repo.cases(q.trim()).onSuccess { cases = it.second; error = null }.onFailure { error = it.boardMessage() }
+    }
+    androidx.compose.foundation.lazy.LazyColumn(
+        Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item { PageHeader(eyebrow = "Your Diary", title = "Cases") }
+        item { com.legumlex.client.ui.components.LegumTextField(q, { q = it }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search) }
+        val all = cases
+        when {
+            error != null && all == null -> item { LexCard { LexEmpty("The Cases Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { error = null; tick++ }) }) } }
+            all == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
+            all.isEmpty() -> item { Text(if (q.isBlank()) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
+            else -> items(all, key = { it.id }) { c -> CaseListRow(c, today) { onOpenCase(c.id) } }
         }
     }
 }

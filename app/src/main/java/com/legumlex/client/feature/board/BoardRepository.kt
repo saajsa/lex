@@ -47,8 +47,11 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
         day
     }
 
+    /** The counsel's Home. */
+    suspend fun home(): Result<CounselHome> = runCatching { parseHome(data(api.boardHome())) }
+
     /** The number listed on each of [n] days from [from]: date (yyyy-MM-dd) to count. */
-    suspend fun days(from: java.time.LocalDate, n: Int = StripDays): Result<Map<String, Int>> = runCatching { parseDays(data(api.boardDays(BoardDates.api(from), n))) }
+    suspend fun days(from: java.time.LocalDate, n: Int = 7): Result<Map<String, Int>> = runCatching { parseDays(data(api.boardDays(BoardDates.api(from), n))) }
 
     // ---- weak signal --------------------------------------------------------
 

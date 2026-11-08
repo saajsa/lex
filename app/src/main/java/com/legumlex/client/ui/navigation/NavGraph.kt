@@ -186,10 +186,9 @@ fun LegumNavGraph(navController: NavHostController) {
             val prof by com.legumlex.client.feature.profile.ProfileHub.profile.collectAsState()
             val mayHaveBoard = prof?.permissions?.map { it.lowercase() }?.any { "board" in it } ?: true
             if (com.legumlex.client.feature.board.isCounsel(access)) {
-                com.legumlex.client.feature.board.CounselTodayScreen(
-                    onCredits = { navController.navigateTab(Route.BoardCredits.path) },
-                    onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) },
-                    onPrintDate = { d -> navController.navigate(Route.BoardSheet.build(d, Route.BoardSheet.OWN, "Cause List")) },
+                com.legumlex.client.feature.board.CounselHomeScreen(
+                    onOpenCalendar = { navController.navigateTab(Route.CounselCalendar.path) },
+                    onOpenCases = { navController.navigate(Route.BoardCases.path) },
                 )
             } else if (access is com.legumlex.client.feature.board.BoardAccess.Unknown && mayHaveBoard) {
                 androidx.compose.foundation.layout.Box(
@@ -367,6 +366,15 @@ fun LegumNavGraph(navController: NavHostController) {
             com.legumlex.client.feature.registry.RegistryAgreementScreen()
         }
         // --- The advocate's Counsel workspace (Today is Home; Credits; the case and the sheet) ---
+        composable(Route.CounselCalendar.path) {
+            com.legumlex.client.feature.board.CounselCalendarScreen(
+                onCredits = { navController.navigateTab(Route.BoardCredits.path) },
+                onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) },
+            )
+        }
+        composable(Route.BoardCases.path) {
+            com.legumlex.client.feature.board.BoardCasesListScreen(onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) })
+        }
         composable(Route.Upgrade.path) { com.legumlex.client.feature.board.UpgradeScreen() }
         composable(
             Route.BoardCase.path,

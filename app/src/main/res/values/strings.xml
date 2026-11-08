@@ -5,6 +5,7 @@
     <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_today">Today</string>
+    <string name="nav_calendar">Calendar</string>
     <string name="nav_cases">Cases</string>
     <string name="nav_credits">Credits</string>
     <string name="nav_account">Account</string>
