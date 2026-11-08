@@ -44,6 +44,7 @@ fun CounselCreditsChip(compact: Boolean = false, onClick: () -> Unit) {
     Text(
         androidx.compose.ui.text.buildAnnotatedString {
             append(creditsText(balance))
+            append("\u2009")
             pushStyle(androidx.compose.ui.text.SpanStyle(baselineShift = androidx.compose.ui.text.style.BaselineShift.Superscript, fontSize = 10.sp))
             append("C")
             pop()
