@@ -350,3 +350,46 @@ fun AddCnrWizard(caseId: Int, caseName: String, onClose: () -> Unit, onDone: (Bo
         }
     }
 }
+
+// ---- chambers (the Home profile card) -------------------------------------------
+
+/** Where the counsel sits: address, then city and PIN code. The web's wizard, its wording and limits. */
+@Composable
+fun ChambersWizard(onClose: () -> Unit, onSaved: (String) -> Unit) {
+    val context = LocalContext.current
+    val repo = remember { BoardRepository(context) }
+    val scope = rememberCoroutineScope()
+    var step by rememberSaveable { mutableStateOf(0) }
+    var address by rememberSaveable { mutableStateOf("") }
+    var city by rememberSaveable { mutableStateOf("") }
+    var zip by rememberSaveable { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    WizardDialog(onDismiss = onClose) {
+        WizardFrame(
+            title = "Your Chambers", steps = listOf("Address", "City And PIN Code"), step = step,
+            ready = step != 0 || address.isNotBlank(), saving = saving, saveLabel = "Save Chambers",
+            error = error, onClose = onClose, onStep = { error = null; step = it },
+            onSave = {
+                saving = true; error = null
+                scope.launch {
+                    repo.chambersSave(address, city, zip).onSuccess(onSaved).onFailure {
+                        error = it.boardMessage()
+                        if (it.boardCode() == "address") step = 0
+                    }
+                    saving = false
+                }
+            },
+        ) {
+            if (step == 0) {
+                WizardHeading("Where You Sit", "The address of your chambers.")
+                WizardTextField("Address", address, { address = it.take(191) }, placeholder = "214, District Courts")
+            } else {
+                WizardHeading("City And PIN Code", "")
+                WizardTextField("City", city, { city = it.take(100) }, placeholder = "Ludhiana")
+                WizardTextField("PIN Code", zip, { zip = it.take(15) }, placeholder = "141001")
+            }
+        }
+    }
+}

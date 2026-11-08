@@ -50,6 +50,11 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     /** The counsel's Home. */
     suspend fun home(): Result<CounselHome> = runCatching { parseHome(data(api.boardHome())) }
 
+    /** Save the chambers (the web wizard's own method); returns the chambers line as Home shows it. */
+    suspend fun chambersSave(address: String, city: String, zip: String): Result<String> = runCatching {
+        data(api.boardChambers(chambersFields(address, city, zip)))["chambers"].str()
+    }
+
     /** The number listed on each of [n] days from [from]: date (yyyy-MM-dd) to count. */
     suspend fun days(from: java.time.LocalDate, n: Int = 7): Result<Map<String, Int>> = runCatching { parseDays(data(api.boardDays(BoardDates.api(from), n))) }
 

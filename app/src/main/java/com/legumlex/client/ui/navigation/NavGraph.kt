@@ -183,14 +183,13 @@ fun LegumNavGraph(navController: NavHostController) {
             // Until the server has answered for a contact who may have the board, a wait, so the
             // firm's Home never flashes for counsel.
             val access by com.legumlex.client.feature.board.BoardHub.access.collectAsState()
-            val prof by com.legumlex.client.feature.profile.ProfileHub.profile.collectAsState()
-            val mayHaveBoard = prof?.permissions?.map { it.lowercase() }?.any { "board" in it } ?: true
-            if (com.legumlex.client.feature.board.isCounsel(access)) {
+            val expectCounsel by com.legumlex.client.feature.board.BoardHub.expectCounsel.collectAsState()
+            if (com.legumlex.client.feature.board.counselChrome(access, expectCounsel)) {
                 com.legumlex.client.feature.board.CounselHomeScreen(
                     onOpenCalendar = { navController.navigateTab(Route.CounselCalendar.path) },
                     onOpenCases = { navController.navigate(Route.BoardCases.path) },
                 )
-            } else if (access is com.legumlex.client.feature.board.BoardAccess.Unknown && mayHaveBoard) {
+            } else if (access is com.legumlex.client.feature.board.BoardAccess.Unknown) {
                 androidx.compose.foundation.layout.Box(
                     androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center,
                 ) { androidx.compose.material3.CircularProgressIndicator(strokeWidth = 2.dp, color = com.legumlex.client.ui.theme.Lex.colors.mutedForeground) }

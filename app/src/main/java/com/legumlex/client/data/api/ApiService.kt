@@ -833,6 +833,11 @@ interface ApiService {
     @POST("board/cases/cnr")
     suspend fun boardCaseByCnr(@Field("cnr") cnr: String): Map<String, Any?>
 
+    /** The counsel's chambers: address (required, 191), city (100), zip (15). Returns {data:{chambers}}. */
+    @FormUrlEncoded
+    @POST("board/chambers")
+    suspend fun boardChambers(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
     @GET("board/juniors")
     suspend fun boardJuniors(): Map<String, Any?>
 

@@ -43,12 +43,33 @@ object BoardHub {
 
     val statuses: List<String> get() = (_access.value as? BoardAccess.Yes)?.summary?.statuses.orEmpty()
 
-    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null }
+    /**
+     * The workspace this sign-in had last time (the server's `counsel`), kept on the phone so a counsel's cold start opens
+     * the Counsel chrome at once instead of waiting, and a slow or odd first answer never shows the client's. Cleared at
+     * sign-out and account switch; the server's answer always has the last word.
+     */
+    private val _expectCounsel = MutableStateFlow(false)
+    val expectCounsel: StateFlow<Boolean> = _expectCounsel.asStateFlow()
+    private var appContext: Context? = null
+    private fun prefs() = appContext?.getSharedPreferences("board_workspace", Context.MODE_PRIVATE)
 
-    fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary) }
+    fun init(context: Context) {
+        if (appContext != null) return
+        appContext = context.applicationContext
+        _expectCounsel.value = prefs()?.getBoolean("counsel", false) == true
+    }
+
+    private fun remember(counsel: Boolean) {
+        _expectCounsel.value = counsel
+        prefs()?.edit()?.putBoolean("counsel", counsel)?.apply()
+    }
+
+    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; remember(false) }
+
+    fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary); remember(summary.counsel) }
 
     /** The server refused the board (404 board_off, 403): hide it. */
-    fun hide() { _access.value = BoardAccess.No }
+    fun hide() { _access.value = BoardAccess.No; remember(false) }
 
     /**
      * Ask the server. A contact whose profile lists no board permission is not
@@ -56,16 +77,55 @@ object BoardHub {
      * what was known as it was.
      */
     suspend fun refresh(context: Context) {
-        val perms = ProfileHub.profile.value?.permissions?.map { it.lowercase() }
-        if (perms != null && perms.none { "board" in it }) { _access.value = BoardAccess.No; return }
-        BoardRepository(context).summary()
-            .onSuccess { set(it) }
-            .onFailure { e ->
-                val http = e.apiError().http
-                if (http == 404 || http == 403) hide()
-            }
+        init(context)
+        val repo = BoardRepository(context)
+        val first = repo.summary()
+        var r = first
+        val answers = mutableListOf(answerOf(first))
+        // A known counsel is not turned away by one refusal: ask once more before believing it.
+        if (needsRetry(_expectCounsel.value, answers[0])) { kotlinx.coroutines.delay(1_500); r = repo.summary(); answers += answerOf(r) }
+        when (decideAccess(_expectCounsel.value, answers)) {
+            Verdict.Yes -> r.onSuccess { set(it) }
+            Verdict.No -> hide()
+            Verdict.Keep -> Unit
+        }
+    }
+
+    private fun answerOf(r: Result<BoardSummary>): Answer {
+        if (r.isSuccess) return Answer.Ok
+        val http = r.exceptionOrNull()?.apiError()?.http
+        return if (http == 404 || http == 403) Answer.Refused else Answer.Failed
+    }
+}
+
+enum class Answer { Ok, Refused, Failed }
+enum class Verdict { Yes, No, Keep }
+
+/** Whether a refusal is asked again before it is believed: only for an account known as counsel. */
+fun needsRetry(expectCounsel: Boolean, first: Answer): Boolean = expectCounsel && first == Answer.Refused
+
+/**
+ * What the server's board/summary answers decide. Only a refusal (404 or 403) can decide No: a failure to reach the server
+ * decides nothing. An account never known as counsel is refused on the first refusal; a remembered counsel only when the
+ * retry refuses too (two refusals); an answer that is not a refusal (success or failure) after a first refusal rescues it.
+ */
+fun decideAccess(expectCounsel: Boolean, answers: List<Answer>): Verdict {
+    val last = answers.lastOrNull() ?: return Verdict.Keep
+    return when {
+        last == Answer.Ok -> Verdict.Yes
+        last == Answer.Failed -> Verdict.Keep
+        expectCounsel && answers.size < 2 -> Verdict.Keep
+        else -> Verdict.No
     }
 }
 
 /** The Counsel workspace is on when the server says so (board/summary `counsel`): a separate chrome and home. */
 fun isCounsel(access: BoardAccess): Boolean = (access as? BoardAccess.Yes)?.summary?.counsel == true
+
+/** The chrome is the Counsel's: the server said so, or it did last time and has not yet answered this time. */
+fun counselChrome(access: BoardAccess, expectCounsel: Boolean): Boolean =
+    isCounsel(access) || (access is BoardAccess.Unknown && expectCounsel)
+
+/** Nothing is known yet (no answer, nothing remembered): neutral chrome, no client label. */
+fun workspaceUnknown(access: BoardAccess, expectCounsel: Boolean): Boolean =
+    access is BoardAccess.Unknown && !expectCounsel

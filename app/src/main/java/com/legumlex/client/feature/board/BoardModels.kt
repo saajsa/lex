@@ -437,3 +437,8 @@ internal fun parseHome(d: Map<String, Any?>): CounselHome {
         ),
     )
 }
+
+/** The chambers request, as the web's wizard sends it: trimmed, cut to the server's limits (address 191, city 100, PIN 15). */
+internal fun chambersFields(address: String, city: String, zip: String): Map<String, String> = mapOf(
+    "address" to address.trim().take(191), "city" to city.trim().take(100), "zip" to zip.trim().take(15),
+)

@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Home
@@ -139,12 +140,12 @@ fun CounselHomeScreen(onOpenCalendar: () -> Unit, onOpenCases: () -> Unit) {
                 )
             }
         }
-        is HomeState.Ready -> HomePage(s.home, onOpenCalendar, onOpenCases)
+        is HomeState.Ready -> HomePage(s.home, onOpenCalendar, onOpenCases, vm::load)
     }
 }
 
 @Composable
-private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: () -> Unit) {
+private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: () -> Unit, onReload: () -> Unit) {
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState())
@@ -153,7 +154,7 @@ private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: ()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        ProfileCard(h.profile)
+        ProfileCard(h.profile, onReload)
         ScoreCard(h, selected) { selected = it }
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             HomeTile("Diary", h.tiles.ongoing.toString(), "ongoing", diaryLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), onOpenCases)
@@ -169,8 +170,10 @@ private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: ()
 // ---- the profile card (7f) -------------------------------------------------------------------
 
 @Composable
-private fun ProfileCard(p: HomeProfile) {
+private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
     val context = LocalContext.current
+    var editChambers by rememberSaveable { mutableStateOf(false) }
+    if (editChambers) ChambersWizard(onClose = { editChambers = false }, onSaved = { editChambers = false; onChambersSaved() })
     var open by remember { mutableStateOf(detailsPrefs(context).getBoolean("details_open", true)) }
     val shape = RoundedCornerShape(12.dp)
     Column(
@@ -202,8 +205,9 @@ private fun ProfileCard(p: HomeProfile) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
-            // Chambers are read-only here: the app has no route to change them (the web does).
-            DetailRow(Icons.Outlined.Home, p.chambers, "Chambers")
+            DetailRow(Icons.Outlined.Home, p.chambers, "Chambers") {
+                IconAction(Icons.Outlined.Edit, "Edit Chambers", { editChambers = true }, size = 32.dp)
+            }
             DetailRow(Icons.Outlined.Email, p.email, "Email")
             DetailRow(Icons.Outlined.Phone, p.mobile, "Mobile")
             DetailRow(Icons.Outlined.LocationOn, courtsLine(p), "Courts And Districts")
@@ -212,10 +216,11 @@ private fun ProfileCard(p: HomeProfile) {
 }
 
 @Composable
-private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, name: String) {
+private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, name: String, trailing: (@Composable () -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().semantics { contentDescription = "$name: ${text.ifBlank { "Not given" }}" }, verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(icon, contentDescription = null, tint = Lex.colors.secondaryForeground, modifier = Modifier.size(20.dp))
         Text(text.ifBlank { "Not given" }, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
+        trailing?.invoke()
     }
 }
 

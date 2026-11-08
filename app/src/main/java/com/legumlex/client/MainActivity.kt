@@ -163,7 +163,19 @@ private fun AppShell(deepLinkIntent: Intent?) {
     }
 
     // The Counsel workspace (REQ-008): when the server says so, the header, the bar and Home are the counsel's own.
-    val counsel = !lead && com.legumlex.client.feature.board.isCounsel(boardAccess)
+    val expectCounsel by com.legumlex.client.feature.board.BoardHub.expectCounsel.collectAsState()
+    LaunchedEffect(Unit) { com.legumlex.client.feature.board.BoardHub.init(context) }
+    // A refusal is asked again when the app comes back to the front (at most once a minute): one odd answer never lasts.
+    var lastBoardAsk by remember { mutableStateOf(0L) }
+    LaunchedEffect(resumes) {
+        val now = System.currentTimeMillis()
+        if (!lead && boardAccess is com.legumlex.client.feature.board.BoardAccess.No && showAppFooter(currentRoute) && now - lastBoardAsk >= 60_000L) {
+            lastBoardAsk = now
+            com.legumlex.client.feature.board.BoardHub.refresh(context)
+        }
+    }
+    val counsel = !lead && com.legumlex.client.feature.board.counselChrome(boardAccess, expectCounsel)
+    val waiting = !lead && com.legumlex.client.feature.board.workspaceUnknown(boardAccess, expectCounsel)
     var confirmSignOut by remember { mutableStateOf(false) }
     val signOutScope = androidx.compose.runtime.rememberCoroutineScope()
     if (confirmSignOut) com.legumlex.client.feature.board.SignOutDialog(
@@ -197,7 +209,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                     onSignOut = if (counsel) ({ confirmSignOut = true }) else null,
                     showBell = !lead && !counsel,
-                    subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else "Client Portal",
+                    subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else if (waiting) "" else "Client Portal",
                     spacedSubtitle = counsel,
                     trailingChip = if (counsel) ({
                         com.legumlex.client.feature.board.CounselCreditsChip(compact = showHeaderBack(currentRoute, canPop)) { navController.navigateTab(Route.BoardCredits.path) }
@@ -210,7 +222,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                 )
             }
         },
-        bottomBar = { if (showAppFooter(currentRoute)) LegumBottomBar(navController, lead, counsel) },
+        bottomBar = { if (showAppFooter(currentRoute) && !waiting) LegumBottomBar(navController, lead, counsel) },
     ) { innerPadding ->
         // The paper grain is the page's alone: the header and bottom bar are
         // solid chrome, so the three read as frame and paper. The splash and
