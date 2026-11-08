@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -250,9 +251,12 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // The bottom bar's Home circle rises half its height above the bar:
         // pages end above it, so nothing at their foot (a reply box, a button)
         // sits under it.
-        val lift = if (showAppFooter(currentRoute) && !counsel && !waiting) androidx.compose.ui.unit.Dp(28f) else androidx.compose.ui.unit.Dp(0f)
-        Box(if (edge) Modifier else Modifier.padding(innerPadding).padding(bottom = lift).grain()) {
-            LegumNavGraph(navController)
+        // The counsel's main screens run behind the raised button's zone and keep their own room at the foot, so no strip shows above the bar.
+        val behind = counsel && com.legumlex.client.ui.navigation.counselRunsBehindBar(currentRoute)
+        val lift = if (showAppFooter(currentRoute) && !behind) androidx.compose.ui.unit.Dp(28f) else androidx.compose.ui.unit.Dp(0f)
+        // The page's own colour and grain also fill the lift, so it reads as page, never as a lighter strip.
+        Box(if (edge) Modifier else Modifier.padding(innerPadding).background(com.legumlex.client.ui.theme.Lex.colors.background).grain()) {
+            Box(Modifier.padding(bottom = lift)) { LegumNavGraph(navController) }
         }
     }
 }

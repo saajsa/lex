@@ -370,3 +370,10 @@ val leadTabs = listOf(
     BottomTab(Route.LeadEnquiries, R.string.nav_enquiries, Icons.Outlined.Forum,     Icons.Rounded.Forum),
     BottomTab(Route.LeadMore,      R.string.nav_more,      Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
 )
+
+/** The Counsel screens that scroll behind the raised Print button's zone (each keeps bottom room of its own). */
+fun counselRunsBehindBar(route: String?): Boolean {
+    val b = routeBase(route) ?: return false
+    return listOf(Route.Home, Route.CounselCalendar, Route.BoardCredits, Route.Upgrade, Route.BoardCases, Route.BoardCase)
+        .any { it.path.substringBefore("?") == b }
+}

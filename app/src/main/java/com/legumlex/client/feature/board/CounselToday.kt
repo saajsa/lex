@@ -262,7 +262,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
         // The day, on a black sheet whose top-right corner sweeps up into the calendar. Print is the bar's.
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(topEnd = 28.dp)).background(SheetBlack),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 52.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {

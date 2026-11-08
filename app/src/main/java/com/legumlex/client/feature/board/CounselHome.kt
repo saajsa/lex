@@ -151,7 +151,7 @@ private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: ()
         Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState())
             // A tap anywhere that nothing else takes puts the ring back at rest.
             .pointerInput(Unit) { detectTapGestures { selected = null } }
-            .padding(16.dp),
+            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 52.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ProfileCard(h.profile, onReload)

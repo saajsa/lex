@@ -92,13 +92,15 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
         // Consult, raised: its centre on the bar's top edge, in the notch. It
         // opens the desk, where anything new begins.
         if (counsel) {
-            // Cause List: a gold button centred inside the flat black bar (no notch, no ring, no light strip).
+            // Cause List, raised on the bar's top edge: today's cause list in the counsel's own format. The bar is solid black
+            // behind it (the notch's hole is filled), so no lighter page colour shows around the button's ring.
             Surface(
                 onClick = {
                     navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardHub.chosen.value ?: com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
                 },
                 shape = CircleShape, color = DeskYellow,
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = (BarHeight - CounselFab) / 2).size(CounselFab)
+                border = androidx.compose.foundation.BorderStroke(4.dp, bar),
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = -FabSize / 2).size(FabSize)
                     .semantics { contentDescription = "Cause List" },
             ) {
                 PrintGlyph()
@@ -142,7 +144,6 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
 private val BarHeight = 64.dp
 private val DeskYellow = Color(0xFFF5C518)
 private val FabSize = 56.dp
-private val CounselFab = 48.dp
 private val NotchRadius = 36.dp   // the circle, plus the gap around it
 private val NotchShoulder = 12.dp
 

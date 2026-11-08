@@ -103,7 +103,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
         repo.credits().onSuccess { cost = it.costAdd; checkCost = it.costCheck }
     }
 
-    Column(Modifier.fillMaxSize().background(Lex.colors.background).androidScroll().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Lex.colors.background).androidScroll().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 52.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PageHeader(eyebrow = "Case", title = c?.heading ?: "Case")
         val x = c
         if (x == null) {
@@ -246,7 +246,7 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
         repo.cases(q.trim()).onSuccess { cases = it.second; error = null }.onFailure { error = it.boardMessage() }
     }
     androidx.compose.foundation.lazy.LazyColumn(
-        Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 52.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item { PageHeader(eyebrow = "Your Diary", title = "Cases") }
