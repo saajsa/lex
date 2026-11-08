@@ -243,7 +243,6 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
                 if (t.needsEye.isNotEmpty()) item {
                     NeedsEyeCard(t.needsEye, today, onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight })
                 }
-                item { CourtsList(t) }
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Eyebrow("Your Cases", Modifier.weight(1f), color = Lex.colors.secondaryForeground)
@@ -464,27 +463,6 @@ internal fun eyeLine(c: NeedsEye, today: LocalDate): String {
         ec.isNotBlank() && was.isNotBlank() -> "eCourts shows $ec; your diary had $was"
         ec.isNotBlank() -> "eCourts shows $ec"
         else -> "eCourts and your diary differ"
-    }
-}
-
-@Composable
-private fun CourtsList(t: CounselToday) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Eyebrow("Today By Court", Modifier.padding(bottom = 6.dp), color = Lex.colors.secondaryForeground)
-        if (t.courts.isEmpty()) {
-            Text("Nothing is listed today.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
-        }
-        t.courts.forEachIndexed { i, c ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(c.court, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-                    // The bench line as the server words it; the room is never filled in here.
-                    if (c.bench.isNotBlank()) Text(c.bench, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                }
-                Text(c.count.toString(), style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-            }
-            if (i < t.courts.lastIndex) androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
-        }
     }
 }
 

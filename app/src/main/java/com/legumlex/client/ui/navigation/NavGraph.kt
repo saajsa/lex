@@ -365,23 +365,7 @@ fun LegumNavGraph(navController: NavHostController) {
         ) {
             com.legumlex.client.feature.registry.RegistryAgreementScreen()
         }
-        // --- The advocate's Counsel workspace (Cases, Credits, Account; Today is Home) ---
-        composable(Route.CounselAccount.path) {
-            val context = LocalContext.current
-            val auth    = remember(context) {
-                AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext), context.cacheDir)
-            }
-            val scope   = rememberCoroutineScope()
-            com.legumlex.client.feature.board.CounselAccountScreen(
-                onProfile = { navController.navigate(Route.Profile.path) },
-                onSignOut = {
-                    scope.launch {
-                        auth.signOut()
-                        navController.navigate(Route.Login.path) { popUpTo(0) { inclusive = true }; launchSingleTop = true }
-                    }
-                },
-            )
-        }
+        // --- The advocate's Counsel workspace (Today is Home; Credits; the case and the sheet) ---
         composable(
             Route.BoardCase.path,
             arguments = listOf(navArgument(Route.BoardCase.ARG) { type = NavType.IntType }),

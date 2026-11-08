@@ -164,6 +164,20 @@ private fun AppShell(deepLinkIntent: Intent?) {
 
     // The Counsel workspace (REQ-008): when the server says so, the header, the bar and Home are the counsel's own.
     val counsel = !lead && com.legumlex.client.feature.board.isCounsel(boardAccess)
+    var confirmSignOut by remember { mutableStateOf(false) }
+    val signOutScope = androidx.compose.runtime.rememberCoroutineScope()
+    if (confirmSignOut) com.legumlex.client.feature.board.SignOutDialog(
+        onDismiss = { confirmSignOut = false },
+        onConfirm = {
+            confirmSignOut = false
+            signOutScope.launch {
+                com.legumlex.client.data.auth.AuthRepository(
+                    com.legumlex.client.data.api.ApiClient.get(context), com.legumlex.client.data.auth.TokenStore(context.applicationContext), context.cacheDir,
+                ).signOut()
+                navController.navigate(Route.Login.path) { popUpTo(0) { inclusive = true }; launchSingleTop = true }
+            }
+        },
+    )
 
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
@@ -181,6 +195,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     initials = if (lead) null else profile?.initials,
                     avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
+                    onSignOut = if (counsel) ({ confirmSignOut = true }) else null,
                     showBell = !lead && !counsel,
                     subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else "Client Portal",
                     spacedSubtitle = counsel,

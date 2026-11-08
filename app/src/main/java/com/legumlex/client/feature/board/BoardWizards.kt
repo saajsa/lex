@@ -297,7 +297,7 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
         ) {
             if (step == 0) {
                 WizardHeading("The Case's CNR", "The platform reads the case from the court's record and adds it to your board.")
-                WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026")
+                WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026", trailing = { CnrScanButton { cnr = it } })
             } else {
                 WizardHeading("Check And Add", "Reading from the court's record is a paid action.")
                 WizardRows(listOf("CNR" to cnr, "Cost" to (cost?.let { "$it Credits" } ?: ""), "Your Balance" to (balance?.let { "$it Credits" } ?: "")))
@@ -342,7 +342,7 @@ fun AddCnrWizard(caseId: Int, caseName: String, onClose: () -> Unit, onDone: (Bo
         ) {
             if (step == 0) {
                 WizardHeading("The Case's CNR", "The CNR is the case's 16-character number from the eCourts site or app. Adding it is free.")
-                WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026")
+                WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026", trailing = { CnrScanButton { cnr = it } })
             } else {
                 WizardHeading("Check And Add", "The CNR lets the platform check this case on eCourts each morning.")
                 WizardRows(listOf("Case" to caseName, "CNR" to cnr))

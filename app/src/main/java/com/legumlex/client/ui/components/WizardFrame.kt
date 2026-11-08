@@ -333,6 +333,8 @@ fun WizardTextField(
     placeholder: String = "",
     keyboardType: androidx.compose.ui.text.input.KeyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
     lines: Int = 1,
+    /** A symbol button at the field's end (a scan), outside the text. */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     WizardLabel(label)
     var focused by remember { mutableStateOf(false) }
@@ -360,6 +362,10 @@ fun WizardTextField(
         if (locked) {
             Spacer(Modifier.width(8.dp))
             Icon(Icons.Outlined.Lock, contentDescription = "Read from the documents", tint = TertiaryText, modifier = Modifier.size(16.dp))
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(8.dp))
+            trailing()
         }
     }
     val line = error.ifBlank { help }

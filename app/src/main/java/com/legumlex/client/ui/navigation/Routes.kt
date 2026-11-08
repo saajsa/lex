@@ -46,8 +46,6 @@ sealed class Route(val path: String) {
         fun build(id: Int) = "board/cases/$id"
     }
     data object BoardCredits  : Route("board/credits")
-    /** The Counsel workspace's account page: Profile and Sign Out (the firm's More is not part of it). */
-    data object CounselAccount : Route("counsel/account")
     data object BoardSheet    : Route("board/sheet/{date}/{junior}?label={label}") {
         const val ARG_DATE = "date"
         const val ARG_JUNIOR = "junior"
@@ -347,11 +345,10 @@ val bottomTabs = listOf(
 )
 
 // The Counsel workspace's bar (REQ-008): Today (with the cases), the gold Cause List in
-// the centre (a button, not a tab), Credits, Account.
+// the centre (a button, not a tab), Credits (an Upgrade tab joins the right half).
 val counselTabs = listOf(
     BottomTab(Route.Home,           R.string.nav_today,   Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
     BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.CurrencyRupee, Icons.Rounded.CurrencyRupee),
-    BottomTab(Route.CounselAccount, R.string.nav_account, Icons.Outlined.PersonOutline, Icons.Rounded.Person),
 )
 
 // A lead's bar: Home, their enquiries, Consult in the centre, More.

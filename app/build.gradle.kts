@@ -208,6 +208,8 @@ dependencies {
     implementation("com.razorpay:checkout:1.6.40")
     // The pay-first hosted page opens in a browser tab (Custom Tab), no SDK (REQ-008).
     implementation("androidx.browser:browser:1.8.0")
+    // Google's code scanner: reads a QR (the CNR) with no camera permission of ours (REQ-008).
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     // Firebase Messaging + Pusher Beams. Beams uses FCM under the hood; we
     // subscribe to `contact-{id}` interests after login and the server fires

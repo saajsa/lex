@@ -16,10 +16,6 @@ class CounselTodayTest {
         "listed_today" to 5.0, "listed_tomorrow" to 2.0, "cases_tracked" to 7.0, "on_check" to 7.0,
         "credits" to mapOf("balance" to 100.0, "cost" to 1.0, "per_morning" to 7.0, "days_left" to 14.0, "days_label" to "About 14 days of checks", "low" to false, "expiring" to null),
         "not_checked_today" to 0.0, "short" to null, "checked_at" to "2026-11-09 07:05:00",
-        "courts" to listOf(
-            mapOf("court" to "Civil Judge (Jr. Div.) Ludhiana", "bench" to "Ld. Ms. Anjali Sharma", "room" to "Court No. 12", "count" to 2.0),
-            mapOf("court" to "Judicial Magistrate First Class Jalandhar", "bench" to "Ld. Court (Court No. 9)", "room" to "Court No. 9", "count" to 2.0),
-        ),
         "courts_n" to 3.0,
         "needs_eye" to listOf(
             mapOf("id" to 4.0, "cnr" to "PBLD010045672025", "case_no" to "CRM/456/2025", "title" to "State of Punjab v. Gurdeep Singh & Ors.", "ecourts_date" to "2026-11-09", "earlier_date" to "2026-11-12"),
@@ -36,8 +32,6 @@ class CounselTodayTest {
         assertEquals(3, t.courtsN)
         assertEquals("2026-11-09 07:05:00", t.checkedAt)
         assertNull(t.short)
-        assertEquals(2, t.courts.size)
-        assertEquals("Ld. Ms. Anjali Sharma", t.courts[0].bench)
         assertEquals(100, t.credits.balance)
         assertEquals(14, t.credits.daysLeft)
         assertEquals("About 14 days of checks", t.credits.daysLabel)
@@ -68,7 +62,6 @@ class CounselTodayTest {
         val t = parseToday(mapOf("counsel" to true, "empty" to true, "date" to "2026-11-09", "weekday" to "Monday"))
         assertTrue(t.empty)
         assertEquals(0, t.listedToday)
-        assertTrue(t.courts.isEmpty())
         assertTrue(t.needsEye.isEmpty())
         assertNull(t.checkedAt)
     }
@@ -203,5 +196,16 @@ class CounselTodayTest {
         assertEquals("About 71 days at 7 cases", packLasts(500, 7, 1, 12))
         assertEquals("About 1 day at 1 case", packLasts(1, 0, 1, 12))
         assertEquals("Covers 15 cases for 12 months", packLasts(5500, 7, 1, 12))
+    }
+
+    @Test fun extractsTheCnrFromAScannedCode() {
+        assertEquals("PBLD010012342026", extractCnr("PBLD010012342026"))
+        assertEquals("PBLD010012342026", extractCnr("pbld010012342026"))
+        assertEquals("PBLD010012342026", extractCnr("https://services.ecourts.gov.in/ecourtindia_v6/?cino=PBLD010012342026&state=PB"))
+        assertEquals("PBLD010012342026", extractCnr("  CNR: PBLD010012342026 \n"))
+        assertNull(extractCnr("hello world"))
+        assertNull(extractCnr("PBLD0100"))
+        assertNull(extractCnr(""))
+        assertNull(extractCnr(null))
     }
 }

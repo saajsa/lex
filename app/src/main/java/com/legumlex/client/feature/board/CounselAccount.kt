@@ -5,56 +5,25 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.collectAsState
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.legumlex.client.feature.more.MenuRow
-import com.legumlex.client.ui.components.Eyebrow
-import com.legumlex.client.ui.components.LexCard
-import com.legumlex.client.ui.components.PageHeader
 import com.legumlex.client.ui.theme.Lex
 
-/** The Counsel workspace's Account: the profile, and Sign Out. The firm's other rows are not part of it. */
+/** The confirm for Sign Out, opened from the Counsel header's Sign Out button. */
 @Composable
-fun CounselAccountScreen(onProfile: () -> Unit, onSignOut: () -> Unit) {
-    var confirm by remember { mutableStateOf(false) }
-    Column(
-        Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        PageHeader(eyebrow = "Counsel", title = "Account")
-        Column {
-            Eyebrow("Your Account", modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
-            LexCard {
-                MenuRow(Icons.Outlined.PersonOutline, "Profile", "Your details and your mobile number", onProfile)
-                HorizontalDivider(color = Lex.colors.border)
-                MenuRow(Icons.AutoMirrored.Outlined.Logout, "Sign Out", "Remove your sign-in from this phone", { confirm = true })
-            }
-        }
-    }
-    if (confirm) AlertDialog(
-        onDismissRequest = { confirm = false },
+fun SignOutDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
         title = { Text("Sign Out?") },
         text = { Text("Signing out removes your sign-in and the documents opened on this device. You can sign in again at any time.") },
-        confirmButton = { TextButton({ confirm = false; onSignOut() }) { Text("Sign Out", color = Lex.colors.danger.softText) } },
-        dismissButton = { TextButton({ confirm = false }) { Text("Cancel", color = Lex.colors.foreground) } },
+        confirmButton = { TextButton(onConfirm) { Text("Sign Out", color = Lex.colors.danger.softText) } },
+        dismissButton = { TextButton(onDismiss) { Text("Cancel", color = Lex.colors.foreground) } },
         containerColor = Lex.colors.card,
     )
 }

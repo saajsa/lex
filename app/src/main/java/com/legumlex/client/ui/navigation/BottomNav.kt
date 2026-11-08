@@ -3,6 +3,7 @@ package com.legumlex.client.ui.navigation
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -67,7 +69,6 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
                 Spacer(Modifier.width(NotchRadius * 2))
                 Row(Modifier.weight(1f).fillMaxHeight()) {
                     NavGlyph(tab(Route.BoardCredits), on(tab(Route.BoardCredits)), Modifier.weight(1f)) { go(tab(Route.BoardCredits)) }
-                    NavGlyph(tab(Route.CounselAccount), on(tab(Route.CounselAccount)), Modifier.weight(1f)) { go(tab(Route.CounselAccount)) }
                 }
             } else if (lead) {
                 // Home and Enquiries on the left, More alone on the right.
@@ -97,9 +98,7 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
                 modifier = Modifier.align(Alignment.TopCenter).offset(y = -FabSize / 2).size(FabSize)
                     .semantics { contentDescription = "Cause List" },
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(androidx.compose.material.icons.Icons.Outlined.Print, contentDescription = null, tint = Color.Black, modifier = Modifier.size(26.dp))
-                }
+                PrintGlyph()
             }
             return@Box
         }
@@ -202,3 +201,37 @@ private fun NavGlyph(
 
 private fun String.hierarchyContains(prefix: String): Boolean =
     this == prefix || this.startsWith("$prefix/")
+
+/**
+ * The Cause List button's printer: every ~3 s a sheet feeds out of it and draws back, black on the gold, in
+ * the spirit of Consult's blinking cursor. Static when the system's animator duration scale is 0 (reduce motion).
+ */
+@Composable
+private fun PrintGlyph() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val still = remember {
+        android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    val feed = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(still) {
+        if (still) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(1700)
+            feed.animateTo(1f, tween(650, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            kotlinx.coroutines.delay(300)
+            feed.animateTo(0f, tween(350))
+        }
+    }
+    // The sheet slides out of the printer's lower slot and stays inside the glyph's own 26 dp box.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(26.dp)) {
+            Icon(androidx.compose.material.icons.Icons.Outlined.Print, contentDescription = null, tint = Color.Black, modifier = Modifier.fillMaxSize())
+            val sheetH = 7.dp * feed.value
+            if (sheetH > 0.dp) Box(
+                Modifier.align(Alignment.TopCenter).offset(y = 15.dp).size(width = 7.dp, height = sheetH)
+                    .background(Color(0xFFF5C518))
+                    .border(1.2.dp, Color.Black),
+            )
+        }
+    }
+}

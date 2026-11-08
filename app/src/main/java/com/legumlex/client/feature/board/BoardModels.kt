@@ -300,7 +300,6 @@ internal fun parseCredits(d: Map<String, Any?>): CreditsData {
 // ---- the Counsel home (board/today) ------------------------------------------------
 
 /** A court on today's list: its name, the bench line the server words, and how many cases. */
-data class TodayCourt(val court: String, val bench: String, val room: String, val count: Int)
 
 /** A case whose date eCourts and the diary disagree on, to settle. */
 data class NeedsEye(val id: Int, val cnr: String, val caseNo: String, val title: String, val ecourtsDate: String?, val earlierDate: String?) {
@@ -331,7 +330,6 @@ data class CounselToday(
     val credits: TodayCredits,
     val short: CheckShort?,
     val checkedAt: String?,
-    val courts: List<TodayCourt>,
     val courtsN: Int,
     val needsEye: List<NeedsEye>,
 )
@@ -353,7 +351,6 @@ internal fun parseToday(d: Map<String, Any?>): CounselToday {
         ),
         short = if (s.isEmpty()) null else CheckShort(s["checked"].int(), s["of"].int(), s["credits_had"].int(), s["unchecked"].int()),
         checkedAt = d["checked_at"].strOrNull(),
-        courts = d["courts"].list().map { TodayCourt(it["court"].str(), it["bench"].str(), it["room"].str(), it["count"].int()) },
         courtsN = d["courts_n"].int(),
         needsEye = d["needs_eye"].list().map {
             NeedsEye(it["id"].int(), it["cnr"].str(), it["case_no"].str(), it["title"].str(), it["ecourts_date"].strOrNull(), it["earlier_date"].strOrNull())
