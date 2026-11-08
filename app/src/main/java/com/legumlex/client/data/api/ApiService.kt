@@ -765,4 +765,105 @@ interface ApiService {
     @Headers("X-Skip-Auth: 1")
     @POST
     suspend fun trackNotice(@Url url: String, @Field("reference") reference: String): Map<String, Any?>
+
+    // --- The advocate's Daily Board (REQ-008): customers_api/v1/board/*, behind
+    // the server's switch (404 board_off) and permission 11 (403). Loose maps,
+    // parsed in feature/board/BoardModels.kt.
+
+    @GET("board/summary")
+    suspend fun boardSummary(): Map<String, Any?>
+
+    @GET("board/today")
+    suspend fun boardToday(): Map<String, Any?>
+
+    @POST("board/cases/{id}/date/accept")
+    suspend fun boardDateAccept(@Path("id") id: String): Map<String, Any?>
+
+    /** Keep My Date: the counsel's date stays and eCourts' answer is not asked about again. */
+    @POST("board/cases/{id}/date/keep")
+    suspend fun boardDateKeep(@Path("id") id: String): Map<String, Any?>
+
+    @GET("board/day")
+    suspend fun boardDay(@Query("date") date: String): Map<String, Any?>
+
+    @Multipart
+    @Headers("X-Long-Call: 1")
+    @POST("board/import")
+    suspend fun boardImport(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/import/confirm")
+    suspend fun boardImportConfirm(@Field("import_id") importId: String): Map<String, Any?>
+
+    @GET("board/cases")
+    suspend fun boardCases(
+        @Query("q") q: String = "",
+        @Query("limit") limit: Int = 100,
+        @Query("offset") offset: Int = 0,
+        @Query("order") order: String = "next",
+    ): Map<String, Any?>
+
+    @GET("board/cases/{id}")
+    suspend fun boardCase(@Path("id") id: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/cases")
+    suspend fun boardCaseAdd(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/cases/{id}")
+    suspend fun boardCaseEdit(@Path("id") id: String, @FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    @DELETE("board/cases/{id}")
+    suspend fun boardCaseRemove(@Path("id") id: String): Map<String, Any?>
+
+    /** Update From Court (4 credits). */
+    @Headers("X-Long-Call: 1")
+    @POST("board/cases/{id}/read")
+    suspend fun boardCaseRead(@Path("id") id: String): Map<String, Any?>
+
+    /** Add By CNR (4 credits). */
+    @FormUrlEncoded
+    @Headers("X-Long-Call: 1")
+    @POST("board/cases/cnr")
+    suspend fun boardCaseByCnr(@Field("cnr") cnr: String): Map<String, Any?>
+
+    @GET("board/juniors")
+    suspend fun boardJuniors(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/juniors")
+    suspend fun boardJuniorAdd(@Field("name") name: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/juniors/{id}")
+    suspend fun boardJuniorRename(@Path("id") id: String, @Field("name") name: String): Map<String, Any?>
+
+    @DELETE("board/juniors/{id}")
+    suspend fun boardJuniorRemove(@Path("id") id: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/courts")
+    suspend fun boardCourtAssign(@Field("court_key") courtKey: String, @Field("junior_id") juniorId: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/entries")
+    suspend fun boardEntrySave(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    /** A junior's sheet, a PDF (junior is an id, "none" or "all"). The caller closes the body. */
+    @Streaming
+    @GET("board/sheet")
+    suspend fun boardSheet(@Query("date") date: String, @Query("junior") junior: String? = null): ResponseBody
+
+    @GET("board/credits")
+    suspend fun boardCredits(@Query("limit") limit: Int = 100): Map<String, Any?>
+
+    /** Pay first: the gateway's order and a hosted pay page (pay_url), no invoice until the payment is made. */
+    @FormUrlEncoded
+    @POST("board/credits/checkout")
+    suspend fun boardCreditsCheckout(@Field("pack") pack: String): Map<String, Any?>
+
+    /** Where a pay-first order stands: pending, paid, expired or flagged. */
+    @GET("board/credits/order")
+    suspend fun boardCreditsOrder(@Query("order") order: String): Map<String, Any?>
 }

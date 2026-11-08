@@ -33,6 +33,10 @@ val beamsInstanceId: String = localProps.getProperty("BEAMS_INSTANCE_ID") ?: ""
 // hides when they are absent, and release builds always carry blanks.
 val devLoginEmail: String = localProps.getProperty("DEV_LOGIN_EMAIL") ?: ""
 val devLoginPassword: String = localProps.getProperty("DEV_LOGIN_PASSWORD") ?: ""
+// The dev Daily Board advocate's "Adv (debug)" button: DEV_ADV_EMAIL and
+// DEV_ADV_PASSWORD in local.properties, same rules (blank hides it).
+val devAdvEmail: String = localProps.getProperty("DEV_ADV_EMAIL") ?: ""
+val devAdvPassword: String = localProps.getProperty("DEV_ADV_PASSWORD") ?: ""
 val debugApiBaseUrl: String = localProps.getProperty("API_BASE_URL")
     ?: "https://set-API_BASE_URL-in-local-properties.invalid/customers_api/v1/"
 
@@ -95,6 +99,8 @@ android {
             buildConfigField("String", "BEAMS_INSTANCE_ID", "\"$beamsInstanceId\"")
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"$devLoginEmail\"")
             buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"$devLoginPassword\"")
+            buildConfigField("String", "DEV_ADV_EMAIL", "\"$devAdvEmail\"")
+            buildConfigField("String", "DEV_ADV_PASSWORD", "\"$devAdvPassword\"")
             isMinifyEnabled = false
         }
         release {
@@ -103,6 +109,8 @@ android {
             buildConfigField("String", "BEAMS_INSTANCE_ID", "\"$beamsInstanceId\"")
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"\"")
             buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"\"")
+            buildConfigField("String", "DEV_ADV_EMAIL", "\"\"")
+            buildConfigField("String", "DEV_ADV_PASSWORD", "\"\"")
             isMinifyEnabled = true
             // The native libraries' symbols (ML Kit and the like) go into the
             // bundle, so Play can name the functions in native crashes and
@@ -147,6 +155,9 @@ configurations.all {
 }
 
 dependencies {
+    // Unit tests of the Daily Board's parsing, dates and grouping (REQ-008).
+    testImplementation("junit:junit:4.13.2")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -195,6 +206,8 @@ dependencies {
     // Razorpay Checkout: an invoice paid in the app (feature/finance/Checkout.kt).
     // The host Activity implements PaymentResultWithDataListener.
     implementation("com.razorpay:checkout:1.6.40")
+    // The pay-first hosted page opens in a browser tab (Custom Tab), no SDK (REQ-008).
+    implementation("androidx.browser:browser:1.8.0")
 
     // Firebase Messaging + Pusher Beams. Beams uses FCM under the hood; we
     // subscribe to `contact-{id}` interests after login and the server fires

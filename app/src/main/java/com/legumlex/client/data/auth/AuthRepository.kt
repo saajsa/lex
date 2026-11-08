@@ -10,7 +10,7 @@ import retrofit2.HttpException
 import java.io.File
 
 /** cacheDir folders that hold a signed-in contact's documents. */
-private val DocCacheDirs = setOf("docs", "ahc", "casedoc", "docreq", "noticedoc")
+private val DocCacheDirs = setOf("docs", "ahc", "casedoc", "docreq", "noticedoc", "board")
 
 // The customers_api sign-in endpoints (Google, email + password, a code to
 // the verified mobile) + JWT persistence.
@@ -102,6 +102,7 @@ class AuthRepository(
         com.legumlex.client.feature.profile.ProfileHub.clear()
         com.legumlex.client.feature.notifications.NotificationHub.clear()
         com.legumlex.client.feature.home.ActionHub.clear()
+        com.legumlex.client.feature.board.BoardHub.clear()
         tokens.clear()
         clearDocumentCache()
     }
@@ -116,6 +117,7 @@ class AuthRepository(
         com.legumlex.client.feature.profile.ProfileHub.clear()
         com.legumlex.client.feature.notifications.NotificationHub.clear()
         com.legumlex.client.feature.home.ActionHub.clear()
+        com.legumlex.client.feature.board.BoardHub.clear()
         clearDocumentCache()
         tokens.save(jwt, clientId.toString(), contactId.toString(), role = "client")
         PushSetup.registerContact(contactId)

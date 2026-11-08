@@ -2,6 +2,14 @@ package com.legumlex.client.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.CurrencyRupee
+import androidx.compose.material.icons.outlined.ListAlt
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.CurrencyRupee
+import androidx.compose.material.icons.rounded.ListAlt
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -30,6 +38,24 @@ sealed class Route(val path: String) {
 
     // Account
     data object Profile       : Route("profile")
+
+    // The advocate's Daily Board (REQ-008): reached from Home and More, only
+    // for an account the server gives the board.
+    data object BoardCase     : Route("board/cases/{caseId}") {
+        const val ARG = "caseId"
+        fun build(id: Int) = "board/cases/$id"
+    }
+    data object BoardCredits  : Route("board/credits")
+    /** The Counsel workspace's account page: Profile and Sign Out (the firm's More is not part of it). */
+    data object CounselAccount : Route("counsel/account")
+    data object BoardSheet    : Route("board/sheet/{date}/{junior}?label={label}") {
+        const val ARG_DATE = "date"
+        const val ARG_JUNIOR = "junior"
+        const val ARG_LABEL = "label"
+        /** "own" as the junior is the counsel's own-format cause list. */
+        const val OWN = "own"
+        fun build(date: String, junior: String, label: String) = "board/sheet/$date/$junior?label=" + android.net.Uri.encode(label)
+    }
 
     // A lead's app (owner, 2026-10-20): signed in with Google, no open client account.
     data object LeadHome      : Route("lead")
@@ -234,8 +260,9 @@ private val immersiveBases = setOf(
     Route.DocFileViewer.path.substringBefore("?"),     // consultations/doc-file/{rid}
     Route.NoticeDocViewer.path.substringBefore("?"),   // inline doc viewer (own dark chrome)
     Route.CaseDocViewer.path.substringBefore("?"),     // matters/doc/{kind}/{id} (own toolbar)
+    Route.BoardSheet.path.substringBefore("?"),         // board/sheet/{date}/{junior} (own dark toolbar, Share)
     Route.VideoLobby.path,                              // consultations/{id}/video-lobby
-    Route.OnboardingAhc.path,                           // onboarding handoff
+    Route.OnboardingAhc.path,                          // onboarding handoff
     // Branded full-bleed advocate profile: dark slate hero with its own
     // back/share controls and a Walk-in CTA bar — the light app header would
     // clash with the hero, so it keeps its own chrome.
@@ -291,7 +318,7 @@ fun showAppHeader(route: String?): Boolean {
 /** Back arrow shows on any non-tab screen that has somewhere to return to. */
 fun showHeaderBack(route: String?, canPop: Boolean): Boolean {
     val b = routeBase(route) ?: return false
-    return canPop && (bottomTabs + leadTabs).none { it.route.path == b }
+    return canPop && (bottomTabs + leadTabs + counselTabs).none { it.route.path == b }
 }
 
 /** Footer nav shows on tabs + content screens, never on auth/funnels/modals. */
@@ -317,6 +344,14 @@ val bottomTabs = listOf(
     // reached from Home's Next Event and from More.
     BottomTab(Route.Notices,       R.string.nav_notices,       Icons.Outlined.MarkEmailUnread, Icons.Rounded.MarkEmailUnread),
     BottomTab(Route.More,          R.string.nav_more,          Icons.Outlined.MoreHoriz, Icons.Rounded.MoreHoriz),
+)
+
+// The Counsel workspace's bar (REQ-008): Today (with the cases), the gold Cause List in
+// the centre (a button, not a tab), Credits, Account.
+val counselTabs = listOf(
+    BottomTab(Route.Home,           R.string.nav_today,   Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
+    BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.CurrencyRupee, Icons.Rounded.CurrencyRupee),
+    BottomTab(Route.CounselAccount, R.string.nav_account, Icons.Outlined.PersonOutline, Icons.Rounded.Person),
 )
 
 // A lead's bar: Home, their enquiries, Consult in the centre, More.

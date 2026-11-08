@@ -32,6 +32,9 @@ fun LegumTextField(
     enabled: Boolean = true,
     isError: Boolean = false,
     supportingText: String? = null,
+    /** When set, the keyboard shows this action key and pressing it runs [onImeAction]. */
+    imeAction: androidx.compose.ui.text.input.ImeAction? = null,
+    onImeAction: (() -> Unit)? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -46,8 +49,10 @@ fun LegumTextField(
         trailingIcon = trailing,
         visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(
-            keyboardType = if (isPassword) KeyboardType.Password else keyboardType
+            keyboardType = if (isPassword) KeyboardType.Password else keyboardType,
+            imeAction = imeAction ?: androidx.compose.ui.text.input.ImeAction.Default,
         ),
+        keyboardActions = if (onImeAction != null) androidx.compose.foundation.text.KeyboardActions(onAny = { onImeAction() }) else androidx.compose.foundation.text.KeyboardActions.Default,
         shape = MaterialTheme.shapes.medium,
         isError = isError,
         supportingText = supportingText?.let { { Text(it) } },

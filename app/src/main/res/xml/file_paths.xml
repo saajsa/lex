@@ -4,4 +4,6 @@
     <cache-path name="docs" path="docs/" />
     <!-- The Agreement Check's cached source document (AhcDocumentViewerScreen). -->
     <cache-path name="ahc" path="ahc/" />
+    <!-- The Daily Board's sheets (PDFs) before they are shared: cache/board/sheets, wiped at sign-out. -->
+    <cache-path name="board" path="board/" />
 </paths>

@@ -4,6 +4,10 @@
 
     <!-- Bottom navigation -->
     <string name="nav_home">Home</string>
+    <string name="nav_today">Today</string>
+    <string name="nav_cases">Cases</string>
+    <string name="nav_credits">Credits</string>
+    <string name="nav_account">Account</string>
     <string name="nav_enquiries">Enquiries</string>
     <string name="nav_matters">Litigation</string>
     <string name="nav_registry">Registry</string>

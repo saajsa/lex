@@ -5,7 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -175,7 +179,22 @@ fun LegumNavGraph(navController: NavHostController) {
 
         // --- Main shell (bottom-nav tabs) ---
         composable(Route.Home.path) {
-            HomeScreen(
+            // The Counsel workspace (REQ-008) when the server says so: its Today is this tab's page.
+            // Until the server has answered for a contact who may have the board, a wait, so the
+            // firm's Home never flashes for counsel.
+            val access by com.legumlex.client.feature.board.BoardHub.access.collectAsState()
+            val prof by com.legumlex.client.feature.profile.ProfileHub.profile.collectAsState()
+            val mayHaveBoard = prof?.permissions?.map { it.lowercase() }?.any { "board" in it } ?: true
+            if (com.legumlex.client.feature.board.isCounsel(access)) {
+                com.legumlex.client.feature.board.CounselTodayScreen(
+                    onCredits = { navController.navigateTab(Route.BoardCredits.path) },
+                    onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) },
+                )
+            } else if (access is com.legumlex.client.feature.board.BoardAccess.Unknown && mayHaveBoard) {
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) { androidx.compose.material3.CircularProgressIndicator(strokeWidth = 2.dp, color = com.legumlex.client.ui.theme.Lex.colors.mutedForeground) }
+            } else HomeScreen(
                 onOpenLitigation   = { navController.navigate(Route.Matters.path) },
                 onOpenProjects     = { navController.navigate(Route.Projects.path) },
                 onOpenRegistry     = { navController.navigate(Route.Registry.path) },
@@ -345,6 +364,49 @@ fun LegumNavGraph(navController: NavHostController) {
             arguments = listOf(navArgument(Route.RegistryAgreement.ARG) { type = NavType.StringType }),
         ) {
             com.legumlex.client.feature.registry.RegistryAgreementScreen()
+        }
+        // --- The advocate's Counsel workspace (Cases, Credits, Account; Today is Home) ---
+        composable(Route.CounselAccount.path) {
+            val context = LocalContext.current
+            val auth    = remember(context) {
+                AuthRepository(ApiClient.get(context), TokenStore(context.applicationContext), context.cacheDir)
+            }
+            val scope   = rememberCoroutineScope()
+            com.legumlex.client.feature.board.CounselAccountScreen(
+                onProfile = { navController.navigate(Route.Profile.path) },
+                onSignOut = {
+                    scope.launch {
+                        auth.signOut()
+                        navController.navigate(Route.Login.path) { popUpTo(0) { inclusive = true }; launchSingleTop = true }
+                    }
+                },
+            )
+        }
+        composable(
+            Route.BoardCase.path,
+            arguments = listOf(navArgument(Route.BoardCase.ARG) { type = NavType.IntType }),
+        ) { entry ->
+            com.legumlex.client.feature.board.BoardCaseScreen(
+                caseId    = entry.arguments?.getInt(Route.BoardCase.ARG) ?: 0,
+                onBack    = { navController.popBackStack() },
+                onCredits = { navController.navigate(Route.BoardCredits.path) },
+            )
+        }
+        composable(Route.BoardCredits.path) { com.legumlex.client.feature.board.BoardCreditsScreen() }
+        composable(
+            Route.BoardSheet.path,
+            arguments = listOf(
+                navArgument(Route.BoardSheet.ARG_DATE) { type = NavType.StringType },
+                navArgument(Route.BoardSheet.ARG_JUNIOR) { type = NavType.StringType },
+                navArgument(Route.BoardSheet.ARG_LABEL) { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { entry ->
+            com.legumlex.client.feature.board.BoardSheetScreen(
+                date   = entry.arguments?.getString(Route.BoardSheet.ARG_DATE).orEmpty(),
+                junior = entry.arguments?.getString(Route.BoardSheet.ARG_JUNIOR).orEmpty(),
+                label  = entry.arguments?.getString(Route.BoardSheet.ARG_LABEL).orEmpty().ifBlank { "Sheet" },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(Route.Profile.path) {
             com.legumlex.client.feature.profile.ProfileScreen()

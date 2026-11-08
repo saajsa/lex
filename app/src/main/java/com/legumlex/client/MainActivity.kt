@@ -25,6 +25,7 @@ import com.legumlex.client.ui.navigation.AppHeader
 import com.legumlex.client.ui.navigation.Route
 import com.legumlex.client.ui.navigation.LegumBottomBar
 import com.legumlex.client.ui.navigation.LegumNavGraph
+import com.legumlex.client.ui.navigation.navigateTab
 import com.legumlex.client.ui.navigation.showAppFooter
 import com.legumlex.client.ui.navigation.showAppHeader
 import com.legumlex.client.ui.navigation.showHeaderBack
@@ -152,6 +153,18 @@ private fun AppShell(deepLinkIntent: Intent?) {
         }
     }
 
+    // The Daily Board: asked of the server once the profile is read (a contact
+    // without the board's permission is not asked); until it answers, nothing shows.
+    val boardAccess by com.legumlex.client.feature.board.BoardHub.access.collectAsState()
+    LaunchedEffect(currentRoute, profile, lead) {
+        if (!lead && boardAccess is com.legumlex.client.feature.board.BoardAccess.Unknown && showAppFooter(currentRoute)) {
+            com.legumlex.client.feature.board.BoardHub.refresh(context)
+        }
+    }
+
+    // The Counsel workspace (REQ-008): when the server says so, the header, the bar and Home are the counsel's own.
+    val counsel = !lead && com.legumlex.client.feature.board.isCounsel(boardAccess)
+
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     Scaffold(
@@ -163,22 +176,26 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     // leaves, as it does for the back gesture.
                     onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
                     onNotifications = { navController.navigate(Route.Notifications.path) },
-                    onOffice = if (lead) null else ({ navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } }),
+                    onOffice = if (lead || counsel) null else ({ navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } }),
                     unreadCount = unreadCount,
                     initials = if (lead) null else profile?.initials,
                     avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
-                    showBell = !lead,
-                    subtitle = if (lead) "Enquiries" else "Client Portal",
+                    showBell = !lead && !counsel,
+                    subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else "Client Portal",
+                    spacedSubtitle = counsel,
+                    trailingChip = if (counsel) ({
+                        com.legumlex.client.feature.board.CounselCreditsChip { navController.navigateTab(Route.BoardCredits.path) }
+                    }) else null,
                     // Keyed to the signed-in contact: a sign-out and in as someone
                     // else (same Activity) reads their accounts afresh.
-                    accountSwitch = profile?.takeIf { !lead }?.let { p ->
+                    accountSwitch = profile?.takeIf { !lead && !counsel }?.let { p ->
                         { com.legumlex.client.feature.profile.AccountSwitch(androidx.lifecycle.viewmodel.compose.viewModel(key = "accounts-" + p.email.orEmpty())) }
                     },
                 )
             }
         },
-        bottomBar = { if (showAppFooter(currentRoute)) LegumBottomBar(navController, lead) },
+        bottomBar = { if (showAppFooter(currentRoute)) LegumBottomBar(navController, lead, counsel) },
     ) { innerPadding ->
         // The paper grain is the page's alone: the header and bottom bar are
         // solid chrome, so the three read as frame and paper. The splash and

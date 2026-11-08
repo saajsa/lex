@@ -59,6 +59,10 @@ fun AppHeader(
     /** A lead has no notifications: the bell is the client's. */
     showBell: Boolean = true,
     subtitle: String = "Client Portal",
+    /** The Counsel workspace's mark: the subtitle is spaced capitals ("COUNSEL"). */
+    spacedSubtitle: Boolean = false,
+    /** A chip before the account button (the Counsel credits). */
+    trailingChip: (@Composable () -> Unit)? = null,
     /** The account switch, beside the bell (shown only to a person with more than one account). */
     accountSwitch: (@Composable () -> Unit)? = null,
 ) {
@@ -78,7 +82,11 @@ fun AppHeader(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Legum Lex", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground, lineHeight = 18.sp)
-                    Text(subtitle, fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp)
+                    Text(
+                        subtitle, fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp,
+                        letterSpacing = if (spacedSubtitle) 2.4.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+                        fontWeight = if (spacedSubtitle) FontWeight.SemiBold else null,
+                    )
                 }
                 // The Digital Office, beside the bell (owner, 2026-10-20: it left
                 // the bottom bar when Consult took the centre).
@@ -86,6 +94,7 @@ fun AppHeader(
                     Icon(Icons.Outlined.Videocam, contentDescription = "Digital Office", tint = Lex.colors.secondaryForeground)
                 }
                 accountSwitch?.invoke()
+                trailingChip?.invoke()
                 if (showBell) Box {
                     IconButton(onClick = onNotifications) {
                         Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = Lex.colors.secondaryForeground)

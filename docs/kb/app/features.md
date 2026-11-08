@@ -182,6 +182,20 @@ Owner, 2026-10-20: "Anyone may sign in with Google; someone the firm has no open
 - Its tokens leak into InvoiceDetail and Projects screens, so two token systems coexist (architecture.md section 2).
 - Push `route=ahc` adds progress / "View report" / Reply actions but has no deep link (integrations.md).
 
+## 20a. board/ (Counsel workspace, REQ-008, built 2026-11-07 to 11-08, uncommitted until the Advisor commits)
+
+- **Workspace switch:** `BoardHub` (singleton, cleared in `AuthRepository.forget()` and `switchedTo()`) asks `GET board/summary` once the profile is read. 200 with `counsel: true` (`isCounsel(access)`) turns the whole app into the Counsel workspace: Home becomes Today, the header shows "Legum Lex / COUNSEL" with a credits chip and account button, and the bottom bar has three tabs (Today, Credits, Account) around the centre Print button (`counselTabs`, `LegumBottomBar(counsel = true)`). 404 `board_off`, 403 or `counsel: false` keeps the normal client app. A profile with no "board" permission is not asked.
+- **Today (`CounselToday.kt`):** greeting and date, the cause list card (one Print action, no duplicate), equal stat tiles, the "Needs Your Eye" card, courts list and a day filter over the cases (client-side `CaseFilter`). Cases are merged into Today; there is no separate Cases tab (`BoardCaseScreen` detail stays, opened from a row). Empty state: step cards that lead to Import and Add Case.
+- **Dates follow eCourts:** after `import/confirm` the server returns `mismatches[]`; the "Which Date Is Right?" dialog and Needs Your Eye offer "eCourts is right" (`date/accept`) or "Keep my date" (`date/keep`). The app has no free date typing.
+- **Credits (`BoardCreditsScreen.kt`):** balance with "eCourts checked" line, spend tiles (today, month, all time), pack carousel with `packLasts` text, history (20, Show More). Pay first: the cart calls `credits/checkout`, opens the server's `pay_url` in a Custom Tab (androidx.browser, no payment SDK), and on return polls `credits/order` (5 times, 2 s) for paid, pending, failed, expired or flagged. A banner shows the outcome; "failed" reads "Nothing was charged. You can try again." Money, costs and packs are shown as the server sends them.
+- **Icon rule:** actions are symbol buttons with a content description and a long-press tooltip (`IconAction`); long help text sits behind an (i) (`InfoTip`). Dialog buttons stay icon-only for now (Advisor decision).
+- **Retired:** the junior views (By Junior, juniors screen), result entry and name/court wizards, the Home tile and More row, `BoardScreen`, `BoardJuniorsScreen`, `BoardHomeTile`, and free date correction. `BoardSheetScreen` (PdfRenderer, Share) takes no junior in the Counsel flow.
+- **Weak signal:** each loaded day is saved under `cache/board/` and shown read-only when offline; sheets go to `cache/board/sheets/` (FileProvider path `board`). `"board"` is in `DocCacheDirs`, so sign-out and account switching wipe it.
+- **Refusals:** 402 `insufficient_credits` and `premium_paused`, `cap_reached`, `busy`, `ecourts_off` show the server's message; no 402 or 403 maps to "session expired". Dates pin to Asia/Kolkata (`BoardDates`).
+- **Debug only:** the "Adv (debug)" sign-in button uses `BuildConfig.DEV_ADV_EMAIL` and `DEV_ADV_PASSWORD` from `local.properties` (gitignored), like the test-contact button; it hides when blank, and release builds carry blanks.
+- **Tests:** `app/src/test/.../board/` `BoardDatesTest`, `BoardModelsTest`, `CounselTodayTest` (JVM, `testImplementation junit`).
+- **Not built:** export (`GET board/export`).
+
 ## 21. Cross-cutting gaps (all features)
 
 | Gap | Where | Evidence |

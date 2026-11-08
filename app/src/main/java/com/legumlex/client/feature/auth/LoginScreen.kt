@@ -188,6 +188,7 @@ fun LoginScreen(
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
+                        onAdv    = { vm.onEmailLogin(BuildConfig.DEV_ADV_EMAIL, BuildConfig.DEV_ADV_PASSWORD) },
                     )
                     if (signUp) {
                         // A newcomer's own way in (owner, 2026-10-24): set apart
@@ -299,6 +300,7 @@ private fun ColumnScope.ChooseView(
     onMobile: () -> Unit,
     onEmail: () -> Unit,
     onDev: () -> Unit,
+    onAdv: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     // The two ways in, as their marks alone: Google and a mobile code.
@@ -332,6 +334,21 @@ private fun ColumnScope.ChooseView(
             colors   = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryText),
         ) {
             Text("Debug · Sign In as Test Contact", style = MaterialTheme.typography.labelMedium)
+        }
+    }
+    // Debug builds only (DEV_ADV_EMAIL/_PASSWORD from local.properties):
+    // one tap signs in as the dev Daily Board advocate.
+    if (BuildConfig.DEBUG && BuildConfig.DEV_ADV_EMAIL.isNotBlank()) {
+        Spacer(Modifier.height(spacing.s2))
+        OutlinedButton(
+            onClick  = onAdv,
+            enabled  = !busy,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            shape    = MaterialTheme.shapes.small,
+            border   = BorderStroke(1.dp, BorderColor),
+            colors   = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryText),
+        ) {
+            Text("Adv (debug)", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -483,6 +500,8 @@ private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean) {
         isPassword = !showPassword,
         enabled = !busy,
         modifier = Modifier.fillMaxWidth(),
+        imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+        onImeAction = { if (!busy && email.isNotBlank() && password.isNotEmpty()) vm.onEmailLogin(email.trim(), password) },
         trailing = {
             IconButton(onClick = { showPassword = !showPassword }) {
                 Icon(

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.Print
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,8 +34,8 @@ import com.legumlex.client.ui.theme.Surface1
 // left, Notices and More to the right; the Digital Office is in the header
 // (owner, 2026-10-20). The current tab is its filled glyph with a dot under it.
 @Composable
-fun LegumBottomBar(navController: NavHostController, lead: Boolean = false) {
-    val tabs = if (lead) leadTabs else bottomTabs
+fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, counsel: Boolean = false) {
+    val tabs = if (lead) leadTabs else if (counsel) counselTabs else bottomTabs
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     // The tab a screen belongs to is the last tab root on the back stack (a
@@ -59,7 +60,16 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false) {
                 .height(BarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (lead) {
+            if (counsel) {
+                // Four items round the notch: Today alone in the left half, centred; the gold Cause List in the
+                // notch; Credits and Account sharing the right half. Today sits where the middle of the left half is.
+                NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
+                Spacer(Modifier.width(NotchRadius * 2))
+                Row(Modifier.weight(1f).fillMaxHeight()) {
+                    NavGlyph(tab(Route.BoardCredits), on(tab(Route.BoardCredits)), Modifier.weight(1f)) { go(tab(Route.BoardCredits)) }
+                    NavGlyph(tab(Route.CounselAccount), on(tab(Route.CounselAccount)), Modifier.weight(1f)) { go(tab(Route.CounselAccount)) }
+                }
+            } else if (lead) {
                 // Home and Enquiries on the left, More alone on the right.
                 NavGlyph(tab(Route.LeadHome), on(tab(Route.LeadHome)), Modifier.weight(1f)) { go(tab(Route.LeadHome)) }
                 NavGlyph(tab(Route.LeadEnquiries), on(tab(Route.LeadEnquiries)), Modifier.weight(1f)) { go(tab(Route.LeadEnquiries)) }
@@ -76,6 +86,23 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false) {
         }
         // Consult, raised: its centre on the bar's top edge, in the notch. It
         // opens the desk, where anything new begins.
+        if (counsel) {
+            // Cause List, raised in the notch: today's cause list in the counsel's own format.
+            Surface(
+                onClick = {
+                    navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
+                },
+                shape = CircleShape, color = DeskYellow,
+                border = androidx.compose.foundation.BorderStroke(4.dp, bar),
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = -FabSize / 2).size(FabSize)
+                    .semantics { contentDescription = "Cause List" },
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(androidx.compose.material.icons.Icons.Outlined.Print, contentDescription = null, tint = Color.Black, modifier = Modifier.size(26.dp))
+                }
+            }
+            return@Box
+        }
         Surface(
             onClick = { navController.navigate(Route.NewConsultation.build()) },
             shape = CircleShape,
