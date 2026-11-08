@@ -126,6 +126,48 @@ class CounselTodayTest {
         assertFalse(CaseFilter.Tomorrow.keeps(caseOn(null), today))
     }
 
+    @Test fun caseFiltersNeedsEyeAndOff() {
+        val today = LocalDate.of(2026, 11, 9)
+        val eye = parseCase(mapOf("id" to 2.0, "needs_eye" to true, "morning_check" to true, "ecourts_date" to "2026-12-01"))
+        val off = parseCase(mapOf("id" to 3.0, "needs_eye" to false, "morning_check" to false))
+        assertTrue(CaseFilter.NeedsEye.keeps(eye, today))
+        assertFalse(CaseFilter.NeedsEye.keeps(off, today))
+        assertTrue(CaseFilter.Off.keeps(off, today))
+        assertFalse(CaseFilter.Off.keeps(eye, today))
+        assertEquals("2026-12-01", eye.ecourtsDate)
+    }
+
+    @Test fun courtLineLeadsWithTheBenchElseTheRoom() {
+        val b = parseCase(mapOf("id" to 4.0, "court" to "Civil Judge (Jr. Div.) Ludhiana", "bench" to "Ld. Ms. Anjali Sharma", "room" to "Court 3"))
+        assertEquals("Civil Judge (Jr. Div.) Ludhiana · Ld. Ms. Anjali Sharma", b.courtLine)
+        val r = parseCase(mapOf("id" to 5.0, "court" to "Civil Judge", "room" to "Court 3"))
+        assertEquals("Civil Judge · Court 3", r.courtLine)
+        assertTrue(r.hasCnr)
+    }
+
+    @Test fun caseReadsHistoryAndCnrState() {
+        val c = parseCase(mapOf(
+            "id" to 6.0, "has_cnr" to false,
+            "history" to listOf(
+                mapOf("date" to "2026-12-01", "source" to "ecourts", "label" to "From eCourts", "at" to "2026-11-08 07:05:00"),
+                mapOf("date" to "2026-11-20", "source" to "import", "label" to "Imported", "at" to null),
+            ),
+        ))
+        assertFalse(c.hasCnr)
+        assertEquals(2, c.history.size)
+        assertEquals("From eCourts", c.history[0].label)
+        assertEquals("2026-11-20", c.history[1].date)
+        assertNull(c.history[1].at)
+        assertTrue(parseCase(mapOf("id" to 7.0)).history.isEmpty())
+    }
+
+    @Test fun dayReadsTheFormatLine() {
+        val d = parseDay(mapOf("date" to "2026-11-08", "format" to mapOf("summary" to "A4, landscape, 5 columns", "paper" to "A4", "orientation" to "landscape", "matched" to true)))
+        assertEquals("A4, landscape, 5 columns", d.format?.summary)
+        assertTrue(d.format?.matched == true)
+        assertNull(parseDay(mapOf("date" to "2026-11-08")).format)
+    }
+
     // ---- pay first, spend stats, mismatches --------------------------------------
 
     @Test fun parsesCheckoutAndOrder() {

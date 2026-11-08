@@ -194,7 +194,11 @@ Owner, 2026-10-20: "Anyone may sign in with Google; someone the firm has no open
 - **Refusals:** 402 `insufficient_credits` and `premium_paused`, `cap_reached`, `busy`, `ecourts_off` show the server's message; no 402 or 403 maps to "session expired". Dates pin to Asia/Kolkata (`BoardDates`).
 - **Debug only:** the "Adv (debug)" sign-in button uses `BuildConfig.DEV_ADV_EMAIL` and `DEV_ADV_PASSWORD` from `local.properties` (gitignored), like the test-contact button; it hides when blank, and release builds carry blanks.
 - **Tests:** `app/src/test/.../board/` `BoardDatesTest`, `BoardModelsTest`, `CounselTodayTest` (JVM, `testImplementation junit`).
-- **Not built:** export (`GET board/export`).
+- **Cause List (`BoardSheetScreen`):** day bar (previous, calendar, next, back to today) over `board/sheet?date=`, Print (Android PrintManager) and Share. The format is changed on the web only; an (i) says so. The server's `format.summary` (from `board/day`) shows beside the (i), in the server's words.
+- **Case page:** court and bench (`bench`, else the room), Needs Your Eye card (eCourts is right / Keep my date) from `needs_eye` and `ecourts_date`, daily-check switch (`morning_check` through the case edit), Remove From Your Diary wording as the web. List filters: All, Listed Today, Tomorrow, Needs Your Eye, Check Off (client-side).
+- **Export:** an icon above Your Cases downloads `board/export` as myCases.txt (cache/board/export) and shares it.
+- **Date History and Add The CNR:** the case page lists `history` (label and date, newest first); a case with `has_cnr: false` offers a 2-step Add The CNR wizard (`POST board/cases/{id}/cnr`, free, the server's 422 messages shown).
+- **Not built:** format wizard and Match My Specimen (web only); pending-purchases list and credits CSV (skipped).
 
 ## 21. Cross-cutting gaps (all features)
 

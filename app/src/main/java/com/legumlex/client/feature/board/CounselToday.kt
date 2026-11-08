@@ -3,6 +3,7 @@ package com.legumlex.client.feature.board
 import android.app.Application
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.SavedSearch
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -211,6 +213,7 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
     var mismatches by remember { mutableStateOf<List<Mismatch>>(emptyList()) }
     // The case list (the Cases screen, merged into Today): search, and a filter by day.
     val repo = remember { BoardRepository(context) }
+    val scope = rememberCoroutineScope()
     var q by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(CaseFilter.All) }
     var cases by remember { mutableStateOf<List<BoardCase>?>(null) }
@@ -244,6 +247,13 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Eyebrow("Your Cases", Modifier.weight(1f), color = Lex.colors.secondaryForeground)
+                        IconAction(Icons.Outlined.Download, "Export all cases as myCases.txt", {
+                            scope.launch {
+                                repo.export().onSuccess { shareText(context, it, "myCases.txt") }
+                                    .onFailure { Toast.makeText(context, if (it.isOffline()) "The export needs a connection." else it.boardMessage(), Toast.LENGTH_LONG).show() }
+                            }
+                        }, look = ActionLook.Outline)
+                        Spacer(Modifier.width(8.dp))
                         IconAction(Icons.Outlined.SavedSearch, "Add a case by its CNR", { byCnr = true }, look = ActionLook.Outline)
                         Spacer(Modifier.width(8.dp))
                         IconAction(Icons.Outlined.FileUpload, "Import cases from the eCourts app", { importing = true }, look = ActionLook.Gold)
@@ -253,7 +263,7 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
                     com.legumlex.client.ui.components.LegumTextField(q, { q = it }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search)
                 }
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CaseFilter.values().forEach { f -> FilterChip(f.label, filter == f) { filter = f } }
                     }
                 }
@@ -307,12 +317,14 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
 
 /** The case list's filters, by the day a case is listed (its next date, as the server holds it). */
 enum class CaseFilter(val label: String) {
-    All("All"), Today("Listed Today"), Tomorrow("Tomorrow");
+    All("All"), Today("Listed Today"), Tomorrow("Tomorrow"), NeedsEye("Needs Your Eye"), Off("Check Off");
 
     fun keeps(c: BoardCase, today: LocalDate): Boolean = when (this) {
         All -> true
         Today -> BoardDates.parse(c.nextDate) == today
         Tomorrow -> BoardDates.parse(c.nextDate) == today.plusDays(1)
+        NeedsEye -> c.needsEye
+        Off -> !c.morningCheck
     }
 }
 
@@ -419,7 +431,7 @@ private fun ShortBanner(s: CheckShort, onCredits: () -> Unit) {
 }
 
 @Composable
-private fun NeedsEyeCard(items: List<NeedsEye>, today: LocalDate, onKeep: (NeedsEye) -> Unit, onAccept: (NeedsEye) -> Unit) {
+internal fun NeedsEyeCard(items: List<NeedsEye>, today: LocalDate, onKeep: (NeedsEye) -> Unit, onAccept: (NeedsEye) -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).padding(14.dp),

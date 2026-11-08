@@ -823,6 +823,11 @@ interface ApiService {
     suspend fun boardCaseRead(@Path("id") id: String): Map<String, Any?>
 
     /** Add By CNR (4 credits). */
+    /** Gives a hand-added case its CNR. Free; no eCourts read. */
+    @FormUrlEncoded
+    @POST("board/cases/{id}/cnr")
+    suspend fun boardCaseAddCnr(@Path("id") id: String, @Field("cnr") cnr: String): Map<String, Any?>
+
     @FormUrlEncoded
     @Headers("X-Long-Call: 1")
     @POST("board/cases/cnr")
@@ -854,6 +859,11 @@ interface ApiService {
     @Streaming
     @GET("board/sheet")
     suspend fun boardSheet(@Query("date") date: String, @Query("junior") junior: String? = null): ResponseBody
+
+    /** myCases.txt, the full list as text. The caller closes the body. */
+    @Streaming
+    @GET("board/export")
+    suspend fun boardExport(): ResponseBody
 
     @GET("board/credits")
     suspend fun boardCredits(@Query("limit") limit: Int = 100): Map<String, Any?>

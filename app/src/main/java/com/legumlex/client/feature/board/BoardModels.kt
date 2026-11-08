@@ -62,10 +62,31 @@ data class BoardCase(
     val check: MorningCheck?,
     val entry: BoardEntry?,
     val itemNo: String,
+    /** The server's bench text (judge and court room), shown instead of the room when present. */
+    val bench: String = "",
+    val judge: String = "",
+    /** eCourts' own date for a case flagged Needs Your Eye; the date the counsel had is nextDate. */
+    val ecourtsDate: String? = null,
+    val needsEye: Boolean = false,
+    val hasCnr: Boolean = true,
+    /** The case's Date History, newest first (only on the single-case read). */
+    val history: List<DateHistoryRow> = emptyList(),
 ) {
+    /** The court line: the court, then the bench the server names (else the room). */
+    val courtLine: String get() = listOf(court, bench.ifBlank { room }).filter { it.isNotBlank() }.joinToString(" · ")
+
     /** The name a row leads with: the case number, else the CNR. */
     val heading: String get() = caseNo.ifBlank { cnr }
 }
+
+/** One recorded date of a case: the date, where it came from (the server's `label`), and when it was recorded. */
+data class DateHistoryRow(val date: String, val source: String, val label: String, val at: String?)
+
+/** The counsel's cause-list format, in the server's own words. */
+data class BoardFormat(val summary: String, val paper: String, val orientation: String, val matched: Boolean)
+
+internal fun parseFormat(m: Map<String, Any?>): BoardFormat? =
+    if (m.isEmpty()) null else BoardFormat(m["summary"].str(), m["paper"].str(), m["orientation"].str(), m["matched"] == true)
 
 data class RoomGroup(val room: String, val items: List<BoardCase>)
 data class CourtGroup(val court: String, val count: Int, val rooms: List<RoomGroup>)
@@ -79,6 +100,7 @@ data class BoardDay(
     val total: Int,
     val withResult: Int,
     val listed: Int,
+    val format: BoardFormat? = null,
 )
 
 data class BoardSummary(
@@ -179,6 +201,12 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         check = if (chk.isEmpty()) null else MorningCheck(chk["result"].str(), chk["for"].strOrNull(), chk["at"].strOrNull()),
         entry = if (en.isEmpty()) null else BoardEntry(en["id"].int(), en["item_no"].str(), en["status"].str(), en["next_date"].strOrNull(), en["remarks"].str()),
         itemNo = m["item_no"].str(),
+        bench = m["bench"].str(),
+        judge = m["judge"].str(),
+        ecourtsDate = m["ecourts_date"].strOrNull(),
+        needsEye = m["needs_eye"] == true,
+        hasCnr = m["has_cnr"] != false,
+        history = m["history"].list().map { DateHistoryRow(it["date"].str(), it["source"].str(), it["label"].str(), it["at"].strOrNull()) },
     )
 }
 
@@ -202,6 +230,7 @@ internal fun parseDay(d: Map<String, Any?>): BoardDay {
         total = counts["total"].int(),
         withResult = counts["with_result"].int(),
         listed = counts["listed"].int(),
+        format = parseFormat(d["format"].map()),
     )
 }
 

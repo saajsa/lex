@@ -24,6 +24,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -70,6 +80,18 @@ fun shareSheet(context: Context, file: File, label: String) {
     context.startActivity(Intent.createChooser(send, "Share Sheet").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
+/** Hands a text file (the myCases.txt export) to another app. */
+fun shareText(context: Context, file: File, subject: String) {
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(send, "Share myCases").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
 private sealed interface SheetState {
     data object Loading : SheetState
     data class Ready(val file: File, val pages: List<Bitmap>) : SheetState
@@ -81,13 +103,18 @@ private sealed interface SheetState {
 @Composable
 fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> Unit) {
     val context = LocalContext.current
+    var day by remember { mutableStateOf(date) }
+    var picking by remember { mutableStateOf(false) }
+    var format by remember { mutableStateOf<BoardFormat?>(null) }
     val repo = remember { BoardRepository(context) }
     var state by remember { mutableStateOf<SheetState>(SheetState.Loading) }
     var tick by remember { mutableStateOf(0) }
 
-    LaunchedEffect(date, junior, tick) {
+    LaunchedEffect(day) { repo.day(day).onSuccess { format = it.format } }
+
+    LaunchedEffect(day, junior, tick) {
         state = SheetState.Loading
-        repo.sheet(date, junior.takeIf { it.isNotBlank() && it != "own" })
+        repo.sheet(day, junior.takeIf { it.isNotBlank() && it != "own" })
             .onSuccess { f ->
                 runCatching { withContext(Dispatchers.IO) { renderPdf(context, f) } }
                     .onSuccess { state = if (it.isEmpty()) SheetState.Error("This sheet has no pages.") else SheetState.Ready(f, it) }
@@ -102,12 +129,13 @@ fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> 
                 title = {
                     Column {
                         Text(label, style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1)
-                        Text(BoardDates.parse(date)?.let { BoardDates.long(it) } ?: date, style = MaterialTheme.typography.labelSmall, color = Zinc400)
+                        Text(BoardDates.parse(day)?.let { BoardDates.long(it) } ?: day, style = MaterialTheme.typography.labelSmall, color = Zinc400)
                     }
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Color.White) } },
                 actions = {
                     (state as? SheetState.Ready)?.let { r ->
+                        IconButton(onClick = { printSheet(context, r.file, BoardDates.parse(day)?.let { BoardDates.long(it) } ?: day) }) { Icon(Icons.Outlined.Print, "Print", tint = Color.White) }
                         IconButton(onClick = { shareSheet(context, r.file, label) }) { Icon(Icons.Outlined.Share, "Share Sheet", tint = Color.White) }
                     }
                 },
@@ -117,6 +145,9 @@ fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> 
         },
         containerColor = Zinc950,
     ) { inner ->
+      Column(Modifier.fillMaxSize().padding(inner)) {
+        DayBar(day, onDay = { day = it }, onPick = { picking = true }, showFormatTip = junior.isBlank() || junior == "own", format = format)
+        val inner = PaddingValues(0.dp)
         when (val s = state) {
             SheetState.Loading -> Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -146,7 +177,89 @@ fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> 
                 }
             }
         }
+      }
     }
+    if (picking) {
+        val start = BoardDates.parse(day) ?: BoardDates.today()
+        val ps = rememberDatePickerState(initialSelectedDateMillis = start.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    ps.selectedDateMillis?.let { day = BoardDates.api(java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()) }
+                    picking = false
+                }) { Text("Show") }
+            },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+        ) { DatePicker(state = ps) }
+    }
+}
+
+/** Previous day, a calendar, next day, back to today; and where the cause-list format is changed (on the web). */
+@Composable
+private fun DayBar(day: String, onDay: (String) -> Unit, onPick: () -> Unit, showFormatTip: Boolean, format: BoardFormat?) {
+    val d = BoardDates.parse(day) ?: BoardDates.today()
+    val today = BoardDates.today()
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onDay(BoardDates.api(d.minusDays(1))) }) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, "Previous Day", tint = Color.White) }
+        IconButton(onClick = onPick) { Icon(Icons.Outlined.CalendarMonth, "Pick A Day", tint = Color.White) }
+        IconButton(onClick = { onDay(BoardDates.api(d.plusDays(1))) }) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Next Day", tint = Color.White) }
+        if (d != today) {
+            IconButton(onClick = { onDay(BoardDates.api(today)) }) { Icon(Icons.Outlined.Today, "Back To Today", tint = Color.White) }
+        }
+        Spacer(Modifier.weight(1f))
+        if (showFormatTip && format != null && format.summary.isNotBlank()) {
+            Text(format.summary, style = MaterialTheme.typography.labelMedium, color = Zinc300, maxLines = 2, modifier = Modifier.weight(2f), textAlign = TextAlign.End)
+        }
+        if (showFormatTip) com.legumlex.client.feature.board.InfoTip(
+            "This is the cause list in your own format. To change the format, open Cause List on the web and choose Change Format: www.legumlex.com/board/format",
+            label = "About Your Format",
+        )
+    }
+}
+
+/** Android's own print dialog for the day's PDF (any printer, or Save As PDF). */
+fun printSheet(context: Context, file: File, label: String) {
+    val pm = context.getSystemService(Context.PRINT_SERVICE) as? android.print.PrintManager ?: return
+    val attrs = sheetPrintAttributes(file)
+    pm.print("Cause List $label", object : android.print.PrintDocumentAdapter() {
+        override fun onLayout(old: android.print.PrintAttributes?, new: android.print.PrintAttributes?, cancel: android.os.CancellationSignal?, cb: LayoutResultCallback, extras: android.os.Bundle?) {
+            if (cancel?.isCanceled == true) { cb.onLayoutCancelled(); return }
+            cb.onLayoutFinished(
+                android.print.PrintDocumentInfo.Builder(file.name).setContentType(android.print.PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                    .setPageCount(android.print.PrintDocumentInfo.PAGE_COUNT_UNKNOWN).build(), true,
+            )
+        }
+
+        override fun onWrite(pages: Array<out android.print.PageRange>?, dest: ParcelFileDescriptor, cancel: android.os.CancellationSignal?, cb: WriteResultCallback) {
+            try {
+                file.inputStream().use { i -> java.io.FileOutputStream(dest.fileDescriptor).use { o -> i.copyTo(o) } }
+                cb.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES))
+            } catch (e: Exception) {
+                cb.onWriteFailed(e.message)
+            }
+        }
+    }, attrs)
+}
+
+/** The paper the PDF was made for (A4 or Legal, portrait or landscape), read from its first page, so the print dialog opens on it. */
+internal fun sheetPrintAttributes(file: File): android.print.PrintAttributes? = runCatching {
+    val (w, h) = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+        PdfRenderer(pfd).use { r -> r.openPage(0).use { it.width to it.height } }
+    }
+    val size = paperFor(w, h)
+    android.print.PrintAttributes.Builder()
+        .setMediaSize(if (w > h) size.asLandscape() else size.asPortrait())
+        .setMinMargins(android.print.PrintAttributes.Margins.NO_MARGINS)
+        .build()
+}.getOrNull()
+
+/** A4 or Legal, whichever the page (in points) is nearer to, whatever its orientation. */
+internal fun paperFor(widthPt: Int, heightPt: Int): android.print.PrintAttributes.MediaSize {
+    val long = maxOf(widthPt, heightPt)
+    val short = minOf(widthPt, heightPt)
+    fun dist(longPt: Int, shortPt: Int) = Math.abs(long - longPt) + Math.abs(short - shortPt)
+    return if (dist(842, 595) <= dist(1008, 612)) android.print.PrintAttributes.MediaSize.ISO_A4 else android.print.PrintAttributes.MediaSize.NA_LEGAL
 }
 
 /** The platform PdfRenderer, as the app's other viewers use it: every page to a white bitmap. */

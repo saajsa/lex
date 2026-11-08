@@ -98,6 +98,9 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
         parseCase(d["case"].map()) to d["balance"].int()
     }
 
+    /** Gives a hand-added case its CNR (free): the case as it now stands. */
+    suspend fun caseAddCnr(id: Int, cnr: String): Result<BoardCase> = runCatching { parseCase(data(api.boardCaseAddCnr(id.toString(), cnr))["case"].map()) }
+
     /** Add By CNR: the new case, and the balance after the charge. */
     suspend fun caseByCnr(cnr: String): Result<Pair<BoardCase, Int>> = runCatching {
         val d = data(api.boardCaseByCnr(cnr))
@@ -132,6 +135,17 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
             api.boardSheet(date, junior).use { body ->
                 body.byteStream().use { input -> file.outputStream().use { input.copyTo(it) } }
             }
+            file
+        }
+    }
+
+    /** myCases.txt: every case in the diary, as text, saved under cache/board/export. */
+    suspend fun export(): Result<File> = runCatching {
+        withContext(Dispatchers.IO) {
+            val root = dir() ?: error("No cache directory")
+            val out = File(root, "export").apply { mkdirs() }
+            val file = File(out, "myCases.txt")
+            api.boardExport().use { body -> body.byteStream().use { input -> file.outputStream().use { input.copyTo(it) } } }
             file
         }
     }

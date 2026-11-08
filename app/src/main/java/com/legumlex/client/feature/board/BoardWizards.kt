@@ -309,3 +309,44 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
         }
     }
 }
+
+// ---- give a hand-added case its CNR (free) ----------------------------------------
+
+@Composable
+fun AddCnrWizard(caseId: Int, caseName: String, onClose: () -> Unit, onDone: (BoardCase) -> Unit) {
+    val context = LocalContext.current
+    val repo = remember { BoardRepository(context) }
+    val scope = rememberCoroutineScope()
+    var step by rememberSaveable { mutableStateOf(0) }
+    var cnr by rememberSaveable { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    WizardDialog(onDismiss = onClose) {
+        WizardFrame(
+            title = "Add The CNR", steps = listOf("CNR", "Review"), step = step, ready = cnr.length >= 16 || step == 1,
+            saving = saving, savingLabel = "Saving…", saveLabel = "Add The CNR",
+            error = error, onClose = onClose, onStep = { error = null; step = it },
+            onSave = {
+                saving = true; error = null
+                scope.launch {
+                    repo.caseAddCnr(caseId, cnr.trim()).onSuccess { onDone(it) }
+                        .onFailure {
+                            error = it.boardMessage()
+                            // A refused CNR or a duplicate is put right on the first step.
+                            if (it.boardCode() in setOf("cnr", "duplicate")) step = 0
+                        }
+                    saving = false
+                }
+            },
+        ) {
+            if (step == 0) {
+                WizardHeading("The Case's CNR", "The CNR is the case's 16-character number from the eCourts site or app. Adding it is free.")
+                WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026")
+            } else {
+                WizardHeading("Check And Add", "The CNR lets the platform check this case on eCourts each morning.")
+                WizardRows(listOf("Case" to caseName, "CNR" to cnr))
+            }
+        }
+    }
+}

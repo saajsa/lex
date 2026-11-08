@@ -61,7 +61,7 @@ internal fun CaseListRow(c: BoardCase, today: java.time.LocalDate, onClick: () -
         Text(c.heading, style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground, maxLines = 1)
         Text(c.title.ifBlank { c.cnr }, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(
-            listOf(c.court, c.room).filter { it.isNotBlank() }.joinToString("  ·  "),
+            c.courtLine,
             style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.height(6.dp))
@@ -86,17 +86,20 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
     var gone by remember { mutableStateOf(false) }
     var cost by remember { mutableStateOf<Int?>(null) }
     var editing by remember { mutableStateOf(false) }
+    var addingCnr by remember { mutableStateOf(false) }
     var confirmRead by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var refusal by remember { mutableStateOf<String?>(null) }
     var refusalCode by remember { mutableStateOf<String?>(null) }
+    var checkCost by remember { mutableStateOf<Int?>(null) }
+    var answering by remember { mutableStateOf<Pair<NeedsEye, DateAnswer>?>(null) }
     val today = BoardDates.today()
 
     fun load() { scope.launch { repo.case(caseId).onSuccess { c = it; error = null }.onFailure { error = it.boardMessage() } } }
     LaunchedEffect(caseId) {
         load()
-        repo.credits().onSuccess { cost = it.costAdd }
+        repo.credits().onSuccess { cost = it.costAdd; checkCost = it.costCheck }
     }
 
     Column(Modifier.fillMaxSize().background(Lex.colors.background).androidScroll().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -108,6 +111,12 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
         } else {
             Text(x.title.ifBlank { x.cnr }, style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
             CaseChips(x)
+            if (x.needsEye && x.ecourtsDate != null) {
+                NeedsEyeCard(
+                    listOf(NeedsEye(x.id, x.cnr, x.caseNo, x.title, x.ecourtsDate, x.nextDate)), today,
+                    onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight },
+                )
+            }
             LexCard {
                 KeyValueRow("CNR", x.cnr, mono = true)
                 if (x.caseNo.isNotBlank()) KeyValueRow("Case Number", x.caseNo)
@@ -115,27 +124,40 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
                 if (x.petitioner.isNotBlank()) KeyValueRow("Petitioner", x.petitioner)
                 if (x.respondent.isNotBlank()) KeyValueRow("Respondent", x.respondent)
                 if (x.court.isNotBlank()) KeyValueRow("Court", x.court)
-                if (x.room.isNotBlank()) KeyValueRow("Court Room", x.room)
+                if (x.bench.isNotBlank()) KeyValueRow("Bench", x.bench) else if (x.room.isNotBlank()) KeyValueRow("Court Room", x.room)
                 if (x.stage.isNotBlank()) KeyValueRow("Stage", x.stage)
                 BoardDates.parse(x.nextDate)?.let { KeyValueRow("Next Date", BoardDates.long(it)) }
                 BoardDates.parse(x.lastDate)?.let { KeyValueRow("Last Date", BoardDates.long(it)) }
-                KeyValueRow("Morning Check", if (x.morningCheck) "On" else "Off")
+                DailyCheckRow(x.morningCheck, checkCost, enabled = !busy) { on ->
+                    busy = true; refusal = null; refusalCode = null
+                    scope.launch {
+                        repo.caseEdit(x.id, mapOf("morning_check" to if (on) "1" else "0")).onSuccess { c = it }
+                            .onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() }
+                        busy = false
+                    }
+                }
                 x.check?.let { KeyValueRow("Last Check", it.label + (BoardDates.parse(it.forDate)?.let { d -> " for ${BoardDates.short(d, today)}" } ?: "")) }
                 if (x.note.isNotBlank()) KeyValueRow("Note", x.note)
                 KeyValueRow("Source", x.source.replaceFirstChar { it.uppercase() })
             }
+            DateHistoryCard(x.history, today)
             refusal?.let {
                 NoteLine(it, danger = true)
                 if (refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits)
             }
             LegumPrimaryButton("Edit Case", { editing = true })
+            if (!x.hasCnr) LegumSecondaryButton("Add The CNR (Free)", { addingCnr = true }, enabled = !busy)
             LegumSecondaryButton(if (busy) "Reading The Court Record…" else "Update From Court" + (cost?.let { " ($it Credits)" } ?: ""), { refusal = null; confirmRead = true }, enabled = !busy)
-            LegumSecondaryButton("Remove From Board", { confirmRemove = true }, enabled = !busy)
+            LegumSecondaryButton("Remove From Your Diary", { confirmRemove = true }, enabled = !busy)
         }
         Spacer(Modifier.height(8.dp))
     }
 
+    answering?.let { (n, a) ->
+        DateAnswerDialog(n, a, today, onClose = { answering = null }, onDone = { answering = null; load() })
+    }
     c?.let { x ->
+        if (addingCnr) AddCnrWizard(x.id, x.heading, onClose = { addingCnr = false }, onDone = { load(); addingCnr = false })
         if (editing) CaseWizard(x, onClose = { editing = false }, onSaved = { c = it; editing = false })
         if (confirmRead) AlertDialog(
             onDismissRequest = { confirmRead = false },
@@ -158,8 +180,8 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
         )
         if (confirmRemove) AlertDialog(
             onDismissRequest = { confirmRemove = false },
-            title = { Text("Remove This Case?") },
-            text = { Text("The case leaves your board. This cannot be undone.") },
+            title = { Text("Remove From Your Diary?") },
+            text = { Text("The case and its date history are deleted. Credits already spent on it are not given back. You can add it again later.") },
             confirmButton = {
                 TextButton({
                     confirmRemove = false; busy = true
@@ -177,3 +199,32 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
 
 @Composable
 private fun Modifier.androidScroll(): Modifier = this.then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))
+
+/** The daily eCourts check for one case: on or off, with what it costs each morning (the server's figure). */
+@Composable
+private fun DailyCheckRow(on: Boolean, cost: Int?, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Daily eCourts Check", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+            Text(
+                if (on) "Checked every morning" + (cost?.let { " for $it credit" + if (it == 1) "" else "s" }.orEmpty()) + "."
+                else "Not checked. Its date stays as it was.",
+                style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground,
+            )
+        }
+        androidx.compose.material3.Switch(checked = on, onCheckedChange = onChange, enabled = enabled)
+    }
+}
+
+/** Where the case's dates came from, newest first, in the server's own labels. */
+@Composable
+private fun DateHistoryCard(rows: List<DateHistoryRow>, today: java.time.LocalDate) {
+    LexCard {
+        Text("Date History", style = MaterialTheme.typography.labelLarge, color = Lex.colors.mutedForeground, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        if (rows.isEmpty()) {
+            Text("No date has been recorded for this case yet.", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        } else rows.forEach { r ->
+            KeyValueRow(r.label.ifBlank { r.source.replaceFirstChar { it.uppercase() } }, BoardDates.parse(r.date)?.let { BoardDates.long(it) } ?: r.date)
+        }
+    }
+}
