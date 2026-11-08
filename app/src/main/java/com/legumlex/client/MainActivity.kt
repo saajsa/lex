@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.material3.Scaffold
@@ -196,7 +198,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
 
     val darkRoute = currentRoute?.substringBefore("?") == Route.BoardSheet.path.substringBefore("?")
     Scaffold(
-        containerColor = if (darkRoute) com.legumlex.client.ui.theme.Zinc950 else androidx.compose.material3.MaterialTheme.colorScheme.background,
+        containerColor = if (darkRoute) com.legumlex.client.ui.theme.Zinc950 else com.legumlex.client.ui.theme.Lex.colors.background,
         topBar = {
             if (showAppHeader(currentRoute)) {
                 AppHeader(
@@ -239,24 +241,33 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // undo the next one's.
         val shellView = androidx.compose.ui.platform.LocalView.current
         val themeDark = com.legumlex.client.ui.theme.Lex.colors.isDark
-        LaunchedEffect(currentRoute, themeDark, darkRoute) {
+        LaunchedEffect(currentRoute, themeDark, darkRoute, counsel) {
             val window = (shellView.context as? android.app.Activity)?.window ?: return@LaunchedEffect
             val bars = androidx.core.view.WindowCompat.getInsetsController(window, shellView)
+            // 3-button navigation draws its own pale scrim under the bar; the Counsel page colour should show instead.
+            if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = !counsel
             val splash = currentRoute == Route.Splash.path
             val login  = currentRoute == Route.Login.path
             bars.isAppearanceLightStatusBars = if (splash || darkRoute) false else if (login) true else !themeDark
             // The bottom bar is black: light navigation icons wherever it shows.
-            bars.isAppearanceLightNavigationBars = if (edge || darkRoute || showAppFooter(currentRoute)) false else !themeDark
+            bars.isAppearanceLightNavigationBars = if (edge || darkRoute) false else if (showAppFooter(currentRoute) && !counsel) false else !themeDark
         }
         // The bottom bar's Home circle rises half its height above the bar:
         // pages end above it, so nothing at their foot (a reply box, a button)
         // sits under it.
         // The counsel's main screens run behind the raised button's zone and keep their own room at the foot, so no strip shows above the bar.
         val behind = counsel && com.legumlex.client.ui.navigation.counselRunsBehindBar(currentRoute)
-        val lift = if (showAppFooter(currentRoute) && !behind) androidx.compose.ui.unit.Dp(28f) else androidx.compose.ui.unit.Dp(0f)
+        val lift = if (showAppFooter(currentRoute) && !counsel) androidx.compose.ui.unit.Dp(28f) else androidx.compose.ui.unit.Dp(0f)
+        val navBottom = androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars.asPaddingValues().calculateBottomPadding()
+        val clearance = com.legumlex.client.ui.navigation.CounselBarZone + navBottom + androidx.compose.ui.unit.Dp(8f)
         // The page's own colour and grain also fill the lift, so it reads as page, never as a lighter strip.
-        Box(if (edge) Modifier else Modifier.padding(innerPadding).background(com.legumlex.client.ui.theme.Lex.colors.background).grain()) {
-            Box(Modifier.padding(bottom = lift)) { LegumNavGraph(navController) }
+        // A Counsel main screen runs behind the floating bar (it keeps its own room at the foot); every other screen
+        // stops above the bar as usual.
+        val boxPad = if (behind && showAppFooter(currentRoute)) Modifier.padding(top = innerPadding.calculateTopPadding()) else Modifier.padding(innerPadding)
+        Box(if (edge) Modifier else boxPad.background(com.legumlex.client.ui.theme.Lex.colors.background).grain()) {
+            androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.navigation.LocalCounselClearance provides clearance) {
+                Box(Modifier.padding(bottom = lift)) { LegumNavGraph(navController) }
+            }
         }
     }
 }

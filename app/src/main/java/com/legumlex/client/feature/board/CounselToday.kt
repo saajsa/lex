@@ -261,8 +261,10 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
         Spacer(Modifier.height(14.dp))
         // The day, on a black sheet whose top-right corner sweeps up into the calendar. Print is the bar's.
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(topEnd = 28.dp)).background(SheetBlack),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 52.dp),
+            // The sheet ends above the floating bar, so the page colour shows around the bar as in the design.
+            Modifier.weight(1f).fillMaxWidth().padding(bottom = (com.legumlex.client.ui.navigation.LocalCounselClearance.current - 24.dp).coerceAtLeast(0.dp))
+                .clip(RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)).background(SheetBlack),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {

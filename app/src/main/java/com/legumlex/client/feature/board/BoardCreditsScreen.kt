@@ -150,7 +150,7 @@ fun BoardCreditsScreen() {
     }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 52.dp),
+        Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { PageHeader(eyebrow = "Counsel", title = "Credits") }

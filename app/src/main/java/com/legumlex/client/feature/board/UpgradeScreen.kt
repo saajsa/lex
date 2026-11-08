@@ -38,7 +38,7 @@ import com.legumlex.client.ui.theme.Lex
 @Composable
 fun UpgradeScreen() {
     Column(
-        Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState()).padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 52.dp),
+        Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState()).padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         PageHeader(eyebrow = "Upgrade", title = "Associate With Nyay & Co.")

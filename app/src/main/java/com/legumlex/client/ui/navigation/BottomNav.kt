@@ -30,6 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.Surface1
+import com.legumlex.client.ui.theme.grain
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 
 // The bottom bar: black, icons only, with a notch at its centre where Consult
 // (the Legum Lex desk) sits raised in a circle. Home and Consultations to the
@@ -52,29 +54,28 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
     // Home screen (navigateTab).
     fun go(t: BottomTab) = navController.navigateTab(t.route.path)
 
+    if (counsel) {
+        CounselBar(
+            isOn = { r -> on(tab(r)) },
+            onTab = { r -> go(tab(r)) },
+            onPrint = {
+                navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardHub.chosen.value ?: com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
+            },
+            tabOf = { r -> tab(r) },
+        )
+        return
+    }
     val bar = Color.Black
     Box(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(bar, if (counsel) androidx.compose.ui.graphics.RectangleShape else NotchShape)
+                .background(bar, NotchShape)
                 .navigationBarsPadding()
                 .height(BarHeight),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (counsel) {
-                // Home and Calendar in the left half, the gold Print in the notch, Credits and Upgrade in the right half
-                // (equal slots, so the notch stays centred).
-                Row(Modifier.weight(1f).fillMaxHeight()) {
-                    NavGlyph(tab(Route.Home), on(tab(Route.Home)), Modifier.weight(1f)) { go(tab(Route.Home)) }
-                    NavGlyph(tab(Route.CounselCalendar), on(tab(Route.CounselCalendar)), Modifier.weight(1f)) { go(tab(Route.CounselCalendar)) }
-                }
-                Spacer(Modifier.width(NotchRadius * 2))
-                Row(Modifier.weight(1f).fillMaxHeight()) {
-                    NavGlyph(tab(Route.BoardCredits), on(tab(Route.BoardCredits)), Modifier.weight(1f)) { go(tab(Route.BoardCredits)) }
-                    NavGlyph(tab(Route.Upgrade), on(tab(Route.Upgrade)), Modifier.weight(1f)) { go(tab(Route.Upgrade)) }
-                }
-            } else if (lead) {
+            if (lead) {
                 // Home and Enquiries on the left, More alone on the right.
                 NavGlyph(tab(Route.LeadHome), on(tab(Route.LeadHome)), Modifier.weight(1f)) { go(tab(Route.LeadHome)) }
                 NavGlyph(tab(Route.LeadEnquiries), on(tab(Route.LeadEnquiries)), Modifier.weight(1f)) { go(tab(Route.LeadEnquiries)) }
@@ -91,22 +92,6 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
         }
         // Consult, raised: its centre on the bar's top edge, in the notch. It
         // opens the desk, where anything new begins.
-        if (counsel) {
-            // Cause List, raised on the bar's top edge: today's cause list in the counsel's own format. The bar is solid black
-            // behind it (the notch's hole is filled), so no lighter page colour shows around the button's ring.
-            Surface(
-                onClick = {
-                    navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardHub.chosen.value ?: com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
-                },
-                shape = CircleShape, color = DeskYellow,
-                border = androidx.compose.foundation.BorderStroke(4.dp, bar),
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = -FabSize / 2).size(FabSize)
-                    .semantics { contentDescription = "Cause List" },
-            ) {
-                PrintGlyph()
-            }
-            return@Box
-        }
         Surface(
             onClick = { navController.navigate(Route.NewConsultation.build()) },
             shape = CircleShape,
@@ -240,3 +225,98 @@ private fun PrintGlyph() {
         }
     }
 }
+
+
+// ---- the Counsel bar: a floating near-black bar with a concave notch and a raised gold square ------------------------
+
+private val CounselBarColor = Color(0xFF111110)
+private val CounselBarHeight = 64.dp
+private val CounselBarMargin = 14.dp          // left, right and bottom: the page shows around the bar
+private val CounselOverhang = 26.dp           // how far the gold button rises above the bar
+private val CounselFabSize = 56.dp
+private val NotchHalf = 62.dp                 // the dip's half width, shoulders included
+private val NotchDepth = 34.dp
+
+/** Height the bar asks of the screen above the system navigation inset: bar, margin and the button's rise. */
+val CounselBarZone = CounselBarHeight + CounselBarMargin + CounselOverhang
+
+/** Rounded bar (fully rounded ends) with a smooth concave dip at the centre of its top edge, the shoulders eased. */
+private val CounselBarShape = object : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ): androidx.compose.ui.graphics.Outline {
+        val w = size.width; val h = size.height
+        val r = h / 2f
+        val cx = w / 2f
+        val hw = with(density) { NotchHalf.toPx() }
+        val d = with(density) { NotchDepth.toPx() }
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(r, 0f)
+            lineTo(cx - hw, 0f)
+            // down into the dip and up again: an eased S on each side
+            cubicTo(cx - hw * 0.55f, 0f, cx - hw * 0.62f, d, cx, d)
+            cubicTo(cx + hw * 0.62f, d, cx + hw * 0.55f, 0f, cx + hw, 0f)
+            lineTo(w - r, 0f)
+            arcTo(androidx.compose.ui.geometry.Rect(w - 2 * r, 0f, w, h), -90f, 180f, false)
+            lineTo(r, h)
+            arcTo(androidx.compose.ui.geometry.Rect(0f, 0f, 2 * r, h), 90f, 180f, false)
+            close()
+        }
+        return androidx.compose.ui.graphics.Outline.Generic(path)
+    }
+}
+
+@Composable
+private fun CounselBar(isOn: (Route) -> Boolean, onTab: (Route) -> Unit, onPrint: () -> Unit, tabOf: (Route) -> BottomTab) {
+    Column(Modifier.fillMaxWidth()) {
+    Box(
+        Modifier.fillMaxWidth()
+            .padding(start = CounselBarMargin, end = CounselBarMargin, bottom = CounselBarMargin)
+            .height(CounselBarHeight + CounselOverhang),
+    ) {
+        Row(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CounselBarHeight)
+                .background(CounselBarColor, CounselBarShape).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(Modifier.weight(1f).fillMaxHeight()) {
+                CounselGlyph(tabOf(Route.Home), isOn(Route.Home), Modifier.weight(1f)) { onTab(Route.Home) }
+                CounselGlyph(tabOf(Route.CounselCalendar), isOn(Route.CounselCalendar), Modifier.weight(1f)) { onTab(Route.CounselCalendar) }
+            }
+            Spacer(Modifier.width(NotchHalf * 2 - 16.dp))
+            Row(Modifier.weight(1f).fillMaxHeight()) {
+                CounselGlyph(tabOf(Route.BoardCredits), isOn(Route.BoardCredits), Modifier.weight(1f)) { onTab(Route.BoardCredits) }
+                CounselGlyph(tabOf(Route.Upgrade), isOn(Route.Upgrade), Modifier.weight(1f)) { onTab(Route.Upgrade) }
+            }
+        }
+        // Cause List: a solid gold rounded square, half above the bar, in the dip.
+        val fabShape = RoundedCornerShape(18.dp)
+        Surface(
+            onClick = onPrint, shape = fabShape, color = DeskYellow, shadowElevation = 6.dp,
+            modifier = Modifier.align(Alignment.TopCenter).size(CounselFabSize).semantics { contentDescription = "Cause List" },
+        ) { PrintGlyph() }
+    }
+    // The system navigation inset below the bar carries the page's own colour and grain, so it does not read as a lighter band.
+    Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+        .background(com.legumlex.client.ui.theme.Lex.colors.background).grain())
+    }
+}
+
+@Composable
+private fun CounselGlyph(tab: BottomTab, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val fg by animateColorAsState(
+        targetValue = if (selected) DeskYellow else Color.White.copy(alpha = 0.78f),
+        animationSpec = tween(durationMillis = 200), label = "counselNavFg",
+    )
+    Box(modifier.fillMaxHeight().clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = if (selected) tab.iconActive else tab.iconInactive,
+            contentDescription = stringResource(tab.labelRes), tint = fg, modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+/** How much room a Counsel screen leaves at its foot so its last item clears the floating bar and the raised button. */
+val LocalCounselClearance = androidx.compose.runtime.compositionLocalOf { 16.dp }
