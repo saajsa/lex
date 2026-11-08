@@ -313,7 +313,7 @@ private fun CounselGlyph(tab: BottomTab, selected: Boolean, modifier: Modifier =
     Box(modifier.fillMaxHeight().clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(
             imageVector = if (selected) tab.iconActive else tab.iconInactive,
-            contentDescription = stringResource(tab.labelRes), tint = fg, modifier = Modifier.size(22.dp),
+            contentDescription = stringResource(tab.labelRes), tint = fg, modifier = Modifier.size(24.dp),
         )
     }
 }

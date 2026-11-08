@@ -13,6 +13,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.legumlex.client.ui.theme.Lex
 
 /** The confirm for Sign Out, opened from the Counsel header's Sign Out button. */
@@ -37,12 +40,19 @@ fun CounselCreditsChip(compact: Boolean = false, onClick: () -> Unit) {
     val low = chip?.low == true
     val red = Lex.colors.danger
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    // "1,097" with a small raised C, always the same compact chip.
     Text(
-        if (compact) creditsText(balance) else "${creditsText(balance)} Credits",
+        androidx.compose.ui.text.buildAnnotatedString {
+            append(creditsText(balance))
+            pushStyle(androidx.compose.ui.text.SpanStyle(baselineShift = androidx.compose.ui.text.style.BaselineShift.Superscript, fontSize = 10.sp))
+            append("C")
+            pop()
+        },
         style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
         color = if (low) red.softText else Lex.colors.foreground,
         modifier = Modifier.padding(end = if (compact) 2.dp else 6.dp)
+            .semantics { contentDescription = "${creditsText(balance)} credits" }
             .androidxClip(shape)
             .background(if (low) red.softBg else androidx.compose.ui.graphics.Color.Transparent)
             .androidxBorder(shape, if (low) red.solid else Lex.colors.input)

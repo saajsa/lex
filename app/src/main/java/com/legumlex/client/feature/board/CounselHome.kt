@@ -193,11 +193,11 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
                     Text("YRS", fontSize = 9.5.sp, letterSpacing = 1.sp, color = Lex.colors.mutedForeground)
                 }
             }
-            IconAction(
+            // A small chevron, no box: the touch area is the usual 48 dp around it (Compose widens a small target).
+            Icon(
                 if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
-                if (open) "Hide Details" else "Show Details",
-                { open = !open; detailsPrefs(context).edit().putBoolean("details_open", open).apply() },
-                size = 48.dp,
+                contentDescription = if (open) "Hide Details" else "Show Details", tint = Lex.colors.secondaryForeground,
+                modifier = Modifier.size(20.dp).clickable { open = !open; detailsPrefs(context).edit().putBoolean("details_open", open).apply() },
             )
         }
         if (open) Column(
@@ -206,7 +206,10 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
         ) {
             androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
             DetailRow(Icons.Outlined.Home, p.chambers, "Chambers") {
-                IconAction(Icons.Outlined.Edit, "Edit Chambers", { editChambers = true }, size = 48.dp)
+                Icon(
+                    Icons.Outlined.Edit, contentDescription = "Edit Chambers", tint = Lex.colors.secondaryForeground,
+                    modifier = Modifier.padding(start = 8.dp).size(18.dp).clickable { editChambers = true },
+                )
             }
             DetailRow(Icons.Outlined.Email, p.email, "Email")
             DetailRow(Icons.Outlined.Phone, p.mobile, "Mobile")
@@ -219,7 +222,7 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
 private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, name: String, trailing: (@Composable () -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().semantics { contentDescription = "$name: ${text.ifBlank { "Not given" }}" }, verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(icon, contentDescription = null, tint = Lex.colors.secondaryForeground, modifier = Modifier.size(20.dp))
-        Text(text.ifBlank { "Not given" }, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
+        Text(text.ifBlank { "Not given" }, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f, fill = trailing == null))
         trailing?.invoke()
     }
 }
@@ -259,9 +262,7 @@ private fun SpecialtyRing(sc: HomeScore, arcs: List<RingArc>, sel: RingArc?, onS
     LaunchedEffect(arcs.size, still) {
         if (still) draw.snapTo(total) else if (draw.value < total) draw.animateTo(total, tween((total * 1000).toInt(), easing = LinearEasing))
     }
-    val lead = if (sc.lead == "civil") "civil" else "criminal"
-    val leadScore = if (lead == "civil") sc.civil else sc.criminal
-    val otherScore = if (lead == "civil") sc.criminal else sc.civil
+    val leadScore = restScore(sc)
     val target = sel?.count?.toDouble() ?: leadScore
     // The centre counts up to the chosen arc's count (400 ms), or back to the lead score.
     val shown by animateFloatAsState(target.toFloat(), tween(if (still) 0 else 400), label = "ringCount")
@@ -298,14 +299,12 @@ private fun SpecialtyRing(sc: HomeScore, arcs: List<RingArc>, sel: RingArc?, onS
             }
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    if (sel != null) sideCaption(sel.side) else lead.uppercase(),
+                    if (sel != null) sideCaption(sel.side) else restCaption(sc),
                     fontSize = 11.sp, letterSpacing = 1.5.sp, color = Lex.colors.mutedForeground,
                 )
                 Text(big, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 58.sp, lineHeight = 60.sp, color = Lex.colors.foreground)
-                Text(
-                    sel?.label ?: "${if (lead == "civil") "criminal" else "civil"} ${scoreText(otherScore)}",
-                    style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground, textAlign = TextAlign.Center,
-                )
+                // At rest only the leading side shows; a chosen arc names its specialty here.
+                if (sel != null) Text(sel.label, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground, textAlign = TextAlign.Center)
             }
         }
         // The tooltip for the chosen arc.
@@ -368,10 +367,12 @@ private fun Milestone(side: String, score: Double, next: Int?, fill: Color, modi
                 fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Lex.colors.foreground,
             )
         }
-        val reached = stepsReached(score)
+        val fills = stepFill(score)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            ScoreSteps.forEachIndexed { i, _ ->
-                Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(if (i < reached) fill else Color(0xFFDCD9D2)))
+            fills.forEach { f ->
+                Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFDCD9D2))) {
+                    if (f > 0f) Box(Modifier.fillMaxHeight().fillMaxWidth(f).background(fill))
+                }
             }
         }
         Row {

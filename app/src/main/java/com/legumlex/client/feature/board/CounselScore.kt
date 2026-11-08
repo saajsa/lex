@@ -56,14 +56,22 @@ internal fun scoreText(v: Double): String {
 /** How many of the steps (10, 25, 50, 100) a score has reached. */
 internal fun stepsReached(score: Double): Int = ScoreSteps.count { score >= it }
 
-/** The words on an arc's tooltip: "Suits · 7 cases · 7 civil points", "NI Act · 3 cases · 1.5 each side", "Not Known · 1 case · no points". */
-internal fun sliceWord(sp: Specialty): String {
-    val n = sp.count
-    val cases = "$n ${if (n == 1) "case" else "cases"}"
-    return when (sp.side) {
-        "both" -> "${sp.label} · $cases · ${scoreText(n / 2.0)} each side"
-        "none" -> "${sp.label} · $cases · no points"
-        else -> "${sp.label} · $cases · $n ${sp.side} ${if (n == 1) "point" else "points"}"
+/** The tooltip on an arc: the specialty's name only ("Suits"); the count and points show in the centre and the legend. */
+internal fun sliceWord(sp: Specialty): String = sp.label
+
+/** The small word above the centre number at rest: the leading side, or EVEN when the two sides score the same. */
+internal fun restCaption(sc: HomeScore): String =
+    if (Math.round(sc.civil * 10) == Math.round(sc.criminal * 10)) "EVEN" else if (sc.lead == "civil") "CIVIL" else "CRIMINAL"
+
+/** The centre number at rest: the leading side's score (an even score shows either, they are the same). */
+internal fun restScore(sc: HomeScore): Double = if (sc.lead == "civil") sc.civil else sc.criminal
+
+/** How full each step bar is, 0 to 1: segments 0-10, 10-25, 25-50, 50-100; full once reached, the current one by its fraction, later ones empty. */
+internal fun stepFill(score: Double): List<Float> {
+    val edges = listOf(0) + ScoreSteps
+    return ScoreSteps.indices.map { i ->
+        val lo = edges[i]; val hi = edges[i + 1]
+        ((score - lo) / (hi - lo)).toFloat().coerceIn(0f, 1f)
     }
 }
 

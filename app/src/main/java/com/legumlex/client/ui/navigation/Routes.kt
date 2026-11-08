@@ -5,6 +5,10 @@ import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Handshake
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.rounded.ArrowUpward
@@ -358,10 +362,10 @@ val bottomTabs = listOf(
 // The Counsel workspace's bar (REQ-008): Today (with the cases), the gold Cause List in
 // the centre (a button, not a tab), Credits and Upgrade.
 val counselTabs = listOf(
-    BottomTab(Route.Home,           R.string.nav_home,     Icons.Outlined.Home, Icons.Rounded.Home),
-    BottomTab(Route.CounselCalendar, R.string.nav_calendar, Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
+    BottomTab(Route.Home,           R.string.nav_home,     Icons.Outlined.Home, Icons.Filled.Home),
+    BottomTab(Route.CounselCalendar, R.string.nav_calendar, Icons.Outlined.CalendarToday, Icons.Filled.CalendarToday),
     BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet),
-    BottomTab(Route.Upgrade,        R.string.nav_upgrade, Icons.Outlined.ArrowUpward, Icons.Rounded.ArrowUpward),
+    BottomTab(Route.Upgrade,        R.string.nav_upgrade, Icons.Outlined.Handshake, Icons.Filled.Handshake),
 )
 
 // A lead's bar: Home, their enquiries, Consult in the centre, More.

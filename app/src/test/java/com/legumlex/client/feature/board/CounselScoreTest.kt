@@ -100,12 +100,9 @@ class CounselScoreTest {
         assertNull(arcAt(arcs, 300f, 0f, 128f, 22f))
     }
 
-    @Test fun anArcSaysWhatItIsWorth() {
-        assertEquals("Suits · 7 cases · 7 civil points", sliceWord(Specialty("suits", "Suits", "civil", 7)))
-        assertEquals("Bail · 1 case · 1 criminal point", sliceWord(Specialty("bail", "Bail", "criminal", 1)))
-        assertEquals("NI Act · 3 cases · 1.5 each side", sliceWord(Specialty("ni", "NI Act", "both", 3)))
-        assertEquals("NI Act · 1 case · 0.5 each side", sliceWord(Specialty("ni", "NI Act", "both", 1)))
-        assertEquals("Not Known · 2 cases · no points", sliceWord(Specialty("unknown", "Not Known", "none", 2)))
+    @Test fun anArcSaysItsNameOnly() {
+        assertEquals("Suits", sliceWord(Specialty("suits", "Suits", "civil", 7)))
+        assertEquals("Not Known", sliceWord(Specialty("unknown", "Not Known", "none", 2)))
         assertEquals("CIVIL", sideCaption("civil"))
         assertEquals("BOTH SIDES", sideCaption("both"))
     }
