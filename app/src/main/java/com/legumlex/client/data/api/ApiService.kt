@@ -860,6 +860,10 @@ interface ApiService {
     @GET("board/sheet")
     suspend fun boardSheet(@Query("date") date: String, @Query("junior") junior: String? = null): ResponseBody
 
+    /** The number of cases listed on each of n days from a date (zeros included). */
+    @GET("board/days")
+    suspend fun boardDays(@Query("from") from: String, @Query("n") n: Int = 7): Map<String, Any?>
+
     /** myCases.txt, the full list as text. The caller closes the body. */
     @Streaming
     @GET("board/export")

@@ -69,6 +69,7 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
                 Spacer(Modifier.width(NotchRadius * 2))
                 Row(Modifier.weight(1f).fillMaxHeight()) {
                     NavGlyph(tab(Route.BoardCredits), on(tab(Route.BoardCredits)), Modifier.weight(1f)) { go(tab(Route.BoardCredits)) }
+                    NavGlyph(tab(Route.Upgrade), on(tab(Route.Upgrade)), Modifier.weight(1f)) { go(tab(Route.Upgrade)) }
                 }
             } else if (lead) {
                 // Home and Enquiries on the left, More alone on the right.

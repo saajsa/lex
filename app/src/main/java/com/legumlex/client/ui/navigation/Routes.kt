@@ -2,6 +2,8 @@ package com.legumlex.client.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CurrencyRupee
 import androidx.compose.material.icons.outlined.ListAlt
@@ -46,6 +48,8 @@ sealed class Route(val path: String) {
         fun build(id: Int) = "board/cases/$id"
     }
     data object BoardCredits  : Route("board/credits")
+    /** The Counsel workspace's Upgrade (Coming Soon): an invitation to associate with the firm. */
+    data object Upgrade : Route("counsel/upgrade")
     data object BoardSheet    : Route("board/sheet/{date}/{junior}?label={label}") {
         const val ARG_DATE = "date"
         const val ARG_JUNIOR = "junior"
@@ -345,10 +349,11 @@ val bottomTabs = listOf(
 )
 
 // The Counsel workspace's bar (REQ-008): Today (with the cases), the gold Cause List in
-// the centre (a button, not a tab), Credits (an Upgrade tab joins the right half).
+// the centre (a button, not a tab), Credits and Upgrade.
 val counselTabs = listOf(
     BottomTab(Route.Home,           R.string.nav_today,   Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
     BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.CurrencyRupee, Icons.Rounded.CurrencyRupee),
+    BottomTab(Route.Upgrade,        R.string.nav_upgrade, Icons.Outlined.ArrowUpward, Icons.Rounded.ArrowUpward),
 )
 
 // A lead's bar: Home, their enquiries, Consult in the centre, More.

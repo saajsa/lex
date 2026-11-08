@@ -110,32 +110,59 @@ class CounselTodayTest {
 
     private fun caseOn(next: String?) = parseCase(mapOf("id" to 1.0, "cnr" to "PBLD010012342026", "next_date" to next))
 
-    @Test fun caseFiltersByDay() {
-        val today = LocalDate.of(2026, 11, 9)
-        assertTrue(CaseFilter.All.keeps(caseOn(null), today))
-        assertTrue(CaseFilter.Today.keeps(caseOn("2026-11-09"), today))
-        assertFalse(CaseFilter.Today.keeps(caseOn("2026-11-10"), today))
-        assertTrue(CaseFilter.Tomorrow.keeps(caseOn("2026-11-10"), today))
-        assertFalse(CaseFilter.Tomorrow.keeps(caseOn(null), today))
-    }
-
-    @Test fun caseFiltersNeedsEyeAndOff() {
-        val today = LocalDate.of(2026, 11, 9)
-        val eye = parseCase(mapOf("id" to 2.0, "needs_eye" to true, "morning_check" to true, "ecourts_date" to "2026-12-01"))
-        val off = parseCase(mapOf("id" to 3.0, "needs_eye" to false, "morning_check" to false))
-        assertTrue(CaseFilter.NeedsEye.keeps(eye, today))
-        assertFalse(CaseFilter.NeedsEye.keeps(off, today))
-        assertTrue(CaseFilter.Off.keeps(off, today))
-        assertFalse(CaseFilter.Off.keeps(eye, today))
-        assertEquals("2026-12-01", eye.ecourtsDate)
-    }
-
     @Test fun courtLineLeadsWithTheBenchElseTheRoom() {
         val b = parseCase(mapOf("id" to 4.0, "court" to "Civil Judge (Jr. Div.) Ludhiana", "bench" to "Ld. Ms. Anjali Sharma", "room" to "Court 3"))
         assertEquals("Civil Judge (Jr. Div.) Ludhiana · Ld. Ms. Anjali Sharma", b.courtLine)
         val r = parseCase(mapOf("id" to 5.0, "court" to "Civil Judge", "room" to "Court 3"))
         assertEquals("Civil Judge · Court 3", r.courtLine)
         assertTrue(r.hasCnr)
+        assertTrue(parseCase(mapOf("id" to 2.0, "needs_eye" to true)).needsEye)
+    }
+
+    // ---- the calendar flow ----------------------------------------------------------
+
+    @Test fun theStripPutsTheChosenDayInTheMiddleOfAWeek() {
+        val sel = LocalDate.of(2026, 11, 9)
+        val start = windowStart(sel)
+        assertEquals(LocalDate.of(2026, 11, 6), start)
+        val days = stripDays(start)
+        assertEquals(7, days.size)
+        assertEquals(sel, days[3])
+        assertEquals(LocalDate.of(2026, 11, 12), days.last())
+    }
+
+    @Test fun arrowsMoveByAWeekAcrossMonthsAndYears() {
+        assertEquals(LocalDate.of(2026, 11, 13), shiftWindow(LocalDate.of(2026, 11, 6), 1))
+        assertEquals(LocalDate.of(2026, 10, 30), shiftWindow(LocalDate.of(2026, 11, 6), -1))
+        assertEquals(LocalDate.of(2027, 1, 1), shiftWindow(LocalDate.of(2026, 12, 25), 1))
+        assertEquals(LocalDate.of(2026, 12, 29), windowStart(LocalDate.of(2027, 1, 1)))
+    }
+
+    @Test fun theRangeLabelNamesTheMonthOnceOrTwice() {
+        assertEquals("6 – 12 Nov", windowLabel(LocalDate.of(2026, 11, 6)))
+        assertEquals("29 Oct – 4 Nov", windowLabel(LocalDate.of(2026, 10, 29)))
+        assertEquals("NOVEMBER 2026", monthHeading(LocalDate.of(2026, 11, 9)))
+        assertEquals("MONDAY, 9 NOV", dayHeading(LocalDate.of(2026, 11, 9)))
+    }
+
+    @Test fun theLinesAreWordedFromTheCounts() {
+        assertEquals("11 cases tracked · 99 days of checks left", checksLine(11, 99))
+        assertEquals("1 case tracked · 1 day of checks left", checksLine(1, 1))
+        assertEquals("3 cases tracked · less than a day of checks left", checksLine(3, 0))
+        assertEquals("3 cases tracked", checksLine(3, null))
+        assertEquals("1 case listed", listedText(1))
+        assertEquals("0 cases listed", listedText(0))
+        assertEquals("1 date needs your eye", eyeText(1))
+        assertEquals("2 dates need your eye", eyeText(2))
+    }
+
+    @Test fun readsTheDayCountsIncludingZeros() {
+        val m = parseDays(mapOf("from" to "2026-11-06", "n" to 3.0, "days" to listOf(
+            mapOf("date" to "2026-11-06", "listed" to 0.0), mapOf("date" to "2026-11-07", "listed" to 2.0), mapOf("date" to "2026-11-08", "listed" to "3"))))
+        assertEquals(0, m["2026-11-06"])
+        assertEquals(2, m["2026-11-07"])
+        assertEquals(3, m["2026-11-08"])
+        assertTrue(parseDays(mapOf("days" to null)).isEmpty())
     }
 
     @Test fun caseReadsHistoryAndCnrState() {

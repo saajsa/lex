@@ -179,7 +179,7 @@ fun IconAction(icon: ImageVector, name: String, onClick: () -> Unit, modifier: M
 }
 
 @Composable
-fun CounselTodayScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
+fun CounselTodayScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit, onPrintDate: (String) -> Unit) {
     val vm: CounselTodayViewModel = viewModel()
     val state by vm.state.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
@@ -196,13 +196,13 @@ fun CounselTodayScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
                 )
             }
         }
-        is TodayState.Ready -> TodayPage(s.today, refreshing, vm::refresh, onCredits, onOpenCase)
+        is TodayState.Ready -> TodayPage(s.today, refreshing, vm::refresh, onCredits, onOpenCase, onPrintDate)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Unit, onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
+private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Unit, onCredits: () -> Unit, onOpenCase: (Int) -> Unit, onPrintDate: (String) -> Unit) {
     val context = LocalContext.current
     val today = BoardDates.today()
     val date = BoardDates.parse(t.date) ?: today
@@ -215,14 +215,32 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
     val repo = remember { BoardRepository(context) }
     val scope = rememberCoroutineScope()
     var q by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf(CaseFilter.All) }
+    // The calendar flow: the chosen day, the week shown, the counts on its chips, that day's cases.
+    var selectedIso by rememberSaveable { mutableStateOf(BoardDates.api(date)) }
+    val selected = BoardDates.parse(selectedIso) ?: date
+    var startIso by rememberSaveable { mutableStateOf(BoardDates.api(windowStart(date))) }
+    val start = BoardDates.parse(startIso) ?: windowStart(date)
+    var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var dayItems by remember { mutableStateOf<List<BoardCase>?>(null) }
+    var dayError by remember { mutableStateOf<String?>(null) }
+    var picking by remember { mutableStateOf(false) }
+    var eyeOpen by rememberSaveable { mutableStateOf(false) }
     var cases by remember { mutableStateOf<List<BoardCase>?>(null) }
     var casesError by remember { mutableStateOf<String?>(null) }
     var casesTick by remember { mutableStateOf(0) }
     androidx.compose.runtime.LaunchedEffect(q, casesTick, t.casesTracked) {
-        if (t.empty) return@LaunchedEffect
-        if (q.isNotBlank()) kotlinx.coroutines.delay(300)
+        if (t.empty || q.isBlank()) { cases = null; return@LaunchedEffect }
+        kotlinx.coroutines.delay(300)
         repo.cases(q.trim()).onSuccess { cases = it.second; casesError = null }.onFailure { casesError = it.boardMessage() }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(startIso, casesTick, t.casesTracked) {
+        if (!t.empty) repo.days(start).onSuccess { counts = it }
+    }
+    androidx.compose.runtime.LaunchedEffect(selectedIso, casesTick, t.casesTracked) {
+        if (t.empty) return@LaunchedEffect
+        dayItems = null
+        repo.day(selectedIso).onSuccess { dayItems = it.items; dayError = null }.onFailure { dayError = it.boardMessage() }
     }
 
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().background(Lex.colors.background)) {
@@ -236,16 +254,46 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
                 item { StepTwo(onSpecimen = { formatNote = true }) }
                 item { StepThree(t.credits) }
             } else {
-                item { DayHeading(t.weekday.uppercase(), "${BoardDates.full(date)} · ${BoardDates.greeting(LocalTime.now(BoardDates.IST).hour)}, Counsel") }
-                item { CauseListCard(t, today) }
-                item { StatTiles(t) }
                 t.short?.let { sh -> item { ShortBanner(sh, onCredits) } }
-                if (t.needsEye.isNotEmpty()) item {
-                    NeedsEyeCard(t.needsEye, today, onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight })
+                item { MonthHeading(monthHeading(selected), checksLine(t.casesTracked, t.credits.daysLeft)) }
+                item {
+                    CalendarStrip(
+                        selected, start, counts, today,
+                        onPick = { selectedIso = BoardDates.api(it) },
+                        onShift = { startIso = BoardDates.api(shiftWindow(start, it)) },
+                        onJump = { picking = true },
+                    )
+                }
+                item {
+                    DayCard(selected, counts[BoardDates.api(selected)] ?: dayItems?.size, today, BoardDates.checkedLabel(t.checkedAt, today)) {
+                        onPrintDate(BoardDates.api(selected))
+                    }
+                }
+                val items = dayItems
+                when {
+                    dayError != null && items == null -> item {
+                        LexCard { LexEmpty("The Day Could Not Be Opened", dayError.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { dayError = null; casesTick++ }) }) }
+                    }
+                    items == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
+                    items.isEmpty() -> item { Text("Nothing is listed on this day.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
+                    else -> item {
+                        Column {
+                            items.forEachIndexed { i, c ->
+                                DayCaseRow(c) { onOpenCase(c.id) }
+                                if (i < items.lastIndex) androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
+                            }
+                        }
+                    }
+                }
+                if (t.needsEye.isNotEmpty()) {
+                    item { EyeLine(t.needsEye.size, eyeOpen) { eyeOpen = !eyeOpen } }
+                    if (eyeOpen) item {
+                        NeedsEyeCard(t.needsEye, today, onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight })
+                    }
                 }
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Eyebrow("Your Cases", Modifier.weight(1f), color = Lex.colors.secondaryForeground)
+                        Eyebrow("Find A Case", Modifier.weight(1f), color = Lex.colors.secondaryForeground)
                         IconAction(Icons.Outlined.Download, "Export all cases as myCases.txt", {
                             scope.launch {
                                 repo.export().onSuccess { shareText(context, it, "myCases.txt") }
@@ -261,29 +309,38 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
                 item {
                     com.legumlex.client.ui.components.LegumTextField(q, { q = it }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search)
                 }
-                item {
-                    Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CaseFilter.values().forEach { f -> FilterChip(f.label, filter == f) { filter = f } }
+                // Search finds a case on any date; with nothing typed, the list is not shown (the day's cases are above).
+                if (q.isNotBlank()) {
+                    val all = cases
+                    when {
+                        casesError != null && all == null -> item {
+                            LexCard { LexEmpty("The Cases Could Not Be Opened", casesError.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { casesError = null; casesTick++ }) }) }
+                        }
+                        all == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
+                        all.isEmpty() -> item { Text("No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
+                        else -> items(all, key = { "case-${it.id}" }) { c -> CaseListRow(c, today) { onOpenCase(c.id) } }
                     }
-                }
-                val all = cases
-                val shown = all?.filter { filter.keeps(it, date) }
-                when {
-                    casesError != null && all == null -> item {
-                        LexCard { LexEmpty("The Cases Could Not Be Opened", casesError.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { casesError = null; casesTick++ }) }) }
-                    }
-                    all == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
-                    shown.isNullOrEmpty() -> item {
-                        Text(
-                            if (q.isBlank() && filter == CaseFilter.All) "No cases yet." else "No case matches.",
-                            style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground,
-                        )
-                    }
-                    else -> items(shown, key = { "case-${it.id}" }) { c -> CaseListRow(c, today) { onOpenCase(c.id) } }
                 }
             }
             item { Spacer(Modifier.height(8.dp)) }
         }
+    }
+
+    if (picking) {
+        val ps = androidx.compose.material3.rememberDatePickerState(initialSelectedDateMillis = selected.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli())
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton({
+                    ps.selectedDateMillis?.let {
+                        val d = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                        selectedIso = BoardDates.api(d); startIso = BoardDates.api(windowStart(d))
+                    }
+                    picking = false
+                }) { Text("Show", color = Lex.colors.foreground) }
+            },
+            dismissButton = { TextButton({ picking = false }) { Text("Cancel", color = Lex.colors.foreground) } },
+        ) { androidx.compose.material3.DatePicker(state = ps) }
     }
 
     answering?.let { (c, a) ->
@@ -314,31 +371,6 @@ private fun TodayPage(t: CounselToday, refreshing: Boolean, onRefresh: () -> Uni
     )
 }
 
-/** The case list's filters, by the day a case is listed (its next date, as the server holds it). */
-enum class CaseFilter(val label: String) {
-    All("All"), Today("Listed Today"), Tomorrow("Tomorrow"), NeedsEye("Needs Your Eye"), Off("Check Off");
-
-    fun keeps(c: BoardCase, today: LocalDate): Boolean = when (this) {
-        All -> true
-        Today -> BoardDates.parse(c.nextDate) == today
-        Tomorrow -> BoardDates.parse(c.nextDate) == today.plusDays(1)
-        NeedsEye -> c.needsEye
-        Off -> !c.morningCheck
-    }
-}
-
-@Composable
-private fun FilterChip(label: String, on: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    Text(
-        label, style = MaterialTheme.typography.labelLarge,
-        color = if (on) Lex.colors.primaryForeground else Lex.colors.foreground,
-        modifier = Modifier.clip(shape).background(if (on) Lex.colors.primary else Color.Transparent)
-            .border(1.dp, if (on) Lex.colors.primary else Lex.colors.input, shape).clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-    )
-}
-
 // ---- the page's parts -----------------------------------------------------------
 
 @Composable
@@ -361,40 +393,6 @@ private fun DarkCard(content: @Composable androidx.compose.foundation.layout.Col
 }
 
 private fun plural(n: Int, one: String, many: String) = if (n == 1) one else many
-
-@Composable
-private fun CauseListCard(t: CounselToday, today: LocalDate) {
-    val onDark = Lex.colors.primaryForeground
-    DarkCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Eyebrow("Today's Cause List", Modifier.weight(1f), color = onDark.copy(alpha = 0.8f))
-            Text(
-                BoardDates.checkedLabel(t.checkedAt, today)?.let { "eCourts checked $it" } ?: "eCourts not checked yet",
-                style = MaterialTheme.typography.labelMedium, color = onDark.copy(alpha = 0.8f),
-            )
-        }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(t.listedToday.toString(), fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 56.sp, lineHeight = 52.sp, color = onDark)
-            Text(
-                "${plural(t.listedToday, "case", "cases")} listed in ${t.courtsN} ${plural(t.courtsN, "court", "courts")}",
-                style = MaterialTheme.typography.bodyLarge, color = onDark, modifier = Modifier.padding(bottom = 6.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatTiles(t: CounselToday) {
-    val days = t.credits.daysLeft
-    val daysValue = if (days == null) "–" else if (days == 0) "<1" else days.toString()
-    // Three tiles of one height: a figure and a one-line name. The server's own sentence for the days
-    // ("About 14 days of checks", "No case is on the daily check") sits behind the "i".
-    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Tile(t.listedTomorrow.toString(), "Tomorrow", Modifier.weight(1f).fillMaxHeight())
-        Tile(t.casesTracked.toString(), "Tracked", Modifier.weight(1f).fillMaxHeight())
-        Tile(daysValue, "Days Left", Modifier.weight(1f).fillMaxHeight(), info = t.credits.daysLabel.takeIf { it.isNotBlank() })
-    }
-}
 
 @Composable
 internal fun Tile(value: String, label: String, modifier: Modifier, info: String? = null) {
