@@ -292,7 +292,13 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         }
                     }
                     items == null -> item { Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Color(0xFFA3A19A)) } }
-                    items.isEmpty() -> item { Text("Nothing is listed on this day.", color = Color(0xFFA3A19A), fontSize = 14.sp) }
+                    items.isEmpty() -> item {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Outlined.EventAvailable, contentDescription = null, tint = Color(0xFF6F6D67), modifier = Modifier.size(32.dp))
+                            Text("Nothing Is Listed On This Day", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color(0xFFD6D4CF))
+                            Text("Cases with a hearing on this date appear here.", fontSize = 12.5.sp, color = Color(0xFFA3A19A), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
                     else -> item {
                         // The rail runs behind the cases; a node marks each.
                         Box {
@@ -303,16 +309,12 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         }
                     }
                 }
-                if (t.needsEye.isNotEmpty()) {
-                    item { EyeLine(t.needsEye.size, eyeOpen) { eyeOpen = !eyeOpen } }
-                    if (eyeOpen) item { NeedsEyeCard(t.needsEye, today, onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight }) }
-                }
             }
             // Search and Add stay at the foot.
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Color(0xFF3A3936), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
+                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Color(0xFF3A3936), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(Icons.Outlined.Search, contentDescription = null, tint = Color(0xFFA3A19A), modifier = Modifier.size(18.dp))
@@ -325,7 +327,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         )
                     }
                     Box {
-                        IconAction(Icons.Outlined.Add, "Add a case", { addMenu = true }, look = ActionLook.OnDark, size = 44.dp)
+                        IconAction(Icons.Outlined.Add, "Add a case", { addMenu = true }, look = ActionLook.OnDark, size = 48.dp)
                         androidx.compose.material3.DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                             androidx.compose.material3.DropdownMenuItem(text = { Text("Add By CNR") }, onClick = { addMenu = false; byCnr = true })
                             androidx.compose.material3.DropdownMenuItem(text = { Text("Import From eCourts") }, onClick = { addMenu = false; importing = true })
@@ -471,8 +473,8 @@ internal fun NeedsEyeCard(items: List<NeedsEye>, today: LocalDate, onKeep: (Need
                     )
                     Text(eyeLine(c, today), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
                 }
+                IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { onAccept(c) }, look = ActionLook.Ink)
                 IconAction(Icons.Outlined.EventAvailable, "Keep my date", { onKeep(c) }, look = ActionLook.Outline)
-                IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { onAccept(c) }, look = ActionLook.Outline)
             }
         }
     }
@@ -613,7 +615,7 @@ fun MismatchDialog(items: List<Mismatch>, today: LocalDate, onDone: () -> Unit) 
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { if (busy == null) answer(m, DateAnswer.EcourtsRight) }, look = ActionLook.Outline)
+                            IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { if (busy == null) answer(m, DateAnswer.EcourtsRight) }, look = ActionLook.Ink)
                             IconAction(Icons.Outlined.EventAvailable, "Keep my date", { if (busy == null) answer(m, DateAnswer.KeepMine) }, look = ActionLook.Outline)
                             if (busy == m.id) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
                         }

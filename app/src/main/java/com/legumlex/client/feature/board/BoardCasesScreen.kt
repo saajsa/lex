@@ -124,8 +124,8 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
                 if (x.caseType.isNotBlank()) KeyValueRow("Case Type", x.caseType)
                 if (x.petitioner.isNotBlank()) KeyValueRow("Petitioner", x.petitioner)
                 if (x.respondent.isNotBlank()) KeyValueRow("Respondent", x.respondent)
-                if (x.court.isNotBlank()) KeyValueRow("Court", x.court)
-                if (x.bench.isNotBlank()) KeyValueRow("Bench", x.bench) else if (x.room.isNotBlank()) KeyValueRow("Court Room", x.room)
+                if (x.courtShown.isNotBlank()) KeyValueRow("Court", x.courtShown)
+                if (x.judgeShown.isNotBlank()) KeyValueRow("Judge", x.judgeShown)
                 if (x.stage.isNotBlank()) KeyValueRow("Stage", x.stage)
                 BoardDates.parse(x.nextDate)?.let { KeyValueRow("Next Date", BoardDates.long(it)) }
                 BoardDates.parse(x.lastDate)?.let { KeyValueRow("Last Date", BoardDates.long(it)) }

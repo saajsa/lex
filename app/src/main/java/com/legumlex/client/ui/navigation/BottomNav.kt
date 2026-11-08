@@ -57,7 +57,7 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(bar, NotchShape)
+                .background(bar, if (counsel) androidx.compose.ui.graphics.RectangleShape else NotchShape)
                 .navigationBarsPadding()
                 .height(BarHeight),
             verticalAlignment = Alignment.CenterVertically,
@@ -92,14 +92,13 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
         // Consult, raised: its centre on the bar's top edge, in the notch. It
         // opens the desk, where anything new begins.
         if (counsel) {
-            // Cause List, raised in the notch: today's cause list in the counsel's own format.
+            // Cause List: a gold button centred inside the flat black bar (no notch, no ring, no light strip).
             Surface(
                 onClick = {
                     navController.navigate(Route.BoardSheet.build(com.legumlex.client.feature.board.BoardHub.chosen.value ?: com.legumlex.client.feature.board.BoardDates.api(com.legumlex.client.feature.board.BoardDates.today()), Route.BoardSheet.OWN, "Cause List"))
                 },
                 shape = CircleShape, color = DeskYellow,
-                border = androidx.compose.foundation.BorderStroke(4.dp, bar),
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = -FabSize / 2).size(FabSize)
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = (BarHeight - CounselFab) / 2).size(CounselFab)
                     .semantics { contentDescription = "Cause List" },
             ) {
                 PrintGlyph()
@@ -143,6 +142,7 @@ fun LegumBottomBar(navController: NavHostController, lead: Boolean = false, coun
 private val BarHeight = 64.dp
 private val DeskYellow = Color(0xFFF5C518)
 private val FabSize = 56.dp
+private val CounselFab = 48.dp
 private val NotchRadius = 36.dp   // the circle, plus the gap around it
 private val NotchShoulder = 12.dp
 

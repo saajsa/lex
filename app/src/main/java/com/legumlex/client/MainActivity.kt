@@ -193,7 +193,9 @@ private fun AppShell(deepLinkIntent: Intent?) {
 
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
+    val darkRoute = currentRoute?.substringBefore("?") == Route.BoardSheet.path.substringBefore("?")
     Scaffold(
+        containerColor = if (darkRoute) com.legumlex.client.ui.theme.Zinc950 else androidx.compose.material3.MaterialTheme.colorScheme.background,
         topBar = {
             if (showAppHeader(currentRoute)) {
                 AppHeader(
@@ -236,19 +238,19 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // undo the next one's.
         val shellView = androidx.compose.ui.platform.LocalView.current
         val themeDark = com.legumlex.client.ui.theme.Lex.colors.isDark
-        LaunchedEffect(currentRoute, themeDark) {
+        LaunchedEffect(currentRoute, themeDark, darkRoute) {
             val window = (shellView.context as? android.app.Activity)?.window ?: return@LaunchedEffect
             val bars = androidx.core.view.WindowCompat.getInsetsController(window, shellView)
             val splash = currentRoute == Route.Splash.path
             val login  = currentRoute == Route.Login.path
-            bars.isAppearanceLightStatusBars = if (splash) false else if (login) true else !themeDark
+            bars.isAppearanceLightStatusBars = if (splash || darkRoute) false else if (login) true else !themeDark
             // The bottom bar is black: light navigation icons wherever it shows.
-            bars.isAppearanceLightNavigationBars = if (edge || showAppFooter(currentRoute)) false else !themeDark
+            bars.isAppearanceLightNavigationBars = if (edge || darkRoute || showAppFooter(currentRoute)) false else !themeDark
         }
         // The bottom bar's Home circle rises half its height above the bar:
         // pages end above it, so nothing at their foot (a reply box, a button)
         // sits under it.
-        val lift = if (showAppFooter(currentRoute)) androidx.compose.ui.unit.Dp(28f) else androidx.compose.ui.unit.Dp(0f)
+        val lift = if (showAppFooter(currentRoute) && !counsel && !waiting) androidx.compose.ui.unit.Dp(28f) else androidx.compose.ui.unit.Dp(0f)
         Box(if (edge) Modifier else Modifier.padding(innerPadding).padding(bottom = lift).grain()) {
             LegumNavGraph(navController)
         }

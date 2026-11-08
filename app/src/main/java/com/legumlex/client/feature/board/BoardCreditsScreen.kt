@@ -17,9 +17,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import kotlin.math.abs
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -190,30 +200,23 @@ fun BoardCreditsScreen() {
             refusal?.let { item { NoteLine(it, danger = true) } }
             item { Eyebrow("Buy Credits", modifier = Modifier.padding(start = 4.dp)) }
             if (d.packs.isEmpty()) item { NoteLine("No packs are on sale just now.") }
-            else item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(end = 16.dp)) {
-                    items(d.packs, key = { it.key }) { p ->
-                        PackCard(p, packLasts(p.credits, d.checked.onCheck, d.costCheck, d.creditMonths), busy = buying != null, buying = buying == p.key) { buy(p) }
-                    }
-                }
-            }
+            else item { PackCarousel(d.packs, d, buying, ::buy) }
             item { Eyebrow("History", modifier = Modifier.padding(start = 4.dp)) }
-            item {
-                LexCard {
-                    if (d.history.isEmpty()) LexEmpty("No Movements Yet", "Your credits and what they were used for appear here.")
-                    d.history.take(shown).forEachIndexed { i, h ->
-                        if (i > 0) HorizontalDivider(color = Lex.colors.border)
-                        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (d.history.isEmpty()) item { LexCard { LexEmpty("No Movements Yet", "Your credits and what they were used for appear here.") } }
+            else {
+                val rows = d.history.take(shown)
+                itemsIndexed(rows, key = { i, h -> "h$i-${h.whenAt}-${h.label}" }) { i, h ->
+                    val shape = RoundedCornerShape(12.dp)
+                    // The next 20 are read when the last row on show is reached.
+                    if (i == rows.lastIndex && d.history.size > shown) LaunchedEffect(shown) { shown += 20 }
+                    Column(Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape)) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(Modifier.weight(1f)) {
                                 Text(h.label.ifBlank { h.kind }, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
                                 Text(BoardDates.parse(h.whenAt)?.let { BoardDates.long(it) } ?: h.whenAt.take(10), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                             }
                             StatusChip((if (h.delta > 0) "+" else "") + creditsText(h.delta), if (h.delta > 0) Lex.colors.success else Lex.colors.neutral)
                         }
-                    }
-                    if (d.history.size > shown) {
-                        HorizontalDivider(color = Lex.colors.border)
-                        TextButton({ shown += 20 }, Modifier.fillMaxWidth()) { Text("Show More", color = Lex.colors.foreground) }
                     }
                 }
             }
@@ -227,7 +230,7 @@ fun BoardCreditsScreen() {
 private fun PackCard(p: CreditPack, lasts: String, busy: Boolean, buying: Boolean, onBuy: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Column(
-        Modifier.width(236.dp).clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).padding(16.dp),
+        Modifier.width(240.dp).clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Eyebrow(p.label, color = Lex.colors.secondaryForeground)
@@ -254,5 +257,46 @@ private fun OutcomeBanner(o: PayOutcome, onClose: () -> Unit) {
         Icon(if (o.ok) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline, null, tint = pal.softText)
         Text(o.text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = pal.softText)
         TextButton(onClose) { Text("Dismiss", color = pal.softText) }
+    }
+}
+
+/**
+ * The packs as a carousel that snaps: one card is in focus at the centre (full size, full opacity), the others stand
+ * back (smaller, dimmed). It opens on the middle pack. Dots show the place; only the card in focus can be bought.
+ */
+@Composable
+private fun PackCarousel(packs: List<CreditPack>, d: CreditsData, buying: String?, onBuy: (CreditPack) -> Unit) {
+    val cardWidth = 240.dp
+    val pager = rememberPagerState(initialPage = packs.size / 2) { packs.size }
+    val scope = rememberCoroutineScope()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // The carousel runs edge to edge (the page's 16 dp margin is given back), so the side cards show whole.
+        BoxWithConstraints(Modifier.fillMaxWidth().layout { m, c ->
+            val bleed = 16.dp.roundToPx()
+            val w = c.maxWidth + bleed * 2
+            val p = m.measure(c.copy(minWidth = w, maxWidth = w))
+            layout(c.maxWidth, p.height) { p.place(-bleed, 0) }
+        }) {
+            val side = ((maxWidth - cardWidth) / 2).coerceAtLeast(0.dp)
+            HorizontalPager(
+                state = pager, pageSize = androidx.compose.foundation.pager.PageSize.Fixed(cardWidth),
+                contentPadding = PaddingValues(horizontal = side), pageSpacing = 12.dp,
+            ) { page ->
+                val p = packs[page]
+                val away = abs((pager.currentPage - page) + pager.currentPageOffsetFraction).coerceIn(0f, 1f)
+                val focused = page == pager.currentPage
+                Box(Modifier.graphicsLayer { val k = 1f - 0.1f * away; scaleX = k; scaleY = k; alpha = 1f - 0.45f * away }) {
+                    PackCard(
+                        p, packLasts(p.credits, d.checked.onCheck, d.costCheck, d.creditMonths),
+                        busy = buying != null, buying = buying == p.key,
+                    ) { if (focused) onBuy(p) else scope.launch { pager.animateScrollToPage(page) } }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            packs.forEachIndexed { i, _ ->
+                Box(Modifier.padding(horizontal = 4.dp).size(if (i == pager.currentPage) 8.dp else 6.dp).clip(CircleShape).background(if (i == pager.currentPage) Lex.colors.foreground else Lex.colors.mutedForeground.copy(alpha = 0.4f)))
+            }
+        }
     }
 }

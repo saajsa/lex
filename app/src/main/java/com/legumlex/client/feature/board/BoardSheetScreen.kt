@@ -200,21 +200,24 @@ fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> 
 private fun DayBar(day: String, onDay: (String) -> Unit, onPick: () -> Unit, showFormatTip: Boolean, format: BoardFormat?) {
     val d = BoardDates.parse(day) ?: BoardDates.today()
     val today = BoardDates.today()
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onDay(BoardDates.api(d.minusDays(1))) }) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, "Previous Day", tint = Color.White) }
-        IconButton(onClick = onPick) { Icon(Icons.Outlined.CalendarMonth, "Pick A Day", tint = Color.White) }
-        IconButton(onClick = { onDay(BoardDates.api(d.plusDays(1))) }) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Next Day", tint = Color.White) }
-        if (d != today) {
-            IconButton(onClick = { onDay(BoardDates.api(today)) }) { Icon(Icons.Outlined.Today, "Back To Today", tint = Color.White) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { onDay(BoardDates.api(d.minusDays(1))) }) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, "Previous Day", tint = Color.White) }
+            IconButton(onClick = onPick) { Icon(Icons.Outlined.CalendarMonth, "Pick A Day", tint = Color.White) }
+            IconButton(onClick = { onDay(BoardDates.api(d.plusDays(1))) }) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Next Day", tint = Color.White) }
+            if (d != today) {
+                IconButton(onClick = { onDay(BoardDates.api(today)) }) { Icon(Icons.Outlined.Today, "Back To Today", tint = Color.White) }
+            }
+            Spacer(Modifier.weight(1f))
+            if (showFormatTip) com.legumlex.client.feature.board.InfoTip(
+                "This is the cause list in your own format. To change the format, open Cause List on the web and choose Change Format: www.legumlex.com/board/format",
+                label = "About Your Format",
+            )
         }
-        Spacer(Modifier.weight(1f))
+        // The format, on its own line so it never wraps against the day buttons.
         if (showFormatTip && format != null && format.summary.isNotBlank()) {
-            Text(format.summary, style = MaterialTheme.typography.labelMedium, color = Zinc300, modifier = Modifier.weight(2f), textAlign = TextAlign.End)
+            Text(format.summary, style = MaterialTheme.typography.labelMedium, color = Zinc300, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         }
-        if (showFormatTip) com.legumlex.client.feature.board.InfoTip(
-            "This is the cause list in your own format. To change the format, open Cause List on the web and choose Change Format: www.legumlex.com/board/format",
-            label = "About Your Format",
-        )
     }
 }
 

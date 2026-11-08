@@ -161,7 +161,7 @@ internal fun WeekRow(selected: LocalDate, today: LocalDate, counts: Map<String, 
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (on) Column(
-                        Modifier.size(width = 38.dp, height = 54.dp).clip(RoundedCornerShape(19.dp)).background(Color(0xFF1D1D1B)),
+                        Modifier.size(width = 38.dp, height = 54.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF1D1D1B)),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                     ) {
                         Text(if (d == today) "TODAY" else d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(), fontSize = 8.5.sp, letterSpacing = 0.8.sp, color = Color.White, maxLines = 1, softWrap = false)
@@ -181,7 +181,7 @@ internal fun WeekRow(selected: LocalDate, today: LocalDate, counts: Map<String, 
 
 private val VsContent = mapOf(
     "vs" to InlineTextContent(Placeholder(28.sp, 17.sp, PlaceholderVerticalAlign.Center)) {
-        Box(Modifier.size(width = 26.dp, height = 17.dp).clip(RoundedCornerShape(9.dp)).border(1.dp, Color(0xFF8A877F), RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = 26.dp, height = 17.dp).clip(RoundedCornerShape(4.dp)).border(1.dp, Color(0xFF8A877F), RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
             Text("VS", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = Color(0xFF8A877F), maxLines = 1, softWrap = false)
         }
     },
@@ -222,8 +222,8 @@ internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye,
             val ne = NeedsEye(c.id, c.cnr, c.caseNo, c.title, c.ecourtsDate, c.nextDate)
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(eyeLine(ne, today), fontSize = 12.sp, color = EyeRed, modifier = Modifier.weight(1f))
-                IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { onAnswer(ne, DateAnswer.EcourtsRight) }, look = ActionLook.Ink, size = 36.dp)
-                IconAction(Icons.Outlined.EventAvailable, "Keep my date", { onAnswer(ne, DateAnswer.KeepMine) }, look = ActionLook.Outline, size = 36.dp)
+                IconAction(Icons.Outlined.Check, "eCourts is right: accept its date", { onAnswer(ne, DateAnswer.EcourtsRight) }, look = ActionLook.Ink, size = 48.dp)
+                IconAction(Icons.Outlined.EventAvailable, "Keep my date", { onAnswer(ne, DateAnswer.KeepMine) }, look = ActionLook.Outline, size = 48.dp)
             }
         } else Column(Modifier.fillMaxWidth().clickable(onClick = onOpen), verticalArrangement = Arrangement.spacedBy(3.dp)) { body() }
     }

@@ -4,6 +4,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -358,7 +360,7 @@ val bottomTabs = listOf(
 val counselTabs = listOf(
     BottomTab(Route.Home,           R.string.nav_home,     Icons.Outlined.Home, Icons.Rounded.Home),
     BottomTab(Route.CounselCalendar, R.string.nav_calendar, Icons.Outlined.CalendarToday, Icons.Rounded.CalendarToday),
-    BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.CurrencyRupee, Icons.Rounded.CurrencyRupee),
+    BottomTab(Route.BoardCredits,   R.string.nav_credits, Icons.Outlined.AccountBalanceWallet, Icons.Filled.AccountBalanceWallet),
     BottomTab(Route.Upgrade,        R.string.nav_upgrade, Icons.Outlined.ArrowUpward, Icons.Rounded.ArrowUpward),
 )
 

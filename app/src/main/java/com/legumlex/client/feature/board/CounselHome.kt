@@ -197,7 +197,7 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
                 if (open) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
                 if (open) "Hide Details" else "Show Details",
                 { open = !open; detailsPrefs(context).edit().putBoolean("details_open", open).apply() },
-                size = 36.dp,
+                size = 48.dp,
             )
         }
         if (open) Column(
@@ -206,7 +206,7 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
         ) {
             androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
             DetailRow(Icons.Outlined.Home, p.chambers, "Chambers") {
-                IconAction(Icons.Outlined.Edit, "Edit Chambers", { editChambers = true }, size = 32.dp)
+                IconAction(Icons.Outlined.Edit, "Edit Chambers", { editChambers = true }, size = 48.dp)
             }
             DetailRow(Icons.Outlined.Email, p.email, "Email")
             DetailRow(Icons.Outlined.Phone, p.mobile, "Mobile")
@@ -397,6 +397,6 @@ private fun HomeTile(title: String, number: String, unit: String, line: String, 
             Text(number, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 36.sp, lineHeight = 34.sp, color = Lex.colors.foreground)
             Text(unit, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, modifier = Modifier.padding(bottom = 3.dp))
         }
-        Text(line, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+        Text(line, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, minLines = 2)
     }
 }
