@@ -85,9 +85,14 @@ fun AppHeader(
                 LegumMark(size = 24.dp, fillColor = Lex.colors.foreground)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Legum Lex", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground, lineHeight = 18.sp)
+                    // On a screen with a back arrow the Counsel header drops the "Legum Lex" word, so the mark and
+                    // COUNSEL fit on one line on a narrow screen.
+                    if (!(showBack && spacedSubtitle)) Text(
+                        "Legum Lex", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground, lineHeight = 18.sp,
+                        maxLines = 1, softWrap = false,
+                    )
                     Text(
-                        subtitle, fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp,
+                        subtitle, fontSize = 11.5.sp, color = Lex.colors.mutedForeground, lineHeight = 14.sp, maxLines = 1, softWrap = false,
                         letterSpacing = if (spacedSubtitle) 2.4.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
                         fontWeight = if (spacedSubtitle) FontWeight.SemiBold else null,
                     )

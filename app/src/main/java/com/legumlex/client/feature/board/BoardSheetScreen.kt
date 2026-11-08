@@ -209,7 +209,7 @@ private fun DayBar(day: String, onDay: (String) -> Unit, onPick: () -> Unit, sho
         }
         Spacer(Modifier.weight(1f))
         if (showFormatTip && format != null && format.summary.isNotBlank()) {
-            Text(format.summary, style = MaterialTheme.typography.labelMedium, color = Zinc300, maxLines = 2, modifier = Modifier.weight(2f), textAlign = TextAlign.End)
+            Text(format.summary, style = MaterialTheme.typography.labelMedium, color = Zinc300, modifier = Modifier.weight(2f), textAlign = TextAlign.End)
         }
         if (showFormatTip) com.legumlex.client.feature.board.InfoTip(
             "This is the cause list in your own format. To change the format, open Cause List on the web and choose Change Format: www.legumlex.com/board/format",

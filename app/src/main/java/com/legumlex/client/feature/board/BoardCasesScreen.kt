@@ -59,10 +59,10 @@ internal fun CaseListRow(c: BoardCase, today: java.time.LocalDate, onClick: () -
         Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).clickable(onClick = onClick).padding(12.dp),
     ) {
         Text(c.heading, style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground, maxLines = 1)
-        Text(c.title.ifBlank { c.cnr }, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(c.title.ifBlank { c.cnr }, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
         Text(
             c.courtLine,
-            style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
         )
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

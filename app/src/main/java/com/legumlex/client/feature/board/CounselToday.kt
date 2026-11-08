@@ -380,7 +380,7 @@ private fun DayHeading(big: String, line: String) {
             big, fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 36.sp,
             letterSpacing = 0.5.sp, color = Lex.colors.foreground,
         )
-        Text(line, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(line, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground)
     }
 }
 
@@ -400,7 +400,7 @@ internal fun Tile(value: String, label: String, modifier: Modifier, info: String
     Box(modifier.clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape)) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(value, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, lineHeight = 26.sp, color = Lex.colors.foreground)
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Lex.colors.secondaryForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Lex.colors.secondaryForeground)
         }
         // In a box of its own: the corner alignment is the box's, whatever the tip does inside.
         info?.let { Box(Modifier.align(Alignment.TopEnd)) { InfoTip(it, hit = 32.dp) } }
@@ -443,7 +443,7 @@ internal fun NeedsEyeCard(items: List<NeedsEye>, today: LocalDate, onKeep: (Need
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         listOf(c.heading, c.title).filter { it.isNotBlank() }.joinToString("  ·  "),
-                        style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground,
                     )
                     Text(eyeLine(c, today), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
                 }

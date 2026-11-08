@@ -185,9 +185,9 @@ internal fun DayCaseRow(c: BoardCase, onClick: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 listOf(c.heading, c.title).filter { it.isNotBlank() }.joinToString(" · "),
-                style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground,
             )
-            if (c.courtLine.isNotBlank()) Text(c.courtLine, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (c.courtLine.isNotBlank()) Text(c.courtLine, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
         }
         if (c.needsEye) Box(Modifier.padding(start = 10.dp).size(9.dp).clip(CircleShape).background(Lex.colors.danger.solid))
     }

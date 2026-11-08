@@ -30,7 +30,7 @@ fun SignOutDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
 
 /** The credits chip in the Counsel header: the balance, red when the server says it is low. Opens Credits. */
 @Composable
-fun CounselCreditsChip(onClick: () -> Unit) {
+fun CounselCreditsChip(compact: Boolean = false, onClick: () -> Unit) {
     val chip by BoardHub.chip.collectAsState()
     val access by BoardHub.access.collectAsState()
     val balance = chip?.balance ?: (access as? BoardAccess.Yes)?.summary?.credits ?: return
@@ -38,11 +38,11 @@ fun CounselCreditsChip(onClick: () -> Unit) {
     val red = Lex.colors.danger
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
     Text(
-        "${creditsText(balance)} Credits",
+        if (compact) creditsText(balance) else "${creditsText(balance)} Credits",
         style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
         color = if (low) red.softText else Lex.colors.foreground,
-        modifier = Modifier.padding(end = 6.dp)
+        modifier = Modifier.padding(end = if (compact) 2.dp else 6.dp)
             .androidxClip(shape)
             .background(if (low) red.softBg else androidx.compose.ui.graphics.Color.Transparent)
             .androidxBorder(shape, if (low) red.solid else Lex.colors.input)

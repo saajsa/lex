@@ -200,7 +200,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else "Client Portal",
                     spacedSubtitle = counsel,
                     trailingChip = if (counsel) ({
-                        com.legumlex.client.feature.board.CounselCreditsChip { navController.navigateTab(Route.BoardCredits.path) }
+                        com.legumlex.client.feature.board.CounselCreditsChip(compact = showHeaderBack(currentRoute, canPop)) { navController.navigateTab(Route.BoardCredits.path) }
                     }) else null,
                     // Keyed to the signed-in contact: a sign-out and in as someone
                     // else (same Activity) reads their accounts afresh.
