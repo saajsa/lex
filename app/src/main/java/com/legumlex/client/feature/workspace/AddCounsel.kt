@@ -174,7 +174,7 @@ fun AddCounselScreen(onClose: () -> Unit, onAdded: (String) -> Unit) {
                 WizardDropdown("State You Practise In", (r?.states.orEmpty()).map { it to it }, f["state"].orEmpty(), placeholder = "Choose your state") { f["state"] = it }
             }
             else -> {
-                WizardHeading("Check and open", "Your Counsel workspace opens as soon as you send this. Trial credits follow once the firm verifies your enrolment.")
+                WizardHeading("Check and open", "Your Counsel workspace opens as soon as you send this. Trial credits come with it, once per enrolment number. The firm then verifies your enrolment.")
                 WizardRows(listOfNotNull(
                     "Name" to f["full_name"].orEmpty(), "Enrolment Number" to f["enrollment_number"].orEmpty(),
                     f["state_bar_council"].orEmpty().takeIf { it.isNotBlank() }?.let { "State Bar Council" to it },

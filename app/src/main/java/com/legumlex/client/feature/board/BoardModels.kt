@@ -447,5 +447,5 @@ internal fun chambersFields(address: String, city: String, zip: String): Map<Str
 )
 
 /** The line Counsel Home shows while the firm has not yet verified the enrolment (REQ-010); nothing is said for any other state. */
-const val ENROLMENT_PENDING_LINE = "Your enrolment is with our reviewers. Trial credits follow once it is verified."
+const val ENROLMENT_PENDING_LINE = "Your enrolment is with our reviewers."
 fun enrolmentLine(p: HomeProfile): String? = if (p.review == "pending") ENROLMENT_PENDING_LINE else null

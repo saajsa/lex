@@ -10,7 +10,7 @@ class EnrolmentReviewTest {
     @Test fun pending_shows_the_line() {
         val h = home(mapOf("name" to "Arjun Mehta", "display_name" to "Arjun Mehta", "review" to "pending"))
         assertEquals("pending", h.profile.review)
-        assertEquals("Your enrolment is with our reviewers. Trial credits follow once it is verified.", enrolmentLine(h.profile))
+        assertEquals("Your enrolment is with our reviewers.", enrolmentLine(h.profile))
     }
 
     @Test fun verified_rejected_and_absent_say_nothing_here() {
