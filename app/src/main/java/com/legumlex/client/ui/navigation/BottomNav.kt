@@ -301,7 +301,8 @@ private fun CounselBar(isOn: (Route) -> Boolean, onTab: (Route) -> Unit, onPrint
     // The system navigation inset below the bar carries the page's own colour and grain, so it does not read as a lighter band.
     // In the dark Upgrade room the band goes dark with the room.
     val roomDark by com.legumlex.client.feature.board.UpgradeRoom.dark.collectAsState()
-    val bandColour by animateColorAsState(if (roomDark) Color(0xFF151513) else com.legumlex.client.ui.theme.Lex.colors.background, tween(900), label = "band")
+    val bandStill = com.legumlex.client.feature.board.rememberReducedMotion()
+    val bandColour by animateColorAsState(if (roomDark) Color(0xFF151513) else com.legumlex.client.ui.theme.Lex.colors.background, tween(if (bandStill) 0 else 900), label = "band")
     Spacer(Modifier.fillMaxWidth().windowInsetsBottomHeight(androidx.compose.foundation.layout.WindowInsets.navigationBars)
         .background(bandColour).grain())
     }

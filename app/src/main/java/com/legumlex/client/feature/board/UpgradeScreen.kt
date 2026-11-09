@@ -16,6 +16,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -96,8 +97,19 @@ val UpgradeRoomColors = com.legumlex.client.ui.theme.DarkLexColors.copy(
     mutedForeground = Color(0xFFA3A19A), border = Color(0xFF3A3936), input = Color(0xFF55524C),
 )
 
-private val Parts = listOf("Cases", "Hearings", "Clients", "Documents", "Mail", "Accounts")
-private const val Soon = "Coming soon"
+/** One platform tile: its name and its line icon (SVG paths on a 24 grid, as the canvas draws them). */
+private class PlatformTile(val name: String, val paths: List<String>)
+
+private val Tiles = listOf(
+    PlatformTile("CASES", listOf("M3 7h6l2 2h10v10H3z")),
+    PlatformTile("HEARINGS", listOf("M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z", "M4 10h16M9 3v4M15 3v4")),
+    PlatformTile("CLIENTS", listOf("M6 9a3 3 0 1 0 6 0a3 3 0 1 0-6 0", "M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6", "M15 6.5a2.5 2.5 0 1 1 1 4.8M17 14.5c2.4.6 4 2.8 4 5.5")),
+    PlatformTile("DOCUMENTS", listOf("M6 3h8l4 4v14H6z", "M14 3v4h4M9 12h6M9 16h6")),
+    PlatformTile("MAIL", listOf("M5 6h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z", "M3 8l9 6 9-6")),
+    PlatformTile("ACCOUNTS", listOf("M7 5h10M7 9h10M7 5c5 0 5 8 0 8l7 6")),
+)
+
+private const val Soon = "COMING SOON"
 
 @OptIn(ExperimentalTextApi::class)
 private val Cormorant = FontFamily(
@@ -129,11 +141,12 @@ fun UpgradeScreen() {
     // Everything sits between the header's bottom and the bar zone's top, 20 dp in from each. The type scales with the
     // height left, so the whole stack fits on small phones too (about 544 dp of stack at full size).
     val avail = maxHeight - clearance - 40.dp
-    val k = (avail.value / 544f).coerceIn(0.62f, 1f)
-    val listSp = (38f * k).coerceAtMost(34f)
+    val k = (avail.value / 446f).coerceIn(0.72f, 1f)
+    // The panel is shorter: 430 dp from 60 dp under the header, never past 16 dp above the bar zone.
+    val panelHeight = minOf(430.dp, (maxHeight - 60.dp - clearance - 16.dp).coerceAtLeast(120.dp))
         // The Counsel app, peeking from the right edge once the light is on.
         Box(
-            Modifier.align(Alignment.TopEnd).padding(top = 16.dp, bottom = clearance + 8.dp).fillMaxHeight().width(300.dp)
+            Modifier.align(Alignment.TopEnd).padding(top = 60.dp).height(panelHeight).width(300.dp)
                 .offset(x = panelX.dp)
                 .shadow(14.dp, RoundedCornerShape(22.dp), clip = false).clip(RoundedCornerShape(22.dp)).background(InkDark),
         ) {
@@ -153,28 +166,31 @@ fun UpgradeScreen() {
                 color = ink, modifier = Modifier.padding(top = 4.dp),
             )
             Column(Modifier.padding(top = (16 * k).dp)) {
-                Focus(delayMs = 0, still = still) { ls -> Text("Justice,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = (34 * k).sp, lineHeight = (37 * k).sp, letterSpacing = ls, color = ink) }
-                Focus(delayMs = 500, still = still) { ls -> Text("in plain sight.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = (34 * k).sp, lineHeight = (37 * k).sp, letterSpacing = ls, color = ink) }
+                Focus(delayMs = 0, still = still) { ls -> Text("Justice,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = (30 * k).sp, lineHeight = (32.4f * k).sp, letterSpacing = ls, color = ink) }
+                Focus(delayMs = 500, still = still) { ls -> Text("in plain sight.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = (30 * k).sp, lineHeight = (32.4f * k).sp, letterSpacing = ls, color = ink) }
             }
             Spacer(Modifier.weight(1f))
-            Column {
-                Parts.forEachIndexed { i, w ->
-                    Reveal(lit, 350 + 100 * i, still) {
-                        Text(w, fontWeight = FontWeight.Light, fontSize = listSp.sp, lineHeight = (listSp * 1.14f).sp, letterSpacing = (-0.5).sp, color = ink)
+            Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                Tiles.chunked(2).forEachIndexed { r, row ->
+                    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        row.forEachIndexed { c, t ->
+                            val delay = 350 + 100 * (r * 2 + c)
+                            Reveal(lit, delay, still, Modifier.weight(1f)) { TileCard(t, lit, still, delay, k) }
+                        }
                     }
                 }
             }
-            Reveal(lit, 1050, still, Modifier.padding(top = (20 * k).dp)) {
-                Text("Your Daily Board is one part of a complete firm platform.", fontSize = (14 * k).sp, lineHeight = (22 * k).sp, color = Color(0xFF3D3B37), modifier = Modifier.widthIn(max = 262.dp))
+            Reveal(lit, 1050, still, Modifier.padding(top = (22 * k).dp)) {
+                Text("Your Daily Board is one part of a complete firm platform.", fontSize = (13 * k).sp, lineHeight = (19.5f * k).sp, color = Color(0xFF55524C), modifier = Modifier.widthIn(max = 262.dp))
             }
-            Reveal(lit, 1200, still, Modifier.padding(top = 6.dp)) {
-                Text("A much bigger journey awaits.", fontWeight = FontWeight.Medium, fontSize = (20 * k).sp, lineHeight = (27 * k).sp, color = ink)
+            Reveal(lit, 1200, still, Modifier.padding(top = 4.dp)) {
+                Text("A much bigger journey awaits.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = (27 * k).sp, lineHeight = (31 * k).sp, color = ink)
             }
-            Reveal(lit, 1400, still, Modifier.padding(top = (16 * k).dp)) { Typed(lit, still, k) }
+            Reveal(lit, 1400, still, Modifier.padding(top = (18 * k).dp)) { Typed(lit, still, k) }
         }
 
-        // The switch sits top right, level with the eyebrow and left of the panel's peek.
-        LightSwitch(lit = lit, still = still, modifier = Modifier.align(Alignment.TopEnd).padding(end = 68.dp, top = 17.dp)) { lit = false }
+        // The switch sits bottom right, just above the bar zone: clear of the gold button and of "Coming soon".
+        LightSwitch(lit = lit, still = still, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = clearance + 6.dp)) { lit = false }
     }
 }
 
@@ -194,7 +210,7 @@ private fun Focus(delayMs: Int, still: Boolean, content: @Composable (letterSpac
     Box(Modifier.blur((10f * (1f - p.value)).dp).alpha(p.value)) { content((6f * (1f - p.value)).sp) }
 }
 
-/** "Coming soon" in large light grey type that types itself in after the light, with a blinking gold caret. */
+/** COMING SOON in tracked capitals after a short gold rule, typed in after the light, with a blinking gold caret right behind it. */
 @Composable
 private fun Typed(lit: Boolean, still: Boolean, k: Float = 1f) {
     var shown by remember { mutableStateOf(0) }
@@ -209,9 +225,51 @@ private fun Typed(lit: Boolean, still: Boolean, k: Float = 1f) {
         if (still || !lit) return@LaunchedEffect
         while (true) { delay(500); caretOn = !caretOn }
     }
-    Row(Modifier.semantics { contentDescription = Soon }, verticalAlignment = Alignment.Bottom) {
-        Text(Soon.take(shown), fontWeight = FontWeight.Light, fontSize = (30 * k).sp, letterSpacing = (-0.3).sp, color = Color(0xFF8A877F), maxLines = 1, softWrap = false)
-        Text("|", fontSize = (30 * k).sp, color = if (lit && (still || caretOn)) Gold else Color.Transparent, modifier = Modifier.padding(start = 2.dp))
+    Row(Modifier.semantics { contentDescription = "Coming soon" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(width = 22.dp, height = 2.dp).background(Gold))
+        // The text takes only the width of what is typed, so the caret sits right after it.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(Soon.take(shown), fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = (15 * k).sp, letterSpacing = 4.sp, color = InkDark, maxLines = 1, softWrap = false)
+            Text("|", fontSize = (15 * k).sp, color = if (lit && (still || caretOn)) Gold else Color.Transparent)
+        }
+    }
+}
+
+/** One tile: a 2-across card with a line icon that draws itself in, and the name in tracked capitals. */
+@Composable
+private fun TileCard(t: PlatformTile, lit: Boolean, still: Boolean, delayMs: Int, k: Float) {
+    val p by animateFloatAsState(
+        if (lit) 1f else 0f,
+        tween(if (still) 0 else if (lit) 1100 else 0, delayMillis = if (lit && !still) delayMs else 0, easing = Ease), label = "draw",
+    )
+    Column(
+        Modifier.fillMaxWidth().height((66 * k).dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Color(0xFFD6D3CC), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = (11 * k).dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+    ) {
+        DrawnIcon(t.paths, p, Modifier.size((22 * k).dp))
+        Text(t.name, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = (11 * k).sp, letterSpacing = 2.sp, color = InkDark, maxLines = 1, softWrap = false)
+    }
+}
+
+/** A line icon drawn in by path length: [progress] 0 to 1 along each stroke (stroke 1.5 on a 24 grid, round caps and joins). */
+@Composable
+private fun DrawnIcon(paths: List<String>, progress: Float, modifier: Modifier) {
+    val parts = remember(paths) {
+        paths.flatMap { d -> d.split("M").filter { it.isNotBlank() }.map { "M$it" } }.map { androidx.compose.ui.graphics.vector.PathParser().parsePathString(it).toPath() }
+    }
+    Canvas(modifier) {
+        val s = size.width / 24f
+        val stroke = Stroke(width = 1.5f * s, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+        parts.forEach { path ->
+            val scaled = Path().apply { addPath(path); transform(androidx.compose.ui.graphics.Matrix().apply { scale(s, s) }) }
+            if (progress >= 0.999f) drawPath(scaled, InkDark, style = stroke)
+            else if (progress > 0f) {
+                val m = androidx.compose.ui.graphics.PathMeasure(); m.setPath(scaled, false)
+                val seg = Path(); m.getSegment(0f, m.length * progress, seg, true)
+                drawPath(seg, InkDark, style = stroke)
+            }
+        }
     }
 }
 
@@ -234,12 +292,12 @@ private fun androidx.compose.foundation.layout.BoxScope.Cord(lit: Boolean, still
 
     // the cord
     Box(
-        Modifier.align(Alignment.TopEnd).padding(end = 30.dp).width(2.dp).height(304.dp + pullDp).alpha(fade)
+        Modifier.align(Alignment.TopEnd).padding(end = 30.dp).width(2.dp).height(232.dp + pullDp).alpha(fade)
             .background(if (lit) Color(0xFFC9C6BF) else Color(0xFF8A877F)),
     )
     // the pill
     Box(
-        Modifier.align(Alignment.TopEnd).padding(end = 17.dp).offset(y = 300.dp + pullDp).alpha(fade)
+        Modifier.align(Alignment.TopEnd).padding(end = 17.dp).offset(y = 228.dp + pullDp).alpha(fade)
             .size(width = 28.dp, height = 58.dp).clip(RoundedCornerShape(14.dp)).background(knobColour)
             .semantics { contentDescription = "Pull to light the way" }
             .pointerInput(lit) { detectTapGestures(onTap = { if (!lit) onLight() }) }
@@ -261,7 +319,7 @@ private fun androidx.compose.foundation.layout.BoxScope.Cord(lit: Boolean, still
     // three gold chevrons pulsing downwards, no hint text
     val hint by animateFloatAsState(if (lit) 0f else 1f, tween(if (still) 0 else 400), label = "hint")
     val t = rememberInfiniteTransition(label = "chev")
-    Column(Modifier.align(Alignment.TopEnd).padding(end = 21.dp, top = 372.dp).width(20.dp).alpha(hint)) {
+    Column(Modifier.align(Alignment.TopEnd).padding(end = 21.dp, top = 300.dp).width(20.dp).alpha(hint)) {
         for (i in 0 until 3) {
             val a = if (still) 0.8f else t.animateFloat(
                 0.15f, 0.15f,
