@@ -32,6 +32,10 @@ class ClientFcmService : MessagingService() {
         val title = notif?.title ?: data["title"] ?: "Legum Lex"
         val body  = notif?.body  ?: data["body"]  ?: ""
 
+        // A push for a workspace this person no longer holds is not shown (the server drops these too).
+        if (com.legumlex.client.feature.workspace.workspaceForPush(data["workspace"], com.legumlex.client.feature.workspace.WorkspaceSession.workspaces.value,
+                com.legumlex.client.feature.workspace.WorkspaceSession.mode.value) == com.legumlex.client.feature.workspace.PushRoute.Drop) return
+
         Log.d(TAG, "show: $title | $body data=$data")
 
         val intent = Intent(applicationContext, MainActivity::class.java).apply {

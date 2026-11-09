@@ -37,6 +37,13 @@ sealed class Route(val path: String) {
     data object Splash   : Route("splash")
     data object Login    : Route("login")
     data object Register : Route("register")
+    /** Where to today? (REQ-010, 10a): at every opening for a person with both workspaces. */
+    data object Choose   : Route("choose")
+    /** Counsel registration (REQ-010): its own dark door, apart from the client sign-up, then the framed form. */
+    data object CounselRegister : Route("counsel/register")
+    data object CounselForm     : Route("counsel/register/form")
+    /** Add Counsel Workspace from Profile (REQ-010, 10b). */
+    data object AddCounsel      : Route("counsel/add")
 
     // Main shell (bottom nav)
     data object Home          : Route("home")
@@ -259,7 +266,7 @@ sealed class Route(val path: String) {
 
 /** Auth-flow routes — never show the nav footer. */
 private val authBases = setOf(
-    Route.Splash.path, Route.Login.path, Route.Register.path,
+    Route.Splash.path, Route.Login.path, Route.Register.path, Route.CounselRegister.path, Route.Choose.path,
 )
 
 /**
@@ -295,6 +302,8 @@ private val wizardBases = setOf(
     Route.DoIntake.path.substringBefore("?"),          // digital_office/intake
     Route.LeadAhc.path,                                 // a lead's Agreement Check
     Route.LeadOnboard.path,                             // a lead opening an account
+    Route.CounselForm.path,                             // Counsel registration (REQ-010)
+    Route.AddCounsel.path,                              // Add Counsel Workspace (REQ-010)
 )
 
 /**
@@ -306,6 +315,8 @@ private val framedWizardBases = setOf(
     Route.DoIntake.path.substringBefore("?"),
     Route.LeadAhc.path,
     Route.LeadOnboard.path,
+    Route.CounselForm.path,
+    Route.AddCounsel.path,
 )
 
 /** Immersive takeovers + splash/sign-in/notifications get NO centered-logo header. */
@@ -313,6 +324,8 @@ private val headerHiddenBases = setOf(
     Route.Splash.path,
     Route.Login.path,           // nothing to notify of before sign-in
     Route.Register.path,
+    Route.CounselRegister.path, // its own dark door
+    Route.Choose.path,
     Route.Notifications.path,   // draws its own header (back · title · mark all read)
 ) + immersiveBases + framedWizardBases
 

@@ -94,6 +94,22 @@ private fun AppShell(deepLinkIntent: Intent?) {
     var handledKey by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(deepLinkIntent) {
         val k = System.identityHashCode(deepLinkIntent)
+        // A push says which workspace it is for: open it there through the same rules as the chooser, never a silent swap.
+        if (deepLinkIntent != null && k != handledKey) deepLinkIntent.getStringExtra("workspace")?.let { tag ->
+            val session = com.legumlex.client.feature.workspace.WorkspaceSession
+            when (val r = com.legumlex.client.feature.workspace.workspaceForPush(tag, session.workspaces.value, session.mode.value)) {
+                com.legumlex.client.feature.workspace.PushRoute.Drop -> if (session.workspaces.value != null) session.say(com.legumlex.client.feature.workspace.PUSH_GONE_NOTE)
+                is com.legumlex.client.feature.workspace.PushRoute.Open -> {
+                    if (session.workspaces.value == null) session.pushHint = tag // cold start: the opening honours it
+                    else {
+                        session.set(r.mode)
+                        if (r.mode == com.legumlex.client.feature.workspace.Mode.Portal) com.legumlex.client.feature.board.BoardHub.hide() else com.legumlex.client.feature.board.BoardHub.clear()
+                        if (r.told) session.say(com.legumlex.client.feature.workspace.pushOpenedNote(r.mode))
+                    }
+                }
+                com.legumlex.client.feature.workspace.PushRoute.Stay -> Unit
+            }
+        }
         if (deepLinkIntent != null && k != handledKey && deepLinkIntent.data != null) {
             navController.handleDeepLink(deepLinkIntent)
             handledKey = k
@@ -112,7 +128,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         com.legumlex.client.data.auth.SessionEvents.ended.collect {
             auth.forget()
             val here = navController.currentDestination?.route
-            if (here !in setOf(Route.Splash.path, Route.Login.path, Route.Register.path)) {
+            if (here !in setOf(Route.Splash.path, Route.Login.path, Route.Register.path, Route.CounselRegister.path, Route.CounselForm.path, Route.Choose.path, Route.AddCounsel.path)) {
                 navController.navigate(Route.Login.path) {
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true
@@ -166,8 +182,30 @@ private fun AppShell(deepLinkIntent: Intent?) {
     }
 
     // The Counsel workspace (REQ-008): when the server says so, the header, the bar and Home are the counsel's own.
-    val expectCounsel by com.legumlex.client.feature.board.BoardHub.expectCounsel.collectAsState()
-    LaunchedEffect(Unit) { com.legumlex.client.feature.board.BoardHub.init(context) }
+    val wsMode by com.legumlex.client.feature.workspace.WorkspaceSession.mode.collectAsState()
+    // A workspace added or removed: said once on arrival, never a silent swap (the chooser shows its own).
+    val wsNote by com.legumlex.client.feature.workspace.WorkspaceSession.note.collectAsState()
+    LaunchedEffect(wsNote, currentRoute) {
+        if (wsNote.isNotBlank() && currentRoute != null && currentRoute != Route.Choose.path && currentRoute != Route.Splash.path) {
+            android.widget.Toast.makeText(context, wsNote, android.widget.Toast.LENGTH_LONG).show()
+            com.legumlex.client.feature.workspace.WorkspaceSession.noteShown()
+        }
+    }
+    // Back at the front: a workspace added or removed meanwhile is noticed (a note), and the Counsel one gone moves to the Portal.
+    LaunchedEffect(resumes) {
+        if (!lead && wsMode != com.legumlex.client.feature.workspace.Mode.Unknown && currentRoute != Route.Splash.path && currentRoute != Route.Login.path)
+            com.legumlex.client.feature.workspace.syncWorkspaces(context)
+    }
+    // Moved out of Counsel by the server (not by choosing): back to the Portal's Home.
+    var lastMode by remember { mutableStateOf(wsMode) }
+    LaunchedEffect(wsMode) {
+        val was = lastMode; lastMode = wsMode
+        if (was == com.legumlex.client.feature.workspace.Mode.Counsel && wsMode == com.legumlex.client.feature.workspace.Mode.Portal &&
+            currentRoute != null && currentRoute != Route.Choose.path && currentRoute != Route.Home.path) {
+            navController.navigate(Route.Home.path) { popUpTo(0) { inclusive = true } }
+        }
+    }
+    val wsChoose = com.legumlex.client.feature.workspace.WorkspaceSession.workspaces.collectAsState().value?.choose == true
     // A refusal is asked again when the app comes back to the front (at most once a minute): one odd answer never lasts.
     var lastBoardAsk by remember { mutableStateOf(0L) }
     LaunchedEffect(resumes) {
@@ -177,8 +215,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
             com.legumlex.client.feature.board.BoardHub.refresh(context)
         }
     }
-    val counsel = !lead && com.legumlex.client.feature.board.counselChrome(boardAccess, expectCounsel)
-    val waiting = !lead && com.legumlex.client.feature.board.workspaceUnknown(boardAccess, expectCounsel)
+    val counsel = !lead && com.legumlex.client.feature.board.counselChromeFor(boardAccess, wsMode)
+    val waiting = !lead && com.legumlex.client.feature.board.workspaceUnknownFor(boardAccess, wsMode)
     var confirmSignOut by remember { mutableStateOf(false) }
     val signOutScope = androidx.compose.runtime.rememberCoroutineScope()
     if (confirmSignOut) com.legumlex.client.feature.board.SignOutDialog(
@@ -213,6 +251,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                     onSignOut = if (counsel) ({ confirmSignOut = true }) else null,
+                    onSwitchWorkspace = if (counsel && wsChoose) ({ navController.navigate(Route.Choose.path) { popUpTo(0) { inclusive = true } } }) else null,
                     showBell = !lead && !counsel,
                     subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else if (waiting) "" else "Client Portal",
                     spacedSubtitle = counsel,
@@ -240,7 +279,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // solid chrome, so the three read as frame and paper. The splash and
         // sign-in draw edge to edge, under the status bar, and grain their
         // own paper (the splash has none).
-        val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path
+        val door = currentRoute == Route.CounselRegister.path
+        val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path || currentRoute == Route.Choose.path || door
         // Fixed colours under the bars in either theme: the splash is black
         // (light icons); sign-in is white at the top (dark status icons) and
         // black at the foot (light navigation icons). The theme's own
@@ -255,8 +295,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
             // 3-button navigation draws its own pale scrim under the bar; the Counsel page colour should show instead.
             if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = !counsel
             val splash = currentRoute == Route.Splash.path
-            val login  = currentRoute == Route.Login.path
-            bars.isAppearanceLightStatusBars = if (splash || darkRoute || upgradeDarkNow) false else if (login) true else !themeDark
+            val login  = currentRoute == Route.Login.path || currentRoute == Route.Choose.path
+            bars.isAppearanceLightStatusBars = if (splash || door || darkRoute || upgradeDarkNow) false else if (login) true else !themeDark
             // The bottom bar is black: light navigation icons wherever it shows.
             bars.isAppearanceLightNavigationBars = if (edge || darkRoute || upgradeDarkNow) false else if (showAppFooter(currentRoute) && !counsel) false else !themeDark
         }

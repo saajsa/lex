@@ -69,7 +69,7 @@ import java.util.Locale
  * ========================================================================== */
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(onSwitchWorkspace: () -> Unit = {}, onAddCounsel: () -> Unit = {}, onCounselRemoved: (String) -> Unit = {}) {
     val vm: ProfileViewModel = viewModel()
     val state by vm.state.collectAsState()
     val verify by vm.verify.collectAsState()
@@ -86,12 +86,12 @@ fun ProfileScreen() {
             LexEmpty("Your Profile Could Not Be Loaded", s.message.ifBlank { "Please try again." })
             TextButton(onClick = vm::load) { Text("Try Again", color = Lex.colors.foreground) }
         }
-        is ProfileState.Ready -> ProfileBody(s.profile, verify, note, vm)
+        is ProfileState.Ready -> ProfileBody(s.profile, verify, note, vm, onSwitchWorkspace, onAddCounsel, onCounselRemoved)
     }
 }
 
 @Composable
-private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: ProfileViewModel) {
+private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: ProfileViewModel, onSwitchWorkspace: () -> Unit, onAddCounsel: () -> Unit, onCounselRemoved: (String) -> Unit) {
     Column(
         Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState()).imePadding().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -148,6 +148,8 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
                 Text("Kept on this phone.", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
             }
         }
+
+        com.legumlex.client.feature.workspace.WorkspaceCard(onSwitch = onSwitchWorkspace, onAdd = onAddCounsel, onRemoved = onCounselRemoved)
 
         LexCard(title = "Account") {
             val rows = listOfNotNull(

@@ -716,6 +716,84 @@ interface ApiService {
     suspend fun funnelIntake(@Url url: String, @Part parts: List<MultipartBody.Part>): Map<String, Any?>
 
     // A lead opens a client account (lead/onboarding): the website's registration.
+    // --- Counsel registration for a lead (REQ-010): customers_api/v1/lead/counsel* (a lead's token) ---
+
+    /** {data:{outcome new|client|counsel|pending|rejected|staff, message, note, registration_id, started, reopened, review_note, documents[], all_uploaded, phone, codes, form}} */
+    @GET("lead/counsel")
+    suspend fun counselMe(): Map<String, Any?>
+
+    /** new: start a draft; rejected: reopen for correction; any other outcome: 409 code outcome_<x>. */
+    @FormUrlEncoded
+    @POST("lead/counsel/begin")
+    suspend fun counselBegin(@Field("go") go: String = "1"): Map<String, Any?>
+
+    /** document_type bar_council_id | pan; read as it uploads (up to two minutes). */
+    @Multipart
+    @Headers("X-Long-Call: 1")
+    @POST("lead/counsel/document")
+    suspend fun counselDocument(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/counsel/remove")
+    suspend fun counselRemove(@Field("document_type") type: String): Map<String, Any?>
+
+    /** What was read (fixed) and what to type: full_name, name_locked, enrollment_number, number_locked, state_bar_council, enrollment_date, pan_number, pan_locked, state, states[], unread[]. */
+    @GET("lead/counsel/review")
+    suspend fun counselReview(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/counsel/review")
+    suspend fun counselReviewSave(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    /** step = request | status | sms | verify. */
+    @FormUrlEncoded
+    @POST("lead/counsel/phone/{step}")
+    suspend fun counselPhone(@Path("step") step: String, @FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    /** terms=1, phonenumber: the Counsel workspace opens at once; the answer carries the client token to switch to. */
+    @FormUrlEncoded
+    @POST("lead/counsel/submit")
+    suspend fun counselSubmit(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/counsel/discard")
+    suspend fun counselDiscard(@Field("go") go: String = "1"): Map<String, Any?>
+
+    // --- Add / Remove Counsel Workspace for a signed-in client (REQ-010): customers_api/v1/workspace* ---
+
+    /** {data:{items[], choose, counsel_only, eligible, reason, draft:{standing}}} */
+    @GET("workspace")
+    suspend fun workspaceList(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("workspace/begin")
+    suspend fun workspaceBegin(@Field("go") go: String = "1"): Map<String, Any?>
+
+    @Multipart
+    @Headers("X-Long-Call: 1")
+    @POST("workspace/document")
+    suspend fun workspaceDocument(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    @GET("workspace/review")
+    suspend fun workspaceReview(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("workspace/review")
+    suspend fun workspaceReviewSave(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("workspace/submit")
+    suspend fun workspaceSubmit(@FieldMap fields: Map<String, String>): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("workspace/discard")
+    suspend fun workspaceDiscard(@Field("go") go: String = "1"): Map<String, Any?>
+
+    /** Removes the Counsel workspace (not a document). */
+    @FormUrlEncoded
+    @POST("workspace/remove")
+    suspend fun workspaceRemove(@Field("go") go: String = "1"): Map<String, Any?>
+
     @GET("lead/onboarding")
     suspend fun leadOnboarding(): Map<String, Any?>
 

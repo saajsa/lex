@@ -392,6 +392,8 @@ data class HomeProfile(
     val name: String, val displayName: String, val initials: String, val barCouncil: String, val enrolmentNo: String,
     val yearsAtBar: Int?, val chambers: String, val email: String, val mobile: String,
     val courts: Int, val districts: List<String>, val daysOnPlatform: Int,
+    /** The firm's check of the enrolment, as the server says: pending | verified | rejected, or empty when it does not say. */
+    val review: String = "",
 )
 
 data class Specialty(val key: String, val label: String, val side: String, val count: Int)
@@ -424,6 +426,7 @@ internal fun parseHome(d: Map<String, Any?>): CounselHome {
             enrolmentNo = p["enrolment_no"].str(), yearsAtBar = p["years_at_bar"].intOrNull(), chambers = p["chambers"].str(), email = p["email"].str(),
             mobile = p["mobile"].str(), courts = p["courts"].int(), districts = (p["districts"] as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
             daysOnPlatform = p["days_on_platform"].int(),
+            review = p["review"].str().takeIf { it in setOf("pending", "verified", "rejected") }.orEmpty(),
         ),
         score = HomeScore(
             criminal = sc["criminal"].dbl(), civil = sc["civil"].dbl(), ni = sc["ni"].int(), lead = sc["lead"].str(),
@@ -442,3 +445,7 @@ internal fun parseHome(d: Map<String, Any?>): CounselHome {
 internal fun chambersFields(address: String, city: String, zip: String): Map<String, String> = mapOf(
     "address" to address.trim().take(191), "city" to city.trim().take(100), "zip" to zip.trim().take(15),
 )
+
+/** The line Counsel Home shows while the firm has not yet verified the enrolment (REQ-010); nothing is said for any other state. */
+const val ENROLMENT_PENDING_LINE = "Your enrolment is with our reviewers. Trial credits follow once it is verified."
+fun enrolmentLine(p: HomeProfile): String? = if (p.review == "pending") ENROLMENT_PENDING_LINE else null

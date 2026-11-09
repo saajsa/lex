@@ -43,33 +43,15 @@ object BoardHub {
 
     val statuses: List<String> get() = (_access.value as? BoardAccess.Yes)?.summary?.statuses.orEmpty()
 
-    /**
-     * The workspace this sign-in had last time (the server's `counsel`), kept on the phone so a counsel's cold start opens
-     * the Counsel chrome at once instead of waiting, and a slow or odd first answer never shows the client's. Cleared at
-     * sign-out and account switch; the server's answer always has the last word.
-     */
-    private val _expectCounsel = MutableStateFlow(false)
-    val expectCounsel: StateFlow<Boolean> = _expectCounsel.asStateFlow()
-    private var appContext: Context? = null
-    private fun prefs() = appContext?.getSharedPreferences("board_workspace", Context.MODE_PRIVATE)
+    /** Whether this run is known to be in the Counsel workspace (the chooser's answer, or the server's counsel-only). */
+    private fun expectCounsel() = com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Counsel
 
-    fun init(context: Context) {
-        if (appContext != null) return
-        appContext = context.applicationContext
-        _expectCounsel.value = prefs()?.getBoolean("counsel", false) == true
-    }
+    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null }
 
-    private fun remember(counsel: Boolean) {
-        _expectCounsel.value = counsel
-        prefs()?.edit()?.putBoolean("counsel", counsel)?.apply()
-    }
-
-    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; remember(false) }
-
-    fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary); remember(summary.counsel) }
+    fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary) }
 
     /** The server refused the board (404 board_off, 403): hide it. */
-    fun hide() { _access.value = BoardAccess.No; remember(false) }
+    fun hide() { _access.value = BoardAccess.No }
 
     /**
      * Ask the server. A contact whose profile lists no board permission is not
@@ -77,16 +59,26 @@ object BoardHub {
      * what was known as it was.
      */
     suspend fun refresh(context: Context) {
-        init(context)
+        // In the Client Portal the board is not part of the workspace: nothing is asked.
+        if (com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Portal) { hide(); return }
         val repo = BoardRepository(context)
         val first = repo.summary()
         var r = first
         val answers = mutableListOf(answerOf(first))
         // A known counsel is not turned away by one refusal: ask once more before believing it.
-        if (needsRetry(_expectCounsel.value, answers[0])) { kotlinx.coroutines.delay(1_500); r = repo.summary(); answers += answerOf(r) }
-        when (decideAccess(_expectCounsel.value, answers)) {
+        if (needsRetry(expectCounsel(), answers[0])) { kotlinx.coroutines.delay(1_500); r = repo.summary(); answers += answerOf(r) }
+        when (decideAccess(expectCounsel(), answers)) {
             Verdict.Yes -> r.onSuccess { set(it) }
-            Verdict.No -> hide()
+            Verdict.No -> {
+                // A person in the Counsel workspace whom the server now refuses moves to the Client Portal, with the server's words.
+                val wasCounsel = expectCounsel()
+                if (wasCounsel) {
+                    val said = r.exceptionOrNull()?.apiError()?.message
+                    com.legumlex.client.feature.workspace.WorkspaceSession.set(com.legumlex.client.feature.workspace.Mode.Portal)
+                    com.legumlex.client.feature.workspace.WorkspaceSession.say(said ?: com.legumlex.client.feature.workspace.GONE_NOTE)
+                }
+                hide()
+            }
             Verdict.Keep -> Unit
         }
     }
@@ -129,3 +121,14 @@ fun counselChrome(access: BoardAccess, expectCounsel: Boolean): Boolean =
 /** Nothing is known yet (no answer, nothing remembered): neutral chrome, no client label. */
 fun workspaceUnknown(access: BoardAccess, expectCounsel: Boolean): Boolean =
     access is BoardAccess.Unknown && !expectCounsel
+
+/** The chrome for this run: the chooser's answer first; without one, the server's board answer decides. */
+fun counselChromeFor(access: BoardAccess, mode: com.legumlex.client.feature.workspace.Mode): Boolean = when (mode) {
+    com.legumlex.client.feature.workspace.Mode.Portal -> false
+    com.legumlex.client.feature.workspace.Mode.Counsel -> counselChrome(access, true)
+    com.legumlex.client.feature.workspace.Mode.Unknown -> counselChrome(access, false)
+}
+
+/** Neutral chrome only while nothing is known: no choice made and no board answer yet. */
+fun workspaceUnknownFor(access: BoardAccess, mode: com.legumlex.client.feature.workspace.Mode): Boolean =
+    mode == com.legumlex.client.feature.workspace.Mode.Unknown && workspaceUnknown(access, false)

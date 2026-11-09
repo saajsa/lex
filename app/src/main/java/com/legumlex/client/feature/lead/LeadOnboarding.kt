@@ -89,10 +89,10 @@ data class OnbReview(val entityType: String, val email: String, val givenName: S
 data class OnbPhone(val sent: Boolean = false, val to: String = "", val resendIn: Int = 0, val smsIn: Int = 0,
                     val verified: String? = null, val busy: Boolean = false, val error: String = "")
 
-private fun Any?.s(): String = (this as? String).orEmpty()
+internal fun Any?.s(): String = (this as? String).orEmpty()
 
 @Suppress("UNCHECKED_CAST")
-private fun standingOf(d: Map<String, Any?>) = OnbStanding(
+internal fun standingOf(d: Map<String, Any?>) = OnbStanding(
     email = d["email"].s(),
     problem = d["problem"].s(),
     types = (d["entity_types"] as? List<Map<String, Any?>>).orEmpty().map { it["value"].s() to it["label"].s() },
@@ -109,7 +109,7 @@ private fun standingOf(d: Map<String, Any?>) = OnbStanding(
 )
 
 /** The server's own words, from a refusal. */
-private fun Throwable.said(fallback: String): String = when (this) {
+internal fun Throwable.said(fallback: String): String = when (this) {
     is HttpException -> runCatching { JSONObject(response()?.errorBody()?.string().orEmpty()).optString("message") }.getOrNull()
         .orEmpty().ifBlank { fallback }
     else -> fallback
@@ -512,8 +512,8 @@ private val TypeSubs = mapOf(
 
 /** One document: what it is, then Scan / Choose, its reading, or what is on file. */
 @Composable
-private fun DocCard(d: OnbDoc, busy: String, busySince: Long, reopened: Boolean,
-                    onScan: () -> Unit, onPick: () -> Unit, onRemove: () -> Unit) {
+internal fun DocCard(d: OnbDoc, busy: String, busySince: Long, reopened: Boolean,
+                    onScan: () -> Unit, onPick: () -> Unit, onRemove: () -> Unit, canRemove: Boolean = true, progress: Float? = null) {
     val bad = d.problem != null
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lex.colors.card)
@@ -540,6 +540,10 @@ private fun DocCard(d: OnbDoc, busy: String, busySince: Long, reopened: Boolean,
             }
         }
         when {
+            busy == d.type && progress != null && progress < 1f -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                androidx.compose.material3.LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = Lex.colors.foreground, trackColor = Lex.colors.muted)
+                Text("Sending " + (progress * 100).toInt() + "%", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            }
             busy == d.type -> Reading(busySince)
             d.kept || d.uploaded -> {
                 if (d.kept) Text("On file from your registration.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
@@ -555,7 +559,7 @@ private fun DocCard(d: OnbDoc, busy: String, busySince: Long, reopened: Boolean,
                         DocButton("Replace", Icons.Outlined.UploadFile, busy.isEmpty(), onPick)
                     }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onRemove, enabled = busy.isEmpty()) { Text("Remove", color = Lex.colors.danger.softText) }
+                    if (canRemove) TextButton(onClick = onRemove, enabled = busy.isEmpty()) { Text("Remove", color = Lex.colors.danger.softText) }
                 }
             }
             else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -603,7 +607,7 @@ private const val CLEARER = " Wrong? Upload a clearer copy."
  * complete), Send By SMS, Send A New Code with its countdown, Change Number.
  */
 @Composable
-private fun MobileStep(f: MutableMap<String, String>, p: OnbPhone, nri: Boolean, codes: Boolean, confirmed: Boolean,
+internal fun MobileStep(f: MutableMap<String, String>, p: OnbPhone, nri: Boolean, codes: Boolean, confirmed: Boolean,
                        onNumber: () -> Unit, send: (resend: Boolean) -> Unit, sms: () -> Unit, verify: (String) -> Unit,
                        change: () -> Unit, tick: () -> Unit) {
     if (confirmed) {
@@ -656,7 +660,7 @@ private val FieldsSaver = listSaver<SnapshotStateMap<String, String>, String>(
 
 /** A document being uploaded and read: the whole call (up to two minutes). */
 @Composable
-private fun Reading(since: Long) {
+internal fun Reading(since: Long) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(since) { while (true) { kotlinx.coroutines.delay(1000); now = System.currentTimeMillis() } }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -688,7 +692,7 @@ private fun from(r: OnbReview?, key: String, otherwise: String): String =
     r?.sources?.get(key)?.takeIf { it.isNotBlank() }?.let { "Read from your $it." } ?: otherwise
 
 @Composable
-private fun Field(f: MutableMap<String, String>, key: String, label: String, help: String, upper: Boolean = false,
+internal fun Field(f: MutableMap<String, String>, key: String, label: String, help: String, upper: Boolean = false,
                   lines: Int = 1, digits: Boolean = false, phone: Boolean = false) {
     WizardTextField(label, f[key].orEmpty(), { v -> f[key] = if (upper) v.uppercase() else v }, help = help, lines = lines,
         keyboardType = when { digits -> KeyboardType.Number; phone -> KeyboardType.Phone; else -> KeyboardType.Text },
@@ -696,4 +700,4 @@ private fun Field(f: MutableMap<String, String>, key: String, label: String, hel
 }
 
 @Composable
-private fun Locked(label: String, value: String, help: String) = WizardTextField(label, value, help = help, locked = true)
+internal fun Locked(label: String, value: String, help: String) = WizardTextField(label, value, help = help, locked = true)

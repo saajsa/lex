@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Videocam
@@ -67,6 +68,8 @@ fun AppHeader(
     trailingChip: (@Composable () -> Unit)? = null,
     /** The Counsel workspace's Sign Out symbol button, beside the profile circle. */
     onSignOut: (() -> Unit)? = null,
+    /** Switch Workspace beside Sign Out, for a person who holds both workspaces. */
+    onSwitchWorkspace: (() -> Unit)? = null,
     /** The account switch, beside the bell (shown only to a person with more than one account). */
     accountSwitch: (@Composable () -> Unit)? = null,
 ) {
@@ -129,6 +132,7 @@ fun AppHeader(
                         }
                     }
                 }
+                if (onSwitchWorkspace != null) SwitchButton(onSwitchWorkspace)
                 if (onSignOut != null) SignOutButton(onSignOut)
                 if (initials != null) {
                     Spacer(Modifier.width(4.dp))
@@ -175,6 +179,20 @@ private fun CountBadge(count: Int, bg: androidx.compose.ui.graphics.Color, fg: a
 }
 
 /** Sign Out as a symbol button; a long press names it. The confirm dialog is the caller's. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun SwitchButton(onClick: () -> Unit) {
+    androidx.compose.material3.TooltipBox(
+        positionProvider = com.legumlex.client.feature.board.OnScreenTooltip,
+        tooltip = { PlainTooltip { Text("Switch Workspace") } },
+        state = androidx.compose.material3.rememberTooltipState(),
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(Icons.Outlined.SwapHoriz, contentDescription = "Switch Workspace", tint = Lex.colors.secondaryForeground)
+        }
+    }
+}
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun SignOutButton(onClick: () -> Unit) {

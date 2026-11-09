@@ -221,3 +221,14 @@ Owner, 2026-10-20: "Anyone may sign in with Google; someone the firm has no open
 - Should Vault downloads follow the same view-only rule as project files? No owner rule found for the Vault [ASSUMPTION].
 - Exact refusal shapes for funnel / Chamber fees with no gateway on, and for the AI monthly cap, and whether the desk and funnel screens show them (not verified).
 - Whether the remaining "old-style" detail screens noted on 10-19 have all been redone (history_early §5 leaves it unclear).
+
+## Counsel registration and workspaces (REQ-010, built 2026-11-09, uncommitted)
+
+- **Door:** sign-in screen link "Advocate? Register As Counsel" (own line, apart from Onboard Now) opens `counsel/register` (dark, Google). Google sign-in, then `GET lead/counsel` triage shows the server's message for each outcome (new, client, counsel, pending, rejected, staff). New or rejected goes on to the wizard `counsel/register/form` (Certificate, PAN, Review, Mobile, Confirm); submit's client token replaces the lead session (`AuthRepository.switchedTo`). Code: `feature/counsel/`.
+- **Debug only:** `DebugLeadShortcut` on the door uses the stored lead token instead of Google; guarded by `BuildConfig.DEBUG`, checked by `DebugLeadShortcutTest`. The existing `am start --es debug_lead_token <jwt>` (debug builds) stores a lead token.
+- **Chooser:** `feature/workspace/`. At every opening (cold start, fresh sign-in, account switch) the app reads `workspaces` from the profile answer; `choose` true opens "Where to today?" (`choose`); counsel_only opens as Counsel; otherwise the Client Portal. `WorkspaceSession` is in memory only: nothing is remembered between openings (BoardHub.expectCounsel and its preference are gone). In Portal mode the board is not asked. Switch Workspace: Profile card and the Counsel header, both back to the chooser.
+- **Add / Remove Counsel Workspace:** Profile "Workspaces" card (server `status`, `note`, `can_add`, `can_remove`; Fix And Resubmit when rejected); wizard `counsel/add` (Certificate, Details, Confirm) over `workspace*`; Remove over `workspace/remove` with the server's refusal shown.
+- **Workspace changes while open:** on resume `syncWorkspaces` compares the list: Counsel gone moves a person in it to the Portal with a note; Counsel added is only a note. A board refusal in Counsel mode (two refusals) moves to the Portal with the server's message.
+- **Push:** `data.workspace` (client | counsel). A push for a workspace not held is dropped; a tap opens in that workspace (cold start: no question; warm and in the other one: switches with a note).
+- **Uploads (counsel flows):** the picked file is kept so "Try Again With The Same File" needs no re-pick; sending progress then reading; offline says so and that details are kept.
+- Design gap: 10a shows figures on the cards; the workspaces answer has none, so the cards carry fixed lines only.

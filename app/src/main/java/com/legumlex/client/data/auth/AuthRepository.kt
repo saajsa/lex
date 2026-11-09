@@ -103,6 +103,7 @@ class AuthRepository(
         com.legumlex.client.feature.notifications.NotificationHub.clear()
         com.legumlex.client.feature.home.ActionHub.clear()
         com.legumlex.client.feature.board.BoardHub.clear()
+        com.legumlex.client.feature.workspace.WorkspaceSession.clear()
         tokens.clear()
         clearDocumentCache()
     }
@@ -118,6 +119,7 @@ class AuthRepository(
         com.legumlex.client.feature.notifications.NotificationHub.clear()
         com.legumlex.client.feature.home.ActionHub.clear()
         com.legumlex.client.feature.board.BoardHub.clear()
+        com.legumlex.client.feature.workspace.WorkspaceSession.clear()
         clearDocumentCache()
         tokens.save(jwt, clientId.toString(), contactId.toString(), role = "client")
         PushSetup.registerContact(contactId)
@@ -159,6 +161,8 @@ class AuthRepository(
 
         // A lead (no open client account) has no contact: role "lead".
         val role      = if (data["role"] == "lead") "lead" else "client"
+        // A fresh sign-in asks where to go again: nothing from an earlier run carries over.
+        com.legumlex.client.feature.workspace.WorkspaceSession.clear()
         val contactId = data["contact_id"]?.toString()
         tokens.save(
             jwt       = jwt,

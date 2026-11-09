@@ -112,7 +112,7 @@ private val Tiles = listOf(
 private const val Soon = "COMING SOON"
 
 @OptIn(ExperimentalTextApi::class)
-private val Cormorant = FontFamily(
+internal val Cormorant = FontFamily(
     Font(R.font.cormorant_garamond, FontWeight.Medium, FontStyle.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
     Font(R.font.cormorant_garamond_italic, FontWeight.Normal, FontStyle.Italic, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
 )

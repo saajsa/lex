@@ -184,7 +184,7 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
                 Text(p.initials.ifBlank { "AD" }, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = CounselGold)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(p.displayName.ifBlank { "Adv." }, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 22.sp, color = Lex.colors.foreground)
+                Text(p.displayName.ifBlank { p.name }, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 22.sp, color = Lex.colors.foreground)
                 barLine(p).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground) }
             }
             p.yearsAtBar?.let { y ->
@@ -200,6 +200,7 @@ private fun ProfileCard(p: HomeProfile, onChambersSaved: () -> Unit) {
                 modifier = Modifier.size(20.dp).clickable { open = !open; detailsPrefs(context).edit().putBoolean("details_open", open).apply() },
             )
         }
+        enrolmentLine(p)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, modifier = Modifier.padding(top = 10.dp)) }
         if (open) Column(
             Modifier.padding(top = 12.dp).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),

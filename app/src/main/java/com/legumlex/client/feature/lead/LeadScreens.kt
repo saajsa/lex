@@ -60,6 +60,8 @@ fun LeadHomeScreen(
     onOpenAccount: () -> Unit,
     onOpenForm: () -> Unit,
     onBecameClient: () -> Unit,
+    /** Advocate? Register As Counsel (REQ-010): its own door, apart from becoming a client. */
+    onRegisterCounsel: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val name by SessionRole.name.collectAsState()
@@ -155,6 +157,9 @@ fun LeadHomeScreen(
                     }
                 }
             }
+        }
+        if (status != "awaiting_approval") TextButton(onClick = onRegisterCounsel, modifier = Modifier.fillMaxWidth()) {
+            Text("Advocate? Register As Counsel", color = Lex.colors.foreground)
         }
         Spacer(Modifier.height(4.dp))
         Eyebrow("Ask", modifier = Modifier.padding(start = 4.dp))

@@ -80,6 +80,8 @@ fun LoginScreen(
     onAskLexIntelligence: () -> Unit = {},
     /** New here? Onboard Now: Lex Intelligence, opening an account (owner, 2026-10-24). */
     onOpenAccount: () -> Unit = {},
+    /** Advocate? Register As Counsel (REQ-010 10c). */
+    onRegisterCounsel: () -> Unit = {},
 ) {
     val spacing  = LocalSpacing.current
     val context  = LocalContext.current
@@ -217,6 +219,13 @@ fun LoginScreen(
                         Text("Your PAN, Aadhaar and mobile number. The firm approves every new account.",
                             style = MaterialTheme.typography.bodySmall, color = SecondaryText,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(spacing.s3))
+                        LinkButton(
+                            text     = "Advocate? Register As Counsel",
+                            enabled  = !isLoading,
+                            onClick  = onRegisterCounsel,
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                        )
                     }
                     }
                     LoginView.Mobile -> MobileView(vm = vm, mobile = mobile, busy = isLoading)

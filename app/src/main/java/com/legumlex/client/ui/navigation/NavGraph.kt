@@ -56,6 +56,15 @@ import com.legumlex.client.feature.projects.TaskDetailScreen
 
 @Composable
 fun LegumNavGraph(navController: NavHostController) {
+    val openContext = LocalContext.current
+    val openScope = rememberCoroutineScope()
+    // The app opens as a client (after registering, or signing in at the counsel door): where to today? if there is a choice.
+    fun openClient(nc: NavHostController) {
+        openScope.launch {
+            val choose = com.legumlex.client.feature.workspace.WorkspaceSession.open(ApiClient.get(openContext))
+            nc.navigate(if (choose) Route.Choose.path else Route.Home.path) { popUpTo(0) { inclusive = true } }
+        }
+    }
     // Where a waiting item opens (the action queue, now in Notifications).
     val navCtx = androidx.compose.ui.platform.LocalContext.current
     val actionRoutes = com.legumlex.client.feature.home.ActionRoutes(
@@ -108,7 +117,9 @@ fun LegumNavGraph(navController: NavHostController) {
                             val auth = AuthRepository(ApiClient.get(context), tokens, context.cacheDir)
                             if (kotlinx.coroutines.withTimeoutOrNull(4_000) { auth.leadStanding() } == "client") lead = false
                         }
-                        val to = when { !signedIn -> Route.Login.path; lead -> Route.LeadHome.path; else -> Route.Home.path }
+                        // A client's workspaces are asked at every opening: more than one means choosing.
+                        val choose = signedIn && !lead && com.legumlex.client.feature.workspace.WorkspaceSession.open(ApiClient.get(context))
+                        val to = when { !signedIn -> Route.Login.path; lead -> Route.LeadHome.path; choose -> Route.Choose.path; else -> Route.Home.path }
                         navController.navigate(to) {
                             popUpTo(Route.Splash.path) { inclusive = true }
                         }
@@ -117,17 +128,60 @@ fun LegumNavGraph(navController: NavHostController) {
             )
         }
         composable(Route.Login.path) {
+            val loginContext = LocalContext.current
+            val loginScope = rememberCoroutineScope()
             LoginScreen(
                 onLoginSuccess = {
-                    val home = if (com.legumlex.client.data.auth.SessionRole.isLead) Route.LeadHome.path else Route.Home.path
-                    navController.navigate(home) {
-                        popUpTo(Route.Login.path) { inclusive = true }
+                    loginScope.launch {
+                        val lead = com.legumlex.client.data.auth.SessionRole.isLead
+                        val choose = !lead && com.legumlex.client.feature.workspace.WorkspaceSession.open(ApiClient.get(loginContext))
+                        val home = when { lead -> Route.LeadHome.path; choose -> Route.Choose.path; else -> Route.Home.path }
+                        navController.navigate(home) { popUpTo(Route.Login.path) { inclusive = true } }
                     }
                 },
                 onAskLexIntelligence = { navController.navigate(Route.NewConsultation.build()) },
                 // Lex Intelligence opens the account: Google first, then the documents.
                 onOpenAccount = { navController.navigate(Route.NewConsultation.build(account = true)) },
+                onRegisterCounsel = { navController.navigate(Route.CounselRegister.path) },
             )
+        }
+        composable(Route.CounselRegister.path) {
+            com.legumlex.client.feature.counsel.CounselRegisterScreen(
+                onSignIn = { navController.navigate(Route.Login.path) { popUpTo(0) { inclusive = true } } },
+                onForm = { navController.navigate(Route.CounselForm.path) },
+                onSignedInAsClient = { openClient(navController) },
+            )
+        }
+        composable(Route.CounselForm.path) {
+            com.legumlex.client.feature.counsel.CounselWizardScreen(
+                onClose = {
+                    val back = if (com.legumlex.client.feature.counsel.CounselFlow.keepSession) Route.LeadHome.path else Route.Login.path
+                    navController.navigate(back) { popUpTo(0) { inclusive = true } }
+                },
+                onOpened = { openClient(navController) },
+            )
+        }
+
+        composable(Route.AddCounsel.path) {
+            com.legumlex.client.feature.workspace.AddCounselScreen(
+                onClose = { navController.popBackStack() },
+                // Now there are two workspaces: where to today?
+                onAdded = { msg ->
+                    val session = com.legumlex.client.feature.workspace.WorkspaceSession
+                    session.say(msg)
+                    val both = session.workspaces.value?.choose == true
+                    if (!both) session.set(com.legumlex.client.feature.workspace.Mode.Portal)
+                    navController.navigate(if (both) Route.Choose.path else Route.Home.path) { popUpTo(0) { inclusive = true } }
+                },
+            )
+        }
+        composable(Route.Choose.path) {
+            com.legumlex.client.feature.workspace.WorkspaceChoiceScreen(onPick = { m ->
+                com.legumlex.client.feature.workspace.WorkspaceSession.set(m)
+                if (m == com.legumlex.client.feature.workspace.Mode.Portal) com.legumlex.client.feature.board.BoardHub.hide()
+                else com.legumlex.client.feature.board.BoardHub.clear()
+                navController.navigate(Route.Home.path) { popUpTo(0) { inclusive = true } }
+            })
         }
 
         // --- A lead's app (owner, 2026-10-20) ---
@@ -142,6 +196,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 // Approved: lead/me has already handed over the client's token
                 // and retired the lead's, so the client app opens at once.
                 onBecameClient   = { navController.navigate(Route.Home.path) { popUpTo(0) { inclusive = true } } },
+                onRegisterCounsel = { navController.navigate(Route.CounselRegister.path) },
             )
         }
         composable(Route.LeadOnboard.path) {
@@ -183,8 +238,8 @@ fun LegumNavGraph(navController: NavHostController) {
             // Until the server has answered for a contact who may have the board, a wait, so the
             // firm's Home never flashes for counsel.
             val access by com.legumlex.client.feature.board.BoardHub.access.collectAsState()
-            val expectCounsel by com.legumlex.client.feature.board.BoardHub.expectCounsel.collectAsState()
-            if (com.legumlex.client.feature.board.counselChrome(access, expectCounsel)) {
+            val wsMode by com.legumlex.client.feature.workspace.WorkspaceSession.mode.collectAsState()
+            if (com.legumlex.client.feature.board.counselChromeFor(access, wsMode)) {
                 com.legumlex.client.feature.board.CounselHomeScreen(
                     onOpenCalendar = { navController.navigateTab(Route.CounselCalendar.path) },
                     onOpenCases = { navController.navigate(Route.BoardCases.path) },
@@ -402,7 +457,17 @@ fun LegumNavGraph(navController: NavHostController) {
             )
         }
         composable(Route.Profile.path) {
-            com.legumlex.client.feature.profile.ProfileScreen()
+            com.legumlex.client.feature.profile.ProfileScreen(
+                onSwitchWorkspace = { navController.navigate(Route.Choose.path) { popUpTo(0) { inclusive = true } } },
+                onAddCounsel = { navController.navigate(Route.AddCounsel.path) },
+                // The Counsel workspace is gone: a person who was in it moves to the Client Portal, with a note.
+                onCounselRemoved = { msg ->
+                    com.legumlex.client.feature.workspace.WorkspaceSession.say(msg)
+                    com.legumlex.client.feature.workspace.WorkspaceSession.set(com.legumlex.client.feature.workspace.Mode.Portal)
+                    com.legumlex.client.feature.board.BoardHub.hide()
+                    navController.navigate(Route.Home.path) { popUpTo(0) { inclusive = true } }
+                },
+            )
         }
         composable(Route.More.path) {
             val context = LocalContext.current
