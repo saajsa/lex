@@ -196,6 +196,15 @@ private fun AppShell(deepLinkIntent: Intent?) {
         if (!lead && wsMode != com.legumlex.client.feature.workspace.Mode.Unknown && currentRoute != Route.Splash.path && currentRoute != Route.Login.path)
             com.legumlex.client.feature.workspace.syncWorkspaces(context)
     }
+    // The opening could not learn the workspaces (no answer in time): ask again once the app is up, and ask where to go if there is a choice.
+    var askedLate by remember { mutableStateOf(false) }
+    LaunchedEffect(wsMode, currentRoute) {
+        if (!lead && !askedLate && wsMode == com.legumlex.client.feature.workspace.Mode.Unknown && showAppFooter(currentRoute)) {
+            askedLate = true
+            if (com.legumlex.client.feature.workspace.WorkspaceSession.open(com.legumlex.client.data.api.ApiClient.get(context)))
+                navController.navigate(Route.Choose.path) { popUpTo(0) { inclusive = true } }
+        }
+    }
     // Moved out of Counsel by the server (not by choosing): back to the Portal's Home.
     var lastMode by remember { mutableStateOf(wsMode) }
     LaunchedEffect(wsMode) {

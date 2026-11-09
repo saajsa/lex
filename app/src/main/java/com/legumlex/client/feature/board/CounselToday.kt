@@ -531,10 +531,13 @@ private fun StepTwo(onSpecimen: () -> Unit) = StepCard(
     "Upload a sample of the cause list you use. Choose its columns, portrait or landscape, and paper size.",
 ) { IconAction(Icons.Outlined.UploadFile, "Upload a specimen of your cause list", onSpecimen, look = ActionLook.Outline) }
 
+/** Step 3's words: what a check costs, and no promise of credits (a held account has none yet). */
+internal fun stepThreeText(cost: Int) = "Your cause list is ready by 7 AM. Each case checked costs $cost ${if (cost == 1) "credit" else "credits"}."
+
 @Composable
 private fun StepThree(c: TodayCredits) = StepCard(
     3, "We check eCourts every morning",
-    "Your cause list is ready by 7 AM. Each case checked costs ${c.cost} ${plural(c.cost, "credit", "credits")}; your ${creditsText(c.balance)} credits start you off.",
+    stepThreeText(c.cost),
 )
 
 // ---- Correct Date (a wizard) and eCourts Is Right (a confirm) -------------------------

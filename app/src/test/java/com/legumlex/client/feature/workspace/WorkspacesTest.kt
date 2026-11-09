@@ -142,3 +142,33 @@ class StatsTest {
         assertTrue(statLines(w.counsel!!).isEmpty())
     }
 }
+
+class OpenDecisionTest {
+    private fun ws(choose: Boolean, counselOnly: Boolean = false) = Workspaces(emptyList(), choose, counselOnly)
+
+    @Test fun a_person_with_both_workspaces_is_asked_at_every_sign_in() {
+        assertEquals(OpenAs.Choose, openAs(ws(choose = true)))
+    }
+
+    @Test fun counsel_only_opens_as_counsel_and_everyone_else_as_the_portal() {
+        assertEquals(OpenAs.Counsel, openAs(ws(choose = false, counselOnly = true)))
+        assertEquals(OpenAs.Portal, openAs(ws(choose = false)))
+    }
+
+    @Test fun the_sign_in_answer_is_enough_to_decide_without_a_second_call() {
+        // The sign-in answer carries `workspaces`; open() reads it from there (no profile call, no timeout).
+        val signIn = mapOf("name" to "Ravinder Kaur", "workspaces" to mapOf("choose" to true, "counsel_only" to false, "items" to emptyList<Any>()))
+        assertEquals(OpenAs.Choose, openAs(parseWorkspaceList(signIn["workspaces"] as Map<String, Any?>)))
+    }
+}
+
+class PushHintTest {
+    @Test fun a_sign_in_or_sign_out_drops_a_push_hint() {
+        WorkspaceSession.pushHint = "counsel"
+        WorkspaceSession.signInData = mapOf("workspaces" to emptyMap<String, Any?>())
+        WorkspaceSession.clear()
+        assertNull(WorkspaceSession.pushHint)
+        assertNull(WorkspaceSession.signInData)
+        assertEquals(Mode.Unknown, WorkspaceSession.mode.value)
+    }
+}

@@ -163,6 +163,8 @@ class AuthRepository(
         val role      = if (data["role"] == "lead") "lead" else "client"
         // A fresh sign-in asks where to go again: nothing from an earlier run carries over.
         com.legumlex.client.feature.workspace.WorkspaceSession.clear()
+        @Suppress("UNCHECKED_CAST")
+        if (role == "client") com.legumlex.client.feature.workspace.WorkspaceSession.signInData = data as? Map<String, Any?>
         val contactId = data["contact_id"]?.toString()
         tokens.save(
             jwt       = jwt,

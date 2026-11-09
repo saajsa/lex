@@ -66,7 +66,8 @@ object WorkspaceSession {
     /** The workspace a tapped push is for (cold start, before the list is known): the open that follows honours it instead of asking. */
     var pushHint: String? = null
 
-    fun clear() { _mode.value = Mode.Unknown; _workspaces.value = null; _name.value = ""; _note.value = "" }
+    /** Also drops a push hint: a hint from before a sign-out must never decide the next sign-in. */
+    fun clear() { signInData = null; pushHint = null; _mode.value = Mode.Unknown; _workspaces.value = null; _name.value = ""; _note.value = "" }
 
     fun set(m: Mode) { _mode.value = m }
 
@@ -77,23 +78,74 @@ object WorkspaceSession {
      * (more than one workspace); otherwise the mode is settled here: counsel only means Counsel, everything else the Portal.
      * A server that cannot be reached leaves the mode unknown and opens the app as before (the board's answer decides).
      */
+    /** The sign-in's own answer (it carries `workspaces`), kept for the opening that follows so no second, slower call is needed. */
+    var signInData: Map<String, Any?>? = null
+
+    /** A debug-only line in the log (tag LexWorkspace): what the opening was given and what it decided. No tokens, no personal data. */
+    private fun trace(line: String) { if (com.legumlex.client.BuildConfig.DEBUG) android.util.Log.d("LexWorkspace", line) }
+
+    /** The profile answer, and what became of the call ("ok", "timeout", "HTTP 500", the exception's class). */
+    @Suppress("UNCHECKED_CAST")
+    private suspend fun fetchProfile(api: ApiService): Pair<Map<String, Any?>?, String> {
+        // The profile answer can be slow while it works out the chooser's figures: wait, and ask once more before giving up.
+        var why = "timeout"
+        repeat(2) { n ->
+            val r = withTimeoutOrNull(12_000) { runCatching { api.profile()["data"] as? Map<String, Any?> } }
+            when {
+                r == null -> why = "timeout"
+                r.isSuccess && r.getOrNull() != null -> return r.getOrNull() to (if (n == 0) "ok" else "ok on retry")
+                r.isSuccess -> why = "answer without data"
+                else -> why = (r.exceptionOrNull() as? retrofit2.HttpException)?.let { "HTTP ${it.code()}" } ?: (r.exceptionOrNull()?.javaClass?.simpleName ?: "error")
+            }
+        }
+        return null to why
+    }
+
+    /**
+     * Ask the server what this sign-in holds and decide where the app opens. Returns true when the person must choose
+     * (more than one workspace); otherwise the mode is settled here: counsel only means Counsel, everything else the Portal.
+     * A server that cannot be reached leaves the mode unknown; the shell then asks again (see MainActivity), so a person
+     * who holds both is still asked and never lands in Counsel unasked.
+     */
     @Suppress("UNCHECKED_CAST")
     suspend fun open(api: ApiService, fromSignIn: Map<String, Any?>? = null): Boolean {
         _mode.value = Mode.Unknown
-        val data = fromSignIn ?: withTimeoutOrNull(5_000) { runCatching { api.profile()["data"] as? Map<String, Any?> }.getOrNull() }
+        val held = signInData; signInData = null
+        val given = (fromSignIn ?: held)?.takeIf { it["workspaces"] is Map<*, *> }
+        var source = if (given != null) "sign-in" else "profile"
+        var call = "not made"
+        val data = given ?: fetchProfile(api).let { (d, why) -> call = why; d }
         val ws = (data?.get("workspaces") as? Map<String, Any?>)?.let { parseWorkspaceList(it) }
-        if (ws == null) return false
+        val hint = pushHint
+        if (ws == null) {
+            // The hint stays for the next opening: nothing was decided.
+            trace("open source=$source profile=$call workspaces=absent hint=${hint ?: "none"} consumed=no mode=Unknown")
+            return false
+        }
         _workspaces.value = ws
         (data["name"] as? String)?.trim()?.takeIf { it.isNotEmpty() }?.let { _name.value = it }
         // A tapped push already says where to go (when that workspace is held): no question.
-        val hint = pushHint; pushHint = null
-        (workspaceForPush(hint, ws, Mode.Unknown) as? PushRoute.Open)?.let { _mode.value = it.mode; return false }
-        return when {
-            ws.choose -> true
-            ws.counselOnly -> { _mode.value = Mode.Counsel; false }
-            else -> { _mode.value = Mode.Portal; false }
+        pushHint = null
+        val pushed = workspaceForPush(hint, ws, Mode.Unknown) as? PushRoute.Open
+        if (pushed != null) {
+            _mode.value = pushed.mode
+            trace("open source=$source profile=$call workspaces=present choose=${ws.choose} counsel_only=${ws.counselOnly} hint=$hint consumed=yes mode=${pushed.mode}")
+            return false
         }
+        val decided = openAs(ws)
+        _mode.value = when (decided) { OpenAs.Counsel -> Mode.Counsel; OpenAs.Portal -> Mode.Portal; OpenAs.Choose -> Mode.Unknown }
+        trace("open source=$source profile=$call workspaces=present choose=${ws.choose} counsel_only=${ws.counselOnly} hint=${hint ?: "none"} consumed=${if (hint != null) "dropped" else "no"} decision=$decided mode=${_mode.value}")
+        return decided == OpenAs.Choose
     }
+}
+
+/** Where an opening goes, from the server's list: choose when it says so, Counsel for a counsel-only account, otherwise the Portal. */
+enum class OpenAs { Choose, Counsel, Portal }
+
+fun openAs(ws: Workspaces): OpenAs = when {
+    ws.choose -> OpenAs.Choose
+    ws.counselOnly -> OpenAs.Counsel
+    else -> OpenAs.Portal
 }
 
 /** The greeting by the hour. */

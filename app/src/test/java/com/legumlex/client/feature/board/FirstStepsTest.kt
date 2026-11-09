@@ -67,4 +67,10 @@ class FirstStepsTest {
         // The done tick takes the theme's foreground on the border-coloured disc.
         assertEquals(StepBadge(grey, white, null), stepBadge(true, true, grey, white))
     }
+
+    @Test fun step_three_promises_no_credits() {
+        assertEquals("Your cause list is ready by 7 AM. Each case checked costs 1 credit.", stepThreeText(1))
+        assertEquals("Your cause list is ready by 7 AM. Each case checked costs 2 credits.", stepThreeText(2))
+        assertFalse(stepThreeText(1).contains("start you off"))
+    }
 }
