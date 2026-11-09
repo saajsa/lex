@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -92,17 +93,25 @@ fun WorkspaceChoiceScreen(onPick: (Mode) -> Unit, hour: Int = java.time.LocalTim
                     val counsel = w.kind == KIND_COUNSEL
                     Rise(2 + i) {
                         Box(
-                            Modifier.fillMaxWidth().height(176.dp).clip(RoundedCornerShape(12.dp))
+                            Modifier.fillMaxWidth().heightIn(min = 176.dp).clip(RoundedCornerShape(12.dp))
                                 .background(if (counsel) Ink else Color.White)
                                 .then(if (counsel) Modifier else Modifier.border(BorderStroke(1.dp, Rule), RoundedCornerShape(12.dp)))
                                 .clickable { onPick(if (counsel) Mode.Counsel else Mode.Portal) }
                                 .semantics { contentDescription = "Open ${w.label}" }
                                 .padding(horizontal = 20.dp, vertical = 22.dp),
                         ) {
-                            Column {
+                            // The arrow sits at the foot on the right: the text keeps clear of it and the card grows to hold the figures.
+                            Column(Modifier.padding(end = 48.dp, bottom = 4.dp)) {
                                 Icon(if (counsel) Icons.Outlined.CalendarMonth else Icons.Outlined.FolderOpen, null, tint = if (counsel) Gold else Ink, modifier = Modifier.size(30.dp))
                                 Spacer(Modifier.height(22.dp))
-                                Text(w.label.uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 2.4.sp, color = if (counsel) Gold else Mute)
+                                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(w.label.uppercase(), fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 2.4.sp, color = if (counsel) Gold else Mute)
+                                    // The firm has not yet verified the enrolment: said beside the name, as on the web.
+                                    if (counsel && w.status == "pending") Text(
+                                        "WITH OUR REVIEWERS", fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, letterSpacing = 1.4.sp, color = Ink,
+                                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Gold).padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
                                 Spacer(Modifier.height(6.dp))
                                 Text(if (counsel) "Your Daily Board" else "Your matters with the firm", fontSize = 22.sp, fontWeight = FontWeight.Light, color = if (counsel) Paper else Ink)
                                 val lines = statLines(w)

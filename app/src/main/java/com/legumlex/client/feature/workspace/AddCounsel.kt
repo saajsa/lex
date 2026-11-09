@@ -71,8 +71,11 @@ fun AddCounselScreen(onClose: () -> Unit, onAdded: (String) -> Unit) {
 
     LaunchedEffect(Unit) {
         // A draft already held is picked up; otherwise one is started.
-        val held = repo.state().getOrNull()?.draft
-        if (held != null) standing = held else repo.begin().onSuccess { standing = it }.onFailure { error = it.message.orEmpty() }
+        val asked = repo.state()
+        val held = asked.getOrNull()?.draft
+        if (held != null) standing = held
+        else if (asked.isFailure) error = asked.exceptionOrNull()?.message.orEmpty()
+        else repo.begin().onSuccess { standing = it }.onFailure { error = it.message.orEmpty() }
         starting = false
     }
 
@@ -147,6 +150,10 @@ fun AddCounselScreen(onClose: () -> Unit, onAdded: (String) -> Unit) {
         when (step) {
             0 -> {
                 WizardHeading("Your Bar Council certificate or ID card", "Your identity, PAN and mobile are already verified. Scan the certificate, or choose a PDF, JPG or PNG of up to 10 MB. It is read as you send it.")
+                if (doc() == null && !starting) androidx.compose.material3.TextButton({
+                    error = ""; starting = true
+                    scope.launch { repo.begin().onSuccess { standing = it }.onFailure { error = it.message.orEmpty() }; starting = false }
+                }) { Text("Try Again", color = Lex.colors.foreground) }
                 doc()?.let { d ->
                     DocCard(d, busy, busySince, false,
                         onScan = { scan() }, onPick = { picker.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) }, onRemove = {}, canRemove = false, progress = progress)

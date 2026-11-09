@@ -26,7 +26,7 @@ class WorkspaceRepository(private val context: Context) {
         val d = api.workspaceList()["data"] as Map<String, Any?>
         val ws = parseWorkspaceList(d)
         WorkspaceSession.update(ws)
-        WorkspaceState(ws, d["eligible"] == true, d["reason"].s(), (d["draft"] as? Map<String, Any?>)?.let { standingOfCounsel(it) })
+        WorkspaceState(ws, d["eligible"] == true, d["reason"].s(), heldDraft(d["draft"] as? Map<String, Any?>))
     }.recoverCatching { throw it.counselRefusal("Your workspaces could not be loaded just now. Please try again.") }
 
     @Suppress("UNCHECKED_CAST")
@@ -68,3 +68,10 @@ class WorkspaceRepository(private val context: Context) {
         ws to r["message"].s()
     }.recoverCatching { throw it.counselRefusal("The workspace could not be removed just now. Please try again.") }
 }
+
+/**
+ * The draft the server holds for this contact, or null. GET workspace always sends a standing, so "no draft" arrives as
+ * `started: false` with no documents; only a started one is a draft to pick up (otherwise begin must be called).
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun heldDraft(d: Map<String, Any?>?): CounselStanding? = d?.let { standingOfCounsel(it) }?.takeIf { it.started }
