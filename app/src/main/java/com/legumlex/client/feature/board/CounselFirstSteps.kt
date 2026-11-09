@@ -134,17 +134,31 @@ private fun StepsRing(progress: Float) {
     }
 }
 
+/** The step badge's look. Light is as designed; dark keeps the fixed dark disc but gives it a light ring, and the done tick in the theme's foreground, so neither blends into the dark card. */
+data class StepBadge(val bg: Color, val ink: Color, val ring: Color?)
+
+private val Ink = Color(0xFF151513)
+private val Gold = Color(0xFFF5C518)
+
+fun stepBadge(done: Boolean, dark: Boolean, border: Color, light: Color): StepBadge = when {
+    // The done tick takes the theme's foreground, on the border-coloured disc, so it reads in both themes.
+    done -> StepBadge(border, light, null)
+    !dark -> StepBadge(Ink, Gold, null)
+    else -> StepBadge(Ink, Gold, light)
+}
+
 @Composable
 private fun StepCard(number: String, done: Boolean, title: String, body: String, actions: @Composable () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Column(Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val badge = stepBadge(done, Lex.colors.isDark, Lex.colors.border, Lex.colors.foreground)
             Box(
-                Modifier.size(26.dp).clip(CircleShape).background(if (done) Lex.colors.border else Color(0xFF151513)),
+                Modifier.size(26.dp).clip(CircleShape).background(badge.bg).then(if (badge.ring != null) Modifier.border(1.5.dp, badge.ring, CircleShape) else Modifier),
                 contentAlignment = Alignment.Center,
             ) {
-                if (done) Icon(Icons.Outlined.Check, null, tint = Color(0xFF151513), modifier = Modifier.size(14.dp))
-                else Text(number, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFFF5C518))
+                if (done) Icon(Icons.Outlined.Check, null, tint = badge.ink, modifier = Modifier.size(14.dp))
+                else Text(number, fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = badge.ink)
             }
             Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Lex.colors.foreground)
         }
@@ -159,7 +173,8 @@ private fun StepButton(text: String, icon: ImageVector, primary: Boolean, onClic
     val shape = RoundedCornerShape(8.dp)
     Row(
         Modifier.clip(shape)
-            .then(if (primary) Modifier.background(Color(0xFF151513)) else Modifier.border(BorderStroke(1.dp, Lex.colors.border), shape))
+            .then(if (primary) Modifier.background(Color(0xFF151513)).then(if (Lex.colors.isDark) Modifier.border(BorderStroke(1.dp, Lex.colors.foreground), shape) else Modifier)
+                  else Modifier.border(BorderStroke(1.dp, Lex.colors.border), shape))
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {

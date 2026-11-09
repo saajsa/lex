@@ -50,4 +50,21 @@ class FirstStepsTest {
     @Test fun no_em_dash_in_the_words() {
         listOf(fs(100), fs(84), fs(0)).forEach { assertFalse(creditsStep(it).body.contains("—")) }
     }
+
+    private val ink = androidx.compose.ui.graphics.Color(0xFF151513)
+    private val gold = androidx.compose.ui.graphics.Color(0xFFF5C518)
+    private val grey = androidx.compose.ui.graphics.Color(0xFFDCD9D2)
+    private val white = androidx.compose.ui.graphics.Color(0xFFE4E4E2)
+
+    @Test fun light_badges_are_as_committed() {
+        assertEquals(StepBadge(ink, gold, null), stepBadge(false, false, grey, white))
+        assertEquals(StepBadge(grey, white, null), stepBadge(true, false, grey, white))
+    }
+
+    @Test fun dark_badges_never_sit_dark_on_dark() {
+        // The number badge keeps its dark disc and gold number, with a light ring.
+        assertEquals(StepBadge(ink, gold, white), stepBadge(false, true, grey, white))
+        // The done tick takes the theme's foreground on the border-coloured disc.
+        assertEquals(StepBadge(grey, white, null), stepBadge(true, true, grey, white))
+    }
 }
