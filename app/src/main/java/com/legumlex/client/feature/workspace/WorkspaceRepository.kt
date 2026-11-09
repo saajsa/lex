@@ -47,13 +47,22 @@ class WorkspaceRepository(private val context: Context) {
     suspend fun saveReview(fields: Map<String, String>): Result<CounselStanding> = runCatching { standingOfCounsel(api.workspaceReviewSave(fields)["data"] as Map<String, Any?>) }
         .recoverCatching { throw it.counselRefusal("Your details could not be saved. Please try again.") }
 
-    /** Submit: the Counsel workspace opens at once. The answer is the new list and the server's words. */
+    /**
+     * Submit: the Counsel workspace opens at once. The answer to the submit itself is worked out inside the same request that
+     * granted the workspace, so it can still describe the account as before; the list is therefore read again, in a request of
+     * its own, and that fresh list is the one kept and returned (the submit's own is the fallback if the second ask fails).
+     */
     @Suppress("UNCHECKED_CAST")
     suspend fun submit(): Result<Pair<Workspaces, String>> = runCatching {
         val r = api.workspaceSubmit(mapOf("terms" to "1"))
-        val ws = parseWorkspaceList(r["data"] as? Map<String, Any?>)
-        WorkspaceSession.update(ws)
-        ws to r["message"].s()
+        val submitted = parseWorkspaceList(r["data"] as? Map<String, Any?>)
+        WorkspaceSession.update(submitted)
+        val fresh = state().getOrNull()?.workspaces
+        val settled = settledAfterAdd(submitted, fresh)
+        if (com.legumlex.client.BuildConfig.DEBUG) android.util.Log.d("LexWorkspace",
+            "afterAdd submitted(choose=${submitted.choose} counsel=${submitted.counsel?.status}/${submitted.counsel?.enter} portal=${submitted.portal?.enter}) " +
+                "fresh=${if (fresh == null) "none" else "choose=${fresh.choose} counsel=${fresh.counsel?.status}/${fresh.counsel?.enter} portal=${fresh.portal?.enter}"} decision=${afterAddDecision(settled)}")
+        settled to r["message"].s()
     }.recoverCatching { throw it.counselRefusal("Your Counsel workspace could not be added. Please try again.") }
 
     suspend fun discard(): Result<Unit> = runCatching { api.workspaceDiscard(); Unit }
@@ -75,3 +84,9 @@ class WorkspaceRepository(private val context: Context) {
  */
 @Suppress("UNCHECKED_CAST")
 internal fun heldDraft(d: Map<String, Any?>?): CounselStanding? = d?.let { standingOfCounsel(it) }?.takeIf { it.started }
+
+/** The list to act on after Add Counsel: the fresh one when it could be read, else the submit's own. */
+fun settledAfterAdd(submitted: Workspaces, fresh: Workspaces?): Workspaces = fresh ?: submitted
+
+/** After Add Counsel the account holds both workspaces: the decision is to ask where to go (Choose), never to fall into the Portal. */
+fun afterAddDecision(ws: Workspaces): OpenAs = openAs(ws)

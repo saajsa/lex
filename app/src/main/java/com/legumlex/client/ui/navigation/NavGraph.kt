@@ -59,10 +59,12 @@ fun LegumNavGraph(navController: NavHostController) {
     val openContext = LocalContext.current
     val openScope = rememberCoroutineScope()
     // The app opens as a client (after registering, or signing in at the counsel door): where to today? if there is a choice.
-    fun openClient(nc: NavHostController) {
+    fun openClient(nc: NavHostController, thenAddCounsel: Boolean = false) {
         openScope.launch {
             val choose = com.legumlex.client.feature.workspace.WorkspaceSession.open(ApiClient.get(openContext))
             nc.navigate(if (choose) Route.Choose.path else Route.Home.path) { popUpTo(0) { inclusive = true } }
+            // Add Counsel opens on top of the app's opening, so closing it returns there; the chooser follows the submit.
+            if (thenAddCounsel && !choose) nc.navigate(Route.AddCounsel.path)
         }
     }
     // Where a waiting item opens (the action queue, now in Notifications).
@@ -150,6 +152,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 onSignIn = { navController.navigate(Route.Login.path) { popUpTo(0) { inclusive = true } } },
                 onForm = { navController.navigate(Route.CounselForm.path) },
                 onSignedInAsClient = { openClient(navController) },
+                onAddCounsel = { openClient(navController, thenAddCounsel = true) },
             )
         }
         composable(Route.CounselForm.path) {

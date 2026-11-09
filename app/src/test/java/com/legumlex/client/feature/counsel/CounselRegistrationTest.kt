@@ -70,4 +70,10 @@ class CounselRegistrationTest {
     @Test fun anything_else_uses_the_fallback() {
         assertEquals("fallback", IllegalStateException("x").counselRefusal("fallback").message)
     }
+
+    @Test fun the_servers_next_is_read_from_the_triage_and_the_refusal() {
+        assertEquals("add_counsel", triageOf(mapOf("outcome" to "client", "message" to "m", "next" to "add_counsel")).next)
+        assertEquals("", triageOf(mapOf("outcome" to "new", "message" to "m")).next)
+        assertEquals("add_counsel", CounselRefused("outcome_client", "", "m", "add_counsel").next)
+    }
 }

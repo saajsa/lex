@@ -28,7 +28,7 @@ import retrofit2.HttpException
 object CounselFlow { @Volatile var keepSession: Boolean = false }
 
 /** Who this is to the firm, and where the draft stands: outcome new | client | counsel | pending | rejected | staff. */
-data class CounselTriage(val outcome: String, val message: String, val note: String, val standing: CounselStanding)
+data class CounselTriage(val outcome: String, val message: String, val note: String, val standing: CounselStanding, val next: String = "")
 
 /** The draft: the two documents, whether codes can be sent, and the mobile already confirmed (if any). */
 data class CounselStanding(val onb: OnbStanding, val started: Boolean, val codes: Boolean, val verified: String?)
@@ -44,14 +44,14 @@ data class CounselReview(
 data class CounselOpened(val token: String, val clientId: Int, val contactId: Int)
 
 /** A refusal: the server's code, the field it is about and its words (409 begin carries the outcome as code outcome_<x>). */
-class CounselRefused(val code: String, val field: String, message: String) : Exception(message)
+class CounselRefused(val code: String, val field: String, message: String, val next: String = "") : Exception(message)
 
 internal fun Throwable.counselRefusal(fallback: String): CounselRefused {
     if (this is CounselRefused) return this
     if (this is HttpException) {
         val j = runCatching { JSONObject(response()?.errorBody()?.string().orEmpty()) }.getOrNull()
         val msg = j?.optString("message").orEmpty().ifBlank { fallback }
-        return CounselRefused(j?.optString("code").orEmpty(), j?.optString("field").orEmpty(), msg)
+        return CounselRefused(j?.optString("code").orEmpty(), j?.optString("field").orEmpty(), msg, j?.optString("next").orEmpty())
     }
     return CounselRefused("", "", if (this is java.io.IOException) offlineMessage() else fallback)
 }
@@ -67,7 +67,7 @@ internal fun standingOfCounsel(d: Map<String, Any?>): CounselStanding {
 }
 
 @Suppress("UNCHECKED_CAST")
-internal fun triageOf(d: Map<String, Any?>) = CounselTriage(d["outcome"].s(), d["message"].s(), d["note"].s(), standingOfCounsel(d))
+internal fun triageOf(d: Map<String, Any?>) = CounselTriage(d["outcome"].s(), d["message"].s(), d["note"].s(), standingOfCounsel(d), d["next"].s())
 
 internal fun reviewOf(d: Map<String, Any?>) = CounselReview(
     d["full_name"].s(), d["name_locked"] == true, d["enrollment_number"].s(), d["number_locked"] == true,

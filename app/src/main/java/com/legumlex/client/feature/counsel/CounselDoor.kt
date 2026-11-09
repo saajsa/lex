@@ -76,6 +76,8 @@ fun CounselRegisterScreen(
     onSignIn: () -> Unit,
     onForm: () -> Unit,
     onSignedInAsClient: () -> Unit,
+    /** An existing client whose account can take the Counsel workspace: straight into Add Counsel Workspace. */
+    onAddCounsel: () -> Unit = onSignedInAsClient,
 ) {
     val context = LocalContext.current
     val activity = context.requireActivity()
@@ -91,6 +93,7 @@ fun CounselRegisterScreen(
     var triage by remember { mutableStateOf<CounselTriage?>(null) }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var addCounsel by remember { mutableStateOf(false) }
 
     suspend fun leave() { if (!storedLead) auth.forget(); stage = "door"; triage = null }
     // Anywhere past the door the Google sign-in is put away again, so nobody is left half signed in.
@@ -123,7 +126,14 @@ fun CounselRegisterScreen(
                     scope.launch {
                         auth.signInWithGoogle(token)
                             .onSuccess { r ->
-                                if (!r.lead) { busy = false; stage = "client" } else triageLead()
+                                if (!r.lead) {
+                                    // An existing client: if the Counsel workspace can be added to the account, that is where Continue goes.
+                                    // The Google client answer carries no `next` (it is on GET lead/counsel and the begin 409): here the list decides.
+                                    val next: String? = null
+                                    val ws = com.legumlex.client.feature.workspace.WorkspaceRepository(context).state().getOrNull()?.workspaces
+                                    addCounsel = com.legumlex.client.feature.workspace.doorClientNext(ws, next) == com.legumlex.client.feature.workspace.DoorNext.AddCounsel
+                                    busy = false; stage = "client"
+                                } else triageLead()
                             }
                             .onFailure { busy = false; error = it.message.orEmpty() }
                     }
@@ -144,7 +154,7 @@ fun CounselRegisterScreen(
             when (stage) {
                 "door" -> Door(still)
                 "outcome" -> Outcome(triage, busy, error, onStart = ::startRegistration, onBack = { scope.launch { leave() } })
-                "client" -> ClientNote(onContinue = onSignedInAsClient)
+                "client" -> ClientNote(addCounsel, onContinue = if (addCounsel) onAddCounsel else onSignedInAsClient)
                 else -> Box(Modifier.fillMaxWidth().padding(top = 80.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Gold, strokeWidth = 2.dp) }
             }
             Spacer(Modifier.height(24.dp))
@@ -233,11 +243,11 @@ private fun Outcome(t: CounselTriage?, busy: Boolean, error: String, onStart: ()
 
 /** An existing client signed in with Google: no second registration; the way to add Counsel is in Profile. */
 @Composable
-private fun ClientNote(onContinue: () -> Unit) {
+private fun ClientNote(addCounsel: Boolean, onContinue: () -> Unit) {
     Column(Modifier.padding(top = 44.dp)) {
         Text("SIGNED IN", fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 2.2.sp, color = Gold)
         Text("You already have an account here.", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = 28.sp, lineHeight = 31.sp, color = Chalk, modifier = Modifier.padding(top = 12.dp))
-        Text("You are signed in with it. To add a Counsel workspace to this account, open Profile and choose Add Counsel Workspace.", fontSize = 14.sp, lineHeight = 21.sp, color = Dim, modifier = Modifier.padding(top = 14.dp))
+        Text(if (addCounsel) "You are signed in with it. Continue to add the Counsel workspace to this account: your certificate, your details, and you are done." else "You are signed in with it. To add a Counsel workspace to this account, open Profile and choose Add Counsel Workspace.", fontSize = 14.sp, lineHeight = 21.sp, color = Dim, modifier = Modifier.padding(top = 14.dp))
         Spacer(Modifier.height(30.dp))
         DoorButton("Continue", true, primary = true, onClick = onContinue)
     }

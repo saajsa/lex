@@ -172,3 +172,45 @@ class PushHintTest {
         assertEquals(Mode.Unknown, WorkspaceSession.mode.value)
     }
 }
+
+class AfterAddCounselTest {
+    private fun counsel(enter: Boolean) = WorkspaceItem("counsel", "Counsel", "pending", enter, "", false, enter)
+    private val portal = WorkspaceItem("portal", "Client Portal", "active", true, "", false, false)
+
+    @Test fun after_add_counsel_with_both_workspaces_the_decision_is_choose() {
+        val fresh = Workspaces(listOf(counsel(true), portal), choose = true, counselOnly = false)
+        assertEquals(OpenAs.Choose, afterAddDecision(settledAfterAdd(fresh, fresh)))
+    }
+
+    @Test fun a_stale_submit_answer_does_not_decide_when_a_fresh_list_could_be_read() {
+        // Worked out inside the request that granted the workspace: still the old account (Portal only).
+        val stale = Workspaces(listOf(counsel(false), portal), choose = false, counselOnly = false)
+        val fresh = Workspaces(listOf(counsel(true), portal), choose = true, counselOnly = false)
+        assertEquals(fresh, settledAfterAdd(stale, fresh))
+        assertEquals(OpenAs.Choose, afterAddDecision(settledAfterAdd(stale, fresh)))
+    }
+
+    @Test fun when_the_second_ask_fails_the_submits_own_list_is_used() {
+        val own = Workspaces(listOf(counsel(true), portal), choose = true, counselOnly = false)
+        assertEquals(own, settledAfterAdd(own, null))
+    }
+}
+
+class DoorNextTest {
+    private fun ws(canAdd: Boolean) = Workspaces(listOf(WorkspaceItem("counsel", "Counsel", "removed", false, "", canAdd, false),
+        WorkspaceItem("portal", "Client Portal", "active", true, "", false, false)), choose = false, counselOnly = false)
+
+    @Test fun the_servers_next_decides_when_it_is_there() {
+        assertEquals(DoorNext.AddCounsel, doorClientNext(null, "add_counsel"))
+        assertEquals(DoorNext.AddCounsel, doorClientNext(ws(false), "add_counsel"))
+        assertEquals(DoorNext.Open, doorClientNext(ws(true), "open"))
+    }
+
+    @Test fun without_it_the_existing_outcome_goes_by_can_add() {
+        assertEquals(DoorNext.AddCounsel, doorClientNext(ws(true), null))
+        assertEquals(DoorNext.Open, doorClientNext(ws(false), null))
+        assertEquals(DoorNext.Open, doorClientNext(null, null))
+        // A blank next counts as absent.
+        assertEquals(DoorNext.AddCounsel, doorClientNext(ws(true), ""))
+    }
+}

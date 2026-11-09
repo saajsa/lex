@@ -230,3 +230,18 @@ fun statLines(item: WorkspaceItem): List<Pair<String, String>> {
         )
     }
 }
+
+/** What the counsel door does for an existing client who signed in with Google (REQ-010). */
+enum class DoorNext { AddCounsel, Open }
+
+/**
+ * An existing client goes straight into Add Counsel Workspace when the server says so (an additive `next` of "add_counsel" on
+ * the answer), or, until it does, when the list shows the Counsel workspace can be added (can_add). Any other `next` or no way
+ * to add it opens the app as usual (the chooser if there is a choice).
+ */
+fun doorClientNext(ws: Workspaces?, next: String?): DoorNext = when {
+    next == "add_counsel" -> DoorNext.AddCounsel
+    !next.isNullOrBlank() -> DoorNext.Open
+    ws?.counsel?.canAdd == true -> DoorNext.AddCounsel
+    else -> DoorNext.Open
+}
