@@ -201,7 +201,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         containerColor = if (darkRoute) com.legumlex.client.ui.theme.Zinc950 else com.legumlex.client.ui.theme.Lex.colors.background,
         topBar = {
             if (showAppHeader(currentRoute)) {
-                AppHeader(
+                val headerBody: @Composable () -> Unit = { AppHeader(
                     showBack = showHeaderBack(currentRoute, canPop),
                     // The system back: a wizard steps back a page before it
                     // leaves, as it does for the back gesture.
@@ -224,7 +224,14 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     accountSwitch = profile?.takeIf { !lead && !counsel }?.let { p ->
                         { com.legumlex.client.feature.profile.AccountSwitch(androidx.lifecycle.viewmodel.compose.viewModel(key = "accounts-" + p.email.orEmpty())) }
                     },
-                )
+                ) }
+                // The Upgrade room is dark until the light is lit: the header goes dark with it (0.9 s), status bar included.
+                val upgradeDark by com.legumlex.client.feature.board.UpgradeRoom.dark.collectAsState()
+                val headerDark = upgradeDark && currentRoute?.substringBefore("?") == Route.Upgrade.path
+                val reduced = com.legumlex.client.feature.board.rememberReducedMotion()
+                androidx.compose.animation.Crossfade(headerDark, animationSpec = androidx.compose.animation.core.tween(if (reduced) 0 else 900), label = "header") { d ->
+                    if (d) androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.theme.LocalLexColors provides com.legumlex.client.feature.board.UpgradeRoomColors) { headerBody() } else headerBody()
+                }
             }
         },
         bottomBar = { if (showAppFooter(currentRoute) && !waiting) LegumBottomBar(navController, lead, counsel) },
@@ -240,17 +247,18 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // everywhere else. Set by route, here, so one screen leaving cannot
         // undo the next one's.
         val shellView = androidx.compose.ui.platform.LocalView.current
+        val upgradeDarkNow = com.legumlex.client.feature.board.UpgradeRoom.dark.collectAsState().value && currentRoute?.substringBefore("?") == Route.Upgrade.path
         val themeDark = com.legumlex.client.ui.theme.Lex.colors.isDark
-        LaunchedEffect(currentRoute, themeDark, darkRoute, counsel) {
+        LaunchedEffect(currentRoute, themeDark, darkRoute, counsel, upgradeDarkNow) {
             val window = (shellView.context as? android.app.Activity)?.window ?: return@LaunchedEffect
             val bars = androidx.core.view.WindowCompat.getInsetsController(window, shellView)
             // 3-button navigation draws its own pale scrim under the bar; the Counsel page colour should show instead.
             if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = !counsel
             val splash = currentRoute == Route.Splash.path
             val login  = currentRoute == Route.Login.path
-            bars.isAppearanceLightStatusBars = if (splash || darkRoute) false else if (login) true else !themeDark
+            bars.isAppearanceLightStatusBars = if (splash || darkRoute || upgradeDarkNow) false else if (login) true else !themeDark
             // The bottom bar is black: light navigation icons wherever it shows.
-            bars.isAppearanceLightNavigationBars = if (edge || darkRoute) false else if (showAppFooter(currentRoute) && !counsel) false else !themeDark
+            bars.isAppearanceLightNavigationBars = if (edge || darkRoute || upgradeDarkNow) false else if (showAppFooter(currentRoute) && !counsel) false else !themeDark
         }
         // The bottom bar's Home circle rises half its height above the bar:
         // pages end above it, so nothing at their foot (a reply box, a button)

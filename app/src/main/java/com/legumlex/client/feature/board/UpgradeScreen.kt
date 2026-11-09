@@ -82,6 +82,20 @@ private val RoomDark = Color(0xFF151513)
 private val Chalk = Color(0xFFF4F3EF)
 private val Ease = CubicBezierEasing(0.2f, 0.7f, 0.2f, 1f)
 
+/**
+ * Whether the Upgrade room is dark. The app's header reads this so the dark room is not cut by a light band: while it is
+ * dark the header (and the status bar) go dark with it, and come back with the same fade when the light is on.
+ */
+object UpgradeRoom {
+    val dark = kotlinx.coroutines.flow.MutableStateFlow(false)
+}
+
+/** The header's palette in the dark room: the room's own colour, light marks and chip. */
+val UpgradeRoomColors = com.legumlex.client.ui.theme.DarkLexColors.copy(
+    chrome = RoomDark, chromeRule = Color(0xFF2C2B28), foreground = Chalk, secondaryForeground = Color(0xFFCFCDC6),
+    mutedForeground = Color(0xFFA3A19A), border = Color(0xFF3A3936), input = Color(0xFF55524C),
+)
+
 private val Parts = listOf("Cases", "Hearings", "Clients", "Documents", "Mail", "Accounts")
 private const val Soon = "Coming soon"
 
@@ -107,11 +121,19 @@ fun UpgradeScreen() {
     val ink by animateColorAsState(if (lit) InkDark else Chalk, tween(ms(900)), label = "ink")
     val panelX by animateFloatAsState(if (lit) 248f else 300f, tween(ms(1000), delayMillis = ms(1100), easing = Ease), label = "panel")
     val clearance = com.legumlex.client.ui.navigation.LocalCounselClearance.current
+    // The header goes dark with the room; leaving the screen puts it back.
+    LaunchedEffect(lit) { UpgradeRoom.dark.value = !lit }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { UpgradeRoom.dark.value = false } }
 
-    Box(Modifier.fillMaxSize().background(room).clipToBounds()) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().background(room).clipToBounds()) {
+    // Everything sits between the header's bottom and the bar zone's top, 20 dp in from each. The type scales with the
+    // height left, so the whole stack fits on small phones too (about 544 dp of stack at full size).
+    val avail = maxHeight - clearance - 40.dp
+    val k = (avail.value / 544f).coerceIn(0.62f, 1f)
+    val listSp = (38f * k).coerceAtMost(34f)
         // The Counsel app, peeking from the right edge once the light is on.
         Box(
-            Modifier.align(Alignment.TopEnd).padding(top = 24.dp, bottom = 96.dp).fillMaxHeight().width(300.dp)
+            Modifier.align(Alignment.TopEnd).padding(top = 16.dp, bottom = clearance + 8.dp).fillMaxHeight().width(300.dp)
                 .offset(x = panelX.dp)
                 .shadow(14.dp, RoundedCornerShape(22.dp), clip = false).clip(RoundedCornerShape(22.dp)).background(InkDark),
         ) {
@@ -125,33 +147,34 @@ fun UpgradeScreen() {
 
         Cord(lit = lit, still = still, onLight = { lit = true })
 
-        Column(Modifier.fillMaxSize().padding(start = 26.dp, end = 60.dp, top = 30.dp, bottom = clearance)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
-                LogoMark(Modifier.size(30.dp), ink)
-                Text("THE FULL FIRM PLATFORM", fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, letterSpacing = 2.6.sp, color = ink)
-            }
-            Column(Modifier.padding(top = 16.dp)) {
-                Focus(delayMs = 0, still = still) { ls -> Text("Justice,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = 34.sp, lineHeight = 37.sp, letterSpacing = ls, color = ink) }
-                Focus(delayMs = 500, still = still) { ls -> Text("in plain sight.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = 34.sp, lineHeight = 37.sp, letterSpacing = ls, color = ink) }
+        Column(Modifier.fillMaxSize().padding(start = 26.dp, end = 60.dp, top = 20.dp, bottom = clearance + 20.dp)) {
+            Text(
+                "THE FULL FIRM PLATFORM", fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = (12 * k).sp, letterSpacing = 2.6.sp,
+                color = ink, modifier = Modifier.padding(top = 4.dp),
+            )
+            Column(Modifier.padding(top = (16 * k).dp)) {
+                Focus(delayMs = 0, still = still) { ls -> Text("Justice,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = (34 * k).sp, lineHeight = (37 * k).sp, letterSpacing = ls, color = ink) }
+                Focus(delayMs = 500, still = still) { ls -> Text("in plain sight.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = (34 * k).sp, lineHeight = (37 * k).sp, letterSpacing = ls, color = ink) }
             }
             Spacer(Modifier.weight(1f))
             Column {
                 Parts.forEachIndexed { i, w ->
                     Reveal(lit, 350 + 100 * i, still) {
-                        Text(w, fontWeight = FontWeight.Light, fontSize = 38.sp, lineHeight = 43.sp, letterSpacing = (-0.5).sp, color = ink)
+                        Text(w, fontWeight = FontWeight.Light, fontSize = listSp.sp, lineHeight = (listSp * 1.14f).sp, letterSpacing = (-0.5).sp, color = ink)
                     }
                 }
             }
-            Reveal(lit, 1050, still, Modifier.padding(top = 20.dp)) {
-                Text("Your Daily Board is one part of a complete firm platform.", fontSize = 14.sp, lineHeight = 22.sp, color = Color(0xFF3D3B37), modifier = Modifier.widthIn(max = 262.dp))
+            Reveal(lit, 1050, still, Modifier.padding(top = (20 * k).dp)) {
+                Text("Your Daily Board is one part of a complete firm platform.", fontSize = (14 * k).sp, lineHeight = (22 * k).sp, color = Color(0xFF3D3B37), modifier = Modifier.widthIn(max = 262.dp))
             }
             Reveal(lit, 1200, still, Modifier.padding(top = 6.dp)) {
-                Text("A much bigger journey awaits.", fontWeight = FontWeight.Medium, fontSize = 20.sp, lineHeight = 27.sp, color = ink)
+                Text("A much bigger journey awaits.", fontWeight = FontWeight.Medium, fontSize = (20 * k).sp, lineHeight = (27 * k).sp, color = ink)
             }
-            Reveal(lit, 1400, still, Modifier.padding(top = 16.dp)) { Typed(lit, still) }
+            Reveal(lit, 1400, still, Modifier.padding(top = (16 * k).dp)) { Typed(lit, still, k) }
         }
 
-        LightSwitch(lit = lit, still = still, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = clearance + 8.dp)) { lit = false }
+        // The switch sits top right, level with the eyebrow and left of the panel's peek.
+        LightSwitch(lit = lit, still = still, modifier = Modifier.align(Alignment.TopEnd).padding(end = 68.dp, top = 17.dp)) { lit = false }
     }
 }
 
@@ -173,7 +196,7 @@ private fun Focus(delayMs: Int, still: Boolean, content: @Composable (letterSpac
 
 /** "Coming soon" in large light grey type that types itself in after the light, with a blinking gold caret. */
 @Composable
-private fun Typed(lit: Boolean, still: Boolean) {
+private fun Typed(lit: Boolean, still: Boolean, k: Float = 1f) {
     var shown by remember { mutableStateOf(0) }
     var caretOn by remember { mutableStateOf(true) }
     LaunchedEffect(lit, still) {
@@ -187,8 +210,8 @@ private fun Typed(lit: Boolean, still: Boolean) {
         while (true) { delay(500); caretOn = !caretOn }
     }
     Row(Modifier.semantics { contentDescription = Soon }, verticalAlignment = Alignment.Bottom) {
-        Text(Soon.take(shown), fontWeight = FontWeight.Light, fontSize = 30.sp, letterSpacing = (-0.3).sp, color = Color(0xFF8A877F), maxLines = 1, softWrap = false)
-        Text("|", fontSize = 30.sp, color = if (lit && (still || caretOn)) Gold else Color.Transparent, modifier = Modifier.padding(start = 2.dp))
+        Text(Soon.take(shown), fontWeight = FontWeight.Light, fontSize = (30 * k).sp, letterSpacing = (-0.3).sp, color = Color(0xFF8A877F), maxLines = 1, softWrap = false)
+        Text("|", fontSize = (30 * k).sp, color = if (lit && (still || caretOn)) Gold else Color.Transparent, modifier = Modifier.padding(start = 2.dp))
     }
 }
 
@@ -267,16 +290,5 @@ private fun LightSwitch(lit: Boolean, still: Boolean, modifier: Modifier, onOff:
             Modifier.align(Alignment.CenterEnd).padding(end = 3.dp).size(20.dp)
                 .shadow(6.dp, CircleShape, ambientColor = Gold, spotColor = Gold).clip(CircleShape).background(Gold),
         )
-    }
-}
-
-/** The Legum Lex mark (the canvas's two strokes) in the current ink. */
-@Composable
-private fun LogoMark(modifier: Modifier, colour: Color) {
-    Canvas(modifier) {
-        val k = size.width / 28f
-        val a = Path().apply { moveTo(3 * k, 4 * k); lineTo(9 * k, 4 * k); lineTo(9 * k, 19 * k); lineTo(18 * k, 19 * k); lineTo(18 * k, 25 * k); lineTo(3 * k, 25 * k); close() }
-        val b = Path().apply { moveTo(19 * k, 3 * k); lineTo(25 * k, 3 * k); lineTo(25 * k, 22 * k); lineTo(21 * k, 22 * k); lineTo(21 * k, 7 * k); lineTo(19 * k, 7 * k); close() }
-        drawPath(a, colour); drawPath(b, colour)
     }
 }
