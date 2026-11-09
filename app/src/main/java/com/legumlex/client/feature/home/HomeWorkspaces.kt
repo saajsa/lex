@@ -13,6 +13,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -195,8 +198,14 @@ private fun EntranceCard(t: Entrance, focus: Float, modifier: Modifier = Modifie
             }
             Spacer(Modifier.height(16.dp))
             // The name in the day's own type (TUESDAY on Home): heavy condensed capitals.
+            // The title is one line that fits the tile: it starts at 28 sp and shrinks (to 20 sp at least) until the whole word shows.
+            var titleSp by remember(t.title) { mutableStateOf(TITLE_MAX_SP) }
             Text(t.title.uppercase(), modifier = if (onPicture) Modifier.fillMaxWidth(TextPanel * 0.88f) else Modifier, fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold,
-                fontSize = 28.sp, lineHeight = 30.sp, letterSpacing = 0.3.sp, color = ink, maxLines = 1)
+                fontSize = titleSp.sp, lineHeight = (titleSp * 30f / 28f).sp, letterSpacing = 0.3.sp, color = ink, maxLines = 1, softWrap = false,
+                onTextLayout = { r ->
+                    val next = fitTitleSize(titleSp, r.getLineRight(0) - r.getLineLeft(0), r.size.width.toFloat(), TITLE_MIN_SP)
+                    if (next < titleSp) titleSp = next
+                })
             Spacer(Modifier.height(6.dp))
             Text(t.description, fontSize = 13.sp, lineHeight = 18.sp, color = sub, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 modifier = if (onPicture) Modifier.fillMaxWidth(TextPanel * 0.88f) else Modifier)
@@ -250,4 +259,16 @@ internal fun ConsultationFigures(ws: Workspaces, onOpenConsultations: () -> Unit
                 Modifier.weight(1f).fillMaxHeight(), onClick = onOpenConsultations)
         }
     }
+}
+
+const val TITLE_MAX_SP = 28f
+const val TITLE_MIN_SP = 20f
+
+/**
+ * The sizing rule for a tile's title: keep the size when the whole word fits the width given to it; otherwise scale it down in
+ * proportion to how much too wide it is (a hair less, so it settles), never below [min].
+ */
+fun fitTitleSize(current: Float, textWidth: Float, available: Float, min: Float): Float {
+    if (textWidth <= 0f || available <= 0f || textWidth <= available) return current
+    return maxOf(min, current * available / textWidth * 0.995f)
 }

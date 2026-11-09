@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Smartphone
@@ -98,11 +99,11 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
     ) {
         PageHeader(eyebrow = "Your Account", title = "Your Profile")
 
-        Notice(
-            title = "Held As On Record",
-            body = "Your name and email address appear on filings and on service of notice, so they are held as we have them. To correct one, write to us and we will update the record for you. Your mobile number is changed by verifying a new one below.",
-            palette = Lex.colors.info,
-        )
+        // The long description sits behind an (i) on the heading row (owner's rule: a long description becomes an information icon).
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Held As On Record", style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+            com.legumlex.client.feature.board.InfoTip(HELD_AS_ON_RECORD, label = "About Held As On Record")
+        }
 
         LexCard(title = "Your Details") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -124,7 +125,7 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
             KeyValueRow("Full Name", p.name.ifBlank { "Not Recorded" }, trailing = { Locked() })
             HorizontalDivider(color = Lex.colors.border)
             KeyValueRow("Email Address", p.email ?: "Not Recorded", trailing = {
-                if (p.emailVerified) StatusBadge("Verified", Lex.colors.success) else Locked()
+                if (p.emailVerified) VerifiedMark() else Locked()
             })
             p.position?.let {
                 HorizontalDivider(color = Lex.colors.border)
@@ -233,7 +234,7 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
         return
     }
     LexCard(title = "Mobile Number", trailing = {
-        if (m.verified) StatusBadge("Verified", Lex.colors.success) else StatusBadge("Not Verified", Lex.colors.neutral)
+        if (m.verified) VerifiedMark() else StatusBadge("Not Verified", Lex.colors.neutral)
     }) {
         note?.let {
             val isError by vm.noteIsError.collectAsState()
@@ -363,4 +364,16 @@ private fun stamp(raw: String?, withTime: Boolean = false): String {
         val t = LocalDateTime.parse(raw.replace(' ', 'T'))
         t.format(DateTimeFormatter.ofPattern(if (withTime) "d MMM yyyy, h:mm a" else "d MMM yyyy", Locale.ENGLISH))
     }.getOrDefault(raw)
+}
+
+/** What the Held As On Record (i) says. */
+internal const val HELD_AS_ON_RECORD = "Your name and email address appear on filings and on service of notice, so they are held as we have them. To correct one, write to us and we will update the record for you. Your mobile number is changed by verifying a new one below."
+
+/** Verified is a green check mark and nothing else; screen readers still hear "Verified". */
+@Composable
+internal fun VerifiedMark(modifier: Modifier = Modifier) {
+    Icon(
+        androidx.compose.material.icons.Icons.Filled.CheckCircle, contentDescription = "Verified", tint = Lex.colors.success.solid,
+        modifier = modifier.size(22.dp),
+    )
 }

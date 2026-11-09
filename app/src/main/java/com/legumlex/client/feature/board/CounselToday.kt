@@ -276,6 +276,38 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                     )
                 }
             }
+            // Search and Add sit at the top, right below the day's heading.
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Color(0xFF3A3936), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Color(0xFFA3A19A), modifier = Modifier.size(18.dp))
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = q, onValueChange = { q = it }, singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                            modifier = Modifier.weight(1f).semantics { contentDescription = "Search any case" },
+                            decorationBox = { inner -> Box { if (q.isEmpty()) Text("Search any case", color = Color(0xFFA3A19A), fontSize = 14.sp); inner() } },
+                        )
+                    }
+                    Box {
+                        IconAction(Icons.Outlined.Add, "Add a case", { addMenu = true }, look = ActionLook.OnDark, size = 48.dp)
+                        androidx.compose.material3.DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Add By CNR") }, onClick = { addMenu = false; byCnr = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Import From eCourts") }, onClick = { addMenu = false; importing = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Export All Cases") }, onClick = {
+                                addMenu = false
+                                scope.launch {
+                                    repo.export().onSuccess { shareText(context, it, "myCases.txt") }
+                                        .onFailure { Toast.makeText(context, if (it.isOffline()) "The export needs a connection." else it.boardMessage(), Toast.LENGTH_LONG).show() }
+                                }
+                            })
+                        }
+                    }
+                }
+            }
             if (q.isNotBlank()) {
                 val all = found
                 when {
@@ -305,38 +337,6 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         // Each case draws its own stretch of the rail and its node, so the line runs unbroken from the first node to the last.
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             items.forEachIndexed { i, c -> TimelineCase(c, { onOpenCase(c.id) }, { n, a -> answering = n to a }, today, first = i == 0, last = i == items.lastIndex) }
-                        }
-                    }
-                }
-            }
-            // Search and Add stay at the foot.
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Row(
-                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Color(0xFF3A3936), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = Color(0xFFA3A19A), modifier = Modifier.size(18.dp))
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = q, onValueChange = { q = it }, singleLine = true,
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
-                            modifier = Modifier.weight(1f).semantics { contentDescription = "Search any case" },
-                            decorationBox = { inner -> Box { if (q.isEmpty()) Text("Search any case", color = Color(0xFFA3A19A), fontSize = 14.sp); inner() } },
-                        )
-                    }
-                    Box {
-                        IconAction(Icons.Outlined.Add, "Add a case", { addMenu = true }, look = ActionLook.OnDark, size = 48.dp)
-                        androidx.compose.material3.DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Add By CNR") }, onClick = { addMenu = false; byCnr = true })
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Import From eCourts") }, onClick = { addMenu = false; importing = true })
-                            androidx.compose.material3.DropdownMenuItem(text = { Text("Export All Cases") }, onClick = {
-                                addMenu = false
-                                scope.launch {
-                                    repo.export().onSuccess { shareText(context, it, "myCases.txt") }
-                                        .onFailure { Toast.makeText(context, if (it.isOffline()) "The export needs a connection." else it.boardMessage(), Toast.LENGTH_LONG).show() }
-                                }
-                            })
                         }
                     }
                 }
