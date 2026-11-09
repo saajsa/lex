@@ -409,7 +409,7 @@ data class HomeTiles(
     val datesCaught: Int, val disposedThisYear: Int, val oldestRunningYear: Int?,
 )
 
-data class CounselHome(val profile: HomeProfile, val score: HomeScore, val tiles: HomeTiles)
+data class CounselHome(val profile: HomeProfile, val score: HomeScore, val tiles: HomeTiles, val firstSteps: FirstSteps? = null)
 
 internal fun parseHome(d: Map<String, Any?>): CounselHome {
     val p = d["profile"].map()
@@ -438,6 +438,7 @@ internal fun parseHome(d: Map<String, Any?>): CounselHome {
             hearings = tm["hearings"].int(), busiestDate = bz["date"].strOrNull(), busiestCount = bz["count"].int(),
             datesCaught = t["dates_caught"].map()["count"].int(), disposedThisYear = ds["this_year"].int(), oldestRunningYear = ds["oldest_running_year"].intOrNull(),
         ),
+        firstSteps = parseFirstSteps(d["first_steps"]),
     )
 }
 

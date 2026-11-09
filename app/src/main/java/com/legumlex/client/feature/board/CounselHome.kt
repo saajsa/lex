@@ -124,7 +124,7 @@ internal fun rememberReducedMotion(): Boolean {
 private fun detailsPrefs(context: Context) = context.getSharedPreferences("counsel_home", Context.MODE_PRIVATE)
 
 @Composable
-fun CounselHomeScreen(onOpenCalendar: () -> Unit, onOpenCases: () -> Unit) {
+fun CounselHomeScreen(onOpenCalendar: () -> Unit, onOpenCases: () -> Unit, onOpenCredits: () -> Unit = {}) {
     val vm: CounselHomeViewModel = viewModel()
     val state by vm.state.collectAsState()
     when (val s = state) {
@@ -140,12 +140,12 @@ fun CounselHomeScreen(onOpenCalendar: () -> Unit, onOpenCases: () -> Unit) {
                 )
             }
         }
-        is HomeState.Ready -> HomePage(s.home, onOpenCalendar, onOpenCases, vm::load)
+        is HomeState.Ready -> HomePage(s.home, onOpenCalendar, onOpenCases, onOpenCredits, vm::load)
     }
 }
 
 @Composable
-private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: () -> Unit, onReload: () -> Unit) {
+private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: () -> Unit, onOpenCredits: () -> Unit, onReload: () -> Unit) {
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         Modifier.fillMaxSize().background(Lex.colors.background).verticalScroll(rememberScrollState())
@@ -155,14 +155,17 @@ private fun HomePage(h: CounselHome, onOpenCalendar: () -> Unit, onOpenCases: ()
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ProfileCard(h.profile, onReload)
-        ScoreCard(h, selected) { selected = it }
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeTile("Diary", h.tiles.ongoing.toString(), "ongoing", diaryLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), onOpenCases)
-            HomeTile("This Month", h.tiles.hearings.toString(), if (h.tiles.hearings == 1) "hearing" else "hearings", busiestLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), onOpenCalendar)
-        }
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeTile("Dates Caught", h.tiles.datesCaught.toString(), if (h.tiles.datesCaught == 1) "change" else "changes", "eCourts moved them; you knew first", Modifier.weight(1f).fillMaxHeight(), null)
-            HomeTile("Disposed", h.tiles.disposedThisYear.toString(), "this year", oldestLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), null)
+        val steps = h.firstSteps
+        if (steps != null) FirstStepsBlock(steps, onRefresh = onReload, onCredits = onOpenCredits) else {
+            ScoreCard(h, selected) { selected = it }
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeTile("Diary", h.tiles.ongoing.toString(), "ongoing", diaryLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), onOpenCases)
+                HomeTile("This Month", h.tiles.hearings.toString(), if (h.tiles.hearings == 1) "hearing" else "hearings", busiestLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), onOpenCalendar)
+            }
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HomeTile("Dates Caught", h.tiles.datesCaught.toString(), if (h.tiles.datesCaught == 1) "change" else "changes", "eCourts moved them; you knew first", Modifier.weight(1f).fillMaxHeight(), null)
+                HomeTile("Disposed", h.tiles.disposedThisYear.toString(), "this year", oldestLine(h.tiles), Modifier.weight(1f).fillMaxHeight(), null)
+            }
         }
     }
 }

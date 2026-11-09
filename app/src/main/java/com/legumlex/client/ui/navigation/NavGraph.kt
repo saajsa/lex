@@ -243,6 +243,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 com.legumlex.client.feature.board.CounselHomeScreen(
                     onOpenCalendar = { navController.navigateTab(Route.CounselCalendar.path) },
                     onOpenCases = { navController.navigate(Route.BoardCases.path) },
+                    onOpenCredits = { navController.navigateTab(Route.BoardCredits.path) },
                 )
             } else if (access is com.legumlex.client.feature.board.BoardAccess.Unknown) {
                 androidx.compose.foundation.layout.Box(
