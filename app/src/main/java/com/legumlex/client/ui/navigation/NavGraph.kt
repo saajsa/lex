@@ -142,6 +142,13 @@ fun LegumNavGraph(navController: NavHostController) {
                     }
                 },
                 onAskLexIntelligence = { navController.navigate(Route.NewConsultation.build()) },
+                // Discover: Join, a screen of its own (REQ-013).
+                onJoin = { navController.navigate(Route.Join.path) },
+            )
+        }
+        composable(Route.Join.path) {
+            com.legumlex.client.feature.auth.JoinScreen(
+                onBack = { navController.popBackStack() },
                 // Lex Intelligence opens the account: Google first, then the documents.
                 onOpenAccount = { navController.navigate(Route.NewConsultation.build(account = true)) },
                 onRegisterCounsel = { navController.navigate(Route.CounselRegister.path) },

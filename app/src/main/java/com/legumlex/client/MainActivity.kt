@@ -129,7 +129,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         com.legumlex.client.data.auth.SessionEvents.ended.collect {
             auth.forget()
             val here = navController.currentDestination?.route
-            if (here !in setOf(Route.Splash.path, Route.Login.path, Route.Register.path, Route.CounselRegister.path, Route.CounselForm.path, Route.Choose.path, Route.AddCounsel.path)) {
+            if (here !in setOf(Route.Splash.path, Route.Login.path, Route.Join.path, Route.Register.path, Route.CounselRegister.path, Route.CounselForm.path, Route.Choose.path, Route.AddCounsel.path)) {
                 navController.navigate(Route.Login.path) {
                     popUpTo(0) { inclusive = true }
                     launchSingleTop = true
@@ -295,7 +295,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // sign-in draw edge to edge, under the status bar, and grain their
         // own paper (the splash has none).
         val door = currentRoute == Route.CounselRegister.path
-        val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path || currentRoute == Route.Choose.path || door
+        val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path || currentRoute == Route.Join.path || currentRoute == Route.Choose.path || door
         // Fixed colours under the bars in either theme: the splash is black
         // (light icons); sign-in is white at the top (dark status icons) and
         // black at the foot (light navigation icons). The theme's own
@@ -310,10 +310,11 @@ private fun AppShell(deepLinkIntent: Intent?) {
             // 3-button navigation draws its own pale scrim under the bar; the Counsel page colour should show instead.
             if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = !counsel
             val splash = currentRoute == Route.Splash.path
-            val login  = currentRoute == Route.Login.path || currentRoute == Route.Choose.path
+            val login  = currentRoute == Route.Choose.path
+            // Sign In and Join are the theme's own paper (REQ-013): bar icons follow the theme.
             bars.isAppearanceLightStatusBars = if (splash || door || darkRoute || upgradeDarkNow) false else if (login) true else !themeDark
             // The bottom bar is black: light navigation icons wherever it shows.
-            bars.isAppearanceLightNavigationBars = if (edge || darkRoute || upgradeDarkNow) false else if (showAppFooter(currentRoute) && !counsel) false else !themeDark
+            bars.isAppearanceLightNavigationBars = if ((edge && currentRoute != Route.Login.path && currentRoute != Route.Join.path) || darkRoute || upgradeDarkNow) false else if (showAppFooter(currentRoute) && !counsel) false else !themeDark
         }
         // The bottom bar's Home circle rises half its height above the bar:
         // pages end above it, so nothing at their foot (a reply box, a button)

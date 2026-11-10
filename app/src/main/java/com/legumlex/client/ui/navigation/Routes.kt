@@ -36,6 +36,8 @@ sealed class Route(val path: String) {
     // Auth flow (no bottom nav)
     data object Splash   : Route("splash")
     data object Login    : Route("login")
+    /** REQ-013: Join, opened by Discover on Sign In: Onboard Now (client) or Register As Counsel (advocate). */
+    data object Join     : Route("join")
     data object Register : Route("register")
     /** Where to today? (REQ-010, 10a): at every opening for a person with both workspaces. */
     data object Choose   : Route("choose")
@@ -266,7 +268,7 @@ sealed class Route(val path: String) {
 
 /** Auth-flow routes — never show the nav footer. */
 private val authBases = setOf(
-    Route.Splash.path, Route.Login.path, Route.Register.path, Route.CounselRegister.path, Route.Choose.path,
+    Route.Splash.path, Route.Login.path, Route.Join.path, Route.Register.path, Route.CounselRegister.path, Route.Choose.path,
 )
 
 /**
@@ -323,6 +325,7 @@ private val framedWizardBases = setOf(
 private val headerHiddenBases = setOf(
     Route.Splash.path,
     Route.Login.path,           // nothing to notify of before sign-in
+    Route.Join.path,
     Route.Register.path,
     Route.CounselRegister.path, // its own dark door
     Route.Choose.path,
