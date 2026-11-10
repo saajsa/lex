@@ -236,4 +236,9 @@ class BoardAuditTest {
         assertFalse(pausedRefusal(404, "paused"))
         assertFalse(isPausedRefusal(Result.success(1)))
     }
+
+    @Test fun notThisCaseSaysItPlainly() {
+        assertEquals("Nothing was added. The 4 credits used to find it are not returned.", notThisCaseNote(4))
+        assertEquals("Nothing was added. The 1 credit used to find it is not returned.", notThisCaseNote(1))
+    }
 }

@@ -214,6 +214,8 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var code by remember { mutableStateOf<String?>(null) }
+    // A plain note (not an error): what Not This Case did.
+    var note by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { repo.credits().onSuccess { cost = it.costAdd; checkCost = it.costCheck } }
     // The review step needs the lookup; without it (the screen came back after the process died) the CNR step is shown.
     val found = lookup
@@ -227,7 +229,7 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
             error = error, onClose = onClose, onStep = { error = null; code = null; step = it },
             onNext = if (at == 0) {
                 {
-                    saving = true; error = null; code = null
+                    saving = true; error = null; code = null; note = null
                     scope.launch {
                         repo.cnrLookup(cnr.trim())
                             .onSuccess { lookup = it; BoardHub.applyBalance(it.balance); step = 1 }
@@ -256,6 +258,7 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
             if (at == 0) {
                 WizardHeading("Find The Case", "The 16 characters on the case's page on eCourts.")
                 WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026", trailing = { CnrScanButton { cnr = it } })
+                note?.let { Text(it, color = PrimaryText, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 8.dp)) }
                 Text(
                     "Finding this case on eCourts uses ${cost?.let { creditsLabel(it) } ?: "credits"}. Adding it to your diary is free.",
                     color = SecondaryText, style = MaterialTheme.typography.bodySmall,
@@ -271,7 +274,7 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
                 Text(cnrAddLine(l.charged, checkCost), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(14.dp))
                 // Not This Case: no call; the credits used to find it are kept (said plainly).
-                LegumSecondaryButton("Not This Case", { lookup = null; cnr = ""; error = "Nothing was added. The ${creditsLabel(l.charged)} used to find it are not returned."; step = 0 }, enabled = !saving)
+                LegumSecondaryButton("Not This Case", { lookup = null; cnr = ""; error = null; note = notThisCaseNote(l.charged); step = 0 }, enabled = !saving)
             }
         }
     }
@@ -504,3 +507,6 @@ fun ImportFlow(onClose: () -> Unit, onChanged: () -> Unit) {
     }
     if (mismatches.isNotEmpty()) MismatchDialog(mismatches, BoardDates.today(), onDone = { mismatches = emptyList(); onChanged(); onClose() })
 }
+
+/** What Not This Case did, said plainly (no call is made; the lookup's credits are kept by the server). */
+internal fun notThisCaseNote(charged: Int) = "Nothing was added. The ${creditsLabel(charged)} used to find it ${if (charged == 1) "is" else "are"} not returned."
