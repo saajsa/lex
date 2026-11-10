@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Join (REQ-013): the advocate's head and neck, the same drawing and place as the client's. Tinted with the theme's ink; the coat,
+     shirt and bands are ic_join_advocate, drawn under this. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M32,20m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M25,31 L39,31 L39,41 L25,41 Z" />
+</vector>

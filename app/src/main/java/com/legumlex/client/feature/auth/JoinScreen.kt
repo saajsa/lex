@@ -138,8 +138,9 @@ private fun JoinCard(selected: Boolean, eyebrow: String, title: String, line: St
             .clickable(onClickLabel = title, onClick = onClick)
             .semantics { contentDescription = "$eyebrow: $title" }
             .padding(18.dp),
-        verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        JoinFigure(advocate = eyebrow == "Advocate")
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = SecondaryText)
             Text(title, style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
@@ -149,6 +150,26 @@ private fun JoinCard(selected: Boolean, eyebrow: String, title: String, line: St
             if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = null,
             tint = if (selected) PrimaryText else Lex.colors.faint, modifier = Modifier.size(24.dp),
         )
+    }
+}
+
+/**
+ * The figure on a choice card: a soft square tile (radius 8) with the person on it. The client is a plain bust in the theme's ink; the
+ * advocate is the same bust in a black coat with the two white bands at the collar. The coat is near-black on the tile's mid grey, so
+ * it keeps its edge in light and dark. The card's text names the choice, so the figure is not announced.
+ */
+@Composable
+private fun JoinFigure(advocate: Boolean) {
+    // In dark the advocate's near-black coat needs a lighter tile behind it; the client's tile stays as it is.
+    val tile = if (advocate && Lex.colors.isDark) Lex.colors.faint else Lex.colors.muted
+    Box(Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)).background(tile)) {
+        val ink = androidx.compose.ui.graphics.ColorFilter.tint(PrimaryText)
+        if (advocate) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.legumlex.client.R.drawable.ic_join_advocate), contentDescription = null, modifier = Modifier.size(64.dp))
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.legumlex.client.R.drawable.ic_join_advocate_head), contentDescription = null, colorFilter = ink, modifier = Modifier.size(64.dp))
+        } else {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.legumlex.client.R.drawable.ic_join_client), contentDescription = null, colorFilter = ink, modifier = Modifier.size(64.dp))
+        }
     }
 }
 

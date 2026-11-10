@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Join (REQ-013): a client, a plain bust: a round head, a short wide neck tucked into broad rounded shoulders cropped by the tile's
+     bottom edge, with a round neckline. One flat shape, tinted with the theme's ink. The advocate's bust has the same head, neck and
+     shoulders (ic_join_advocate_head + ic_join_advocate). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- Shoulders, with the round neckline cut out (even-odd) -->
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M2,64 C2,50 10,42 24,39 L40,39 C54,42 62,50 62,64 Z M22,40 C24,50 40,50 42,40 Z" />
+    <!-- Neck, down into the neckline -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M25,31 L39,31 L39,46 L25,46 Z" />
+    <!-- Head -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M32,20m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+</vector>
