@@ -73,6 +73,10 @@ Before 2026-10-19 the apps were developed outside these sessions; the client app
 | 2026-11-05 19:01 to 11-07 00:19 | 89b46f22 | cases a1cb209 (mig 284), cb0a820 (mig 286); cust_api e68688b, 97de5b4 | C | **Legal notices paid first**: notice `fee` object, "Awaiting Payment", approve 409; inert in the app API (fee helper not loaded). **customers_api and cases HEADs.** |
 | 2026-11-06 | 89b46f22 | cases 88e75c5 | W | Staff notice page shows the client-approval line; contact form shows plan seat limit (web only). |
 | 2026-11-07 | 3adfe568 | none | B | Knowledge base written. Neither app changed after 2026-11-01. |
+| 2026-11-08 to 11-09 | 3adfe568 and web sessions | client 603eaad, f930442, 6a41b9e … 5086514, 77d61e1 (REQ-008); 954a106, f10203e (REQ-010/012); customers_api 001ed0f, 8240796, 3599b20 | C | **Daily Board / Counsel workspace in the client app** (Home, Calendar, Cause List, Credits pay first, Upgrade); counsel registration door, workspace chooser, Add/Remove Counsel Workspace. See app/features.md §20a and the REQ-010 section. |
+| 2026-11-10 | 3adfe568 | client 386650e | C | Debug "Adv (debug)" menu: two dev counsel accounts (With Cases, Empty). Owner: "My commands override the charter" (debug installs on the owner's phone). |
+| 2026-11-10 | 3adfe568 (web teammate) | board 98771bd; customers_api 94ab097; cases 5c6e6c3 | C | **REQ-008 G1 gap fixes** (owner "Fix gaps"): juniors/courts/entries and `sheet?junior` → 410 `retired`; CNR-case date change → 422 `next_date`; `credits/history` paged; `counts.listed` consistent. Not pushed. |
+| 2026-11-10 | 3adfe568 (android teammate) | client 08b9dc4 | C | **REQ-008 G2 gap fixes**: pending order checked on resume + Check Again, paged history, saved-copy day fallback, Next Date locked for CNR cases, retired calls removed, "Welcome" greeting, credit plurals. Phone-tested with both dev counsel accounts. Not pushed. |
 
 ## Open questions
 

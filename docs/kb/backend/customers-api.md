@@ -240,6 +240,63 @@ Task assignees on the server now include every active staff member (cases c8c081
 
 contracts (GET/POST, `contracts`), estimates (GET), proposals (GET/POST), tickets (GET/POST, `support`), knowledge_base (GET, **no auth**), miscellaneous (auth) [CODE customers_api@97de5b4 controllers/v1/{Contracts,Estimates,Proposals,Tickets,Knowledge_base,Miscellaneous}.php].
 
+### 2.16 Daily Board (board module, gate auth + contact permission 11 / board_enabled)
+
+**Last verified against customers_api@94ab097 / board@98771bd / lex@08b9dc4 (2026-11-10)**
+
+Controller `v1/Board.php` [CODE customers_api@94ab097 controllers/v1/Board.php:8-38 (route list in the docblock), config/routes.php:69-91]. Gate: `isAuthorized()`, then `board_enabled()` (else 404 `board_off`), then `board_contact_is_counsel()` (permission 11 and a board profile; else 403 `forbidden`) [CODE controllers/v1/Board.php:44-60]. Every refusal is `{status:false, code, message[, field]}`; `not_found` → 404, `insufficient_credits` → 402 (carries `cost`, `balance`), `ecourts_off`/`ecourts_failed`/`busy` → 503, other model refusals 422 [CODE Board.php:66-94]. `summary`, `today` and `home` grant the trial if not yet given (`ensure_trial`). Screens are client-app `feature/board` (see app/features.md §20a-20b).
+
+| Method | Path | ::method | Request | Codes | App | Screen |
+|---|---|---|---|---|---|---|
+| GET | board/summary | summary_get (+ `statuses`, `counsel: true`, `workspace: "counsel"`) | none | 403, 404 | ✓ | BoardHub (workspace decision) |
+| GET | board/today | today_get (+ `format`) | none | none | ✓ | Calendar / Today |
+| GET | board/home | home_get: profile, score, tiles, first_steps | none | none | ✓ | Counsel Home |
+| POST | board/chambers | chambers_post | address, city, zip | 422 `address` | ✓ | ChambersWizard (Home) |
+| GET | board/day | day_get (+ `format`); `counts.listed` = items shown (since board 98771bd) | date | none | ✓ | Calendar day; saved-copy fallback |
+| GET | board/days | days_get `{from, n, days[{date, listed}]}` | from, n (1-62, default 7) | 422 `date` (field `from`) | ✓ | Calendar week row |
+| POST | board/cases/{id}/date/accept | date_post | none | 404, 422 | ✓ | Needs Your Eye, import mismatches |
+| POST | board/cases/{id}/date/keep | date_post | none | 404, 422 | ✓ | Needs Your Eye, import mismatches |
+| POST | board/cases/{id}/date/correct | date_post | next_date | 422; refused for a CNR case (dates follow eCourts) since board 98771bd | ✗ | none (the app has no free date typing) |
+| POST | board/import | import_post (preview, `import_id`) | file (multipart) or content, filename | 422 `no_file` | ✓ | Import |
+| POST | board/import/confirm | import_post('confirm'): applies, then checks the imported cases on eCourts (1 credit a case); returns `check{}`, `mismatches[]` | import_id | 402, 422 | ✓ | Import → Which Date Is Right? |
+| GET | board/cases | cases_get list | q, junior, limit (100), offset, order | none | ✓ | Your Cases, search |
+| GET | board/cases/{id} | cases_get one (`case_page`) | none | 404 | ✓ | Case page |
+| POST | board/cases | cases_post → `case_save(..., refuse_date=true)` | cnr, case_no, case_type, petitioner, respondent, court, court_code, room, stage, next_date, note, junior_id, morning_check | 422 | ✓ | Add Case wizard |
+| POST/PUT | board/cases/{id} | cases_post / cases_put → `case_save(..., true)` | as above | 404; **422 `next_date`** when the date of a CNR case is changed; the unchanged date echoed back is accepted (since board 98771bd / customers_api 94ab097) | ✓ (POST) | Edit Case wizard (Next Date locked for CNR cases) |
+| DELETE | board/cases/{id} | cases_delete | none | 404 | ✓ | Remove From Your Diary |
+| POST | board/cases/{id}/cnr | cnr_post: give a hand-added case its CNR (free) | cnr | 422 | ✓ | Add The CNR wizard |
+| POST | board/cases/cnr | premium_post('add'): Add By CNR, 4 credits | cnr | 402, 422 `cap_reached`/`premium_paused`, 503 | ✓ | Add By CNR (incl. QR scan) |
+| POST | board/cases/{id}/read | premium_post('read'): Update From Court, 4 credits | none | 402, 422, 503 | ✓ | Case page |
+| GET | board/sheet | sheet_get: the day's cause list PDF in the counsel's format (portrait; A4 or Legal) | date | **410 `retired`** when `junior` is sent | ✓ | Cause List (Print, Share) |
+| GET | board/export | export_get: myCases.txt | none | none | ✓ | Export icon |
+| GET | board/credits | credits_get: balance, expiring, packs, costs{add, check}, history (limit, 50), purchases, credit_months, spent{}, checked{} | limit | none | ✓ | Credits |
+| GET | board/credits/history | credits_get('history'): the ledger paged, newest first, `{total, items[], limit, offset}` (limit 1-200, default 50) (new in 94ab097) | limit, offset | none | ✓ | Credits history paging |
+| POST | board/credits/checkout | credits_post: pay first, no invoice until paid; `{order, pay_url, purchase_id, amount, currency, pack, expires_at, reused}` | pack | 422 | ✓ | Credits cart → Custom Tab |
+| GET | board/credits/order | credits_get('order'): pending, paid, expired or flagged | order | 404 `not_found` [CODE board@98771bd models/Board_credits.php:703] | ✓ | Credits (each resume, Check Again) |
+| POST | board/credits/buy | credits_post: OLD invoice-first way, `deprecated: true`; with `flow=pay_first` it is checkout | pack[, flow] | 422 | ✗ | none (installed older builds only) |
+| GET/POST/PUT/DELETE | board/juniors[/{id}] · board/courts · board/entries | **retired**: always 410 `retired` (owner, 8 Nov 2026; tables kept) since customers_api 94ab097 | n/a | 410 | ✗ | removed from the app at lex 08b9dc4 |
+
+Pay-first page: `pay_url` is the web's `board/pay/{token}`; it returns to `/board/pay/{token}/success` or `/failed`, then the app asks `credits/order` [CODE customers_api@94ab097 controllers/v1/Board.php:325-331].
+
+### 2.17 Workspaces and counsel registration (REQ-010)
+
+**Last verified against customers_api@94ab097 / lex@08b9dc4 (2026-11-10)**
+
+| Method | Path | ::method | Gate | Request | Codes | App | Screen |
+|---|---|---|---|---|---|---|---|
+| GET | workspace | Workspace::index_get `{items[{kind: counsel\|portal, label, status, enter, note, can_add, can_remove}], choose, counsel_only}` + eligibility, draft | auth | none | none | ✓ | Chooser, Profile "Workspaces" card |
+| POST | workspace/begin · document · discard | begin_post / document_post / discard_post | auth | document (file), document_type `bar_council_id` | 409, 422 | ✓ | Add Counsel Workspace wizard |
+| GET/POST | workspace/review | review_get / review_post | auth | enrollment_number, state_bar_council, state | 422 | ✓ | Add Counsel (Details) |
+| POST | workspace/submit | submit_post: opens at once, trial credits added | auth | terms=1 | 409, 422 | ✓ | Add Counsel (Confirm) |
+| POST | workspace/remove | remove_post: ledger and invoices kept, certificate deleted, number reserved | auth | none | 409, 422 | ✓ | Profile, Remove |
+| GET | lead/counsel | Lead_counsel::index_get: outcome new\|client\|counsel\|pending\|rejected\|staff | lead | none | 404 `board_off` | ✓ | Counsel door triage |
+| POST | lead/counsel/begin · document · remove · discard | *_post | lead | document (file), document_type `bar_council_id`\|`pan` | 409, 422 | ✓ | Counsel registration wizard |
+| GET/POST | lead/counsel/review | review_get / review_post | lead | full_name, enrollment_number, state_bar_council, pan_number, state | 422 | ✓ | Counsel wizard (Review) |
+| POST | lead/counsel/phone/{request\|status\|sms\|verify} | phone_post | lead | number, code | 404, 409 | ✓ | Counsel wizard (Mobile) |
+| POST | lead/counsel/submit | submit_post: workspace opens at once; the answer carries the client token to switch to | lead | terms=1 | 409, 422 | ✓ | Counsel wizard (Confirm) |
+
+[CODE customers_api@94ab097 config/routes.php:46-51; controllers/v1/Workspace.php:8-24,94-179; controllers/v1/Lead_counsel.php:8-24,98-223]. Exact codes per action are as the controllers return them through the Lexon registration service; the table lists the codes the docblocks and refusal helpers name [ASSUMPTION: not every branch traced].
+
 ## 3. Cross-check summary
 
 | Measure | Value |
@@ -266,6 +323,8 @@ Mismatches visible in code: (1) notice `fee`, "Awaiting Payment", `view_only`, `
 | cases b18dfd3 | 2026-11-07 | Plan and fee helpers + paid-invoice listeners load on app requests (REQ-001) | View-only writes now 403 `view_only`; notice approve may 409; `fee` populated. App does not yet handle 403/409 (shows "session expired" on approve, `NoticesViewModel.kt:194`): app work U1-U4 is a later REQ |
 | customers_api ee69445 | 2026-11-07 | Held pay-first notice: document 403 `notice_fee_unpaid`, `documents: []` | App shows no files for a held notice; a stale file link answers 403 |
 | cases 00bd1f0 | 2026-11-07 | View-only contacts may pay: invoices pay, pay/verify, pay/status exempt (owner Q9) | None needed |
+| customers_api 001ed0f · 8240796 · 3599b20 | 2026-11-09 | REQ-010 010.9: `workspace*` and `lead/counsel*` endpoints; begin 409 carries `next=add_counsel` | Built in the app at lex 954a106, f10203e |
+| customers_api 94ab097 · board 98771bd · cases 5c6e6c3 | 2026-11-10 | REQ-008 G1: juniors/courts/entries and `sheet?junior` → 410 `retired`; 422 `next_date` on a changed CNR-case date; `credits/history` paged; `day.counts.listed` = items shown | App follows at lex 08b9dc4 (paged history, Next Date locked, retired calls removed) |
 
 ## Open questions
 

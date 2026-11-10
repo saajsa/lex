@@ -60,7 +60,10 @@ Both / backend:
 - GTM fact sheet findings: enquiry attachments readable by link; no privacy notice or consent records; eCourts token stored in plain text (the public JWT key was fixed by e3027f0) [SESSION 3adfe568 2026-11-01T10:18].
 - Production follow-ups: cleanup of leaked hidden-milestone activity rows; Lexcent matcher gap (already-recorded payments not recognised) [SESSION 3adfe568 C31-C36].
 - Desk onboarding switch `lexon_desk_onboarding` off on dev and prod (at 2026-10-24) [SESSION 3adfe568 C28]. **[Owner decision 2026-11-07, REQ-002]** `lexon_desk_onboarding` is **active on production and under testing**; do not treat it as unused. Dev value is 0.
-- Daily Board for advocates: brief only, awaiting owner decisions [SESSION 89b46f22 2026-11-07T01:42].
+- Daily Board for advocates: brief only, awaiting owner decisions [SESSION 89b46f22 2026-11-07T01:42]. [Superseded 2026-11-10: built on web and in the client app under REQ-008; see app/features.md §20a-20b and backend/customers-api.md §2.16.]
+- **Daily Board, open owner decisions (2026-11-10):** (a) the daily eCourts check's margin: 1 credit charged per case against a full read costing about ₹1.50; (b) production's first run charges every counsel's tracked cases 1 credit each once the read cap is raised. Not built either way [SESSION 3adfe568 2026-11-10].
+- **Specimen privacy (board):** the specimen folder's `.htaccess` deny cannot be tested on dev (nginx); production is Apache. Deferred to REQ-004 (isolated test site) [SESSION 3adfe568 2026-11-10].
+- **Board leftovers (2026-11-10):** the client `BoardSheet` route still carries a `{junior}` path segment though the screen no longer uses it [CODE lex@08b9dc4 app/src/main/java/com/legumlex/client/ui/navigation/Routes.kt:71-77]; nothing pushed for G1 (board 98771bd, customers_api 94ab097, cases 5c6e6c3) or G2 (lex 386650e, 08b9dc4).
 
 External / ops:
 - GoDaddy site-wide bot challenge blocked the published app's API calls (2026-10-20); whether fixed is unknown [SESSION 3adfe568 C22]. **[Owner decision 2026-11-07, REQ-002]** Both Android apps already communicate successfully with the production backend.
