@@ -242,41 +242,45 @@ contracts (GET/POST, `contracts`), estimates (GET), proposals (GET/POST), ticket
 
 ### 2.16 Daily Board (board module, gate auth + contact permission 11 / board_enabled)
 
-**Last verified against customers_api@94ab097 / board@98771bd / lex@08b9dc4 (2026-11-10)**
+**Last verified against customers_api@0b2f484 / board@82b066d / lex@86dadcb (2026-11-10)** (earlier verification: customers_api@94ab097 / board@98771bd / lex@08b9dc4, 2026-11-10, superseded by the board audit 008.A-W/A-A).
 
-Controller `v1/Board.php` [CODE customers_api@94ab097 controllers/v1/Board.php:8-38 (route list in the docblock), config/routes.php:69-91]. Gate: `isAuthorized()`, then `board_enabled()` (else 404 `board_off`), then `board_contact_is_counsel()` (permission 11 and a board profile; else 403 `forbidden`) [CODE controllers/v1/Board.php:44-60]. Every refusal is `{status:false, code, message[, field]}`; `not_found` → 404, `insufficient_credits` → 402 (carries `cost`, `balance`), `ecourts_off`/`ecourts_failed`/`busy` → 503, other model refusals 422 [CODE Board.php:66-94]. `summary`, `today` and `home` grant the trial if not yet given (`ensure_trial`). Screens are client-app `feature/board` (see app/features.md §20a-20b).
+Controller `v1/Board.php` [CODE customers_api@0b2f484 controllers/v1/Board.php:8-38 (route list in the docblock), config/routes.php:69-92]. Gate: `isAuthorized()`, then `board_enabled()` (else 404 `board_off`), then `board_contact_is_counsel()`; a contact who holds the workspace but is paused (D7) gets **403 `paused`** ("Your Counsel workspace is paused while you are engaged with the firm. Your cases and credits are kept."), any other non-counsel 403 `forbidden` [CODE Board.php:46-71; board@82b066d helpers/board_helper.php:405-413]. Every refusal is `{status:false, code, message[, field]}`; `not_found` → 404, `insufficient_credits` → 402 (carries `cost`, `balance`), `ecourts_off`/`ecourts_failed`/`busy` → 503, other model refusals 422 [CODE Board.php:83-101]. `summary`, `today`, `home` and `credits` grant the trial if not yet given (`ensure_trial`). Screens are client-app `feature/board` (see app/features.md §20a-20c). Cross-check: contracts.md rows dated 2026-11-10 REQ-008 (G1.x, A-W).
 
 | Method | Path | ::method | Request | Codes | App | Screen |
 |---|---|---|---|---|---|---|
-| GET | board/summary | summary_get (+ `statuses`, `counsel: true`, `workspace: "counsel"`) | none | 403, 404 | ✓ | BoardHub (workspace decision) |
-| GET | board/today | today_get (+ `format`) | none | none | ✓ | Calendar / Today |
+| GET | board/summary | summary_get (+ `statuses`, `counsel: true`, `workspace: "counsel"`) | none | 403 `paused`/`forbidden`, 404 | ✓ | BoardHub (workspace decision; `paused` → paused screen) |
+| GET | board/today | today_get (+ `format`): counsel, listed, credits (low, days_label, low_days), short, needs_eye[] | none | 403 | ✓ | Calendar: Needs Your Eye card, low-credit banner, days line |
 | GET | board/home | home_get: profile, score, tiles, first_steps | none | none | ✓ | Counsel Home |
 | POST | board/chambers | chambers_post | address, city, zip | 422 `address` | ✓ | ChambersWizard (Home) |
-| GET | board/day | day_get (+ `format`); `counts.listed` = items shown (since board 98771bd) | date | none | ✓ | Calendar day; saved-copy fallback |
-| GET | board/days | days_get `{from, n, days[{date, listed}]}` | from, n (1-62, default 7) | 422 `date` (field `from`) | ✓ | Calendar week row |
-| POST | board/cases/{id}/date/accept | date_post | none | 404, 422 | ✓ | Needs Your Eye, import mismatches |
-| POST | board/cases/{id}/date/keep | date_post | none | 404, 422 | ✓ | Needs Your Eye, import mismatches |
-| POST | board/cases/{id}/date/correct | date_post | next_date | 422; refused for a CNR case (dates follow eCourts) since board 98771bd | ✗ | none (the app has no free date typing) |
-| POST | board/import | import_post (preview, `import_id`) | file (multipart) or content, filename | 422 `no_file` | ✓ | Import |
-| POST | board/import/confirm | import_post('confirm'): applies, then checks the imported cases on eCourts (1 credit a case); returns `check{}`, `mismatches[]` | import_id | 402, 422 | ✓ | Import → Which Date Is Right? |
-| GET | board/cases | cases_get list | q, junior, limit (100), offset, order | none | ✓ | Your Cases, search |
-| GET | board/cases/{id} | cases_get one (`case_page`) | none | 404 | ✓ | Case page |
-| POST | board/cases | cases_post → `case_save(..., refuse_date=true)` | cnr, case_no, case_type, petitioner, respondent, court, court_code, room, stage, next_date, note, junior_id, morning_check | 422 | ✓ | Add Case wizard |
-| POST/PUT | board/cases/{id} | cases_post / cases_put → `case_save(..., true)` | as above | 404; **422 `next_date`** when the date of a CNR case is changed; the unchanged date echoed back is accepted (since board 98771bd / customers_api 94ab097) | ✓ (POST) | Edit Case wizard (Next Date locked for CNR cases) |
+| GET | board/day | day_get (+ `format`); `counts.listed` = items shown | date | none | ✓ | Calendar day; saved-copy fallback |
+| GET | board/days | days_get `{from, n, days[{date, listed}]}`; superseded history dates do not count | from, n (1-62, default 7) | 422 `date` (field `from`) | ✓ | Calendar week row |
+| POST | board/cases/{id}/date/accept | date_post (eCourts Is Right) | none | 404, 422 `not_flagged` | ✓ | Needs Your Eye, import mismatches (`not_flagged` = already settled) |
+| POST | board/cases/{id}/date/keep | date_post (Keep My Date) | none | 404, 422 `not_flagged` | ✓ | as above |
+| POST | board/cases/{id}/date/correct | date_post → `date_correct`: **hand (no-CNR) cases only** | next_date (d-m-Y or Y-m-d, 4-digit year) | 422 `next_date` (a CNR case: "Use eCourts Is Right or Keep My Date."; a two-digit or unreadable year) | ✓ (since lex 3ecc52f) | Set Next Date wizard (hand cases) [CODE board@82b066d models/Board_model.php:253] |
+| POST | board/import | import_post: preview, `import_id`, plus `cost{per_case, cases, total, balance, covers, line}` | file (multipart) or content, filename | 422 `no_file` | ✓ | Import (cost line before Confirm) |
+| POST | board/import/confirm | import_post('confirm'): applies (an existing case keeps its dates), then checks the imported cases on eCourts (1 credit a case) under the cron's lock; returns `check{checked, unchecked, stopped}`, `mismatches[]`. **A repeated confirm** of the same import_id within 2 h returns the first result with `repeated: true` and applies nothing | import_id | 402, 422 `import_expired`; `check.stopped` may be `busy_check` | ✓ (long-call) | Import → Which Date Is Right? [CODE Board.php:211-235; board models/Board_model.php:1211-1220] |
+| GET | board/cases | cases_get list | q, limit (100), offset, order | none | ✓ | Your Cases, search |
+| GET | board/cases/{id} | cases_get one (`case_page`); `history[]` rows carry `superseded` (bool) | none | 404 | ✓ | Case page (Date History "· Replaced") [CODE board models/Board_model.php:674] |
+| POST | board/cases | cases_post: **HAND add** (the web's method) | case_no, petitioner, respondent, court, next_date required; room, case_type, stage optional | 422 per field, 422 `duplicate`; **422 `use_add_by_cnr`** (field `cnr`) when a CNR is sent | ✓ (since lex 3ecc52f) | Add By Hand wizard [CODE Board.php:274-291] |
+| POST/PUT | board/cases/{id} | cases_post / cases_put → `case_save(..., true)`; `junior_id` is no longer a key (ignored) | case_keys (cnr, case_no, case_type, petitioner, respondent, court, court_code, room, stage, next_date, note, morning_check) | 404; 422 `next_date` when the date of a CNR case is changed (unchanged echo accepted) | ✓ (POST, `morning_check` only) | Daily Check switch (Edit Case removed at lex 3ecc52f) |
 | DELETE | board/cases/{id} | cases_delete | none | 404 | ✓ | Remove From Your Diary |
 | POST | board/cases/{id}/cnr | cnr_post: give a hand-added case its CNR (free) | cnr | 422 | ✓ | Add The CNR wizard |
-| POST | board/cases/cnr | premium_post('add'): Add By CNR, 4 credits | cnr | 402, 422 `cap_reached`/`premium_paused`, 503 | ✓ | Add By CNR (incl. QR scan) |
-| POST | board/cases/{id}/read | premium_post('read'): Update From Court, 4 credits | none | 402, 422, 503 | ✓ | Case page |
-| GET | board/sheet | sheet_get: the day's cause list PDF in the counsel's format (portrait; A4 or Legal) | date | **410 `retired`** when `junior` is sent | ✓ | Cause List (Print, Share) |
+| POST | board/cases/cnr/lookup | premium_post('cnr_lookup'): Add By CNR step one, **4 credits**, the case previewed, nothing in the diary yet | cnr | 402, 422 `duplicate`/`cap_reached`/`premium_paused`, 503 | ✓ (since lex 3ecc52f, long-call) | Add By CNR: Find This Case (4 Credits) [CODE Board.php:403-417; board libraries/Board_ecourts.php:298] |
+| POST | board/cases/cnr/confirm | premium_post('cnr_confirm'): step two, free, the case goes into the diary. "Not This Case" needs no call (the lookup lapses in 2 h, credits stay spent) | lookup_id | 422 `lookup_expired` | ✓ | Add By CNR: Add To My Diary [CODE board libraries/Board_ecourts.php:334-338] |
+| POST | board/cases/cnr | premium_post('add'): one-step Add By CNR, 4 credits | cnr | 402, 422, 503 | ✗ (since lex 3ecc52f; kept for older builds) | none |
+| POST | board/cases/{id}/read | premium_post('read'): Update From Court, 4 credits; clears the date flag and sets `ec_date` to the date it wrote | none | 402, 422 `no_cnr`, 503 | ✓ (CNR cases only) | Case page: Update From Court Now |
+| GET | board/sheet | sheet_get: the day's cause list PDF in the counsel's format (portrait; A4 or Legal) | date | 410 `retired` when `junior` is sent | ✓ | Cause List (Print, Share) |
 | GET | board/export | export_get: myCases.txt | none | none | ✓ | Export icon |
-| GET | board/credits | credits_get: balance, expiring, packs, costs{add, check}, history (limit, 50), purchases, credit_months, spent{}, checked{} | limit | none | ✓ | Credits |
-| GET | board/credits/history | credits_get('history'): the ledger paged, newest first, `{total, items[], limit, offset}` (limit 1-200, default 50) (new in 94ab097) | limit, offset | none | ✓ | Credits history paging |
-| POST | board/credits/checkout | credits_post: pay first, no invoice until paid; `{order, pay_url, purchase_id, amount, currency, pack, expires_at, reused}` | pack | 422 | ✓ | Credits cart → Custom Tab |
-| GET | board/credits/order | credits_get('order'): pending, paid, expired or flagged | order | 404 `not_found` [CODE board@98771bd models/Board_credits.php:703] | ✓ | Credits (each resume, Check Again) |
-| POST | board/credits/buy | credits_post: OLD invoice-first way, `deprecated: true`; with `flow=pay_first` it is checkout | pack[, flow] | 422 | ✗ | none (installed older builds only) |
-| GET/POST/PUT/DELETE | board/juniors[/{id}] · board/courts · board/entries | **retired**: always 410 `retired` (owner, 8 Nov 2026; tables kept) since customers_api 94ab097 | n/a | 410 | ✗ | removed from the app at lex 08b9dc4 |
+| GET | board/credits | credits_get: balance, expiring (30 days), packs[] (+ base, gst_amount, gst_percent, bonus_pct, bonus_credits, lasts), costs{add, check}, history (raw, limit 50), purchases, credit_months, spent{}, `next_lapse` {credits, expires_at, kind}\|null, `history_rows` (grouped, first 60), checked{} | limit | none | ✓ | Credits: pack lines and bonus, Expiring Next, grouped history [CODE Board.php:346-371] |
+| GET | board/credits/history | credits_get('history'): raw ledger page `{total, items[], limit, offset}` (limit 1-200, default 50); with **`grouped=1`** the web's grouped rows `{total, items[{kind, day, when, delta, balance_after, what, cases}], limit, offset, grouped: true}` | limit, offset, grouped | none | ✓ (grouped) | Credits history paging [CODE Board.php:326-346] |
+| POST | board/credits/checkout | credits_post: pay first, no invoice until paid; `{order, pay_url, purchase_id, amount, currency, pack, expires_at, reused}`; a reused order never already carries a payment | pack | 422 | ✓ | Credits cart → Custom Tab |
+| GET | board/credits/order | credits_get('order'): pending, paid, failed, expired, cancelled or flagged. `failed` is not final: the order stays payable and a later verified capture is honoured | order | 404 `not_found` | ✓ | Credits (each resume, Check Again; `failed` = "not completed, if you paid it will be matched") |
+| POST | board/credits/buy | credits_post: with `flow=pay_first` it is checkout; **without flow: 410 `retired`**, no invoice (was the old invoice-first way) | pack[, flow] | 410, 422 | ✗ | none (NOT backward compatible for builds that used the old way; the app has used checkout throughout) [CODE Board.php:380-394] |
+| GET/POST/PUT/DELETE | board/juniors[/{id}] · board/courts · board/entries | **retired**: always 410 `retired` (owner, 8 Nov 2026; tables kept) | n/a | 410 | ✗ | removed from the app at lex 08b9dc4 |
 
-Pay-first page: `pay_url` is the web's `board/pay/{token}`; it returns to `/board/pay/{token}/success` or `/failed`, then the app asks `credits/order` [CODE customers_api@94ab097 controllers/v1/Board.php:325-331].
+Pay-first page: `pay_url` is the web's `board/pay/{token}`; it opens the existing order at its own amount (no new order per visit since board edeae14) and returns to `/board/pay/{token}/success` or `/failed`, then the app asks `credits/order`.
+
+Server behaviour the app relies on (board@edeae14..82b066d, no shape change): the morning check charges only live counsel and skips decided or disposed cases; a case eCourts could not answer is tried once a morning; the daily debit is once per case per day; refunds keep the expiry of the credits they return; superseded future dates stop counting as listed; dates with a two-digit year are refused. On dev, every paid eCourts path uses the stub for clients in `board_ecourts_stub_clients` (dev mail guard required; never production) [CODE board@82b066d libraries/Board_ecourts.php:82-90].
 
 ### 2.17 Workspaces and counsel registration (REQ-010)
 
