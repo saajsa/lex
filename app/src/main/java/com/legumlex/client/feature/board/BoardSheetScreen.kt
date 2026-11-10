@@ -98,10 +98,10 @@ private sealed interface SheetState {
     data class Error(val message: String) : SheetState
 }
 
-/** A day's cause list ("own": the counsel's own format; else a junior's old sheet): downloaded to the cache, drawn page by page, and shareable. */
+/** A day's cause list (the counsel's own format): downloaded to the cache, drawn page by page, and shareable. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> Unit) {
+fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
     val context = LocalContext.current
     var day by remember { mutableStateOf(date) }
     var picking by remember { mutableStateOf(false) }
@@ -112,9 +112,9 @@ fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> 
 
     LaunchedEffect(day) { repo.day(day).onSuccess { format = it.format } }
 
-    LaunchedEffect(day, junior, tick) {
+    LaunchedEffect(day, tick) {
         state = SheetState.Loading
-        repo.sheet(day, junior.takeIf { it.isNotBlank() && it != "own" })
+        repo.sheet(day)
             .onSuccess { f ->
                 runCatching { withContext(Dispatchers.IO) { renderPdf(context, f) } }
                     .onSuccess { state = if (it.isEmpty()) SheetState.Error("This sheet has no pages.") else SheetState.Ready(f, it) }
@@ -146,7 +146,7 @@ fun BoardSheetScreen(date: String, junior: String, label: String, onBack: () -> 
         containerColor = Zinc950,
     ) { inner ->
       Column(Modifier.fillMaxSize().padding(inner)) {
-        DayBar(day, onDay = { day = it }, onPick = { picking = true }, showFormatTip = junior.isBlank() || junior == "own", format = format)
+        DayBar(day, onDay = { day = it }, onPick = { picking = true }, showFormatTip = true, format = format)
         val inner = PaddingValues(0.dp)
         when (val s = state) {
             SheetState.Loading -> Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {

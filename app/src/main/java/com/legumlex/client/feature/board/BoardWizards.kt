@@ -182,6 +182,9 @@ fun ImportWizard(onClose: () -> Unit, onDone: (ImportDone) -> Unit) {
 
 // ---- a case: add or edit ----------------------------------------------------------
 
+/** Dates follow eCourts: the date of a case that has a CNR is not typed on edit (the server refuses a changed one). */
+fun nextDateLocked(existing: BoardCase?): Boolean = existing != null && (existing.hasCnr || existing.cnr.isNotBlank())
+
 @Composable
 fun CaseWizard(existing: BoardCase?, onClose: () -> Unit, onSaved: (BoardCase) -> Unit) {
     val context = LocalContext.current
@@ -246,9 +249,12 @@ fun CaseWizard(existing: BoardCase?, onClose: () -> Unit, onSaved: (BoardCase) -
                 2 -> {
                     WizardHeading("The Next Hearing", "")
                     WizardTextField("Stage", stage, { stage = it }, placeholder = "Evidence")
-                    DateField("Next Date", nextDate, { next = it.api() })
+                    if (nextDateLocked(e)) WizardTextField(
+                        "Next Date", nextDate?.let { BoardDates.long(it) } ?: "No date yet", locked = true,
+                        help = "Dates follow eCourts. Use Accept eCourts Date or Keep My Date on the case.",
+                    ) else DateField("Next Date", nextDate, { next = it.api() })
                     WizardTextField("Note", note, { note = it }, lines = 3)
-                    WizardTick(check, "Check each morning whether this case is listed" + (checkCost?.let { " (costs $it credits each time)" } ?: "")) { check = it }
+                    WizardTick(check, "Check each morning whether this case is listed" + (checkCost?.let { " (costs ${creditsLabel(it)} each time)" } ?: "")) { check = it }
                 }
                 else -> {
                     WizardHeading("Check And Save", "")

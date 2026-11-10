@@ -3,6 +3,7 @@ package com.legumlex.client.feature.board
 import android.content.Context
 import com.legumlex.client.data.api.ApiClient
 import com.legumlex.client.data.api.ApiService
+import com.legumlex.client.feature.consultations.apiError
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,6 +12,9 @@ import java.io.File
 
 /** A board loaded earlier, kept for weak signal: the day, and when it was saved (epoch millis). */
 data class CachedDay(val day: BoardDay, val savedAt: Long)
+
+/** A day as loaded: [savedAt] is null for the server's answer, else the time (epoch millis) of the device's saved copy shown instead. */
+data class DayLoad(val day: BoardDay, val savedAt: Long?)
 
 /**
  * The Daily Board's calls (customers_api v1, the board endpoints). Each returns a Result; a
@@ -45,6 +49,20 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
         val day = parseDay(raw)
         saveDay(day.date.ifBlank { date }, raw)
         day
+    }
+
+    /**
+     * The day from the server; when the server cannot be reached (offline, or a server error), the copy kept on this
+     * device with the time it was saved. A refusal (403, 404 ...) is never answered from the copy: it is the server's word.
+     */
+    suspend fun dayOrSaved(date: String): Result<DayLoad> {
+        val live = day(date)
+        live.getOrNull()?.let { return Result.success(DayLoad(it, null)) }
+        val err = live.exceptionOrNull() ?: return Result.failure(IllegalStateException("No answer"))
+        val http = err.apiError().http
+        if (!(err.isOffline() || (http != null && http >= 500))) return Result.failure(err)
+        val saved = cachedDay(date) ?: return Result.failure(err)
+        return Result.success(DayLoad(saved.day, saved.savedAt))
     }
 
     /** The counsel's Home. */
@@ -118,32 +136,15 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
         parseCase(d["case"].map()) to d["balance"].int()
     }
 
-    // ---- juniors and courts -------------------------------------------------
-
-    suspend fun juniors(): Result<JuniorsData> = runCatching { parseJuniors(data(api.boardJuniors())) }
-
-    suspend fun juniorAdd(name: String): Result<Unit> = runCatching { api.boardJuniorAdd(name); Unit }
-
-    suspend fun juniorRename(id: Int, name: String): Result<Unit> = runCatching { api.boardJuniorRename(id.toString(), name); Unit }
-
-    suspend fun juniorRemove(id: Int): Result<Unit> = runCatching { api.boardJuniorRemove(id.toString()); Unit }
-
-    /** Assign a court to a junior; 0 clears it. */
-    suspend fun courtAssign(courtKey: String, juniorId: Int): Result<Unit> = runCatching { api.boardCourtAssign(courtKey, juniorId.toString()); Unit }
-
-    // ---- results ------------------------------------------------------------
-
-    suspend fun entrySave(fields: Map<String, String>): Result<Unit> = runCatching { api.boardEntrySave(fields); Unit }
-
     // ---- the sheet ----------------------------------------------------------
 
-    /** The cause list's PDF for a date in the counsel's own format (no junior), or the old junior sheet (an id, "none" or "all"); saved under cache/board/sheets. */
-    suspend fun sheet(date: String, junior: String? = null): Result<File> = runCatching {
+    /** The cause list's PDF for a date in the counsel's own format; saved under cache/board/sheets. */
+    suspend fun sheet(date: String): Result<File> = runCatching {
         withContext(Dispatchers.IO) {
             val root = dir() ?: error("No cache directory")
             val sheets = File(root, "sheets").apply { mkdirs() }
-            val file = File(sheets, "daily-board-$date-${junior?.filter { it.isLetterOrDigit() }.orEmpty().ifBlank { "own" }}.pdf")
-            api.boardSheet(date, junior).use { body ->
+            val file = File(sheets, "daily-board-$date-own.pdf")
+            api.boardSheet(date).use { body ->
                 body.byteStream().use { input -> file.outputStream().use { input.copyTo(it) } }
             }
             file
@@ -167,6 +168,9 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
 
     /** Buy a pack, paying first: the hosted pay page to open in a browser tab. No invoice is raised until it is paid. */
     suspend fun checkout(pack: String): Result<CheckoutOrder> = runCatching { parseCheckout(data(api.boardCreditsCheckout(pack))) }
+
+    /** One page of the credits history (after the first rows credits() carries). */
+    suspend fun creditsHistory(limit: Int, offset: Int): Result<LedgerPage> = runCatching { parseLedgerPage(data(api.boardCreditsHistory(limit, offset))) }
 
     /** Where an order stands, asked when the app returns from the pay page. */
     suspend fun order(order: String): Result<OrderStatus> = runCatching { parseOrder(data(api.boardCreditsOrder(order))) }

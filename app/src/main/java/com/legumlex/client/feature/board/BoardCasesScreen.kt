@@ -163,14 +163,14 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
         if (confirmRead) AlertDialog(
             onDismissRequest = { confirmRead = false },
             title = { Text("Update From Court?") },
-            text = { Text("The platform reads this case's record from the court and updates its next date and stage." + (cost?.let { " This costs $it credits." } ?: "")) },
+            text = { Text("The platform reads this case's record from the court and updates its next date and stage." + (cost?.let { " This costs ${creditsLabel(it)}." } ?: "")) },
             confirmButton = {
                 TextButton({
                     confirmRead = false; busy = true; refusal = null; refusalCode = null
                     scope.launch {
                         repo.caseRead(x.id).onSuccess { (nc, bal) ->
                             c = nc
-                            Toast.makeText(context, "Updated. Balance: $bal credits.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Updated. Balance: ${creditsLabel(bal)}.", Toast.LENGTH_LONG).show()
                         }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() }
                         busy = false
                     }

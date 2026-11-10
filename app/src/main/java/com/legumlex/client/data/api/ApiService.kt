@@ -916,32 +916,10 @@ interface ApiService {
     @POST("board/chambers")
     suspend fun boardChambers(@FieldMap fields: Map<String, String>): Map<String, Any?>
 
-    @GET("board/juniors")
-    suspend fun boardJuniors(): Map<String, Any?>
-
-    @FormUrlEncoded
-    @POST("board/juniors")
-    suspend fun boardJuniorAdd(@Field("name") name: String): Map<String, Any?>
-
-    @FormUrlEncoded
-    @POST("board/juniors/{id}")
-    suspend fun boardJuniorRename(@Path("id") id: String, @Field("name") name: String): Map<String, Any?>
-
-    @DELETE("board/juniors/{id}")
-    suspend fun boardJuniorRemove(@Path("id") id: String): Map<String, Any?>
-
-    @FormUrlEncoded
-    @POST("board/courts")
-    suspend fun boardCourtAssign(@Field("court_key") courtKey: String, @Field("junior_id") juniorId: String): Map<String, Any?>
-
-    @FormUrlEncoded
-    @POST("board/entries")
-    suspend fun boardEntrySave(@FieldMap fields: Map<String, String>): Map<String, Any?>
-
-    /** A junior's sheet, a PDF (junior is an id, "none" or "all"). The caller closes the body. */
+    /** The cause list's PDF for a day in the counsel's own format. The caller closes the body. */
     @Streaming
     @GET("board/sheet")
-    suspend fun boardSheet(@Query("date") date: String, @Query("junior") junior: String? = null): ResponseBody
+    suspend fun boardSheet(@Query("date") date: String): ResponseBody
 
     /** The counsel's Home: profile, specialty score and four tiles. */
     @GET("board/home")
@@ -958,6 +936,10 @@ interface ApiService {
 
     @GET("board/credits")
     suspend fun boardCredits(@Query("limit") limit: Int = 100): Map<String, Any?>
+
+    /** A page of the credits history: {data:{total, items[]}}, items as in credits.history. */
+    @GET("board/credits/history")
+    suspend fun boardCreditsHistory(@Query("limit") limit: Int, @Query("offset") offset: Int): Map<String, Any?>
 
     /** Pay first: the gateway's order and a hosted pay page (pay_url), no invoice until the payment is made. */
     @FormUrlEncoded

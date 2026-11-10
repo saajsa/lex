@@ -53,7 +53,7 @@ fun CounselCreditsChip(compact: Boolean = false, onClick: () -> Unit) {
         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
         color = if (low) red.softText else Lex.colors.foreground,
         modifier = Modifier.padding(end = if (compact) 2.dp else 6.dp)
-            .semantics { contentDescription = "${creditsText(balance)} credits" }
+            .semantics { contentDescription = creditsLabel(balance) }
             .androidxClip(shape)
             .background(if (low) red.softBg else androidx.compose.ui.graphics.Color.Transparent)
             .androidxBorder(shape, if (low) red.solid else Lex.colors.input)

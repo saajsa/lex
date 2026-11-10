@@ -13,6 +13,9 @@ import java.util.Locale
  * set wrongly, still opens the board on the day the courts are sitting).
  */
 /** Credits are counted the Indian way: 2,100 and 1,00,000. */
+/** "1 credit", "5 credits" (count grouped Indian style). */
+fun creditsLabel(n: Int): String = "${creditsText(n)} ${if (n == 1) "credit" else "credits"}"
+
 fun creditsText(n: Int): String {
     val digits = kotlin.math.abs(n.toLong()).toString()
     val grouped = if (digits.length <= 3) digits else {
@@ -90,6 +93,13 @@ object BoardDates {
      * When eCourts was last checked, for a line like "eCourts checked 7:05 AM": the time, with the day
      * when it was not today. The server's stamp is IST ("2026-11-09 07:05:00" or ISO); null when unreadable.
      */
+    /** "Saved copy from 3:20 PM" (today) or "Saved copy from 9 Nov, 3:20 PM": the note on a board shown from the device's copy. */
+    fun savedLabel(savedAtMillis: Long, today: LocalDate, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+        val at = java.time.Instant.ofEpochMilli(savedAtMillis).atZone(zone)
+        val time = at.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
+        return "Saved copy from " + if (at.toLocalDate() == today) time else short(at.toLocalDate(), today) + ", " + time
+    }
+
     fun checkedLabel(stamp: String?, today: LocalDate): String? {
         val t = stamp?.trim()?.takeIf { it.length >= 16 } ?: return null
         val at = runCatching { java.time.LocalDateTime.parse(t.replace(' ', 'T').take(19)) }.getOrNull() ?: return null

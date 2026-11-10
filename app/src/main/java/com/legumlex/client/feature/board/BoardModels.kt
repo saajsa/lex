@@ -16,15 +16,6 @@ internal fun Any?.dbl(): Double = (this as? Number)?.toDouble() ?: (this as? Str
 internal fun Any?.map(): Map<String, Any?> = (this as? Map<String, Any?>) ?: emptyMap()
 internal fun Any?.list(): List<Map<String, Any?>> = (this as? List<*>)?.mapNotNull { it as? Map<String, Any?> }.orEmpty()
 
-/** The result entered for a case on a day. */
-data class BoardEntry(
-    val id: Int,
-    val itemNo: String,
-    val status: String,
-    val nextDate: String?,
-    val remarks: String,
-)
-
 /** The junior who covers a case: "case" when named on it, "court" when through its court. */
 data class JuniorRef(val id: Int, val name: String, val by: String? = null)
 
@@ -60,7 +51,6 @@ data class BoardCase(
     val caseJuniorId: Int?,
     val morningCheck: Boolean,
     val check: MorningCheck?,
-    val entry: BoardEntry?,
     val itemNo: String,
     /** The server's bench text (judge and court room), shown instead of the room when present. */
     val bench: String = "",
@@ -99,13 +89,11 @@ internal fun parseFormat(m: Map<String, Any?>): BoardFormat? =
 
 data class RoomGroup(val room: String, val items: List<BoardCase>)
 data class CourtGroup(val court: String, val count: Int, val rooms: List<RoomGroup>)
-data class JuniorGroup(val junior: JuniorRef?, val items: List<BoardCase>)
 
 data class BoardDay(
     val date: String,
     val items: List<BoardCase>,
     val byCourt: List<CourtGroup>,
-    val byJunior: List<JuniorGroup>,
     val total: Int,
     val withResult: Int,
     val listed: Int,
@@ -122,8 +110,6 @@ data class BoardSummary(
     val juniors: Int,
     val unassignedToday: Int,
     val credits: Int,
-    /** The result options, as the server lists them. */
-    val statuses: List<String>,
     /** True when the server makes this account's app the Counsel workspace (board/summary `counsel`). */
     val counsel: Boolean = false,
 )
@@ -149,10 +135,6 @@ data class Mismatch(val id: Int, val cnr: String, val caseNo: String, val title:
 
 data class ImportDone(val added: Int, val updated: Int, val total: Int, val mismatches: List<Mismatch> = emptyList())
 
-data class Junior(val id: Int, val name: String, val cases: Int, val courts: List<String>)
-data class CourtRow(val courtKey: String, val court: String, val cases: Int, val junior: JuniorRef?)
-data class JuniorsData(val juniors: List<Junior>, val courts: List<CourtRow>)
-
 data class CreditPack(val key: String, val label: String, val credits: Int, val price: Double)
 data class LedgerRow(val id: Int, val whenAt: String, val kind: String, val label: String, val delta: Int, val balanceAfter: Int, val expiresAt: String?)
 data class ExpiringLot(val credits: Int, val expiresAt: String)
@@ -168,6 +150,9 @@ data class CheckoutOrder(val order: String, val payUrl: String, val amount: Doub
 
 /** Where an order stands: pending, paid, expired or flagged; the credits it adds, and the balance after. */
 data class OrderStatus(val order: String, val status: String, val credits: Int, val balance: Int?)
+
+/** One page of the credits history: how many rows there are in all, and this page's. */
+data class LedgerPage(val total: Int, val items: List<LedgerRow>)
 
 data class CreditsData(
     val balance: Int,
@@ -187,7 +172,6 @@ data class CreditsData(
 internal fun parseCase(m: Map<String, Any?>): BoardCase {
     val j = m["junior"].map()
     val chk = m["check"].map()
-    val en = m["entry"].map()
     return BoardCase(
         id = m["id"].int(),
         cnr = m["cnr"].str(),
@@ -208,7 +192,6 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         caseJuniorId = m["case_junior_id"].intOrNull(),
         morningCheck = m["morning_check"] == true,
         check = if (chk.isEmpty()) null else MorningCheck(chk["result"].str(), chk["for"].strOrNull(), chk["at"].strOrNull()),
-        entry = if (en.isEmpty()) null else BoardEntry(en["id"].int(), en["item_no"].str(), en["status"].str(), en["next_date"].strOrNull(), en["remarks"].str()),
         itemNo = m["item_no"].str(),
         bench = m["bench"].str(),
         judge = m["judge"].str(),
@@ -234,10 +217,6 @@ internal fun parseDay(d: Map<String, Any?>): BoardDay {
                 rooms = c["rooms"].list().map { r -> RoomGroup(r["room"].str(), r["items"].list().map(::parseCase)) },
             )
         },
-        byJunior = d["by_junior"].list().map { g ->
-            val j = g["junior"].map()
-            JuniorGroup(if (j.isEmpty()) null else JuniorRef(j["id"].int(), j["name"].str()), g["items"].list().map(::parseCase))
-        },
         total = counts["total"].int(),
         withResult = counts["with_result"].int(),
         listed = counts["listed"].int(),
@@ -255,7 +234,6 @@ internal fun parseSummary(d: Map<String, Any?>) = BoardSummary(
     juniors = d["juniors"].int(),
     unassignedToday = d["unassigned_today"].int(),
     credits = d["credits"].int(),
-    statuses = (d["statuses"] as? List<*>)?.mapNotNull { it as? String }.orEmpty(),
     counsel = d["counsel"] == true,
 )
 
@@ -278,15 +256,10 @@ internal fun parseImportDone(d: Map<String, Any?>) = ImportDone(
     d["mismatches"].list().map { Mismatch(it["id"].int(), it["cnr"].str(), it["case_no"].str(), it["title"].str(), it["ecourts_date"].strOrNull(), it["your_date"].strOrNull()) },
 )
 
-internal fun parseJuniors(d: Map<String, Any?>) = JuniorsData(
-    juniors = d["juniors"].list().map { j ->
-        Junior(j["id"].int(), j["name"].str(), j["cases"].int(), (j["courts"] as? List<*>)?.mapNotNull { it as? String }.orEmpty())
-    },
-    courts = d["courts"].list().map { c ->
-        val j = c["junior"].map()
-        CourtRow(c["court_key"].str(), c["court"].str(), c["cases"].int(), if (j.isEmpty()) null else JuniorRef(j["id"].int(), j["name"].str()))
-    },
-)
+internal fun parseLedgerRow(it: Map<String, Any?>) =
+    LedgerRow(it["id"].int(), it["when"].str(), it["kind"].str(), it["label"].str(), it["delta"].int(), it["balance_after"].int(), it["expires_at"].strOrNull())
+
+internal fun parseLedgerPage(d: Map<String, Any?>) = d["items"].list().map(::parseLedgerRow).let { LedgerPage(d["total"].intOrNull() ?: it.size, it) }
 
 internal fun parseCredits(d: Map<String, Any?>): CreditsData {
     val costs = d["costs"].map()
@@ -296,9 +269,7 @@ internal fun parseCredits(d: Map<String, Any?>): CreditsData {
         packs = d["packs"].list().map { CreditPack(it["key"].str(), it["label"].str(), it["credits"].int(), it["price"].dbl()) },
         costAdd = costs["add"].int(),
         costCheck = costs["check"].int(),
-        history = d["history"].list().map {
-            LedgerRow(it["id"].int(), it["when"].str(), it["kind"].str(), it["label"].str(), it["delta"].int(), it["balance_after"].int(), it["expires_at"].strOrNull())
-        },
+        history = d["history"].list().map(::parseLedgerRow),
         purchases = d["purchases"].list().map {
             Purchase(it["id"].int(), it["pack"].str(), it["credits"].int(), it["status"].str(), it["created_at"].str(), it["paid_at"].strOrNull(), it["pay_link"].strOrNull())
         },

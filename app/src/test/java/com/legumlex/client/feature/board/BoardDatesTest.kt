@@ -73,6 +73,9 @@ class BoardDatesTest {
     }
 
     @Test fun creditsAreGroupedTheIndianWay() {
+        assertEquals("1 credit", creditsLabel(1))
+        assertEquals("0 credits", creditsLabel(0))
+        assertEquals("2,100 credits", creditsLabel(2100))
         assertEquals("100", creditsText(100))
         assertEquals("2,100", creditsText(2100))
         assertEquals("5,500", creditsText(5500))

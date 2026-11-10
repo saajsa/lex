@@ -221,8 +221,8 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
     var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var dayItems by remember { mutableStateOf<List<BoardCase>?>(null) }
     var dayError by remember { mutableStateOf<String?>(null) }
+    var daySavedAt by remember { mutableStateOf<Long?>(null) }
     var picking by remember { mutableStateOf(false) }
-    var eyeOpen by rememberSaveable { mutableStateOf(false) }
     var addMenu by remember { mutableStateOf(false) }
     var q by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<BoardCase>?>(null) }
@@ -232,7 +232,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
     androidx.compose.runtime.LaunchedEffect(selectedIso, tick) {
         if (t.empty) return@LaunchedEffect
         dayItems = null
-        repo.day(selectedIso).onSuccess { dayItems = it.items; dayError = null }.onFailure { dayError = it.boardMessage() }
+        repo.dayOrSaved(selectedIso).onSuccess { dayItems = it.day.items; daySavedAt = it.savedAt; dayError = null }.onFailure { dayError = it.boardMessage(); daySavedAt = null }
     }
     androidx.compose.runtime.LaunchedEffect(q, tick) {
         if (t.empty || q.isBlank()) { found = null; return@LaunchedEffect }
@@ -275,6 +275,9 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         fontSize = 12.sp, color = Color(0xFFA3A19A),
                     )
                 }
+            }
+            daySavedAt?.let { at ->
+                item { Text(BoardDates.savedLabel(at, today) + ". Connect to refresh.", fontSize = 12.sp, color = Color(0xFFE0B050)) }
             }
             // Search and Add sit at the top, right below the day's heading.
             item {
@@ -373,7 +376,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
     })
     if (byCnr) CnrWizard(onClose = { byCnr = false }, onBuy = { byCnr = false; onCredits() }, onAdded = { _, bal ->
         byCnr = false; tick++
-        Toast.makeText(context, "Case added. Balance: ${creditsText(bal)} credits.", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Case added. Balance: ${creditsLabel(bal)}.", Toast.LENGTH_LONG).show()
         onRefresh()
     })
     if (formatNote) AlertDialog(

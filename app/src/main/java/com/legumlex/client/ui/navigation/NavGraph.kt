@@ -455,7 +455,6 @@ fun LegumNavGraph(navController: NavHostController) {
         ) { entry ->
             com.legumlex.client.feature.board.BoardSheetScreen(
                 date   = entry.arguments?.getString(Route.BoardSheet.ARG_DATE).orEmpty(),
-                junior = entry.arguments?.getString(Route.BoardSheet.ARG_JUNIOR).orEmpty(),
                 label  = entry.arguments?.getString(Route.BoardSheet.ARG_LABEL).orEmpty().ifBlank { "Sheet" },
                 onBack = { navController.popBackStack() },
             )

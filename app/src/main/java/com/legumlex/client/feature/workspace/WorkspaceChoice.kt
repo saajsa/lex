@@ -61,6 +61,9 @@ private val Ease = CubicBezierEasing(0.2f, 0.7f, 0.2f, 1f)
  * "Where to today?" (REQ-010, 10a): shown at every opening for a person who holds both workspaces. Counsel is the dark card,
  * the Client Portal the white one. The server lists what can be entered; nothing is remembered between openings.
  */
+/** The name line: "Name," before "where to today?", or just "Welcome" when no name is known. */
+fun greetingName(name: String): String = if (name.isNotBlank()) "${name.trim()}," else "Welcome"
+
 @Composable
 fun WorkspaceChoiceScreen(onPick: (Mode) -> Unit, hour: Int = java.time.LocalTime.now().hour) {
     val ws by WorkspaceSession.workspaces.collectAsState()
@@ -78,7 +81,7 @@ fun WorkspaceChoiceScreen(onPick: (Mode) -> Unit, hour: Int = java.time.LocalTim
                 Spacer(Modifier.height(8.dp))
                 Rise(1) {
                     Column {
-                        Text(if (name.isNotBlank()) "$name," else "Welcome,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = 34.sp, lineHeight = 37.sp, color = Ink)
+                        Text(greetingName(name), fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = 34.sp, lineHeight = 37.sp, color = Ink)
                         Text("where to today?", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = 34.sp, lineHeight = 37.sp, color = Ink)
                     }
                 }

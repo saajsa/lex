@@ -18,8 +18,7 @@ class BoardModelsTest {
     private val case1 = """{"id":550,"cnr":"PBLD010012342026","case_no":"CS/123/2026","case_type":"Civil Suit","title":"Rajinder Kumar v. Harpreet Singh",
         "petitioner":"Rajinder Kumar","respondent":"Harpreet Singh","court":"Civil Judge Ludhiana","court_key":"PBLD01","room":"Court No. 12","stage":"Evidence",
         "next_date":"2026-11-08","last_date":null,"note":"","source":"import","junior":{"id":90,"name":"Junior A","by":"court"},"case_junior_id":null,
-        "morning_check":true,"check":{"result":"listed_today","for":"2026-11-08","at":"2026-11-08 07:30:00"},"refresh_asked_at":null,
-        "entry":{"id":3,"item_no":"14","status":"Adjourned","next_date":"2026-12-10","remarks":"x"},"item_no":"14"}"""
+        "morning_check":true,"check":{"result":"listed_today","for":"2026-11-08","at":"2026-11-08 07:30:00"},"refresh_asked_at":null,"item_no":"14"}"""
     private val case2 = """{"id":551,"cnr":"PBLD010045672025","case_no":"","title":"","court":"","room":"","stage":"","next_date":null,"junior":null,
         "morning_check":false,"check":null,"entry":null,"item_no":""}"""
 
@@ -33,14 +32,13 @@ class BoardModelsTest {
         assertNull(c.caseJuniorId)
         assertTrue(c.morningCheck)
         assertEquals("Listed Today", c.check?.label)
-        assertEquals("Adjourned", c.entry?.status)
         assertEquals("14", c.itemNo)
     }
 
     @Test fun caseWithNothing() {
         val c = parseCase(read(case2))
         assertEquals("PBLD010045672025", c.heading)
-        assertNull(c.junior); assertNull(c.check); assertNull(c.entry)
+        assertNull(c.junior); assertNull(c.check)
         assertFalse(c.morningCheck)
     }
 
@@ -52,7 +50,6 @@ class BoardModelsTest {
     private val dayJson = """{"date":"2026-11-08","items":[$case1,$case2],
         "by_court":[{"court":"Civil Judge Ludhiana","count":1,"rooms":[{"room":"Court No. 12","items":[$case1]}]},
                     {"court":"Court Not Known","count":1,"rooms":[{"room":"Room Not Known","items":[$case2]}]}],
-        "by_junior":[{"junior":null,"items":[$case2]},{"junior":{"id":90,"name":"Junior A"},"items":[$case1]}],
         "counts":{"total":2,"with_result":1,"listed":1}}"""
 
     @Test fun dayKeepsTheServersGrouping() {
@@ -65,16 +62,12 @@ class BoardModelsTest {
         assertEquals("Court No. 12", d.byCourt[0].rooms[0].room)
         assertEquals(550, d.byCourt[0].rooms[0].items[0].id)
         assertEquals("Room Not Known", d.byCourt[1].rooms[0].room)
-        // By junior: the unassigned group has no junior.
-        assertNull(d.byJunior[0].junior)
-        assertEquals("Junior A", d.byJunior[1].junior?.name)
         assertEquals(d.total, d.byCourt.sumOf { it.count })
-        assertEquals(d.total, d.byJunior.sumOf { it.items.size })
     }
 
     @Test fun emptyDay() {
         val d = parseDay(read("""{"date":"2026-11-09","items":[],"by_court":[],"by_junior":[],"counts":{"total":0,"with_result":0,"listed":0}}"""))
-        assertTrue(d.items.isEmpty() && d.byCourt.isEmpty() && d.byJunior.isEmpty())
+        assertTrue(d.items.isEmpty() && d.byCourt.isEmpty())
         assertEquals(0, d.total)
     }
 
@@ -85,10 +78,9 @@ class BoardModelsTest {
         assertEquals(parseDay(raw), parseDay(again))
     }
 
-    @Test fun summaryAndStatusesComeFromTheServer() {
-        val s = parseSummary(read("""{"today":"2026-11-08","cases":7,"listed_today":5,"listed_tomorrow":2,"results_pending":4,"results_entered":1,"juniors":2,"unassigned_today":3,"credits":100,"statuses":["Heard","Adjourned"]}"""))
+    @Test fun summaryComesFromTheServer() {
+        val s = parseSummary(read("""{"today":"2026-11-08","cases":7,"listed_today":5,"listed_tomorrow":2,"results_pending":4,"results_entered":1,"juniors":2,"unassigned_today":3,"credits":100}"""))
         assertEquals(7, s.cases); assertEquals(100, s.credits)
-        assertEquals(listOf("Heard", "Adjourned"), s.statuses)
     }
 
     @Test fun importPreview() {
@@ -100,13 +92,10 @@ class BoardModelsTest {
         assertEquals(ImportDone(7, 0, 7), parseImportDone(read("""{"added":7,"updated":0,"total":7}""")))
     }
 
-    @Test fun juniorsAndCourts() {
-        val j = parseJuniors(read("""{"juniors":[{"id":90,"name":"A","cases":2,"courts":["PBLD01"]}],"courts":[{"court_key":"PBLD01","court":"C","cases":2,"junior":{"id":90,"name":"A"}},{"court_key":"X","court":"D","cases":1,"junior":null}]}"""))
-        assertEquals(listOf("PBLD01"), j.juniors[0].courts)
-        assertEquals(90, j.courts[0].junior?.id)
-        assertNull(j.courts[1].junior)
-        // An assignment that answers with an empty list for data is not an error to parse.
-        assertNotNull(parseJuniors(emptyMap()))
+    @Test fun ledgerPage() {
+        val pg = parseLedgerPage(read("""{"total":120,"items":[{"id":7,"when":"2026-11-01 10:00:00","kind":"spend","label":"Daily check","delta":-1,"balance_after":99}]}"""))
+        assertEquals(120, pg.total); assertEquals(1, pg.items.size); assertEquals(-1, pg.items[0].delta)
+        assertEquals(0, parseLedgerPage(emptyMap()).total)
     }
 
     @Test fun credits() {

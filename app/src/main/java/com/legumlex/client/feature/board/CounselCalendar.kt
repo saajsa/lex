@@ -242,19 +242,3 @@ internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye,
     }
 }
 
-/** The slim red line: how many dates need a look. */
-@Composable
-internal fun EyeLine(n: Int, open: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    val red = Lex.colors.danger
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(red.softBg).border(1.dp, red.solid.copy(alpha = 0.35f), shape).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(eyeText(n), style = MaterialTheme.typography.titleSmall, color = red.softText, modifier = Modifier.weight(1f))
-        androidx.compose.material3.Icon(
-            if (open) Icons.Outlined.KeyboardArrowDown else Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = if (open) "Hide" else "Show", tint = red.softText,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}

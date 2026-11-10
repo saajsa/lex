@@ -29,7 +29,6 @@ object BoardHub {
     private val _access = MutableStateFlow<BoardAccess>(BoardAccess.Unknown)
     val access: StateFlow<BoardAccess> = _access.asStateFlow()
 
-    /** The result options, as the server last listed them. */
     /** The credits chip in the Counsel header: balance and whether it is low, as board/today last said. */
     data class Chip(val balance: Int, val low: Boolean)
     private val _chip = MutableStateFlow<Chip?>(null)
@@ -40,8 +39,6 @@ object BoardHub {
     private val _chosen = MutableStateFlow<String?>(null)
     val chosen: StateFlow<String?> = _chosen.asStateFlow()
     fun choose(date: String?) { _chosen.value = date }
-
-    val statuses: List<String> get() = (_access.value as? BoardAccess.Yes)?.summary?.statuses.orEmpty()
 
     /** Whether this run is known to be in the Counsel workspace (the chooser's answer, or the server's counsel-only). */
     private fun expectCounsel() = com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Counsel

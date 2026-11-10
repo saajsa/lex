@@ -76,8 +76,8 @@ private const val PAYS = "Credits pay for the morning eCourts check."
 
 fun creditsStep(fs: FirstSteps): CreditsStep = when {
     fs.balance <= 0 -> CreditsStep(false, "Add Credits", PAYS)
-    fs.trialGiven && fs.balance == fs.trialCredits -> CreditsStep(true, "Credits In Hand", "Your ${fs.trialCredits} trial credits are in your account. $PAYS")
-    else -> CreditsStep(true, "Credits In Hand", "You have ${fs.balance} credits in your account. $PAYS")
+    fs.trialGiven && fs.balance == fs.trialCredits -> CreditsStep(true, "Credits In Hand", "Your ${fs.trialCredits} trial ${if (fs.trialCredits == 1) "credit is" else "credits are"} in your account. $PAYS")
+    else -> CreditsStep(true, "Credits In Hand", "You have ${creditsLabel(fs.balance)} in your account. $PAYS")
 }
 
 /** The ring is half full once credits are in hand: one of the two steps done. */
@@ -114,7 +114,7 @@ internal fun FirstStepsBlock(fs: FirstSteps, onRefresh: () -> Unit, onCredits: (
     })
     if (byCnr) CnrWizard(onClose = { byCnr = false }, onBuy = { byCnr = false; onCredits() }, onAdded = { _, bal ->
         byCnr = false
-        Toast.makeText(context, "Case added. Balance: ${creditsText(bal)} credits.", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "Case added. Balance: ${creditsLabel(bal)}.", Toast.LENGTH_LONG).show()
         onRefresh()
     })
 }
