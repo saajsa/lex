@@ -130,7 +130,11 @@ fun LoginScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Lex.colors.background).grain()) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Lex.colors.background).grain()) {
+        // The screen's height less the bars and the page's own padding: the content is at least this tall, so the date block
+        // takes the room left at the foot without moving the cards; a short screen scrolls instead.
+        val bars = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val minContent = (maxHeight - bars - spacing.s3 - spacing.s4 - 8.dp).coerceAtLeast(0.dp)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -141,6 +145,7 @@ fun LoginScreen(
                 .padding(horizontal = spacing.s4)
                 .padding(top = spacing.s3, bottom = spacing.s4),
         ) {
+            Column(Modifier.fillMaxWidth().heightIn(min = minContent)) {
             // Our monogram on the left, Lex Intelligence (small) on the right.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 LegumMark(size = 34.dp, fillColor = PrimaryText)
@@ -223,7 +228,44 @@ fun LoginScreen(
                     },
                 )
             }
+
+            // Today and a legal maxim, at the foot: type only, no action.
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(spacing.s6))
+            DateAndMaxim(Modifier.padding(start = 20.dp, end = 20.dp))
+            }
         }
+    }
+}
+
+/**
+ * Today in India (never the phone's zone) as the reference's date: the weekday, the ordinal day large beneath it and the month quieter
+ * beside it; then a short rule and the day's maxim with its meaning. It moves on at midnight IST. Plain text for a screen reader.
+ */
+@Composable
+private fun DateAndMaxim(modifier: Modifier = Modifier) {
+    var today by remember { mutableStateOf(com.legumlex.client.feature.board.BoardDates.today()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(com.legumlex.client.feature.board.BoardDates.millisToNextDay(java.time.Instant.now()))
+            today = com.legumlex.client.feature.board.BoardDates.today()
+        }
+    }
+    val w = dateWords(today)
+    val maxim = SignInMaxims.forDate(today)
+    Column(modifier.fillMaxWidth()) {
+        Text(w.weekday, fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 40.sp, lineHeight = 42.sp, color = PrimaryText)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text(w.day, fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal, fontSize = 56.sp, lineHeight = 58.sp, color = SecondaryText)
+            Spacer(Modifier.weight(1f))
+            Text(w.month, style = MaterialTheme.typography.titleMedium, color = SecondaryText, modifier = Modifier.padding(bottom = 8.dp))
+        }
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.width(36.dp).height(1.dp).background(Lex.colors.input))
+        Spacer(Modifier.height(14.dp))
+        Text(maxim.latin, style = MaterialTheme.typography.titleMedium.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = PrimaryText)
+        Spacer(Modifier.height(4.dp))
+        Text(maxim.meaning, style = MaterialTheme.typography.bodySmall, color = SecondaryText)
     }
 }
 
