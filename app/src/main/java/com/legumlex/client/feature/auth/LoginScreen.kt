@@ -190,7 +190,7 @@ fun LoginScreen(
                         onMobile = { vm.show(LoginView.Mobile) },
                         onEmail  = { vm.show(LoginView.Email) },
                         onDev    = { vm.onEmailLogin(BuildConfig.DEV_LOGIN_EMAIL, BuildConfig.DEV_LOGIN_PASSWORD) },
-                        onAdv    = { vm.onEmailLogin(BuildConfig.DEV_ADV_EMAIL, BuildConfig.DEV_ADV_PASSWORD) },
+                        onAdv    = { email -> vm.onEmailLogin(email, BuildConfig.DEV_ADV_PASSWORD) },
                     )
                     if (signUp) {
                         // A newcomer's own way in (owner, 2026-10-24): set apart
@@ -309,7 +309,7 @@ private fun ColumnScope.ChooseView(
     onMobile: () -> Unit,
     onEmail: () -> Unit,
     onDev: () -> Unit,
-    onAdv: () -> Unit,
+    onAdv: (String) -> Unit,
 ) {
     val spacing = LocalSpacing.current
     // The two ways in, as their marks alone: Google and a mobile code.
@@ -345,19 +345,35 @@ private fun ColumnScope.ChooseView(
             Text("Debug · Sign In as Test Contact", style = MaterialTheme.typography.labelMedium)
         }
     }
-    // Debug builds only (DEV_ADV_EMAIL/_PASSWORD from local.properties):
-    // one tap signs in as the dev Daily Board advocate.
-    if (BuildConfig.DEBUG && BuildConfig.DEV_ADV_EMAIL.isNotBlank()) {
+    // Debug builds only (DEV_ADV_EMAIL, DEV_ADV_EMPTY_EMAIL and DEV_ADV_PASSWORD):
+    // the button opens a small menu of the dev counsel accounts, one tap signs in.
+    if (BuildConfig.DEBUG && (BuildConfig.DEV_ADV_EMAIL.isNotBlank() || BuildConfig.DEV_ADV_EMPTY_EMAIL.isNotBlank())) {
         Spacer(Modifier.height(spacing.s2))
-        OutlinedButton(
-            onClick  = onAdv,
-            enabled  = !busy,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            shape    = MaterialTheme.shapes.small,
-            border   = BorderStroke(1.dp, BorderColor),
-            colors   = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryText),
-        ) {
-            Text("Adv (debug)", style = MaterialTheme.typography.labelMedium)
+        var advMenu by remember { mutableStateOf(false) }
+        Box(Modifier.align(Alignment.CenterHorizontally)) {
+            OutlinedButton(
+                onClick  = { advMenu = true },
+                enabled  = !busy,
+                shape    = MaterialTheme.shapes.small,
+                border   = BorderStroke(1.dp, BorderColor),
+                colors   = ButtonDefaults.outlinedButtonColors(contentColor = SecondaryText),
+            ) {
+                Text("Adv (debug)", style = MaterialTheme.typography.labelMedium)
+            }
+            DropdownMenu(expanded = advMenu, onDismissRequest = { advMenu = false }) {
+                if (BuildConfig.DEV_ADV_EMAIL.isNotBlank()) {
+                    DropdownMenuItem(
+                        text    = { Text("Counsel · With Cases") },
+                        onClick = { advMenu = false; onAdv(BuildConfig.DEV_ADV_EMAIL) },
+                    )
+                }
+                if (BuildConfig.DEV_ADV_EMPTY_EMAIL.isNotBlank()) {
+                    DropdownMenuItem(
+                        text    = { Text("Counsel · Empty") },
+                        onClick = { advMenu = false; onAdv(BuildConfig.DEV_ADV_EMPTY_EMAIL) },
+                    )
+                }
+            }
         }
     }
 }

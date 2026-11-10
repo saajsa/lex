@@ -33,9 +33,11 @@ val beamsInstanceId: String = localProps.getProperty("BEAMS_INSTANCE_ID") ?: ""
 // hides when they are absent, and release builds always carry blanks.
 val devLoginEmail: String = localProps.getProperty("DEV_LOGIN_EMAIL") ?: ""
 val devLoginPassword: String = localProps.getProperty("DEV_LOGIN_PASSWORD") ?: ""
-// The dev Daily Board advocate's "Adv (debug)" button: DEV_ADV_EMAIL and
-// DEV_ADV_PASSWORD in local.properties, same rules (blank hides it).
+// The "Adv (debug)" button offers two dev counsel accounts, both signed in
+// with DEV_ADV_PASSWORD: the one with data (DEV_ADV_EMAIL) and an empty one
+// (DEV_ADV_EMPTY_EMAIL, default the empty dev test account). Blank hides an item.
 val devAdvEmail: String = localProps.getProperty("DEV_ADV_EMAIL") ?: ""
+val devAdvEmptyEmail: String = localProps.getProperty("DEV_ADV_EMPTY_EMAIL") ?: "loop.boardadvocate@example.org"
 val devAdvPassword: String = localProps.getProperty("DEV_ADV_PASSWORD") ?: ""
 val debugApiBaseUrl: String = localProps.getProperty("API_BASE_URL")
     ?: "https://set-API_BASE_URL-in-local-properties.invalid/customers_api/v1/"
@@ -100,6 +102,7 @@ android {
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"$devLoginEmail\"")
             buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"$devLoginPassword\"")
             buildConfigField("String", "DEV_ADV_EMAIL", "\"$devAdvEmail\"")
+            buildConfigField("String", "DEV_ADV_EMPTY_EMAIL", "\"$devAdvEmptyEmail\"")
             buildConfigField("String", "DEV_ADV_PASSWORD", "\"$devAdvPassword\"")
             isMinifyEnabled = false
         }
@@ -110,6 +113,7 @@ android {
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"\"")
             buildConfigField("String", "DEV_LOGIN_PASSWORD", "\"\"")
             buildConfigField("String", "DEV_ADV_EMAIL", "\"\"")
+            buildConfigField("String", "DEV_ADV_EMPTY_EMAIL", "\"\"")
             buildConfigField("String", "DEV_ADV_PASSWORD", "\"\"")
             isMinifyEnabled = true
             // The native libraries' symbols (ML Kit and the like) go into the
