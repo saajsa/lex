@@ -26,6 +26,11 @@ sealed interface BoardAccess {
  * at sign-out and when the person switches accounts.
  */
 object BoardHub {
+    /** The server said the Counsel workspace is paused (403 code `paused`): the paused screen shows. Cleared at sign-out, and by any answer that is not that refusal. */
+    private val _paused = MutableStateFlow(false)
+    val paused: StateFlow<Boolean> = _paused.asStateFlow()
+    fun markPaused(on: Boolean) { _paused.value = on }
+
     private val _access = MutableStateFlow<BoardAccess>(BoardAccess.Unknown)
     val access: StateFlow<BoardAccess> = _access.asStateFlow()
 
@@ -35,15 +40,33 @@ object BoardHub {
     val chip: StateFlow<Chip?> = _chip.asStateFlow()
     fun setChip(balance: Int, low: Boolean) { _chip.value = Chip(balance, low) }
 
+    /**
+     * The balance after a spend or a purchase, as the server reported it: the chip follows. A balance that went up is no longer low;
+     * one that went down keeps the flag it had (the server's own flag arrives with board/today).
+     */
+    fun applyBalance(balance: Int) {
+        val old = _chip.value
+        _chip.value = Chip(balance, old?.low == true && balance <= old.balance)
+    }
+
     /** The day chosen on the Calendar (yyyy-MM-dd): the bar's Print prints it; null until a day is chosen (today then). */
     private val _chosen = MutableStateFlow<String?>(null)
     val chosen: StateFlow<String?> = _chosen.asStateFlow()
     fun choose(date: String?) { _chosen.value = date }
 
+    private var seenToday: java.time.LocalDate? = null
+
+    /** A new day: a chosen day that was the old today moves to the new one (a day picked on purpose stays). */
+    fun rollover(today: java.time.LocalDate) {
+        val prev = seenToday
+        seenToday = today
+        if (prev != null && prev != today && _chosen.value == BoardDates.api(prev)) _chosen.value = BoardDates.api(today)
+    }
+
     /** Whether this run is known to be in the Counsel workspace (the chooser's answer, or the server's counsel-only). */
     private fun expectCounsel() = com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Counsel
 
-    fun clear() { _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null }
+    fun clear() { _paused.value = false; _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; seenToday = null }
 
     fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary) }
 
@@ -60,6 +83,9 @@ object BoardHub {
         if (com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Portal) { hide(); return }
         val repo = BoardRepository(context)
         val first = repo.summary()
+        // 403 `paused` is the server's own word for a paused workspace: nothing is retried or guessed, the paused screen shows.
+        if (isPausedRefusal(first)) { markPaused(true); hide(); return }
+        if (first.isSuccess) markPaused(false)
         var r = first
         val answers = mutableListOf(answerOf(first))
         // A known counsel is not turned away by one refusal: ask once more before believing it.
@@ -69,7 +95,8 @@ object BoardHub {
             Verdict.No -> {
                 // A person in the Counsel workspace whom the server now refuses moves to the Client Portal, with the server's words.
                 val wasCounsel = expectCounsel()
-                if (wasCounsel) {
+                // A paused counsel-only account is shown the paused screen, not moved to a Client Portal it does not have.
+                if (wasCounsel && !com.legumlex.client.feature.workspace.isWorkspacePaused(com.legumlex.client.feature.workspace.WorkspaceSession.workspaces.value)) {
                     val said = r.exceptionOrNull()?.apiError()?.message
                     com.legumlex.client.feature.workspace.WorkspaceSession.set(com.legumlex.client.feature.workspace.Mode.Portal)
                     com.legumlex.client.feature.workspace.WorkspaceSession.say(said ?: com.legumlex.client.feature.workspace.GONE_NOTE)
@@ -80,11 +107,19 @@ object BoardHub {
         }
     }
 
-    private fun answerOf(r: Result<BoardSummary>): Answer {
-        if (r.isSuccess) return Answer.Ok
-        val http = r.exceptionOrNull()?.apiError()?.http
-        return if (http == 404 || http == 403) Answer.Refused else Answer.Failed
-    }
+    private fun answerOf(r: Result<BoardSummary>): Answer = answerOfResult(r)
+}
+
+/** One server answer as the board's access rule reads it: fine, refused (404 or 403), or not answered at all. */
+/** Whether the server refused with 403 `paused` (the Counsel workspace is paused while the person is engaged with the firm). */
+fun isPausedRefusal(r: Result<*>): Boolean = r.exceptionOrNull()?.apiError()?.let { pausedRefusal(it.http, it.code) } == true
+
+fun pausedRefusal(http: Int?, code: String?): Boolean = http == 403 && code == "paused"
+
+fun answerOfResult(r: Result<*>): Answer {
+    if (r.isSuccess) return Answer.Ok
+    val err = r.exceptionOrNull()?.apiError()
+    return if (err?.http == 404 || err?.http == 403) Answer.Refused else Answer.Failed
 }
 
 enum class Answer { Ok, Refused, Failed }

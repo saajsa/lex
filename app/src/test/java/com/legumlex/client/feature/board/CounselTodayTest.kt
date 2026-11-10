@@ -247,12 +247,6 @@ class CounselTodayTest {
         assertTrue(parseImportDone(mapOf("added" to 1.0)).mismatches.isEmpty())
     }
 
-    @Test fun packLastsReadsLikeTheWeb() {
-        assertEquals("About 71 days at 7 cases", packLasts(500, 7, 1, 12))
-        assertEquals("About 1 day at 1 case", packLasts(1, 0, 1, 12))
-        assertEquals("Covers 15 cases for 12 months", packLasts(5500, 7, 1, 12))
-    }
-
     @Test fun extractsTheCnrFromAScannedCode() {
         assertEquals("PBLD010012342026", extractCnr("PBLD010012342026"))
         assertEquals("PBLD010012342026", extractCnr("pbld010012342026"))

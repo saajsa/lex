@@ -347,7 +347,7 @@ private fun ColumnScope.ChooseView(
     }
     // Debug builds only (DEV_ADV_EMAIL, DEV_ADV_EMPTY_EMAIL and DEV_ADV_PASSWORD):
     // the button opens a small menu of the dev counsel accounts, one tap signs in.
-    if (BuildConfig.DEBUG && (BuildConfig.DEV_ADV_EMAIL.isNotBlank() || BuildConfig.DEV_ADV_EMPTY_EMAIL.isNotBlank())) {
+    if (BuildConfig.DEBUG && BuildConfig.DEV_ADV_PASSWORD.isNotBlank() && (BuildConfig.DEV_ADV_EMAIL.isNotBlank() || BuildConfig.DEV_ADV_EMPTY_EMAIL.isNotBlank())) {
         Spacer(Modifier.height(spacing.s2))
         var advMenu by remember { mutableStateOf(false) }
         Box(Modifier.align(Alignment.CenterHorizontally)) {

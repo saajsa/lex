@@ -1,7 +1,9 @@
 package com.legumlex.client.feature.board
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -50,12 +52,37 @@ class PendingOrderTest {
 
     @Test fun serverStatusDecidesTheVerdict() {
         assertEquals(OrderVerdict.Paid, orderVerdict("paid"))
-        assertEquals(OrderVerdict.Failed, orderVerdict("failed"))
+        // Expired and cancelled: nothing was charged, the order is done.
         assertEquals(OrderVerdict.Failed, orderVerdict("expired"))
+        assertEquals(OrderVerdict.Failed, orderVerdict("cancelled"))
+        // Failed stays payable on the server and a later capture is honoured: it is kept, not "nothing was charged".
+        assertEquals(OrderVerdict.NotCompleted, orderVerdict("failed"))
         assertEquals(OrderVerdict.Flagged, orderVerdict("flagged"))
         // Pending, anything unknown, and no answer at all keep the order for the next check.
         assertEquals(OrderVerdict.Pending, orderVerdict("pending"))
         assertEquals(OrderVerdict.Pending, orderVerdict("something_new"))
         assertEquals(OrderVerdict.Pending, orderVerdict(null))
+    }
+
+    @Test fun onlyExpiredSaysNothingWasCharged() {
+        assertTrue(EXPIRED_NOTE.contains("nothing was charged"))
+        assertFalse(FAILED_NOTE.contains("nothing was charged"))
+        assertEquals("Payment not completed. If you did pay, it will be matched and your credits added.", FAILED_NOTE)
+    }
+
+    @Test fun aFailedOrderIsKeptForAWhileThenLetGo() {
+        val start = 1_000_000_000L
+        assertFalse(failedOrderGivenUp(start, start + 60_000))
+        assertFalse(failedOrderGivenUp(start, start + FAILED_KEEP_MILLIS))
+        assertTrue(failedOrderGivenUp(start, start + FAILED_KEEP_MILLIS + 1))
+        // An order with no start time cannot be kept for "a while".
+        assertTrue(failedOrderGivenUp(0L, start))
+    }
+
+    @Test fun anUnknownOrderResolvesButAFailedAskDoesNot() {
+        assertTrue(orderGone(404))
+        assertFalse(orderGone(500))
+        assertFalse(orderGone(403))
+        assertFalse(orderGone(null))
     }
 }

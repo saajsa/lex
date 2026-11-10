@@ -53,10 +53,20 @@ class DayFallbackTest {
     }
 }
 
-/** Dates follow eCourts: only an existing case with a CNR has its Next Date locked. */
-class NextDateLockTest {
+/** A hand case reads as the web words it: no CNR yet, and a daily-check line that waits for one. */
+class HandCaseTextTest {
     private fun case(cnr: String, hasCnr: Boolean) = parseCase(mapOf("id" to 1.0, "cnr" to cnr, "has_cnr" to hasCnr))
-    @Test fun lockedForACnrCase() { assertTrue(nextDateLocked(case("PBLD010012342026", true))) }
-    @Test fun openForANewCase() { assertEquals(false, nextDateLocked(null)) }
-    @Test fun openForAHandCase() { assertEquals(false, nextDateLocked(case("", false))) }
+
+    @Test fun cnrCaseShowsItsCnr() { assertEquals("PBLD010012342026", cnrLine(case("PBLD010012342026", true))) }
+    @Test fun handCaseNeverShowsTheStandIn() { assertEquals("Not yet. This case was added by hand.", cnrLine(case("HAND0001", false))) }
+    @Test fun handCheckLineWaitsForACnr() {
+        assertEquals("Checked every morning for 1 credit, once the case has a CNR. eCourts has no record of it yet.", dailyCheckLine(true, false, 1))
+        assertEquals("Checked every morning for 2 credits, once the case has a CNR. eCourts has no record of it yet.", dailyCheckLine(false, false, 2))
+    }
+    @Test fun cnrCheckLine() {
+        assertEquals("Checked every morning for 1 credit.", dailyCheckLine(true, true, 1))
+        assertEquals("Checked every morning for 3 credits.", dailyCheckLine(true, true, 3))
+        assertEquals("Not checked. Its date stays as it was.", dailyCheckLine(false, true, 1))
+    }
+    @Test fun buttonCost() { assertEquals("1 Credit", creditsTitle(1)); assertEquals("4 Credits", creditsTitle(4)) }
 }

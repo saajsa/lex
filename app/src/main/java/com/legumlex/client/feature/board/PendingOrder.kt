@@ -35,8 +35,14 @@ sealed interface OrderVerdict {
     /** Paid: the credits are in; the order is done. */
     data object Paid : OrderVerdict
 
-    /** Failed or expired: nothing was charged; the order is done. */
+    /** Expired or cancelled: nothing was charged; the order is done. */
     data object Failed : OrderVerdict
+
+    /**
+     * Failed: the pay page ended without a payment, but the order stays payable and a later capture is honoured (the server
+     * says so), so it is not "nothing was charged". The order is kept and asked about again for a while.
+     */
+    data object NotCompleted : OrderVerdict
 
     /** Flagged: the payment arrived but was not recorded automatically; the server says it will record or refund it. The order is done here. */
     data object Flagged : OrderVerdict
@@ -48,11 +54,23 @@ sealed interface OrderVerdict {
 /** The server's word on an order ([status] null when it could not be asked). Anything it has not settled stays pending. */
 fun orderVerdict(status: String?): OrderVerdict = when (status) {
     "paid" -> OrderVerdict.Paid
-    "failed", "expired" -> OrderVerdict.Failed
+    "expired", "cancelled" -> OrderVerdict.Failed
+    "failed" -> OrderVerdict.NotCompleted
     "flagged" -> OrderVerdict.Flagged
     else -> OrderVerdict.Pending
 }
 
+/** How long a "failed" order is kept and asked about (a late capture is still honoured); after that it is let go. */
+const val FAILED_KEEP_MILLIS = 3L * 60 * 60 * 1000
+
+/** Whether a not-completed order has been kept long enough ([startedAt] epoch millis). */
+fun failedOrderGivenUp(startedAt: Long, now: Long): Boolean = startedAt <= 0L || now - startedAt > FAILED_KEEP_MILLIS
+
+/** An order the server does not know (404): it can never settle, so it is let go; any other failure to ask leaves it pending. */
+fun orderGone(http: Int?): Boolean = http == 404
+
 const val PENDING_NOTE = "Payment not confirmed yet. If you did pay, your credits arrive shortly; otherwise nothing was charged."
-const val FAILED_NOTE = "Payment not completed. Nothing was charged. You can try again."
+const val FAILED_NOTE = "Payment not completed. If you did pay, it will be matched and your credits added."
+const val EXPIRED_NOTE = "That payment was not made and nothing was charged. You can try again."
 const val FLAGGED_NOTE = "Your payment was received but could not be recorded automatically. We will record or refund it shortly."
+const val NO_BROWSER_NOTE = "The payment page could not be opened on this phone. Nothing was charged."

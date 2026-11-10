@@ -127,6 +127,7 @@ private fun detailsPrefs(context: Context) = context.getSharedPreferences("couns
 fun CounselHomeScreen(onOpenCalendar: () -> Unit, onOpenCases: () -> Unit, onOpenCredits: () -> Unit = {}) {
     val vm: CounselHomeViewModel = viewModel()
     val state by vm.state.collectAsState()
+    RefreshOnResumeAndRollover(vm::load)
     when (val s = state) {
         HomeState.Loading -> Box(Modifier.fillMaxSize().background(Lex.colors.background), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground)

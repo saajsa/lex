@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -74,10 +75,10 @@ fun shareSheet(context: Context, file: File, label: String) {
     val send = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"
         putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "Daily Board Sheet: $label")
+        putExtra(Intent.EXTRA_SUBJECT, "Cause List: $label")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(send, "Share Sheet").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    context.startActivity(Intent.createChooser(send, "Share Cause List").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 /** Hands a text file (the myCases.txt export) to another app. */
@@ -94,7 +95,7 @@ fun shareText(context: Context, file: File, subject: String) {
 
 private sealed interface SheetState {
     data object Loading : SheetState
-    data class Ready(val file: File, val pages: List<Bitmap>) : SheetState
+    data class Ready(val file: File, val sizes: List<Pair<Int, Int>>) : SheetState
     data class Error(val message: String) : SheetState
 }
 
@@ -116,11 +117,12 @@ fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
         state = SheetState.Loading
         repo.sheet(day)
             .onSuccess { f ->
-                runCatching { withContext(Dispatchers.IO) { renderPdf(context, f) } }
-                    .onSuccess { state = if (it.isEmpty()) SheetState.Error("This sheet has no pages.") else SheetState.Ready(f, it) }
-                    .onFailure { state = SheetState.Error("The sheet could not be shown. You can try again.") }
+                // Only the pages' sizes are read now; each page is drawn when it scrolls into view.
+                runCatching { withContext(Dispatchers.IO) { pdfPageSizes(f) } }
+                    .onSuccess { state = if (it.isEmpty()) SheetState.Error("This cause list has no pages.") else SheetState.Ready(f, it) }
+                    .onFailure { state = SheetState.Error("The cause list could not be shown. You can try again.") }
             }
-            .onFailure { state = SheetState.Error(if (it.isOffline()) "The sheet is made on the server, so it needs a connection. Please try again online." else it.boardMessage()) }
+            .onFailure { state = SheetState.Error(if (it.isOffline()) "The cause list is made on the server, so it needs a connection. Please try again online." else it.boardMessage()) }
     }
 
     Scaffold(
@@ -136,7 +138,7 @@ fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
                 actions = {
                     (state as? SheetState.Ready)?.let { r ->
                         IconButton(onClick = { printSheet(context, r.file, BoardDates.parse(day)?.let { BoardDates.long(it) } ?: day) }) { Icon(Icons.Outlined.Print, "Print", tint = Color.White) }
-                        IconButton(onClick = { shareSheet(context, r.file, label) }) { Icon(Icons.Outlined.Share, "Share Sheet", tint = Color.White) }
+                        IconButton(onClick = { shareSheet(context, r.file, label) }) { Icon(Icons.Outlined.Share, "Share Cause List", tint = Color.White) }
                     }
                 },
                 windowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
@@ -153,7 +155,7 @@ fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
                     Spacer(Modifier.height(16.dp))
-                    Text("Making The Sheet…", color = Zinc400, style = MaterialTheme.typography.bodyMedium)
+                    Text("Making The Cause List…", color = Zinc400, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             is SheetState.Error -> Column(
@@ -169,11 +171,19 @@ fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
                 Modifier.fillMaxSize().padding(inner).background(Zinc950),
                 verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(8.dp),
             ) {
-                items(s.pages) { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(), contentDescription = "Sheet page", contentScale = ContentScale.FillWidth,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(Color.White),
-                    )
+                items(s.sizes.size, key = { it }) { i ->
+                    val (pw, ph) = s.sizes[i]
+                    val bmp by androidx.compose.runtime.produceState<Bitmap?>(null, s.file, i) {
+                        value = runCatching { withContext(Dispatchers.IO) { renderPdfPage(context, s.file, i) } }.getOrNull()
+                    }
+                    val shape = RoundedCornerShape(4.dp)
+                    val b = bmp
+                    if (b != null) Image(
+                        bitmap = b.asImageBitmap(), contentDescription = "Cause list page ${i + 1}", contentScale = ContentScale.FillWidth,
+                        modifier = Modifier.fillMaxWidth().clip(shape).background(Color.White),
+                    ) else Box(Modifier.fillMaxWidth().aspectRatio(pw.toFloat() / ph.coerceAtLeast(1)).clip(shape).background(Color.White.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    }
                 }
             }
         }
@@ -265,21 +275,26 @@ internal fun paperFor(widthPt: Int, heightPt: Int): android.print.PrintAttribute
     return if (dist(842, 595) <= dist(1008, 612)) android.print.PrintAttributes.MediaSize.ISO_A4 else android.print.PrintAttributes.MediaSize.NA_LEGAL
 }
 
-/** The platform PdfRenderer, as the app's other viewers use it: every page to a white bitmap. */
-private fun renderPdf(context: Context, file: File): List<Bitmap> {
-    val pages = mutableListOf<Bitmap>()
+private val pdfLock = Any()
+
+/** The size of every page (points), read without drawing any of them. */
+private fun pdfPageSizes(file: File): List<Pair<Int, Int>> = synchronized(pdfLock) {
+    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+        PdfRenderer(pfd).use { r -> (0 until r.pageCount).map { i -> r.openPage(i).use { it.width to it.height } } }
+    }
+}
+
+/** One page of the platform PdfRenderer to a white bitmap, drawn when the page is shown (not every page up front). */
+private fun renderPdfPage(context: Context, file: File, index: Int): Bitmap = synchronized(pdfLock) {
     ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
         PdfRenderer(pfd).use { renderer ->
             val target = (context.resources.displayMetrics.widthPixels * 2).coerceAtMost(3000)
-            for (i in 0 until renderer.pageCount) {
-                renderer.openPage(i).use { page ->
-                    val h = (target * page.height.toFloat() / page.width.toFloat()).toInt().coerceAtLeast(1)
-                    val bmp = Bitmap.createBitmap(target, h, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.WHITE) }
-                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    pages += bmp
-                }
+            renderer.openPage(index).use { page ->
+                val h = (target * page.height.toFloat() / page.width.toFloat()).toInt().coerceAtLeast(1)
+                val bmp = Bitmap.createBitmap(target, h, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.WHITE) }
+                page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                bmp
             }
         }
     }
-    return pages
 }

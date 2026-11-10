@@ -118,17 +118,19 @@ class CounselTodayViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() { viewModelScope.launch { _refreshing.value = true; fetch(); _refreshing.value = false } }
 
     private suspend fun fetch() {
-        repo.today()
-            .onSuccess {
-                _state.value = TodayState.Ready(it)
-                BoardHub.setChip(it.credits.balance, it.credits.low)
-            }
-            .onFailure { e ->
-                val err = e.apiError()
-                if (err.code == "board_off" || err.http == 404 || err.http == 403) BoardHub.hide()
-                // A page already shown stays when a refresh cannot reach the server.
-                if (_state.value !is TodayState.Ready) _state.value = TodayState.Error(e.boardMessage(), e.isOffline())
-            }
+        var r = repo.today()
+        if (isPausedRefusal(r)) { BoardHub.markPaused(true); BoardHub.hide(); return }
+        // The board's own rule: a counsel is not turned away by one refusal. Ask once more; only two refusals in a row hide the board.
+        val answers = mutableListOf(answerOfResult(r))
+        if (needsRetry(true, answers[0])) { kotlinx.coroutines.delay(1_500); r = repo.today(); answers += answerOfResult(r) }
+        r.onSuccess {
+            _state.value = TodayState.Ready(it)
+            BoardHub.setChip(it.credits.balance, it.credits.low)
+        }.onFailure { e ->
+            if (decideAccess(true, answers) == Verdict.No) BoardHub.hide()
+            // A page already shown stays when a refresh cannot reach the server or is refused once.
+            if (_state.value !is TodayState.Ready) _state.value = TodayState.Error(e.boardMessage(), e.isOffline())
+        }
     }
 }
 
@@ -185,6 +187,7 @@ fun CounselCalendarScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
     val vm: CounselTodayViewModel = viewModel()
     val state by vm.state.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
+    RefreshOnResumeAndRollover(vm::refresh)
     when (val s = state) {
         TodayState.Loading -> Box(Modifier.fillMaxSize().background(Lex.colors.background), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
@@ -206,12 +209,13 @@ fun CounselCalendarScreen(onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
 @Composable
 private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -> Unit, onOpenCase: (Int) -> Unit) {
     val context = LocalContext.current
-    val today = BoardDates.today()
+    // "Today" can change under an open screen (midnight in India, or the app opened again the next day).
+    var today by remember { mutableStateOf(BoardDates.today()) }
     var importing by rememberSaveable { mutableStateOf(false) }
     var byCnr by rememberSaveable { mutableStateOf(false) }
+    var byHand by rememberSaveable { mutableStateOf(false) }
     var formatNote by rememberSaveable { mutableStateOf(false) }
     var answering by remember { mutableStateOf<Pair<NeedsEye, DateAnswer>?>(null) }
-    var mismatches by remember { mutableStateOf<List<Mismatch>>(emptyList()) }
     val repo = remember { BoardRepository(context) }
     val scope = rememberCoroutineScope()
     var tick by remember { mutableStateOf(0) }
@@ -225,13 +229,27 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
     var picking by remember { mutableStateOf(false) }
     var addMenu by remember { mutableStateOf(false) }
     var q by rememberSaveable { mutableStateOf("") }
+    // A new day: the chosen day follows when it was today; one picked on purpose stays. Every note about the old day is reset.
+    fun rollDay() {
+        val now = BoardDates.today()
+        if (now != today) {
+            if (selectedIso == BoardDates.api(today)) selectedIso = BoardDates.api(now)
+            today = now
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(t) { rollDay() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(BoardDates.millisToNextDay(java.time.Instant.now())); rollDay() }
+    }
     var found by remember { mutableStateOf<List<BoardCase>?>(null) }
     var foundError by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(selectedIso) { BoardHub.choose(selectedIso) }
-    androidx.compose.runtime.LaunchedEffect(weekStart(selected), tick) { if (!t.empty) repo.days(weekStart(selected), 7).onSuccess { counts = it } }
-    androidx.compose.runtime.LaunchedEffect(selectedIso, tick) {
+    androidx.compose.runtime.LaunchedEffect(weekStart(selected), tick, t) { if (!t.empty) repo.days(weekStart(selected), 7).onSuccess { counts = it } }
+    var loadedFor by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(selectedIso, tick, t) {
         if (t.empty) return@LaunchedEffect
-        dayItems = null
+        // A different day starts clean (no list, no error, no saved-copy note from the other day); a refresh of the same day keeps what is shown.
+        if (loadedFor != selectedIso) { dayItems = null; dayError = null; daySavedAt = null; loadedFor = selectedIso }
         repo.dayOrSaved(selectedIso).onSuccess { dayItems = it.day.items; daySavedAt = it.savedAt; dayError = null }.onFailure { dayError = it.boardMessage(); daySavedAt = null }
     }
     androidx.compose.runtime.LaunchedEffect(q, tick) {
@@ -243,7 +261,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
 
     if (t.empty) {
         LazyColumn(Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { DayHeading("WELCOME", "Three steps to your first cause list") }
+            item { DayHeading("Welcome", "Three steps to your first cause list") }
             item { StepOne(onCnr = { byCnr = true }, onImport = { importing = true }) }
             item { StepTwo(onSpecimen = { formatNote = true }) }
             item { StepThree(t.credits) }
@@ -251,6 +269,11 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
     } else Column(Modifier.fillMaxSize().background(Lex.colors.background)) {
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             t.short?.let { sh -> ShortBanner(sh, onCredits) }
+            if (t.short == null) lowCreditsText(t.credits)?.let { LowBanner(it, onCredits) }
+            Text(
+                trackedLine(t), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
             MonthsRow(selected) { picking = true }
             WeekRow(
                 selected, today, counts,
@@ -276,6 +299,12 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                     )
                 }
             }
+            if (t.needsEye.isNotEmpty()) item {
+                NeedsEyeCard(
+                    t.needsEye, today,
+                    onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight },
+                )
+            }
             daySavedAt?.let { at ->
                 item { Text(BoardDates.savedLabel(at, today) + ". Connect to refresh.", fontSize = 12.sp, color = Color(0xFFE0B050)) }
             }
@@ -299,6 +328,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
                         IconAction(Icons.Outlined.Add, "Add a case", { addMenu = true }, look = ActionLook.OnDark, size = 48.dp)
                         androidx.compose.material3.DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                             androidx.compose.material3.DropdownMenuItem(text = { Text("Add By CNR") }, onClick = { addMenu = false; byCnr = true })
+                            androidx.compose.material3.DropdownMenuItem(text = { Text("Add By Hand") }, onClick = { addMenu = false; byHand = true })
                             androidx.compose.material3.DropdownMenuItem(text = { Text("Import From eCourts") }, onClick = { addMenu = false; importing = true })
                             androidx.compose.material3.DropdownMenuItem(text = { Text("Export All Cases") }, onClick = {
                                 addMenu = false
@@ -364,18 +394,15 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
     answering?.let { (c, a) ->
         DateAnswerDialog(c, a, today, onClose = { answering = null }, onDone = {
             answering = null
-            Toast.makeText(context, if (a == DateAnswer.EcourtsRight) "eCourts' date is kept." else "Your date is kept.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, if (a == DateAnswer.EcourtsRight) "eCourts is right: its date is used" else "Your date is kept.", Toast.LENGTH_SHORT).show()
             tick++; onRefresh()
         })
     }
-    if (mismatches.isNotEmpty()) MismatchDialog(mismatches, today, onDone = { mismatches = emptyList(); tick++; onRefresh() })
-    if (importing) ImportWizard(onClose = { importing = false }, onDone = {
-        importing = false; tick++
-        Toast.makeText(context, "${it.added} added, ${it.updated} updated", Toast.LENGTH_LONG).show()
-        if (it.mismatches.isNotEmpty()) mismatches = it.mismatches else onRefresh()
-    })
+    if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onRefresh(); onOpenCase(it.id) })
+    if (importing) ImportFlow(onClose = { importing = false }, onChanged = { tick++; onRefresh() })
     if (byCnr) CnrWizard(onClose = { byCnr = false }, onBuy = { byCnr = false; onCredits() }, onAdded = { _, bal ->
         byCnr = false; tick++
+        BoardHub.applyBalance(bal)
         Toast.makeText(context, "Case added. Balance: ${creditsLabel(bal)}.", Toast.LENGTH_LONG).show()
         onRefresh()
     })
@@ -435,6 +462,24 @@ internal fun Tile(value: String, label: String, modifier: Modifier, info: String
     }
 }
 
+/** "Only X of your Y cases were checked this morning", as the web's banner words it. */
+internal fun shortTitle(s: CheckShort) = "Only ${s.checked} of your ${s.of} ${plural(s.of, "case was", "cases were")} checked this morning"
+
+internal fun shortInfo(s: CheckShort) =
+    "You had ${creditsLabel(s.creditsHad)}, so we checked the ${s.checked} ${plural(s.checked, "case", "cases")} listed soonest. The other ${s.unchecked} keep their last known dates and are marked Not Checked. Buy credits to check every case again tomorrow."
+
+/** The low-credit banner's words (null when credits are not low), as the web's Home words them. */
+internal fun lowCreditsText(c: TodayCredits): String? = when {
+    !c.low -> null
+    c.balance == 0 -> "You have no credits left"
+    (c.daysLeft ?: 0) < 1 -> "Less than a day of checks is left"
+    else -> "About ${c.daysLeft} ${plural(c.daysLeft ?: 0, "day", "days")} of checks ${if (c.daysLeft == 1) "is" else "are"} left"
+}
+
+/** "N cases tracked · About N days of checks", the web's line under the month. */
+internal fun trackedLine(t: CounselToday): String =
+    "${t.casesTracked} ${plural(t.casesTracked, "case", "cases")} tracked" + (t.credits.daysLabel.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+
 @Composable
 private fun ShortBanner(s: CheckShort, onCredits: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
@@ -443,14 +488,22 @@ private fun ShortBanner(s: CheckShort, onCredits: () -> Unit) {
         Modifier.fillMaxWidth().clip(shape).background(red.softBg).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Credits ran short this morning", style = MaterialTheme.typography.titleSmall, color = red.softText)
-            Text(
-                "${s.checked} of ${s.of} ${plural(s.of, "case was", "cases were")} checked.",
-                style = MaterialTheme.typography.bodySmall, color = red.softText,
-            )
-        }
-        InfoTip("${s.unchecked} ${plural(s.unchecked, "case was", "cases were")} not checked. Add credits and the rest are checked tomorrow.", label = "Why credits ran short")
+        Text(shortTitle(s), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = red.softText)
+        InfoTip(shortInfo(s), label = "About this morning's check")
+        TextButton(onCredits) { Text("Add Credits", color = red.softText, fontWeight = FontWeight.SemiBold) }
+    }
+}
+
+@Composable
+private fun LowBanner(text: String, onCredits: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    val red = Lex.colors.danger
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(red.softBg).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(text, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = red.softText)
+        InfoTip("When the credits run out your cause list still prints, but cases we cannot check keep their last known dates. Buy credits to keep every case checked.", label = "About running low")
         TextButton(onCredits) { Text("Add Credits", color = red.softText, fontWeight = FontWeight.SemiBold) }
     }
 }
@@ -481,6 +534,11 @@ internal fun NeedsEyeCard(items: List<NeedsEye>, today: LocalDate, onKeep: (Need
         }
     }
 }
+
+/** The server's 422 not_flagged: the date was already settled, so there is nothing left to do. */
+internal fun alreadySettled(e: Throwable): Boolean = e.apiError().let { notFlagged(it.http, it.code) }
+
+internal fun notFlagged(http: Int?, code: String?): Boolean = http == 422 && code == "not_flagged"
 
 internal fun eyeLine(c: NeedsEye, today: LocalDate): String {
     val ec = BoardDates.show(c.ecourtsDate, today)
@@ -530,16 +588,16 @@ private fun StepCard(number: Int, title: String, body: String, action: (@Composa
 
 @Composable
 private fun StepTwo(onSpecimen: () -> Unit) = StepCard(
-    2, "Set your cause-list format",
+    2, "Set Your Cause-List Format",
     "Upload a sample of the cause list you use. Choose its columns, portrait or landscape, and paper size.",
 ) { IconAction(Icons.Outlined.UploadFile, "Upload a specimen of your cause list", onSpecimen, look = ActionLook.Outline) }
 
 /** Step 3's words: what a check costs, and no promise of credits (a held account has none yet). */
-internal fun stepThreeText(cost: Int) = "Your cause list is ready by 7 AM. Each case checked costs $cost ${if (cost == 1) "credit" else "credits"}."
+internal fun stepThreeText(cost: Int) = "Your cause list is ready by 7 AM. Each case checked costs ${creditsLabel(cost)}."
 
 @Composable
 private fun StepThree(c: TodayCredits) = StepCard(
-    3, "We check eCourts every morning",
+    3, "We Check eCourts Every Morning",
     stepThreeText(c.cost),
 )
 
@@ -575,7 +633,9 @@ fun DateAnswerDialog(c: NeedsEye, answer: DateAnswer, today: LocalDate, onClose:
                 busy = true; error = null
                 scope.launch {
                     (if (answer == DateAnswer.EcourtsRight) repo.dateAccept(c.id) else repo.dateKeep(c.id))
-                        .onSuccess { onDone() }.onFailure { error = it.boardMessage() }
+                        .onSuccess { onDone() }
+                        // Already settled (on the web, or from another phone): that is the answer wanted, so reload.
+                        .onFailure { if (alreadySettled(it)) onDone() else error = it.boardMessage() }
                     busy = false
                 }
             }) { Text(if (busy) "Saving…" else if (answer == DateAnswer.EcourtsRight) "Accept Its Date" else "Keep My Date", color = Lex.colors.foreground) }
@@ -603,7 +663,8 @@ fun MismatchDialog(items: List<Mismatch>, today: LocalDate, onDone: () -> Unit) 
         busy = m.id; error = null
         scope.launch {
             (if (a == DateAnswer.EcourtsRight) repo.dateAccept(m.id) else repo.dateKeep(m.id))
-                .onSuccess { left = left.filter { it.id != m.id } }.onFailure { error = it.boardMessage() }
+                .onSuccess { left = left.filter { it.id != m.id } }
+                .onFailure { if (alreadySettled(it)) left = left.filter { x -> x.id != m.id } else error = it.boardMessage() }
             busy = null
         }
     }

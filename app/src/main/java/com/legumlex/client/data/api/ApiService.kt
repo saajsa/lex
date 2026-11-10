@@ -870,6 +870,7 @@ interface ApiService {
     suspend fun boardImport(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
 
     @FormUrlEncoded
+    @Headers("X-Long-Call: 1")
     @POST("board/import/confirm")
     suspend fun boardImportConfirm(@Field("import_id") importId: String): Map<String, Any?>
 
@@ -906,6 +907,22 @@ interface ApiService {
     @POST("board/cases/{id}/cnr")
     suspend fun boardCaseAddCnr(@Path("id") id: String, @Field("cnr") cnr: String): Map<String, Any?>
 
+    /** Add By CNR, step one (4 credits, taken here and kept if the counsel then says Not This Case): the case as eCourts shows it, and a lookup_id. */
+    @FormUrlEncoded
+    @Headers("X-Long-Call: 1")
+    @POST("board/cases/cnr/lookup")
+    suspend fun boardCnrLookup(@Field("cnr") cnr: String): Map<String, Any?>
+
+    /** Add By CNR, step two (free): adds the case found by lookup_id (lookups last 2 hours). */
+    @FormUrlEncoded
+    @POST("board/cases/cnr/confirm")
+    suspend fun boardCnrConfirm(@Field("lookup_id") lookupId: String): Map<String, Any?>
+
+    /** Set Next Date on a case with no CNR (a hand case); a case with a CNR is refused 422 next_date. */
+    @FormUrlEncoded
+    @POST("board/cases/{id}/date/correct")
+    suspend fun boardDateCorrect(@Path("id") id: String, @Field("next_date") nextDate: String): Map<String, Any?>
+
     @FormUrlEncoded
     @Headers("X-Long-Call: 1")
     @POST("board/cases/cnr")
@@ -939,7 +956,7 @@ interface ApiService {
 
     /** A page of the credits history: {data:{total, items[]}}, items as in credits.history. */
     @GET("board/credits/history")
-    suspend fun boardCreditsHistory(@Query("limit") limit: Int, @Query("offset") offset: Int): Map<String, Any?>
+    suspend fun boardCreditsHistory(@Query("limit") limit: Int, @Query("offset") offset: Int, @Query("grouped") grouped: Int = 0): Map<String, Any?>
 
     /** Pay first: the gateway's order and a hosted pay page (pay_url), no invoice until the payment is made. */
     @FormUrlEncoded

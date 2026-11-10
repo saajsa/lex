@@ -104,7 +104,15 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
 
     suspend fun importPreview(part: MultipartBody.Part): Result<ImportPreview> = runCatching { parsePreview(data(api.boardImport(listOf(part)))) }
 
-    suspend fun importConfirm(importId: String): Result<ImportDone> = runCatching { parseImportDone(data(api.boardImportConfirm(importId))) }
+    /**
+     * Confirm the import. A call that timed out may have been applied by the server, so it is asked once more: a second confirm for the
+     * same import returns the first result (repeated: true) and applies nothing twice.
+     */
+    suspend fun importConfirm(importId: String): Result<ImportDone> {
+        val first = runCatching { parseImportDone(data(api.boardImportConfirm(importId))) }
+        if (first.isSuccess || !(first.exceptionOrNull()?.isOffline() ?: false)) return first
+        return runCatching { parseImportDone(data(api.boardImportConfirm(importId))) }
+    }
 
     // ---- cases --------------------------------------------------------------
 
@@ -115,8 +123,7 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
 
     suspend fun case(id: Int): Result<BoardCase> = runCatching { parseCase(data(api.boardCase(id.toString()))) }
 
-    suspend fun caseAdd(fields: Map<String, String>): Result<BoardCase> = runCatching { parseCase(data(api.boardCaseAdd(fields))["case"].map()) }
-
+    /** The Daily Check switch only: the web case page has no other edit, so the app sends nothing else. */
     suspend fun caseEdit(id: Int, fields: Map<String, String>): Result<BoardCase> = runCatching { parseCase(data(api.boardCaseEdit(id.toString(), fields))["case"].map()) }
 
     suspend fun caseRemove(id: Int): Result<Unit> = runCatching { api.boardCaseRemove(id.toString()); Unit }
@@ -130,7 +137,22 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     /** Gives a hand-added case its CNR (free): the case as it now stands. */
     suspend fun caseAddCnr(id: Int, cnr: String): Result<BoardCase> = runCatching { parseCase(data(api.boardCaseAddCnr(id.toString(), cnr))["case"].map()) }
 
-    /** Add By CNR: the new case, and the balance after the charge. */
+    /** Add By CNR, step one: eCourts is asked (credits are taken now); the case it found and the lookup to confirm. */
+    suspend fun cnrLookup(cnr: String): Result<CnrLookup> = runCatching { parseLookup(data(api.boardCnrLookup(cnr))) }
+
+    /** Add By CNR, step two (free): the case found is added to the diary. */
+    suspend fun cnrConfirm(lookupId: String): Result<BoardCase> = runCatching { parseCase(data(api.boardCnrConfirm(lookupId))["case"].map()) }
+
+    /** A hand-added case (free). Never carries a CNR: the server refuses one. */
+    suspend fun handAdd(fields: Map<String, String>): Result<BoardCase> = runCatching { parseCase(data(api.boardCaseAdd(fields - "cnr"))["case"].map()) }
+
+    /** Set Next Date on a hand case. */
+    suspend fun dateSet(id: Int, date: String): Result<BoardCase> = runCatching {
+        val d = data(api.boardDateCorrect(id.toString(), date))
+        parseCase(d["case"].map())
+    }
+
+    /** Add By CNR, the one-step call (kept for old builds): the new case, and the balance after the charge. */
     suspend fun caseByCnr(cnr: String): Result<Pair<BoardCase, Int>> = runCatching {
         val d = data(api.boardCaseByCnr(cnr))
         parseCase(d["case"].map()) to d["balance"].int()
@@ -170,7 +192,7 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     suspend fun checkout(pack: String): Result<CheckoutOrder> = runCatching { parseCheckout(data(api.boardCreditsCheckout(pack))) }
 
     /** One page of the credits history (after the first rows credits() carries). */
-    suspend fun creditsHistory(limit: Int, offset: Int): Result<LedgerPage> = runCatching { parseLedgerPage(data(api.boardCreditsHistory(limit, offset))) }
+    suspend fun creditsHistory(limit: Int, offset: Int): Result<LedgerPage> = runCatching { parseLedgerPage(data(api.boardCreditsHistory(limit, offset, grouped = 1))) }
 
     /** Where an order stands, asked when the app returns from the pay page. */
     suspend fun order(order: String): Result<OrderStatus> = runCatching { parseOrder(data(api.boardCreditsOrder(order))) }

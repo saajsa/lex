@@ -81,4 +81,19 @@ class BoardDatesTest {
         assertEquals("5,500", creditsText(5500))
         assertEquals("1,00,000", creditsText(100000))
     }
+
+    @Test fun nextDayStartsAtMidnightInIndia() {
+        // 23:30 IST on 10 Nov is 18:00 UTC: half an hour (and a second) to the new day.
+        val now = java.time.Instant.parse("2026-11-10T18:00:00Z")
+        assertEquals(30 * 60 * 1000L + 1_000L, BoardDates.millisToNextDay(now))
+        // Just after midnight IST: nearly a whole day.
+        val after = java.time.Instant.parse("2026-11-10T18:31:00Z")
+        assertEquals(24 * 3600 * 1000L - 60_000L + 1_000L, BoardDates.millisToNextDay(after))
+    }
+
+    @Test fun savedCopyTimeIsInIndia() {
+        // 09:50 UTC is 3:20 PM IST, whatever zone the phone is in.
+        val at = java.time.Instant.parse("2026-11-10T09:50:00Z").toEpochMilli()
+        assertEquals("Saved copy from 3:20 PM", BoardDates.savedLabel(at, java.time.LocalDate.of(2026, 11, 10)))
+    }
 }

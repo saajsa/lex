@@ -34,8 +34,36 @@ import com.legumlex.client.ui.theme.StatusPalette
 import java.time.LocalDate
 
 /** True when the server could not be reached at all (no answer, not a refusal). */
-fun Throwable.isOffline(): Boolean = apiError().http == null &&
-    (this is java.io.IOException || this is java.io.InterruptedIOException)
+fun Throwable.isOffline(): Boolean = apiError().http == null && this !is com.squareup.moshi.JsonEncodingException &&
+    this !is com.squareup.moshi.JsonDataException && (this is java.io.IOException || this is java.io.InterruptedIOException)
+
+/**
+ * Runs [block] each time the screen comes back to the front (not the first showing, which loads for itself) and at the start of each
+ * new day in India, so a board left open overnight, or an app opened again after a day, shows today's.
+ */
+@Composable
+fun RefreshOnResumeAndRollover(block: () -> Unit) {
+    val current = androidx.compose.runtime.rememberUpdatedState(block)
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        var first = true
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                BoardHub.rollover(BoardDates.today())
+                if (first) first = false else current.value()
+            }
+        }
+        owner.lifecycle.addObserver(o)
+        onDispose { owner.lifecycle.removeObserver(o) }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(BoardDates.millisToNextDay(java.time.Instant.now()))
+            BoardHub.rollover(BoardDates.today())
+            current.value()
+        }
+    }
+}
 
 /** The server's own sentence for a refusal; a plain one when there was no answer. 402 and 403 are shown as sent. */
 fun Throwable.boardMessage(): String = friendlyMessage("This could not be done just now. Please try again.")

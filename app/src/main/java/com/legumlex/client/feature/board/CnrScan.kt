@@ -20,8 +20,8 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.legumlex.client.ui.theme.Lex
 
-/** A CNR is four letters and twelve digits. */
-private val CnrPattern = Regex("[A-Z]{4}[0-9]{12}")
+/** A CNR is sixteen characters: four letters, eight letters or digits, four digits (the server's ^[A-Z]{4}[A-Z0-9]{8}[0-9]{4}$). */
+private val CnrPattern = Regex("(?<![A-Z0-9])[A-Z]{4}[A-Z0-9]{8}[0-9]{4}(?![A-Z0-9])")
 
 /** The first CNR in a scanned text (a bare CNR, or a link that holds one), else null. The text is upper-cased first. */
 fun extractCnr(text: String?): String? = text?.uppercase()?.let { CnrPattern.find(it)?.value }

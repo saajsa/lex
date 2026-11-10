@@ -139,6 +139,13 @@ object WorkspaceSession {
     }
 }
 
+/**
+ * A counsel-only account whose Counsel workspace is suspended while the person is engaged with the firm (the web's /board/paused).
+ * The server refuses the board with a plain 403 either way, so this is read from the workspace list the sign-in and profile carry
+ * (the counsel item's status "suspended" on an account that holds nothing else).
+ */
+fun isWorkspacePaused(ws: Workspaces?): Boolean = ws != null && ws.counselOnly && ws.counsel?.status == "suspended"
+
 /** Where an opening goes, from the server's list: choose when it says so, Counsel for a counsel-only account, otherwise the Portal. */
 enum class OpenAs { Choose, Counsel, Portal }
 
@@ -178,6 +185,8 @@ fun workspaceChange(before: Workspaces?, after: Workspaces, mode: Mode): Workspa
 suspend fun syncWorkspaces(context: android.content.Context) {
     val before = WorkspaceSession.workspaces.value
     val after = WorkspaceRepository(context).state().getOrNull()?.workspaces ?: return
+    // A pause that began or ended meanwhile changes the screen at once.
+    if (isWorkspacePaused(before) != isWorkspacePaused(after)) WorkspaceSession.update(after)
     when (val c = workspaceChange(before, after, WorkspaceSession.mode.value)) {
         is WorkspaceChange.CounselGone -> {
             if (c.moveToPortal) { WorkspaceSession.set(Mode.Portal); com.legumlex.client.feature.board.BoardHub.hide() }

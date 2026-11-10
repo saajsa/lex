@@ -100,13 +100,14 @@ fun WizardFrame(
     body: @Composable ColumnScope.() -> Unit,
 ) {
     val last = step == steps.lastIndex
-    val back: () -> Unit = { if (step == 0) onClose() else onStep(step - 1) }
+    // While a call is running (a paid read, an import) nothing closes or steps back: the call finishes first.
+    val back: () -> Unit = { if (!saving) { if (step == 0) onClose() else onStep(step - 1) } }
     BackHandler(onBack = back)
 
     Column(Modifier.fillMaxSize().background(BodyBg).imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = "Close", onClick = onClose),
+                Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = "Close", enabled = !saving, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Outlined.Close, contentDescription = "Close", tint = PrimaryText, modifier = Modifier.size(22.dp)) }
             Spacer(Modifier.weight(1f))
@@ -142,7 +143,7 @@ fun WizardFrame(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Box(
-                Modifier.height(52.dp).clip(FieldShape).background(Surface2).clickable(onClick = back)
+                Modifier.height(52.dp).clip(FieldShape).background(Surface2).clickable(enabled = !saving, onClick = back)
                     .padding(horizontal = 22.dp),
                 contentAlignment = Alignment.Center,
             ) {

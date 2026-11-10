@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.legumlex.client.feature.consultations.apiError
 import com.legumlex.client.feature.finance.formatMoney
 import com.legumlex.client.ui.components.Eyebrow
 import com.legumlex.client.ui.components.LegumSecondaryButton
@@ -95,18 +96,21 @@ fun BoardCreditsScreen() {
     var pending by remember { mutableStateOf(store.get()) }
     var outcome by remember { mutableStateOf<PayOutcome?>(null) }
     var settling by remember { mutableStateOf(false) }
-    var extra by remember(data) { mutableStateOf<List<LedgerRow>>(emptyList()) }
-    var historyTotal by remember(data) { mutableStateOf<Int?>(null) }
-    var historyDone by remember(data) { mutableStateOf(false) }
-    var loadingMore by remember(data) { mutableStateOf(false) }
+    // The server said the pay page ended without a payment, but the order stays payable: it is kept and asked about again.
+    var notCompleted by remember { mutableStateOf(false) }
+    // The pages read after the first stay while the same history is read again (a resume); a new first row or a different length starts over.
+    val historyKey = historyKey(data?.history)
+    var extra by remember(historyKey) { mutableStateOf<List<LedgerRow>>(emptyList()) }
+    var historyTotal by remember(historyKey) { mutableStateOf<Int?>(null) }
+    var historyDone by remember(historyKey) { mutableStateOf(false) }
+    var loadingMore by remember(historyKey) { mutableStateOf(false) }
     var resumes by remember { mutableStateOf(0) }
 
     LaunchedEffect(tick, resumes) {
         repo.credits().onSuccess {
             data = it; error = null
             // The header's chip follows the balance: a balance that went up is no longer low.
-            val old = BoardHub.chip.value
-            BoardHub.setChip(it.balance, old?.low == true && it.balance <= old.balance)
+            BoardHub.applyBalance(it.balance)
         }
             .onFailure { error = it.boardMessage() }
     }
@@ -115,33 +119,47 @@ fun BoardCreditsScreen() {
     suspend fun checkPending() {
         val p = pending ?: return
         settling = true
-        val r = repo.order(p.order).getOrNull()
+        val res = repo.order(p.order)
+        val r = res.getOrNull()
         settling = false
+        if (r == null && orderGone(res.exceptionOrNull()?.apiError()?.http)) {
+            outcome = PayOutcome(false, "That payment could not be found. Nothing was charged."); store.clear(); pending = null; notCompleted = false
+            return
+        }
         when (orderVerdict(r?.status)) {
             OrderVerdict.Paid -> {
                 outcome = PayOutcome(true, "${creditsLabel(r?.credits ?: 0)} added.")
-                store.clear(); pending = null; tick++
+                store.clear(); pending = null; notCompleted = false; tick++
             }
-            OrderVerdict.Failed -> { outcome = PayOutcome(false, FAILED_NOTE); store.clear(); pending = null }
-            OrderVerdict.Flagged -> { outcome = PayOutcome(false, FLAGGED_NOTE); store.clear(); pending = null; tick++ }
+            OrderVerdict.Failed -> { outcome = PayOutcome(false, EXPIRED_NOTE); store.clear(); pending = null; notCompleted = false }
+            OrderVerdict.NotCompleted -> {
+                if (failedOrderGivenUp(p.startedAt, System.currentTimeMillis())) { outcome = PayOutcome(false, FAILED_NOTE); store.clear(); pending = null; notCompleted = false }
+                else notCompleted = true
+            }
+            OrderVerdict.Flagged -> { outcome = PayOutcome(false, FLAGGED_NOTE); store.clear(); pending = null; notCompleted = false; tick++ }
             OrderVerdict.Pending -> Unit
         }
     }
     LaunchedEffect(resumes) { checkPending() }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
-        val o = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) resumes++ }
+        // The first resume is the screen opening, which loads for itself: only later resumes load again.
+        var opened = false
+        val o = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) { if (opened) resumes++ else opened = true } }
         owner.lifecycle.addObserver(o)
         onDispose { owner.lifecycle.removeObserver(o) }
     }
 
     fun buy(p: CreditPack) {
+        if (pending != null) return
         buying = p.key; refusal = null; outcome = null
         scope.launch {
             repo.checkout(p.key)
                 .onSuccess {
-                    PendingOrder(it.order, p.key, System.currentTimeMillis()).also { o -> store.put(o); pending = o }
-                    CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it.payUrl))
+                    // The order is kept only once the pay page has really opened (no browser, or no address, keeps nothing).
+                    val opened = it.payUrl.isNotBlank() && runCatching { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it.payUrl)) }.isSuccess
+                    if (opened) PendingOrder(it.order, p.key, System.currentTimeMillis()).also { o -> store.put(o); pending = o; notCompleted = false }
+                    else refusal = NO_BROWSER_NOTE
                 }
                 .onFailure { refusal = it.boardMessage() }
             buying = null
@@ -154,7 +172,9 @@ fun BoardCreditsScreen() {
     ) {
         item { PageHeader(eyebrow = "Counsel", title = "Credits") }
         outcome?.let { o -> item { OutcomeBanner(o) { outcome = null } } }
-        if (pending != null && !settling) item { PendingBanner { scope.launch { checkPending() } } }
+        if (pending != null && !settling) item {
+            PendingBanner(if (notCompleted) FAILED_NOTE else PENDING_NOTE, { scope.launch { checkPending() } }) { store.clear(); pending = null; notCompleted = false }
+        }
         if (settling) item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircularProgressIndicator(Modifier.height(18.dp).width(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
@@ -173,7 +193,7 @@ fun BoardCreditsScreen() {
                             Eyebrow("Your Balance", Modifier.weight(1f))
                             // The long explanation lives behind the "i".
                             InfoTip(
-                                "Free: the board and the cause list. Credits pay for reading a case from the court: Add By CNR costs ${creditsLabel(d.costAdd)}, Update From Court costs ${d.costAdd}, and the morning check costs ${d.costCheck}. Credits last ${d.creditMonths} months.",
+                                "Free: the board and the cause list. Credits pay for reading a case from the court: Add By CNR costs ${creditsLabel(d.costAdd)}, Update From Court Now costs ${creditsLabel(d.costAdd)}, and the morning check costs ${creditsLabel(d.costCheck)} a case. Credits last ${d.creditMonths} months.",
                                 label = "What credits pay for",
                             )
                         }
@@ -184,9 +204,10 @@ fun BoardCreditsScreen() {
                             else "eCourts checked $at" + if (d.checked.cases > 0) " · ${d.checked.cases} ${if (d.checked.cases == 1) "case" else "cases"}" else "",
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
                         )
-                        d.expiring.forEach {
-                            Text("${creditsLabel(it.credits)} ${if (it.credits == 1) "expires" else "expire"} on ${BoardDates.parse(it.expiresAt)?.let { x -> BoardDates.long(x) } ?: it.expiresAt}.", style = MaterialTheme.typography.bodySmall, color = Lex.colors.danger.softText)
-                        }
+                        Text(
+                            nextLapseLine(d.nextLapse), style = MaterialTheme.typography.bodySmall,
+                            color = if (d.nextLapse != null) Lex.colors.danger.softText else Lex.colors.mutedForeground,
+                        )
                     }
                 }
             }
@@ -200,12 +221,12 @@ fun BoardCreditsScreen() {
             refusal?.let { item { NoteLine(it, danger = true) } }
             item { Eyebrow("Buy Credits", modifier = Modifier.padding(start = 4.dp)) }
             if (d.packs.isEmpty()) item { NoteLine("No packs are on sale just now.") }
-            else item { PackCarousel(d.packs, d, buying, ::buy) }
+            else item { PackCarousel(d.packs, d, buying, pending != null, ::buy) }
             item { Eyebrow("History", modifier = Modifier.padding(start = 4.dp)) }
             if (d.history.isEmpty()) item { LexCard { LexEmpty("No Movements Yet", "Your credits and what they were used for appear here.") } }
             else {
                 val rows = d.history + extra
-                val hasMore = !historyDone && (historyTotal?.let { rows.size < it } ?: (d.history.size >= 100))
+                val hasMore = !historyDone && (historyTotal?.let { rows.size < it } ?: (d.history.size >= 60))
                 itemsIndexed(rows, key = { i, h -> "h$i-${h.whenAt}-${h.label}" }) { i, h ->
                     val shape = RoundedCornerShape(12.dp)
                     // The next page is read when the last row on show is reached.
@@ -240,7 +261,11 @@ private fun PackCard(p: CreditPack, lasts: String, busy: Boolean, buying: Boolea
         Modifier.width(240.dp).clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Eyebrow(p.label, color = Lex.colors.secondaryForeground)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Eyebrow(p.label, Modifier.weight(1f), color = Lex.colors.secondaryForeground)
+            // The bonus, as the server states it (none when 0).
+            if (p.bonusPct > 0) StatusChip("${p.bonusPct}% bonus", Lex.colors.success)
+        }
         Text(creditsText(p.credits), fontFamily = Display, fontWeight = FontWeight.Bold, fontSize = 44.sp, lineHeight = 46.sp, color = Lex.colors.foreground)
         Text("credits", style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground)
         Spacer(Modifier.height(8.dp))
@@ -254,15 +279,29 @@ private fun PackCard(p: CreditPack, lasts: String, busy: Boolean, buying: Boolea
     }
 }
 
+/** "Expiring Next: 10 credits, Trial, 11 Dec 2026", the web's line; "Nothing is about to lapse" when there is no such lot. */
+internal fun nextLapseLine(n: NextLapse?): String {
+    n ?: return "Nothing is about to lapse"
+    val kind = mapOf("trial" to "Trial", "purchase" to "Pack", "refund" to "Refund")[n.kind] ?: "Credits"
+    val on = BoardDates.parse(n.expiresAt)?.let { BoardDates.long(it) } ?: n.expiresAt
+    return "Expiring Next: ${creditsLabel(n.credits)}, $kind, $on"
+}
+
+/** What identifies the first page of the history: its newest row and its length. Equal keys mean the same history was read again. */
+internal fun historyKey(rows: List<LedgerRow>?): Pair<Int?, Int> = rows?.firstOrNull()?.id to (rows?.size ?: 0)
+
 /** An order is still waiting: careful wording (it may yet turn paid) and a way to ask again. */
 @Composable
-private fun PendingBanner(onCheck: () -> Unit) {
+private fun PendingBanner(note: String, onCheck: () -> Unit, onDismiss: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lex.colors.card).border(1.dp, Lex.colors.border, RoundedCornerShape(12.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(PENDING_NOTE, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
-        TextButton(onCheck) { Text("Check Again", color = Lex.colors.foreground) }
+        Text(note, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
+        Column {
+            TextButton(onCheck) { Text("Check Again", color = Lex.colors.foreground) }
+            TextButton(onDismiss) { Text("Dismiss", color = Lex.colors.mutedForeground) }
+        }
     }
 }
 
@@ -284,7 +323,7 @@ private fun OutcomeBanner(o: PayOutcome, onClose: () -> Unit) {
  * back (smaller, dimmed). It opens on the middle pack. Dots show the place; only the card in focus can be bought.
  */
 @Composable
-private fun PackCarousel(packs: List<CreditPack>, d: CreditsData, buying: String?, onBuy: (CreditPack) -> Unit) {
+private fun PackCarousel(packs: List<CreditPack>, d: CreditsData, buying: String?, pending: Boolean, onBuy: (CreditPack) -> Unit) {
     val cardWidth = 240.dp
     val pager = rememberPagerState(initialPage = packs.size / 2) { packs.size }
     val scope = rememberCoroutineScope()
@@ -306,8 +345,8 @@ private fun PackCarousel(packs: List<CreditPack>, d: CreditsData, buying: String
                 val focused = page == pager.currentPage
                 Box(Modifier.graphicsLayer { val k = 1f - 0.1f * away; scaleX = k; scaleY = k; alpha = 1f - 0.45f * away }) {
                     PackCard(
-                        p, packLasts(p.credits, d.checked.onCheck, d.costCheck, d.creditMonths),
-                        busy = buying != null, buying = buying == p.key,
+                        p, p.lasts,
+                        busy = buying != null || pending, buying = buying == p.key,
                     ) { if (focused) onBuy(p) else scope.launch { pager.animateScrollToPage(page) } }
                 }
             }

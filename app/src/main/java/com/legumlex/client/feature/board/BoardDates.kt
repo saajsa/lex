@@ -7,15 +7,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/**
- * Dates on the Daily Board are courts' dates, so they are India's: "today" is
- * today in Asia/Kolkata whatever the phone's own zone says (a phone abroad, or
- * set wrongly, still opens the board on the day the courts are sitting).
- */
-/** Credits are counted the Indian way: 2,100 and 1,00,000. */
 /** "1 credit", "5 credits" (count grouped Indian style). */
 fun creditsLabel(n: Int): String = "${creditsText(n)} ${if (n == 1) "credit" else "credits"}"
 
+/** Credits are counted the Indian way: 2,100 and 1,00,000. */
 fun creditsText(n: Int): String {
     val digits = kotlin.math.abs(n.toLong()).toString()
     val grouped = if (digits.length <= 3) digits else {
@@ -25,6 +20,11 @@ fun creditsText(n: Int): String {
     return if (n < 0) "-$grouped" else grouped
 }
 
+/**
+ * Dates on the Daily Board are courts' dates, so they are India's: "today" is
+ * today in Asia/Kolkata whatever the phone's own zone says (a phone abroad, or
+ * set wrongly, still opens the board on the day the courts are sitting).
+ */
 object BoardDates {
     val IST: ZoneId = ZoneId.of("Asia/Kolkata")
 
@@ -35,6 +35,10 @@ object BoardDates {
 
     /** Today in India. */
     fun today(clock: Clock = Clock.systemUTC()): LocalDate = LocalDate.now(clock.withZone(IST))
+
+    /** Milliseconds from [now] to the start of the next day in India (plus a second), when "today" changes under an open screen. */
+    fun millisToNextDay(now: Instant): Long =
+        java.time.Duration.between(now, now.atZone(IST).toLocalDate().plusDays(1).atStartOfDay(IST).toInstant()).toMillis() + 1_000
 
     fun todayAt(instant: Instant): LocalDate = instant.atZone(IST).toLocalDate()
 
@@ -94,7 +98,7 @@ object BoardDates {
      * when it was not today. The server's stamp is IST ("2026-11-09 07:05:00" or ISO); null when unreadable.
      */
     /** "Saved copy from 3:20 PM" (today) or "Saved copy from 9 Nov, 3:20 PM": the note on a board shown from the device's copy. */
-    fun savedLabel(savedAtMillis: Long, today: LocalDate, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+    fun savedLabel(savedAtMillis: Long, today: LocalDate, zone: java.time.ZoneId = IST): String {
         val at = java.time.Instant.ofEpochMilli(savedAtMillis).atZone(zone)
         val time = at.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
         return "Saved copy from " + if (at.toLocalDate() == today) time else short(at.toLocalDate(), today) + ", " + time

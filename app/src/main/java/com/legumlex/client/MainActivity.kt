@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -241,6 +242,11 @@ private fun AppShell(deepLinkIntent: Intent?) {
         },
     )
 
+    // A counsel-only account whose workspace is paused: the paused screen and Sign Out, as on the web (not the Client Portal).
+    val wsList by com.legumlex.client.feature.workspace.WorkspaceSession.workspaces.collectAsState()
+    val serverPaused by com.legumlex.client.feature.board.BoardHub.paused.collectAsState()
+    val paused = !lead && (com.legumlex.client.feature.workspace.isWorkspacePaused(wsList) || serverPaused) && currentRoute != Route.Splash.path && currentRoute != Route.Login.path
+
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     val darkRoute = currentRoute?.substringBefore("?") == Route.BoardSheet.path.substringBefore("?")
@@ -321,9 +327,15 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // A Counsel main screen runs behind the floating bar (it keeps its own room at the foot); every other screen
         // stops above the bar as usual.
         val boxPad = if (behind && showAppFooter(currentRoute)) Modifier.padding(top = innerPadding.calculateTopPadding()) else Modifier.padding(innerPadding)
-        Box(if (edge) Modifier else boxPad.background(com.legumlex.client.ui.theme.Lex.colors.background).grain()) {
-            androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.navigation.LocalCounselClearance provides clearance) {
-                Box(Modifier.padding(bottom = lift)) { LegumNavGraph(navController) }
+        Box(Modifier.fillMaxSize()) {
+            Box(if (edge) Modifier else boxPad.background(com.legumlex.client.ui.theme.Lex.colors.background).grain()) {
+                androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.navigation.LocalCounselClearance provides clearance) {
+                    Box(Modifier.padding(bottom = lift)) { LegumNavGraph(navController) }
+                }
+            }
+            // Paused: covers the whole app (header and bar too) until the person signs out.
+            if (paused) Box(Modifier.fillMaxSize()) {
+                com.legumlex.client.feature.workspace.WorkspacePausedScreen(onSignOut = { confirmSignOut = true })
             }
         }
     }

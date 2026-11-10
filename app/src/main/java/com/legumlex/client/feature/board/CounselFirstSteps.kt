@@ -107,13 +107,10 @@ internal fun FirstStepsBlock(fs: FirstSteps, onRefresh: () -> Unit, onCredits: (
             StepButton("Buy Credits", Icons.Outlined.AccountBalanceWallet, primary = false, onClick = onCredits)
         }
     }
-    if (importing) ImportWizard(onClose = { importing = false }, onDone = {
-        importing = false
-        Toast.makeText(context, "${it.added} added, ${it.updated} updated", Toast.LENGTH_LONG).show()
-        onRefresh()
-    })
+    if (importing) ImportFlow(onClose = { importing = false }, onChanged = onRefresh)
     if (byCnr) CnrWizard(onClose = { byCnr = false }, onBuy = { byCnr = false; onCredits() }, onAdded = { _, bal ->
         byCnr = false
+        BoardHub.applyBalance(bal)
         Toast.makeText(context, "Case added. Balance: ${creditsLabel(bal)}.", Toast.LENGTH_LONG).show()
         onRefresh()
     })

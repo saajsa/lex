@@ -71,6 +71,16 @@ fun WorkspaceChoiceScreen(onPick: (Mode) -> Unit, hour: Int = java.time.LocalTim
     val note by WorkspaceSession.note.collectAsState()
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { WorkspaceSession.noteShown() } }
     val enterable = ws?.items.orEmpty().filter { it.enter }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // After the process was killed the screen comes back with nothing known: the server is asked again (a person who now holds one
+    // workspace goes straight to it).
+    LaunchedEffect(Unit) {
+        if (WorkspaceSession.workspaces.value == null) {
+            WorkspaceSession.open(com.legumlex.client.data.api.ApiClient.get(context))
+            val m = WorkspaceSession.mode.value
+            if (m != Mode.Unknown) onPick(m)
+        }
+    }
     Box(Modifier.fillMaxSize().background(Paper)) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(36.dp))
@@ -91,6 +101,7 @@ fun WorkspaceChoiceScreen(onPick: (Mode) -> Unit, hour: Int = java.time.LocalTim
                 Text(note, fontSize = 13.sp, color = Mute, modifier = Modifier.padding(horizontal = 6.dp))
             }
             Spacer(Modifier.height(36.dp))
+            if (ws == null) androidx.compose.material3.CircularProgressIndicator(Modifier.padding(horizontal = 6.dp).size(24.dp), strokeWidth = 2.dp, color = Mute)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 enterable.forEachIndexed { i, w ->
                     val counsel = w.kind == KIND_COUNSEL
@@ -211,3 +222,30 @@ fun WorkspaceCard(onSwitch: () -> Unit, onAdd: () -> Unit, onRemoved: (String) -
 
 /** The server's status word, as a label: pending, rejected, active, suspended, removed. */
 fun statusWord(status: String): String = status.replaceFirstChar { it.uppercase() }.ifBlank { "Not Added" }
+
+/**
+ * The paused screen, as the web's /board/paused: a counsel-only account whose workspace is paused while the person is engaged with
+ * the firm. Sign Out is the only way on; the cases and credits are kept.
+ */
+@Composable
+fun WorkspacePausedScreen(onSignOut: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Ink)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 28.dp), verticalArrangement = Arrangement.Center) {
+            LegumMark(26.dp, fillColor = Paper)
+            Spacer(Modifier.height(10.dp))
+            Text("COUNSEL", fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 2.2.sp, color = Gold)
+            Spacer(Modifier.height(30.dp))
+            Text("Paused,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = 36.sp, lineHeight = 40.sp, color = Paper)
+            Text("for now.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontSize = 36.sp, lineHeight = 40.sp, color = Paper)
+            Spacer(Modifier.height(16.dp))
+            Text(PAUSED_TEXT, fontSize = 15.sp, lineHeight = 23.sp, color = Color(0xFFA3A19A))
+            Spacer(Modifier.height(36.dp))
+            Box(
+                Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(Paper).clickable(onClick = onSignOut),
+                contentAlignment = Alignment.Center,
+            ) { Text("Sign Out", fontWeight = FontWeight.Medium, fontSize = 15.sp, color = Ink) }
+        }
+    }
+}
+
+const val PAUSED_TEXT = "Your Counsel workspace is paused while you are engaged with the firm. Your cases and credits are kept."

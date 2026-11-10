@@ -79,7 +79,7 @@ data class BoardCase(
 }
 
 /** One recorded date of a case: the date, where it came from (the server's `label`), and when it was recorded. */
-data class DateHistoryRow(val date: String, val source: String, val label: String, val at: String?)
+data class DateHistoryRow(val date: String, val source: String, val label: String, val at: String?, val superseded: Boolean = false)
 
 /** The counsel's cause-list format, in the server's own words. */
 data class BoardFormat(val summary: String, val paper: String, val orientation: String, val matched: Boolean)
@@ -126,17 +126,32 @@ data class ImportPreview(
     val errorCount: Int,
     val errors: List<ImportRowError>,
     val sample: List<ImportSample>,
+    /** What the check right after confirming will cost, as the server words it (null from an older server). */
+    val cost: ImportCost? = null,
 )
+
+/** The check after an import: [line] is the server's own sentence ("Each case is checked on eCourts now, 1 credit a case."); [covers] how many cases the balance pays for. */
+data class ImportCost(val perCase: Int, val cases: Int, val total: Int, val balance: Int, val covers: Int, val line: String)
 
 /** A date eCourts and the imported file disagree on, put to the counsel after an import. */
 data class Mismatch(val id: Int, val cnr: String, val caseNo: String, val title: String, val ecourtsDate: String?, val yourDate: String?) {
     val heading: String get() = caseNo.ifBlank { cnr }
 }
 
-data class ImportDone(val added: Int, val updated: Int, val total: Int, val mismatches: List<Mismatch> = emptyList())
+/** What the check right after an import found: how many were checked on eCourts, how many were left (credits did not cover them), and why it stopped. */
+data class ImportCheck(val checked: Int = 0, val unchecked: Int = 0, val stopped: String? = null)
 
-data class CreditPack(val key: String, val label: String, val credits: Int, val price: Double)
-data class LedgerRow(val id: Int, val whenAt: String, val kind: String, val label: String, val delta: Int, val balanceAfter: Int, val expiresAt: String?)
+data class ImportDone(val added: Int, val updated: Int, val total: Int, val mismatches: List<Mismatch> = emptyList(), val check: ImportCheck = ImportCheck(), val repeated: Boolean = false)
+
+/** A pack as the server words it: [lasts] is its own "how long this lasts" line, [bonusPct] the bonus (0 for none). */
+data class CreditPack(
+    val key: String, val label: String, val credits: Int, val price: Double,
+    val lasts: String = "", val bonusPct: Int = 0, val base: Double = 0.0, val gstAmount: Double = 0.0,
+)
+
+/** The next lot of credits to lapse: how many, when, and what kind (trial, purchase, refund). */
+data class NextLapse(val credits: Int, val expiresAt: String, val kind: String)
+data class LedgerRow(val id: Int, val whenAt: String, val kind: String, val label: String, val delta: Int, val balanceAfter: Int, val expiresAt: String?, val cases: Int = 1)
 data class ExpiringLot(val credits: Int, val expiresAt: String)
 data class Purchase(val id: Int, val pack: String, val credits: Int, val status: String, val createdAt: String, val paidAt: String?, val payLink: String?)
 /** Credits spent (net of refunds): today, this month, ever. */
@@ -157,6 +172,8 @@ data class LedgerPage(val total: Int, val items: List<LedgerRow>)
 data class CreditsData(
     val balance: Int,
     val expiring: List<ExpiringLot>,
+    /** The next lot to lapse (the web's "Expiring Next"); null when nothing is about to. */
+    val nextLapse: NextLapse? = null,
     val packs: List<CreditPack>,
     val costAdd: Int,
     val costCheck: Int,
@@ -198,7 +215,7 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         ecourtsDate = m["ecourts_date"].strOrNull(),
         needsEye = m["needs_eye"] == true,
         hasCnr = m["has_cnr"] != false,
-        history = m["history"].list().map { DateHistoryRow(it["date"].str(), it["source"].str(), it["label"].str(), it["at"].strOrNull()) },
+        history = m["history"].list().map { DateHistoryRow(it["date"].str(), it["source"].str(), it["label"].str(), it["at"].strOrNull(), it["superseded"] == true) },
         courtDesig = m["court_line"].str(),
         judgeLine = m["judge_line"].str(),
     )
@@ -249,27 +266,36 @@ internal fun parsePreview(d: Map<String, Any?>) = ImportPreview(
     sample = d["sample"].list().map {
         ImportSample(it["cnr"].str(), it["case_no"].str(), it["court"].str(), it["next_date"].strOrNull(), it["is_new"] == true)
     },
+    cost = d["cost"].map().takeIf { it.isNotEmpty() }?.let { ImportCost(it["per_case"].int(), it["cases"].int(), it["total"].int(), it["balance"].int(), it["covers"].int(), it["line"].str()) },
 )
 
 internal fun parseImportDone(d: Map<String, Any?>) = ImportDone(
     d["added"].int(), d["updated"].int(), d["total"].int(),
     d["mismatches"].list().map { Mismatch(it["id"].int(), it["cnr"].str(), it["case_no"].str(), it["title"].str(), it["ecourts_date"].strOrNull(), it["your_date"].strOrNull()) },
+    d["check"].map().let { ImportCheck(it["checked"].int(), it["unchecked"].int(), it["stopped"].let { v -> if (v == null || v == false) null else v.toString().ifBlank { null } }) },
+    d["repeated"] == true,
 )
 
 internal fun parseLedgerRow(it: Map<String, Any?>) =
     LedgerRow(it["id"].int(), it["when"].str(), it["kind"].str(), it["label"].str(), it["delta"].int(), it["balance_after"].int(), it["expires_at"].strOrNull())
 
-internal fun parseLedgerPage(d: Map<String, Any?>) = d["items"].list().map(::parseLedgerRow).let { LedgerPage(d["total"].intOrNull() ?: it.size, it) }
+/** A grouped history row: what the web shows (kind, day, when, delta, balance_after, what, cases). */
+internal fun parseGroupedRow(it: Map<String, Any?>) =
+    LedgerRow(0, it["when"].str(), it["kind"].str(), it["what"].str(), it["delta"].int(), it["balance_after"].int(), null, it["cases"].intOrNull() ?: 1)
+
+internal fun parseLedgerPage(d: Map<String, Any?>) = d["items"].list().map { if (d["grouped"] == true) parseGroupedRow(it) else parseLedgerRow(it) }.let { LedgerPage(d["total"].intOrNull() ?: it.size, it) }
 
 internal fun parseCredits(d: Map<String, Any?>): CreditsData {
     val costs = d["costs"].map()
     return CreditsData(
         balance = d["balance"].int(),
         expiring = d["expiring"].list().map { ExpiringLot(it["credits"].int(), it["expires_at"].str()) },
-        packs = d["packs"].list().map { CreditPack(it["key"].str(), it["label"].str(), it["credits"].int(), it["price"].dbl()) },
+        packs = d["packs"].list().map { CreditPack(it["key"].str(), it["label"].str(), it["credits"].int(), it["price"].dbl(), it["lasts"].str(), it["bonus_pct"].int(), it["base"].dbl(), it["gst_amount"].dbl()) },
+        nextLapse = d["next_lapse"].map().takeIf { it.isNotEmpty() }?.let { NextLapse(it["credits"].int(), it["expires_at"].str(), it["kind"].str()) },
         costAdd = costs["add"].int(),
         costCheck = costs["check"].int(),
-        history = d["history"].list().map(::parseLedgerRow),
+        // The web's grouped rows (a morning's checks are one row) when the server sends them, else the raw ledger.
+        history = if (d["history_rows"] is List<*>) d["history_rows"].list().map(::parseGroupedRow) else d["history"].list().map(::parseLedgerRow),
         purchases = d["purchases"].list().map {
             Purchase(it["id"].int(), it["pack"].str(), it["credits"].int(), it["status"].str(), it["created_at"].str(), it["paid_at"].strOrNull(), it["pay_link"].strOrNull())
         },
@@ -347,16 +373,6 @@ internal fun parseCheckout(d: Map<String, Any?>): CheckoutOrder {
 
 internal fun parseOrder(d: Map<String, Any?>) = OrderStatus(d["order"].str(), d["status"].str(), d["credits"].int(), d["balance"].intOrNull())
 
-/** How long a pack's credits last at the cases on the daily check, the way the web words it. */
-fun packLasts(credits: Int, onCheck: Int, costCheck: Int, months: Int): String {
-    val cases = maxOf(1, onCheck)
-    val cost = maxOf(1, costCheck)
-    val days = credits / (cases * cost)
-    val span = Math.round(maxOf(1, months) * 365.0 / 12).toInt()
-    return if (days >= span) "Covers ${credits / (span * cost)} cases for ${maxOf(1, months)} months"
-    else "About $days ${if (days == 1) "day" else "days"} at $cases ${if (cases == 1) "case" else "cases"}"
-}
-
 // ---- Home (board/home) ------------------------------------------------------------------
 
 data class HomeProfile(
@@ -421,3 +437,19 @@ internal fun chambersFields(address: String, city: String, zip: String): Map<Str
 /** The line Counsel Home shows while the firm has not yet verified the enrolment (REQ-010); nothing is said for any other state. */
 const val ENROLMENT_PENDING_LINE = "Your enrolment is with our reviewers."
 fun enrolmentLine(p: HomeProfile): String? = if (p.review == "pending") ENROLMENT_PENDING_LINE else null
+
+// ---- Add By CNR (find, then add) ------------------------------------------------------
+
+/** The case eCourts returned for a CNR, shown before it is added. */
+data class CnrPreview(val cnr: String, val caseNo: String, val caseType: String, val title: String, val court: String, val room: String, val bench: String, val nextDate: String?, val stage: String)
+
+/** Step one's answer: [lookupId] confirms it (kept 2 hours), [charged] the credits taken now, [balance] what is left. */
+data class CnrLookup(val lookupId: String, val charged: Int, val balance: Int, val case: CnrPreview)
+
+internal fun parseLookup(d: Map<String, Any?>): CnrLookup {
+    val c = d["case"].map()
+    return CnrLookup(
+        d["lookup_id"].str(), d["charged"].int(), d["balance"].int(),
+        CnrPreview(c["cnr"].str(), c["case_no"].str(), c["case_type"].str(), c["title"].str(), c["court"].str(), c["room"].str(), c["bench"].str(), c["next_date"].strOrNull(), c["stage"].str()),
+    )
+}
