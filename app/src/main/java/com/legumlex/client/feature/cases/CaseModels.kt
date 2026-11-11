@@ -162,6 +162,8 @@ data class HearingRow(
     val clientAttendance: String? = null,
     /** What the advocate has asked the client to bring or do, as written. */
     val clientInstructions: String? = null,
+    /** What was recorded (Heard, Adjourned, Postponed, No Appearance), or null; the status is then Completed. */
+    val outcome: String? = null,
 )
 
 /** Hearings that are still to happen: not cancelled, not already heard. */

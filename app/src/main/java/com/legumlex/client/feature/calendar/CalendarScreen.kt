@@ -394,7 +394,7 @@ private fun SheetHearingCard(h: Hearing, onClick: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             // A past date still marked Scheduled reads Listed, as everywhere else.
             val listed = h.date?.isBefore(java.time.LocalDate.now()) == true && h.status.label.equals("Scheduled", true)
-            StatusBadge(if (listed) "Listed" else h.status.label, h.status.palette)
+            StatusBadge(if (listed) "Listed" else h.statusLabel, h.status.palette)
         }
     }
 }

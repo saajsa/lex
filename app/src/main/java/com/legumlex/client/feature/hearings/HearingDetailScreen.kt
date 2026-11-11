@@ -307,7 +307,7 @@ private fun StatusCard(h: Hearing) {
             // as the case's hearing list says. The badge alone; the label said it twice.
             val listed = h.date != null && h.date.isBefore(LocalDate.now(IST)) && h.status.label.equals("Scheduled", true)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusBadge(if (listed) "Listed" else h.status.label, h.status.palette)
+                StatusBadge(if (listed) "Listed" else h.statusLabel, h.status.palette)
                 Spacer(Modifier.width(10.dp))
                 Text(if (listed) "No outcome recorded for this date" else "Status on record",
                     style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
@@ -349,7 +349,7 @@ private fun HistoryRow(entry: HearingHistoryEntry) {
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            text = "${entry.status.label} · ${entry.date?.format(DateTimeFormatter.ofPattern("d MMM yyyy")) ?: "—"}",
+            text = "${entry.statusLabel} · ${entry.date?.format(DateTimeFormatter.ofPattern("d MMM yyyy")) ?: "—"}",
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter),
             color = SecondaryText,
         )

@@ -60,7 +60,12 @@ data class Hearing(
     val clientInstructions: String? = null,
     /** Purpose of the next date (upcoming_purpose); never this hearing's own purpose. */
     val nextPurpose: String? = null,
-)
+    /** What was recorded (Heard, Adjourned, Postponed, No Appearance), or null; the status is then Completed. */
+    val outcome: String? = null,
+) {
+    /** What to show: "Completed · Adjourned" when an outcome is recorded, else the status. */
+    val statusLabel: String get() = hearingStatusLabel(status.label, outcome)
+}
 
 /** The client's attendance in plain words; null when the advocate hasn't set it. */
 fun attendanceLabel(raw: String?): String? = when (raw?.trim()?.lowercase()) {
@@ -79,4 +84,23 @@ data class HearingHistoryEntry(
     val createdAt: LocalDateTime?,
     val description: String? = null,
     val nextDate: LocalDate? = null,
-)
+    val outcome: String? = null,
+) {
+    val statusLabel: String get() = hearingStatusLabel(status.label, outcome)
+}
+
+/**
+ * What to show for a hearing (REQ-016): its outcome when one is recorded, as "Completed · Adjourned" (the server makes a hearing with an outcome
+ * Completed and keeps the outcome beside it); otherwise its status as is. An older server sends no outcome: the status shows alone.
+ */
+fun hearingStatusLabel(status: String, outcome: String?): String {
+    val s = status.trim()
+    val o = outcome?.trim().orEmpty()
+    return if (o.isNotEmpty() && s.equals("Completed", true)) "Completed · $o" else s
+}
+
+/** The mark for a hearing: its outcome's when Completed with Adjourned, Postponed or No Appearance recorded, else its own status's (lower case). */
+fun hearingMark(status: String, outcome: String?): String {
+    val o = outcome?.trim()?.lowercase().orEmpty()
+    return if (status.trim().equals("Completed", true) && o in setOf("adjourned", "postponed", "no appearance")) o else status.trim().lowercase()
+}

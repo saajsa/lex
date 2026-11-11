@@ -486,9 +486,9 @@ private fun ConcludedRow(
                 Text(h.purpose?.takeIf { it.isNotBlank() } ?: "Hearing", color = PrimaryText, fontFamily = Inter, fontWeight = FontWeight.Medium,
                     fontSize = 14.5.sp, maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
-                Outcome(h.status)
+                Outcome(h.status, h.outcome)
             }
-            val meta = listOfNotNull(h.time?.format(Time), h.nextDate?.let { "Next ${it.format(DayYear)}" })
+            val meta = listOfNotNull(h.outcome?.let { com.legumlex.client.feature.hearings.hearingStatusLabel(h.status, it) }, h.time?.format(Time), h.nextDate?.let { "Next ${it.format(DayYear)}" })
             if (meta.isNotEmpty()) Text(meta.joinToString(" · "), color = TertiaryText, fontFamily = Inter, fontSize = 12.sp)
             h.adjournmentReason?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(4.dp))
@@ -514,9 +514,11 @@ private fun ConcludedRow(
  * still marked Scheduled after its date has none. Spoken by screen readers.
  */
 @Composable
-private fun Outcome(status: String) {
+private fun Outcome(status: String, outcome: String? = null) {
     val muted = SecondaryText
-    val (icon, tint) = when (status.trim().lowercase()) {
+    // Recorded: Completed, with the outcome beside it. The mark is the outcome's, the words are both ("Completed · Adjourned").
+    val label = com.legumlex.client.feature.hearings.hearingStatusLabel(status, outcome)
+    val (icon, tint) = when (com.legumlex.client.feature.hearings.hearingMark(status, outcome)) {
         "completed" -> Icons.Outlined.CheckCircle to Lex.colors.success.solid
         "no appearance" -> Icons.Outlined.PersonOff to Lex.colors.danger.solid
         "adjourned" -> Icons.Outlined.EventRepeat to muted
@@ -525,7 +527,7 @@ private fun Outcome(status: String) {
         "cancelled" -> Icons.Outlined.Cancel to muted
         else -> return
     }
-    Icon(icon, contentDescription = status, tint = tint, modifier = Modifier.size(20.dp))
+    Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
 }
 
 /**

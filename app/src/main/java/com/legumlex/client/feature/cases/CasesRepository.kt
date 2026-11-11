@@ -177,6 +177,7 @@ private fun parseHearing(m: Map<String, Any?>) = HearingRow(
     nextDate = parseDate(m["next_date"] as? String),
     clientAttendance = (m["client_attendance"] as? String)?.takeIf { it.isNotBlank() },
     clientInstructions = (m["client_instructions"] as? String)?.takeIf { it.isNotBlank() },
+    outcome = (m["outcome"] as? String)?.takeIf { it.isNotBlank() },
 )
 
 private fun parseTimelineEvent(m: Map<String, Any?>) = TimelineEvent(

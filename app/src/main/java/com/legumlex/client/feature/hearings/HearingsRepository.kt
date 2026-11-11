@@ -58,6 +58,7 @@ internal fun parseHearing(m: Map<String, Any?>): Hearing {
         adjournmentReason = (m["adjournment_reason"] as? String)?.takeIf { it.isNotBlank() },
         createdAt         = parseDateTime(m["created_at"] as? String),
         history           = historyRaw.map(::parseHistoryEntry),
+        outcome           = (m["outcome"] as? String)?.takeIf { it.isNotBlank() },
     )
 }
 
@@ -70,6 +71,7 @@ private fun parseHistoryEntry(m: Map<String, Any?>) = HearingHistoryEntry(
     createdAt         = parseDateTime(m["created_at"] as? String),
     description       = (m["description"] as? String)?.takeIf { it.isNotBlank() },
     nextDate          = parseDate(m["next_date"] as? String),
+    outcome           = (m["outcome"] as? String)?.takeIf { it.isNotBlank() },
 )
 
 private val datePatterns = listOf("yyyy-MM-dd", "dd-MM-yyyy", "yyyy/MM/dd")
