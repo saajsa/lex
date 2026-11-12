@@ -41,7 +41,7 @@ Legend: **Gate** after `isAuthorized()` ("auth" = isAuthorized only, "lead" = is
 | POST | authentication | Authentication::authentication_post | none + throttle | email, password | `{data:{client_id,contact_id,…,token}, message}` | 400, 422, 429 | ✓ | LoginScreen (email link; debug test-contact button) |
 | POST | authentication/otp/{request\|status\|sms\|verify} | otp_{step}_post | none | number / ref / code | messaging step body; verify → token; request may be 403 `error=unverified` | 400, 403, 404 | ✓ | LoginScreen Mobile view (status polled 5 s) |
 | GET | authentication/me | me_get | token inline | none | `{s,d}` | 401 | ◇ | none |
-| GET | authentication/google_config | google_config_get | none | none | `{client_id, sign_up}` | 503 | ✓ | LoginScreen (client id; "Onboard Now" shown when `sign_up`) |
+| GET | authentication/google_config | google_config_get | none | none | `{client_id, sign_up, counsel_desk, account_desk}` (counsel_desk REQ-014; account_desk REQ-013 013.17a, absent = false) | 503 | ✓ | LoginScreen (client id; sign-up gating; Lex Intelligence petals route by counsel_desk and account_desk) |
 | POST | authentication/google | google_post | none | id_token, allow_lead | contact token, or a lead token when `allow_lead` and no contact | 401, 403, 404, 422, 500 | ✓ | LoginScreen Google; guest desk sign-in |
 | GET | logout | Logout::logout_get | auth | none | `{message}` | none | ✓ | More → Sign Out (best effort, 5 s) |
 | POST | register | Register::register_post | none | Perfex fields | `{message}` | 400, 422, 429 | ✗ | none (old password sign-up; still live) |

@@ -637,9 +637,14 @@ interface ApiService {
     /** The desk's reading of a question (cases_desk_read): {data:{verdict, follow_up, area, urgency, urgency_reason, place, intent, related, documents[], reading}} */
     @FormUrlEncoded
     @POST("desk/check")
-    suspend fun deskCheck(@Field("text") text: String): Map<String, Any?>
+    suspend fun deskCheck(@Field("text") text: String, @Field("matter_id") matterId: String? = null): Map<String, Any?>
 
-    /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, attachments[] */
+    /** The desk's draft brief of the whole enquiry: {data:{state: read|failed|skipped, reason, brief{what_happened, who[], wants, dates[]}, brief_token}} */
+    @FormUrlEncoded
+    @POST("desk/brief")
+    suspend fun deskBrief(@Field("text") text: String): Map<String, Any?>
+
+    /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, submission_key, deadline_flag, deadline_date, attachments[] */
     @Multipart
     @POST("desk/enquiry")
     suspend fun deskEnquiry(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
@@ -669,6 +674,10 @@ interface ApiService {
     // The desk for a lead: the same calls, the lead's address in place of a contact's.
     @GET("lead/desk")
     suspend fun leadDesk(): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/brief")
+    suspend fun leadDeskBrief(@Field("text") text: String): Map<String, Any?>
 
     @FormUrlEncoded
     @POST("lead/desk/check")
@@ -832,7 +841,7 @@ interface ApiService {
     // Opening an account in the desk's conversation (lexon Enrolment): the
     // server's turn, an answer, and a document read for the conversation.
     @GET("lead/onboarding/turn")
-    suspend fun leadOnboardingTurn(@Query("open") open: Int = 0): Map<String, Any?>
+    suspend fun leadOnboardingTurn(@Query("open") open: Int = 0, @Query("intent") intent: String? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @POST("lead/onboarding/answer")

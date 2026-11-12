@@ -218,7 +218,7 @@ class ConsultationsRepository(private val api: ApiService) {
     }
 }
 
-private fun parse(m: Map<String, Any?>): Consultation {
+internal fun parse(m: Map<String, Any?>): Consultation {
     val phase           = m["phase"]            as? String ?: "consultation"
     val rawStatus       = m["status"]           as? String ?: "Open"
     val requestStatus   = m["request_status"]   as? String ?: "pending"
@@ -313,6 +313,10 @@ private fun parse(m: Map<String, Any?>): Consultation {
         funnelLabel          = ((m["funnel_view"] as? Map<*, *>)?.get("label") as? String)?.takeIf { it.isNotBlank() },
         funnelAction         = ((m["funnel_view"] as? Map<*, *>)?.get("action") as? String)?.takeIf { it.isNotBlank() },
         funnelDetail         = ((m["funnel_view"] as? Map<*, *>)?.get("detail") as? String)?.takeIf { it.isNotBlank() },
+        enquiryNumber        = (m["enquiry_number"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+        intakeState          = (m["intake_state"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+        assigned             = if (m.containsKey("assigned")) m["assigned"].asBool() else null,
+        reference            = (m["reference"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         enquiryText          = (m["enquiry_text"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         brief                = (m["brief"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         paymentStatus        = (m["payment_status"] as? String)?.takeIf { it.isNotBlank() },

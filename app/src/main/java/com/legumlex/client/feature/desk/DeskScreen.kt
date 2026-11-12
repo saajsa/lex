@@ -142,9 +142,14 @@ private object D {
     val Warn: Color   @Composable get() = Lex.colors.danger.solid
     val Muted: Color  @Composable get() = Lex.colors.mutedForeground
     val Quiet: Color  @Composable get() = Lex.colors.faint
+    /** Text colour for [role] on [surface], from the palette in force (DeskInk.kt). */
+    @Composable fun ink(surface: DeskSurface, role: DeskRole = DeskRole.Body): Color = deskInk(Lex.colors, surface, role)
 }
 
 private val Mono = FontFamily.Monospace
+
+/** Whether the desk's boxes take the focus on arrival: yes on the full screen, no in the Sign In chat panel. */
+internal val LocalDeskAutoFocus = androidx.compose.runtime.compositionLocalOf { true }
 
 @Composable
 private fun body(size: Float = 14.5f, color: Color = D.Ink, weight: FontWeight = FontWeight.Normal) =
@@ -163,10 +168,14 @@ fun DeskScreen(
     /** Opening an account (LeadHome's Open An Account, Fix And Resubmit). */
     account: Boolean = false,
     onOpenForm: () -> Unit = {},
+    /** The counsel registration screen (chip href app:lead_counsel), and the app opening as the client once the desk opened the Counsel workspace. */
+    onOpenCounselForm: () -> Unit = {},
+    onOpenedAsClient: () -> Unit = {},
     onHome: () -> Unit = onClose,
     onSignIn: () -> Unit = onClose,
 ) {
-    val vm: DeskViewModel = viewModel()
+    // From the Sign In chat panel the conversation arrives with it (DeskHandover); otherwise a fresh desk.
+    val vm: DeskViewModel = remember { DeskHandover.take() } ?: viewModel()
     val ui by vm.ui.collectAsState()
     var tracking by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -191,6 +200,8 @@ fun DeskScreen(
                     else context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(e.url)))
                 }
                 DeskEvent.OpenForm -> onOpenForm()
+                DeskEvent.OpenCounselForm -> onOpenCounselForm()
+                DeskEvent.OpenedAsClient -> onOpenedAsClient()
                 DeskEvent.Home -> onHome()
                 DeskEvent.SignIn -> onSignIn()
             }
@@ -267,52 +278,22 @@ fun DeskScreen(
             // The three steps sit at the foot, just above the message box.
             Column(Modifier.weight(1f)) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    Intro(vm.guest)
-                    // Opening an account, for a lead the desk does that for.
-                    if (ui.terms.accountDesk && !vm.guest) Box(Modifier.padding(start = 18.dp, top = 18.dp)) {
-                        Chips(listOf(Triple("Onboard Now", false) { vm.startAccount() }))
-                    }
+                    DeskIntro(vm, ui)
                 }
                 if (!typing) {
                     Process()
                     Spacer(Modifier.height(12.dp))
                 }
             }
-            Box(Modifier.padding(horizontal = 14.dp)) {
-                if (ui.termsLoaded && !ui.terms.isActive) {
-                    Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
-                        style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
-                } else if (vm.guest) {
-                    GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
-                } else {
-                    QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile,
-                        onFocus = { if (it && services) services = false }) { vm.submitQuestion(draft.text) }
-                }
-            }
+            DeskOpening(vm, ui, draft, { draft = it }, compose, attach, onFocus = { if (it && services) services = false })
             if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
         } else {
-            Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))
-            if (ui.acct && ui.acctNote.isNotBlank()) AcctNote(ui.acctNote)
-            Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                when (val d = ui.dock) {
-                    Dock.Question -> QuestionDock(draft, { draft = it }, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
-                    Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
-                    Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
-                    is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }); ErrorLine(ui.error) }
-                    is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
-                    Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
-                    Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired, ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
-                    is Dock.Waiting -> WaitLine(d.label)
-                    Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
-                    Dock.SignIn -> GoogleDock(loginState is com.legumlex.client.feature.auth.LoginState.Loading, ui.error, google)
-                    is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, { acctScan() }, { acctPick.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) },
-                        vm::acctFields, vm::acctCode, vm::acctSubmit)
-                    is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
-                }
-            }
-            if (ui.acct) {
-                if (ui.terms.accountFoot.isNotBlank()) Text(ui.terms.accountFoot, style = body(12f, D.Muted), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp))
-            } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
+            DeskThread(
+                vm, ui, draft, { draft = it }, compose, attach,
+                signingIn = loginState is com.legumlex.client.feature.auth.LoginState.Loading, google = google,
+                acctScan = { acctScan() }, acctPick = { acctPick.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) },
+                fullDesk = null, modifier = Modifier.weight(1f),
+            )
         }
     }
 
@@ -335,7 +316,7 @@ private fun mimesFor(types: List<String>): Array<String> = types.mapNotNull {
 // ---- The drawer's head and foot ---------------------------------------------
 
 @Composable
-private fun Head(onClose: () -> Unit) {
+internal fun Head(onClose: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(38.dp).clip(RoundedCornerShape(9.dp)).background(D.Gold), contentAlignment = Alignment.Center) {
             Text(">_", style = TextStyle(fontFamily = Mono, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = D.OnGold))
@@ -370,11 +351,11 @@ private fun Kicker(s: String, modifier: Modifier = Modifier) =
 // ---- Before the first question --------------------------------------------------
 
 @Composable
-private fun Intro(guest: Boolean = false) {
-    Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 22.dp)) {
-        Text(if (guest) "Ask Lex Intelligence" else "What has happened?", style = body(25f, weight = FontWeight.SemiBold).copy(lineHeight = 30.sp, letterSpacing = (-0.4).sp))
+private fun Intro(guest: Boolean = false, compact: Boolean = false) {
+    Column(Modifier.padding(start = 18.dp, end = 18.dp, top = if (compact) 12.dp else 22.dp)) {
+        Text(if (guest) LEX_INTRO_HEADING else "What has happened?", style = body(if (compact) 19f else 25f, weight = FontWeight.SemiBold).copy(lineHeight = if (compact) 24.sp else 30.sp, letterSpacing = (-0.4).sp))
         Spacer(Modifier.height(8.dp))
-        Text(if (guest) "A short question about the advocates, or how to reach them. To tell them about your matter, you sign in with Google."
+        Text(if (guest) LEX_INTRO_BODY
              else "In your own words: what happened, who is involved, and what you would like counsel to do.", style = body(14.5f, D.Ink.copy(alpha = 0.7f)))
     }
 }
@@ -609,7 +590,7 @@ private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark
 
 /** A paragraph with **bold**, showing its first [upto] words. */
 @Composable
-private fun Words(s: String, upto: Int, flag: Boolean) {
+private fun Words(s: String, upto: Int, flag: Boolean, ink: Color = D.ink(DeskSurface.Page)) {
     val words = s.split(' ')
     val text = buildAnnotatedString {
         var bold = false
@@ -619,7 +600,8 @@ private fun Words(s: String, upto: Int, flag: Boolean) {
             if (open) { bold = true; word = word.removePrefix("**") }
             val close = word.contains("**")
             word = word.replace("**", "")
-            val style = if (bold) SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.White) else SpanStyle()
+            // Bold is the same ink, heavier: the surface's own colour (white here was invisible on the light page).
+            val style = if (bold) SpanStyle(fontWeight = FontWeight.SemiBold) else SpanStyle()
             withStyle(if (i < upto) style else style.copy(color = Color.Transparent)) { append(word) }
             if (close) bold = false
             if (i < words.size - 1) append(' ')
@@ -629,9 +611,9 @@ private fun Words(s: String, upto: Int, flag: Boolean) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(2.dp).fillMaxHeight().background(D.Gold))
             Spacer(Modifier.width(10.dp))
-            Text(text, style = body())
+            Text(text, style = body(color = ink))
         }
-    } else Text(text, style = body())
+    } else Text(text, style = body(color = ink))
 }
 
 @Composable
@@ -666,7 +648,7 @@ private fun NoteLine(line: Line) {
         Icon(Icons.Outlined.ErrorOutline, null, tint = if (line.warn) D.Warn else D.Muted, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            line.paras.forEach { if (it is Para.Text) Words(it.s, Int.MAX_VALUE, false) }
+            line.paras.forEach { if (it is Para.Text) Words(it.s, Int.MAX_VALUE, false, D.ink(if (line.warn) DeskSurface.Warn else DeskSurface.Note)) }
         }
     }
 }
@@ -689,7 +671,7 @@ private val STAGES = listOf("Securing your enquiry", "Sending it to the chamber"
 @Composable
 private fun Stages(p: Para.Stages) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(if (p.done) "Delivered." else "Taking your enquiry in…", style = body(weight = FontWeight.SemiBold, color = Color.White))
+        Text(if (p.done) "Delivered." else "Taking your enquiry in…", style = body(weight = FontWeight.SemiBold, color = D.ink(DeskSurface.Page, DeskRole.Strong)))
         STAGES.forEachIndexed { i, s ->
             val done = p.done || i < p.active
             val active = !p.done && i == p.active
@@ -838,7 +820,9 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
                     valid: ((String) -> Boolean)? = null, format: (String) -> String = { it }, onSend: (String) -> Unit) {
     var v by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // The full desk puts the cursor in the box; the Sign In chat panel does not (the keyboard opens only when the box is touched).
+    val auto = LocalDeskAutoFocus.current
+    LaunchedEffect(Unit) { if (auto) runCatching { focus.requestFocus() } }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
@@ -854,6 +838,142 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable { onSend(v) }, contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Outlined.Send, "Send", tint = D.OnGold, modifier = Modifier.size(19.dp))
         }
+    }
+}
+
+/**
+ * A hearing or a deadline, in the client's own words (up to DEADLINE_MAX), and the date if they have one. The words are kept as written and the desk never
+ * reads or changes them. Either is enough; the date is chosen, never typed.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("") }          // YYYY-MM-DD
+    var picking by remember { mutableStateOf(false) }
+    Column {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
+                .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
+        ) {
+            Box(Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                if (text.isEmpty()) Text("For example: the notice says reply by Friday", style = body(15f, D.Ink.copy(alpha = 0.42f)))
+                BasicTextField(text, { text = it.take(DEADLINE_MAX) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp))
+            }
+            Text("${text.length} / $DEADLINE_MAX", style = body(11.5f, D.Muted), modifier = Modifier.align(Alignment.End))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).clickable { picking = true }.padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (date.isEmpty()) "Pick A Date" else deadlineShown("", date), style = body(14f, D.Ink, FontWeight.SemiBold))
+            }
+            if (date.isNotEmpty()) Text("Clear", style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                modifier = Modifier.clickable { date = "" }.padding(12.dp))
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(D.Gold).clickable { onGive(text, date) }, contentAlignment = Alignment.Center) {
+                Icon(Icons.AutoMirrored.Outlined.Send, "Send", tint = D.OnGold, modifier = Modifier.size(19.dp))
+            }
+        }
+        ErrorLine(error)
+    }
+    if (picking) {
+        val st = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = (date.takeIf { it.isNotBlank() }?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now())
+                .atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
+        )
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    st.selectedDateMillis?.let { date = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() }
+                    picking = false
+                }) { Text("Choose") }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { picking = false }) { Text("Cancel") } },
+        ) { androidx.compose.material3.DatePicker(state = st) }
+    }
+}
+
+/**
+ * The Review step (REQ-017 Phase 2): what the desk will tell the advocates, in four read-only rows, with the client's own words behind a tap and the line
+ * that the advocates always read those too. Send To The Firm, Edit, and Send My Own Words Instead (always there). Edit has the four fields; Back throws the
+ * edits away. Colours come from the surface (DeskInk): ink on the raised card, the accent's foreground on the accent button.
+ */
+@Composable
+private fun ReviewDock(brief: DeskBrief, original: String, onSend: (DeskBrief) -> Unit, onOwn: () -> Unit) {
+    var editing by remember(brief) { mutableStateOf(false) }
+    var own by remember { mutableStateOf(false) }
+    // The fields of Edit: kept while editing, thrown away on Back.
+    var what by remember(brief, editing) { mutableStateOf(brief.whatHappened) }
+    var who by remember(brief, editing) { mutableStateOf(brief.who.joinToString("\n") { it.line() }) }
+    var wants by remember(brief, editing) { mutableStateOf(brief.wants) }
+    var dates by remember(brief, editing) { mutableStateOf(brief.dates.joinToString("\n") { it.line() }) }
+    var problem by remember(brief, editing) { mutableStateOf("") }
+    val ink = D.ink(DeskSurface.Raised)
+    val quiet = D.ink(DeskSurface.Raised, DeskRole.Muted)
+    Column(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = 380.dp).clip(RoundedCornerShape(14.dp)).background(D.Raise).border(1.dp, D.Line2, RoundedCornerShape(14.dp))
+                .verticalScroll(rememberScrollState()).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (!editing) {
+                BriefRow("What Happened", listOf(brief.whatHappened), ink, quiet)
+                BriefRow("Who Is Involved", brief.who.map { it.line() }, ink, quiet)
+                BriefRow("What You Want", listOf(brief.wants), ink, quiet)
+                BriefRow("Dates, As You Wrote Them", brief.dates.map { it.line() }, ink, quiet)
+                Box(Modifier.fillMaxWidth().height(1.dp).background(D.Line2))
+                Row(Modifier.fillMaxWidth().clickable { own = !own }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Your Own Words", style = body(14f, ink, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                    Text(if (own) "Hide" else "Show", style = body(13f, quiet))
+                }
+                if (own) Text(original, style = body(14f, ink))
+                Text("They always read your own words as well.", style = body(12.5f, quiet))
+            } else {
+                BriefField("What Happened", what, { what = it.take(BRIEF_WHAT_MAX + 40) }, "$BRIEF_WHAT_MAX characters at most", 3, ink, quiet)
+                BriefField("Who Is Involved", who, { who = it }, "One person to a line, name then role, up to $BRIEF_WHO_MAX", 3, ink, quiet)
+                BriefField("What You Want", wants, { wants = it.take(BRIEF_WANTS_MAX + 40) }, "$BRIEF_WANTS_MAX characters at most", 2, ink, quiet)
+                BriefField("Dates, As You Wrote Them", dates, { dates = it }, "One date to a line, as written then what it is about, up to $BRIEF_DATES_MAX", 3, ink, quiet)
+            }
+        }
+        if (problem.isNotEmpty()) ErrorLine(problem)
+        Spacer(Modifier.height(10.dp))
+        Chips(buildList {
+            add(Triple("Send To The Firm", true) {
+                if (!editing) onSend(brief)
+                else when (val e = parseBriefEdit(what, who, wants, dates)) {
+                    is BriefEdit.Ok -> onSend(e.brief)
+                    is BriefEdit.Problem -> problem = e.message
+                }
+            })
+            if (!editing) add(Triple("Edit", false) { editing = true }) else add(Triple("Back", false) { editing = false })
+            add(Triple("Send My Own Words Instead", false, onOwn))
+        })
+    }
+}
+
+@Composable
+private fun BriefRow(label: String, lines: List<String>, ink: Color, quiet: Color) {
+    val shown = lines.filter { it.isNotBlank() }
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label.uppercase(), style = TextStyle(fontFamily = Mono, fontSize = 10.5.sp, letterSpacing = 0.8.sp, color = quiet))
+        if (shown.isEmpty()) Text("Nothing was said about this.", style = body(14f, quiet))
+        else shown.forEach { Text(it, style = body(14.5f, ink)) }
+    }
+}
+
+@Composable
+private fun BriefField(label: String, value: String, onValue: (String) -> Unit, hint: String, minLines: Int, ink: Color, quiet: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = body(13f, ink, FontWeight.SemiBold))
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.dp, D.Line2, RoundedCornerShape(10.dp)).padding(10.dp)) {
+            BasicTextField(value, onValue, textStyle = body(14.5f, ink), cursorBrush = SolidColor(D.Gold), minLines = minLines, modifier = Modifier.fillMaxWidth())
+        }
+        Text(hint, style = body(11.5f, quiet))
     }
 }
 
@@ -1185,5 +1305,176 @@ private fun AcctReadingDock(d: Dock.AcctReading, onStop: () -> Unit) {
             else -> "Reading your ${d.label}…"
         })
         if (s >= 60) Chips(listOf(Triple("Stop Waiting", false, onStop)))
+    }
+}
+
+/** The intro, and (where the desk takes them) the Onboard Now / Register As Counsel chips. [compact] is the Sign In panel's smaller type. */
+@Composable
+internal fun DeskIntro(vm: DeskViewModel, ui: DeskUi, compact: Boolean = false) {
+    Intro(vm.guest, compact)
+    // Opening an account, for a lead the desk does that for.
+    // A guest sees the counsel chip by google_config's flag (the terms need a sign-in); a lead by the desk's own.
+    val counselChip = if (vm.guest) ui.guestCounselDesk else ui.terms.counselDesk
+    if (((ui.terms.accountDesk && !vm.guest) || counselChip)) Box(Modifier.padding(start = 18.dp, top = if (compact) 10.dp else 18.dp)) {
+        Chips(listOfNotNull(
+            Triple("Onboard Now", false) { vm.startAccount() }.takeIf { ui.terms.accountDesk && !vm.guest },
+            Triple("Register As Counsel", false) { vm.startCounsel() }.takeIf { counselChip },
+        ))
+    }
+}
+
+/** The box that asks the first question: a guest's short one, a signed-in client's composer, or the notice that the desk is closed. */
+@Composable
+internal fun DeskOpening(
+    vm: DeskViewModel, ui: DeskUi, draft: TextFieldValue, onDraft: (TextFieldValue) -> Unit, compose: FocusRequester,
+    attach: (() -> Unit)?, onFocus: (Boolean) -> Unit = {},
+) {
+    Box(Modifier.padding(horizontal = 14.dp)) {
+        if (ui.termsLoaded && !ui.terms.isActive) {
+            Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
+                style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
+        } else if (vm.guest) {
+            GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
+        } else {
+            QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile, onFocus = onFocus) { vm.submitQuestion(draft.text) }
+        }
+    }
+}
+
+/** Whether the conversation has reached a step that belongs to the full desk: the Google sign-in, an upload, the account-opening steps. */
+internal fun DeskUi.needsFullDesk(): Boolean = acct || dock is Dock.SignIn || dock is Dock.Acct || dock is Dock.AcctReading || dock == Dock.Docs
+
+/**
+ * The conversation once it has begun: the messages, and below them whatever the desk is asking for, with its footer. The full desk screen
+ * and the Sign In chat panel both draw this. With [fullDesk] set (the panel), a step that needs the full desk shows its button in place of
+ * the dock; the full screen passes null and draws every dock.
+ */
+@Composable
+internal fun DeskThread(
+    vm: DeskViewModel, ui: DeskUi, draft: TextFieldValue, onDraft: (TextFieldValue) -> Unit, compose: FocusRequester, attach: (() -> Unit)?,
+    signingIn: Boolean, google: () -> Unit, acctScan: () -> Unit, acctPick: () -> Unit, fullDesk: (() -> Unit)?, modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+        Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))
+        if (fullDesk == null && ui.acct && ui.acctNote.isNotBlank()) AcctNote(ui.acctNote)
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            if (fullDesk != null && ui.needsFullDesk()) {
+                Column(Modifier.fillMaxWidth()) {
+                    Chips(listOf(Triple("Continue In The Full Desk", true, fullDesk)))
+                }
+            } else when (val d = ui.dock) {
+                Dock.Question -> QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
+                Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
+                Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
+                is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }); ErrorLine(ui.error) }
+                is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
+                Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
+                Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired, ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
+                is Dock.Waiting -> WaitLine(d.label)
+                Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
+                Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
+                is Dock.Review -> ReviewDock(d.brief, d.original, vm::sendBrief, vm::sendOwnWords)
+                Dock.SignIn -> GoogleDock(signingIn, ui.error, google)
+                is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, acctScan, acctPick, vm::acctFields, vm::acctCode, vm::acctSubmit)
+                is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
+            }
+        }
+        if (ui.acct) {
+            // A counsel registration has its own footer (what to have at hand), the client's is the account footer.
+            val foot = if (ui.counsel && ui.terms.counselFoot.isNotBlank()) ui.terms.counselFoot else ui.terms.accountFoot
+            if (foot.isNotBlank()) Text(foot, style = body(12f, D.Muted), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp))
+        } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
+    }
+}
+
+/**
+ * The guest desk's view model, handed from the Sign In chat panel to the full desk screen so the conversation carries over (the same
+ * state, not a copy). The panel gives it just before navigating; the full screen takes it once.
+ */
+internal object DeskHandover {
+    @Volatile private var held: DeskViewModel? = null
+    fun give(vm: DeskViewModel) { held = vm }
+    fun take(): DeskViewModel? = held.also { held = null }
+}
+
+/**
+ * Lex Intelligence in the bottom half of Sign In (REQ-013 013.16): the same guest desk, drawn with the desk's own pieces (DeskIntro,
+ * DeskOpening, DeskThread) over the same view model; no second chat. A step that needs the full desk (Google sign-in, an upload, opening
+ * an account) hands over to it: [onFullDesk] runs once when the conversation reaches such a step, and the panel then offers its button.
+ */
+@Composable
+fun LexChatPanel(
+    onClose: () -> Unit, onFullDesk: () -> Unit, modifier: Modifier = Modifier,
+    /** Opened by a petal: send its message as the first one, or go to the Google sign-in step (no message spent). [onStarted] says it has been done. */
+    start: com.legumlex.client.feature.auth.PanelStart? = null, onStarted: () -> Unit = {},
+) {
+    val vm: DeskViewModel = viewModel()
+    val ui by vm.ui.collectAsState()
+    var draft by remember { mutableStateOf(TextFieldValue("")) }
+    val compose = remember { FocusRequester() }
+    val hand: () -> Unit = { DeskHandover.give(vm); onFullDesk() }
+    LaunchedEffect(start) {
+        when (start) {
+            is com.legumlex.client.feature.auth.PanelStart.Message -> if (!ui.opened || ui.dock == Dock.Guest) vm.submitGuest(start.text)
+            com.legumlex.client.feature.auth.PanelStart.SignIn -> vm.guestSignIn()
+            null -> return@LaunchedEffect
+        }
+        onStarted()
+    }
+    // Only a change into such a step hands over by itself; coming back to the panel does not send the client on again.
+    val needs = ui.needsFullDesk()
+    var was by remember { mutableStateOf(needs) }
+    LaunchedEffect(needs) { if (needs && !was) hand(); was = needs }
+    val shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+    androidx.compose.runtime.CompositionLocalProvider(LocalDeskAutoFocus provides false) {
+    Column(modifier.fillMaxWidth().clip(shape).background(D.Page).border(1.dp, D.Line, shape)) {
+        Head(onClose)
+        if (!ui.opened) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) { DeskIntro(vm, ui, compact = true) }
+            DeskOpening(vm, ui, draft, { draft = it }, compose, attach = null)
+            Spacer(Modifier.height(10.dp))
+        } else {
+            DeskThread(
+                vm, ui, draft, { draft = it }, compose, attach = null, signingIn = false, google = hand, acctScan = {}, acctPick = {},
+                fullDesk = hand, modifier = Modifier.weight(1f),
+            )
+        }
+    }
+    }
+}
+
+/**
+ * Debug builds only (reached from Sign In's Debug chip): a conversation with every element the desk draws, in the palette in force, so each can be
+ * looked at in light and dark. Nothing here is sent anywhere.
+ */
+@Composable
+fun DeskSampleScreen(onClose: () -> Unit) {
+    val lines = remember {
+        var n = 0L
+        fun line(who: Who, vararg p: Para, warn: Boolean = false, files: List<String> = emptyList()) = Line(++n, who, p.toList(), warn = warn, files = files)
+        listOf(
+            line(Who.DESK, Para.Text(LEX_INTRO)),
+            line(Who.ME, Para.Text("My tenant has not paid rent for three months and now says the flat was never let to him.")),
+            line(Who.DESK, Para.Text("Thank you. **Bold words** sit in the same ink as the rest.")),
+            line(Who.DESK, Para.Text("**This sounds time-critical: the limitation period may be close.** It will be marked urgent, so that the advocates see it first.", flag = true)),
+            line(Who.DESK, Para.Text("What the advocates will look at:"), Para.Bullets(listOf("The letting, if any, in writing", "Rent received and when", "Any notice already sent or received"))),
+            line(Who.DESK, Para.Facts(listOf("Matter" to "Recovery of rent", "Forum" to "Civil Judge, Chandigarh", "Fee" to "₹1,500 + GST"))),
+            line(Who.DESK, Para.Text("An unbroken word: Supercalifragilisticexpialidocious_Supercalifragilisticexpialidocious_Supercalifragilistic and a link as plain text https://www.legumlex.com/consult/track/0123456789abcdef0123456789abcdef.")),
+            line(Who.NOTE, Para.Text("That did not go through. Please check your connection and try again."), warn = true),
+            line(Who.NOTE, Para.Text("The payment has not yet been confirmed. If you have just paid, please wait a minute and try again.")),
+            line(Who.DESK, Para.Stages(active = 2, done = false)),
+            line(Who.DESK, Para.Divider("Your registration is with the firm.")),
+            line(Who.ME, Para.Text("Here are the papers."), files = listOf("rent-receipts-2026.pdf", "legal-notice.pdf")),
+        )
+    }
+    val ui = remember(lines) { DeskUi(lines = lines, opened = true, locked = true) }
+    Column(Modifier.fillMaxSize().background(D.Page)) {
+        Head(onClose)
+        Conversation(ui, {}, {}, Modifier.weight(1f))
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Chips(listOf(Triple("Open My Account", true, {}), Triple("No, I Have A Question", false, {})))
+            ErrorLine("This is an error line.")
+            WaitLine("reading your document")
+        }
     }
 }

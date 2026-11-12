@@ -1,6 +1,8 @@
 package com.legumlex.client.feature.consultations.detail
 
 import com.legumlex.client.feature.consultations.statusLabel
+import com.legumlex.client.feature.consultations.advocateName
+import com.legumlex.client.feature.consultations.intakeLabel
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -71,15 +73,15 @@ fun ConsultationSpecContent(c: Consultation) {
 
         // Status & flags
         SpecSection("Status") {
-            SpecRow(Icons.Outlined.Circle, "Status", c.statusLabel)
+            SpecRow(Icons.Outlined.Circle, "Status", c.intakeLabel() ?: c.statusLabel)
             SpecRow(Icons.Outlined.Flag, "Priority", c.priority ?: "Medium")
             SpecRow(Icons.Outlined.Bolt, "Urgent", if (c.isUrgent) "Yes" else "No")
         }
 
         // People
-        if (!c.assignedTo.isNullOrBlank()) {
+        if (!c.advocateName().isNullOrBlank()) {
             SpecSection("People") {
-                SpecRow(Icons.Outlined.Person, "Advocate", c.assignedTo)
+                SpecRow(Icons.Outlined.Person, "Advocate", c.advocateName()!!)
             }
         }
 

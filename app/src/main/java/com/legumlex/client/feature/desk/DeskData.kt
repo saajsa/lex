@@ -55,6 +55,16 @@ data class DeskTerms(
     val wish: List<String> = emptyList(),
     val offer: String = "",
     val accountFoot: String = "",
+    /** Counsel registration in the desk (REQ-014): the switch, the phrase lists, and the server's fixed turns. */
+    val counselDesk: Boolean = false,
+    val clientSignUp: Boolean = true,
+    val wishCounsel: List<String> = emptyList(),
+    val wishClient: List<String> = emptyList(),
+    val counselOffer: AcctTurn? = null,
+    val clarify: List<AcctTurn> = emptyList(),
+    val forms: AcctTurn? = null,
+    val counselForm: AcctTurn? = null,
+    val counselFoot: String = "",
 ) {
     val takesFiles get() = maxFiles > 0 && documentTypes.isNotEmpty()
     val priced get() = basePrice > 0
@@ -73,6 +83,10 @@ data class DeskReading(
     val related: String,
     val documents: List<String>,
     val token: String,             // signed; "" when nothing was learned
+    /** read | failed | skipped; null from an older server (the reading is then used as before). */
+    val readingState: String? = null,
+    /** missing_facts | time_limit_unknown | forum_unknown | none; with follow_up, even on a clear verdict. Null from an older server. */
+    val askReason: String? = null,
 )
 
 /** A file the client has chosen, read into memory as the page holds a File. */
@@ -86,7 +100,7 @@ sealed interface PayStart {
 }
 
 sealed interface Sent {
-    data class Delivered(val consultationId: Int?, val email: String) : Sent
+    data class Delivered(val consultationId: Int?, val email: String, val enquiryNumber: String? = null, val intakeState: String? = null) : Sent
     data class Saved(val displayPrice: String, val email: String, val sessionHash: String) : Sent
     data class Refused(val message: String, val errors: Map<String, String>, val sessionHash: String?) : Sent
     data class Failed(val message: String, val timedOut: Boolean) : Sent
@@ -108,11 +122,61 @@ data class Tracked(
     val converted: Boolean,
 )
 
+/** The guest desk's answer: the line, whether to sign in now, and what the visitor wished (REQ-014). */
+data class GuestReply(
+    val reply: String, val signIn: Boolean, val account: Boolean,
+    /** A clear counsel wish: after signing in the conversation starts as counsel's. */
+    val counsel: Boolean = false,
+    /** The clarifying question was asked: the text box stays. */
+    val clarify: Boolean = false,
+    /** Still unclear after two asks: the two forms (label, href). */
+    val forms: List<Pair<String, String>> = emptyList(),
+)
+
+internal fun parseGuestReply(d: Map<String, Any?>): GuestReply? {
+    val reply = (d["reply"] as? String).orEmpty()
+    if (reply.isBlank()) return null
+    val forms = (d["forms"] as? List<*>).orEmpty().mapNotNull { f ->
+        (f as? Map<*, *>)?.let { (it["label"] as? String).orEmpty() to (it["href"] as? String).orEmpty() }?.takeIf { it.first.isNotBlank() }
+    }
+    val clarify = d["clarify"] == true
+    return GuestReply(
+        reply = reply,
+        // A clarifying question never sends the visitor to sign in: the text box stays for the answer.
+        signIn = !clarify && forms.isEmpty() && (d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0),
+        account = d["account"] == true, counsel = d["counsel"] == true, clarify = clarify, forms = forms,
+    )
+}
+
+/** The opened Counsel workspace: the client token the desk's counsel submit returns (role client), as lead/counsel/submit does. */
+data class CounselSession(val token: String, val clientId: Int, val contactId: Int)
+
+/** The submit's answer: the turn to draw, and the client session when the counsel workspace opened (counsel_open). */
+data class AcctSubmit(val turn: AcctTurn?, val opened: CounselSession?)
+
+@Suppress("UNCHECKED_CAST")
+internal fun parseSubmit(d: Map<String, Any?>): AcctSubmit {
+    val turn = (d["turn"] as? Map<String, Any?>)?.let(::parseTurn)
+    val token = d["token"] as? String
+    val client = (d["client_id"] as? Number)?.toInt() ?: d["client_id"]?.toString()?.toIntOrNull()
+    val contact = (d["contact_id"] as? Number)?.toInt() ?: d["contact_id"]?.toString()?.toIntOrNull()
+    val opened = if (d["status"] == "counsel_open" && d["role"] == "client" && !token.isNullOrBlank() && client != null && contact != null) CounselSession(token, client, contact) else null
+    return AcctSubmit(turn, opened)
+}
+
 class DeskRepository(private val context: Context) {
     private val api = ApiClient.get(context)
     private val resolver = context.applicationContext.contentResolver
     /** A lead's desk (lead/desk): the same calls, under the lead's token. */
     private val lead get() = com.legumlex.client.data.auth.SessionRole.isLead
+
+    /** The submission key for the enquiry as composed, kept on this phone until it is sent (so a retry after a restart is still one enquiry). */
+    val submissionKeys = SubmissionKeys(object : KeyValueStore {
+        private val p = context.applicationContext.getSharedPreferences("desk_submission", Context.MODE_PRIVATE)
+        override fun get(key: String) = p.getString(key, null)
+        override fun put(key: String, value: String) { p.edit().putString(key, value).apply() }
+        override fun remove(key: String) { p.edit().remove(key).apply() }
+    })
 
     /** This install's own id, for the guest allowance (a day's two messages). */
     private val device: String by lazy {
@@ -126,12 +190,11 @@ class DeskRepository(private val context: Context) {
      * then asks them to sign in.
      */
     @Suppress("UNCHECKED_CAST")
-    suspend fun guest(turns: List<Pair<String, String>>): Triple<String, Boolean, Boolean>? = withTimeoutOrNull(15_000) {
+    suspend fun guest(turns: List<Pair<String, String>>): GuestReply? = withTimeoutOrNull(15_000) {
         runCatching {
             val json = org.json.JSONArray(turns.map { (role, text) -> org.json.JSONObject().put("role", role).put("text", text) }).toString()
             val d = api.guestDesk(json, device)["data"] as? Map<String, Any?> ?: return@runCatching null
-            val reply = (d["reply"] as? String).orEmpty()
-            if (reply.isBlank()) null else Triple(reply, d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0, d["account"] == true)
+            parseGuestReply(d)
         }.getOrNull()
     }
 
@@ -139,8 +202,8 @@ class DeskRepository(private val context: Context) {
 
     /** The server's turn, or null (no connection). */
     @Suppress("UNCHECKED_CAST")
-    suspend fun acctTurn(open: Boolean): AcctTurn? = runCatching {
-        ((api.leadOnboardingTurn(if (open) 1 else 0)["data"] as? Map<String, Any?>)?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
+    suspend fun acctTurn(open: Boolean, counsel: Boolean = false): AcctTurn? = runCatching {
+        ((api.leadOnboardingTurn(if (open) 1 else 0, if (counsel) "counsel" else null)["data"] as? Map<String, Any?>)?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
     }.getOrNull()
 
     /** An answer: (accepted, the next turn), or null (no connection). */
@@ -178,11 +241,11 @@ class DeskRepository(private val context: Context) {
 
     /** The final tick: the sent turn, or the turn that fixes a refusal. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun acctSubmit(step: String): AcctTurn? = runCatching {
+    suspend fun acctSubmit(step: String): AcctSubmit? = runCatching {
         val d = try { api.leadOnboardingSubmit(mapOf("form" to "chat", "step" to step, "terms" to "1"))["data"] as? Map<String, Any?> } catch (e: HttpException) {
             runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()).optJSONObject("data")?.let(::jsonMap) }.getOrNull()
         }
-        (d?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
+        d?.let(::parseSubmit)
     }.getOrNull()
 
     @Suppress("UNCHECKED_CAST")
@@ -208,6 +271,15 @@ class DeskRepository(private val context: Context) {
             wish          = (d["wish"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
             offer         = (d["account_offer"] as? String).orEmpty(),
             accountFoot   = (d["account_footer"] as? String).orEmpty(),
+            counselDesk   = d["counsel_desk"] == true,
+            clientSignUp  = d["client_signup"] != false,
+            wishCounsel   = (d["wish_counsel"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            wishClient    = (d["wish_client"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+            counselOffer  = fixedTurn(d["counsel_offer"] as? Map<String, Any?>),
+            clarify       = (d["clarify"] as? List<*>)?.mapNotNull { fixedTurn(it as? Map<String, Any?>) } ?: emptyList(),
+            forms         = fixedTurn(d["forms"] as? Map<String, Any?>),
+            counselForm   = fixedTurn(d["counsel_form"] as? Map<String, Any?>),
+            counselFoot   = (d["counsel_footer"] as? String).orEmpty(),
             context       = c?.takeIf { it["known"] == true }?.let {
                 DeskContext(
                     firstName = (it["first_name"] as? String).orEmpty(),
@@ -240,8 +312,21 @@ class DeskRepository(private val context: Context) {
                 related  = (d["related"] as? String).orEmpty(),
                 documents = (d["documents"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
                 token    = (d["reading"] as? String).orEmpty(),
+                readingState = (d["reading_state"] as? String)?.takeIf { it.isNotBlank() },
+                askReason = (d["ask_reason"] as? String)?.takeIf { it.isNotBlank() },
             )
         }.getOrNull()
+    }
+
+    /**
+     * The desk's draft brief of the whole enquiry (desk/brief), 14 seconds. Anything but a read brief, an error or a timeout is NO_BRIEF: no Review step, and
+     * the enquiry goes as before. A lead's desk asks lead/desk/brief, the same answer.
+     */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun brief(text: String): BriefResult {
+        return withTimeoutOrNull(14_000) {
+            runCatching { parseBriefResult((if (lead) api.leadDeskBrief(text) else api.deskBrief(text))["data"] as? Map<String, Any?>) }.getOrNull()
+        } ?: NO_BRIEF
     }
 
     /** A chosen file, read as the page reads one: its name, size and bytes. */
@@ -264,17 +349,12 @@ class DeskRepository(private val context: Context) {
     suspend fun send(
         text: String, entity: String, phone: String, country: String?, countryOther: String,
         reading: String, sessionHash: String?, files: List<DeskFile>, terms: DeskTerms,
+        submissionKey: String = "", deadlineFlag: String = "", deadlineDate: String = "",
+        brief: DeskBrief? = null, briefToken: String = "",
     ): Sent {
         val parts = buildList {
-            add(MultipartBody.Part.createFormData("enquiry_text", text))
-            add(MultipartBody.Part.createFormData("entity_type", entity))
-            add(MultipartBody.Part.createFormData("phone", phone))
-            if (country != null) {
-                add(MultipartBody.Part.createFormData("country", country))
-                if (country == "OTHER") add(MultipartBody.Part.createFormData("country_other", countryOther))
-            }
-            if (reading.isNotEmpty()) add(MultipartBody.Part.createFormData("desk_reading", reading))
-            if (!sessionHash.isNullOrEmpty()) add(MultipartBody.Part.createFormData("session_hash", sessionHash))
+            enquiryFields(text, entity, phone, country, countryOther, reading, sessionHash, submissionKey, deadlineFlag, deadlineDate, brief, briefToken)
+                .forEach { (k, v) -> add(MultipartBody.Part.createFormData(k, v)) }
             files.forEach { f ->
                 add(MultipartBody.Part.createFormData("attachments[]", f.name, f.bytes.toRequestBody(f.mime.toMediaTypeOrNull())))
             }
@@ -286,7 +366,8 @@ class DeskRepository(private val context: Context) {
                 ?: return Sent.Failed("", timedOut = true)
             val email = (d["email"] as? String).orEmpty()
             if (d["require_payment"] == true) Sent.Saved(terms.displayPrice, email, d["session_hash"]?.toString().orEmpty())
-            else Sent.Delivered(d["consultation_id"].int().takeIf { it > 0 }, email)
+            // A retry of an enquiry already sent answers with the same consultation_id: that is success, as the first answer was.
+            else deliveredFrom(d, email)
         } catch (e: HttpException) {
             val body = runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()) }.getOrNull()
             val errors = buildMap {
@@ -357,3 +438,11 @@ private fun jsonValue(v: Any?): Any? = when (v) {
     JSONObject.NULL -> null
     else -> v
 }
+
+/** The server's answer to a sent enquiry: the consultation, its number and where it is. A retry answers with the same consultation_id, and that is success. */
+internal fun deliveredFrom(d: Map<String, Any?>, email: String): Sent.Delivered = Sent.Delivered(
+    (d["consultation_id"] as? Number)?.toInt()?.takeIf { it > 0 },
+    email,
+    (d["enquiry_number"] as? String)?.takeIf { it.isNotBlank() },
+    (d["intake_state"] as? String)?.takeIf { it.isNotBlank() },
+)

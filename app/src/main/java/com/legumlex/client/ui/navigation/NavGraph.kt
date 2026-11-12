@@ -142,17 +142,14 @@ fun LegumNavGraph(navController: NavHostController) {
                     }
                 },
                 onAskLexIntelligence = { navController.navigate(Route.NewConsultation.build()) },
-                // Discover: Join, a screen of its own (REQ-013).
-                onJoin = { navController.navigate(Route.Join.path) },
+                // The petals' own screens where the desk does not take the wish: the existing Onboard Now (the desk's account opening) and the counsel registration.
+                onOnboard = { navController.navigate(Route.NewConsultation.build(account = true)) },
+                onRegisterCounsel = { navController.navigate(Route.CounselRegister.path) },
+                onDeskSample = { if (com.legumlex.client.BuildConfig.DEBUG) navController.navigate(Route.DeskSample.path) },
             )
         }
-        composable(Route.Join.path) {
-            com.legumlex.client.feature.auth.JoinScreen(
-                onBack = { navController.popBackStack() },
-                // Lex Intelligence opens the account: Google first, then the documents.
-                onOpenAccount = { navController.navigate(Route.NewConsultation.build(account = true)) },
-                onRegisterCounsel = { navController.navigate(Route.CounselRegister.path) },
-            )
+        composable(Route.DeskSample.path) {
+            if (com.legumlex.client.BuildConfig.DEBUG) com.legumlex.client.feature.desk.DeskSampleScreen(onClose = { navController.popBackStack() })
         }
         composable(Route.CounselRegister.path) {
             com.legumlex.client.feature.counsel.CounselRegisterScreen(
@@ -407,6 +404,9 @@ fun LegumNavGraph(navController: NavHostController) {
                 // Opening an account (lexon Enrolment): the form, Home, and the client sign-in.
                 account = deskEntry.arguments?.getString(Route.NewConsultation.ACCOUNT) == "1",
                 onOpenForm = { navController.navigate(Route.LeadOnboard.path) },
+                // The counsel registration screen (the chip href app:lead_counsel), and the Counsel workspace once the desk has opened it.
+                onOpenCounselForm = { navController.navigate(Route.CounselRegister.path) },
+                onOpenedAsClient = { openClient(navController) },
                 onHome = { leave { navController.navigateTab(if (lead()) Route.LeadHome.path else Route.Home.path) } },
                 onSignIn = { leave { navController.navigateTab(if (lead()) Route.LeadHome.path else Route.Home.path) } },
             )

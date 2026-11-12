@@ -380,6 +380,8 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
     val done = mode == RowMode.DONE
     val (statusLabel, statusColor) = when {
         c.awaitingPayment() -> "Awaiting Payment" to Lex.colors.warning.solid
+        // An enquiry says where it is in its intake, in the server's words.
+        c.intakeLabel() != null && !c.funnelNeedsYou() -> c.intakeLabel()!! to c.status.palette.solid
         c.funnelNeedsYou() && c.funnelCopy() != null -> c.funnelCopy()!!.label to Lex.colors.warning.solid
         else -> title(c.status.label) to c.status.palette.solid
     }
@@ -436,7 +438,7 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
 /** The advocate — their photo, or initials — and how long ago it moved. */
 @Composable
 private fun Subline(c: Consultation) {
-    val adv = c.assignedTo?.takeIf { it.isNotBlank() }
+    val adv = c.advocateName()
     val age = relativeAge(c.lastUpdatedAt ?: c.createdAt)
     if (adv == null && age == null && !c.isUrgent && !c.hasUnreadReplies) return
     Row(

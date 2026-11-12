@@ -49,6 +49,8 @@ data class AcctTurn(
     val stale: Boolean,
     val sent: Boolean,
     val divider: String,
+    /** "counsel" on every turn of a counsel registration (REQ-014); "" otherwise. */
+    val track: String = "",
 )
 
 private fun Any?.s(): String = (this as? String).orEmpty()
@@ -107,8 +109,70 @@ fun parseTurn(t: Map<String, Any?>): AcctTurn {
         stale = t["stale"] == true,
         sent = t["sent"] == true,
         divider = t["divider"].s(),
+        track = t["track"].s(),
     )
 }
+
+/** A kind of answer to the question "what do you want": what the desk takes a short text for (Enrolment::wish_for). */
+enum class WishKind { None, Client, Counsel, Unsure, CounselForm }
+
+private const val COUNSEL_WORD = "\\b(counsel|advocate|lawyer|attorney)s?\\b"
+
+private fun any(patterns: List<String>, t: String) = patterns.any { runCatching { Regex(it, RegexOption.IGNORE_CASE).containsMatchIn(t) }.getOrDefault(false) }
+
+/**
+ * What a short text asks for, by the server's own lists (lead/desk wish, wish_counsel, wish_client), no AI: the same order as the
+ * website's Enrolment::wish_kind then wish_for. Explicit client words win, then a clear counsel wish, then a wish to open an account;
+ * that last one names a counsel only as someone to hire (unsure) or not at all (client). The switches decide what is offered: with
+ * counsel off a clear counsel wish is the pointer to the counsel form, and an unsure one is a client's; with client sign-up shut a clear
+ * client wish is not taken up and an unsure one is still asked.
+ */
+fun deskWish(text: String, account: List<String>, counsel: List<String>, client: List<String>, counselOn: Boolean, clientSignUp: Boolean): WishKind {
+    val t = text.trim().lowercase()
+    if (t.isEmpty()) return WishKind.None
+    val kind = when {
+        any(client, t) -> WishKind.Client
+        any(counsel, t) -> WishKind.Counsel
+        accountWish(account, t) -> if (Regex(COUNSEL_WORD, RegexOption.IGNORE_CASE).containsMatchIn(t)) WishKind.Unsure else WishKind.Client
+        else -> WishKind.None
+    }
+    if (counselOn) return if (!clientSignUp && kind == WishKind.Client) WishKind.None else kind
+    return when (kind) {
+        WishKind.Counsel -> WishKind.CounselForm
+        WishKind.Unsure -> WishKind.Client
+        else -> kind
+    }
+}
+
+/** What an answer to "Client or Advocate?" means: the chip ids or the words. Null when unclear ("I need an advocate" is a client's). */
+fun clarifyAnswer(input: String): WishKind? {
+    val t = input.trim().lowercase()
+    return when {
+        t == "clarify:client" -> WishKind.Client
+        t == "clarify:counsel" -> WishKind.Counsel
+        t.isEmpty() -> null
+        Regex("\\b(client|customer|litigant|myself)\\b").containsMatchIn(t) -> WishKind.Client
+        Regex("\\b(need|want|find|hire|looking for|seeking)\\b.{0,12}\\b(an? )?(counsel|advocate|lawyer|attorney)\\b").containsMatchIn(t) -> WishKind.Client
+        Regex(COUNSEL_WORD).containsMatchIn(t) -> WishKind.Counsel
+        else -> null
+    }
+}
+
+/** What the chips' hrefs mean in the app: the client form, the counsel registration screen, or a page to open. */
+sealed interface ChipTarget {
+    data object ClientForm : ChipTarget
+    data object CounselForm : ChipTarget
+    data class Url(val url: String) : ChipTarget
+}
+
+fun chipTarget(href: String): ChipTarget = when (href) {
+    "app:lead_onboard" -> ChipTarget.ClientForm
+    "app:lead_counsel" -> ChipTarget.CounselForm
+    else -> ChipTarget.Url(href)
+}
+
+/** A fixed turn the server sends in the desk config (the counsel offer, a clarifying question, the forms): a turn drawn as it is. */
+fun fixedTurn(m: Map<String, Any?>?): AcctTurn? = m?.takeIf { it.isNotEmpty() }?.let(::parseTurn)
 
 /** The phrase check (Enrolment::wish), on the visitor's own words. */
 fun accountWish(patterns: List<String>, text: String): Boolean {

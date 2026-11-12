@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.legumlex.client.feature.consultations.Consultation
+import com.legumlex.client.feature.consultations.advocateName
 import com.legumlex.client.feature.consultations.ConsultationKind
 import com.legumlex.client.feature.consultations.RiskLevel
 import com.legumlex.client.feature.consultations.displayTitle
@@ -77,7 +78,7 @@ private fun CardGeneralBody(c: Consultation) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    c.assignedTo?.takeIf { it.isNotBlank() } ?: c.displayTitle(),
+                    c.advocateName() ?: c.displayTitle(),
                     fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.5.sp,

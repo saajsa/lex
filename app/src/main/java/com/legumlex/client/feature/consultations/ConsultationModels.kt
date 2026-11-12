@@ -131,6 +131,11 @@ data class Consultation(
     val funnelLabel: String? = null,
     val funnelAction: String? = null,
     val funnelDetail: String? = null,
+    /** An enquiry's number (ENQ/2026/12345), where it is in its intake (received | assigned | acknowledged; null for anything that is not an enquiry), whether an advocate has it, and its reference. */
+    val enquiryNumber: String? = null,
+    val intakeState: String? = null,
+    val assigned: Boolean? = null,
+    val reference: String? = null,
     /** The client's own words for an enquiry (the funnel's), and a video session's brief. */
     val enquiryText: String? = null,
     val brief: String? = null,
@@ -491,3 +496,40 @@ fun Consultation.inAdvocateReview(): Boolean =
 /** The status as the client should read it. */
 val Consultation.statusLabel: String
     get() = if (awaitingPayment()) "Awaiting Payment" else status.label
+
+// ---- An enquiry's intake (REQ-017): what the server says, as it says it ----
+
+enum class IntakeState {
+    RECEIVED, ASSIGNED, ACKNOWLEDGED;
+    companion object {
+        fun from(raw: String?): IntakeState? = when (raw?.trim()?.lowercase()) {
+            "received" -> RECEIVED
+            "assigned" -> ASSIGNED
+            "acknowledged" -> ACKNOWLEDGED
+            else -> null
+        }
+    }
+}
+
+fun Consultation.intake(): IntakeState? = IntakeState.from(intakeState)
+
+/**
+ * The status line of an enquiry: the server's own label ("Enquiry ENQ/2026/12345 Received", "Assigned To Adv. X", "Acknowledged"), shown as given.
+ * Only if the server sent none is it built from the state, in the same words. "Appointment Booked" is shown only when the appointment is confirmed
+ * (a known unconfirmed one, [appointmentConfirmed] false, is not). Null for anything that is not an enquiry.
+ */
+fun Consultation.intakeLabel(appointmentConfirmed: Boolean? = null): String? {
+    val state = intake() ?: return null
+    val built = when (state) {
+        IntakeState.RECEIVED -> enquiryNumber?.let { "Enquiry $it Received" } ?: "Received"
+        IntakeState.ASSIGNED -> assignedTo?.let { "Assigned To $it" } ?: "Assigned"
+        IntakeState.ACKNOWLEDGED -> "Acknowledged"
+    }
+    val given = funnelLabel?.takeIf { it.isNotBlank() }
+    if (given != null && given.contains("appointment booked", ignoreCase = true) && appointmentConfirmed == false) return built
+    return given ?: built
+}
+
+/** The advocate to show: never one before the enquiry is assigned (the server leaves assigned_to empty until then; this holds it so as well). */
+fun Consultation.advocateName(): String? =
+    if (intake() == IntakeState.RECEIVED || assigned == false) null else assignedTo?.takeIf { it.isNotBlank() }

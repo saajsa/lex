@@ -27,6 +27,8 @@ import androidx.compose.material.icons.outlined.Print
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.legumlex.client.ui.components.easedDipIn
+import com.legumlex.client.ui.components.easedDipOut
 import com.legumlex.client.ui.theme.Lex
 import com.legumlex.client.ui.theme.LocalSpacing
 import com.legumlex.client.ui.theme.Surface1
@@ -255,9 +257,9 @@ private val CounselBarShape = object : androidx.compose.ui.graphics.Shape {
         val path = androidx.compose.ui.graphics.Path().apply {
             moveTo(r, 0f)
             lineTo(cx - hw, 0f)
-            // down into the dip and up again: an eased S on each side
-            cubicTo(cx - hw * 0.55f, 0f, cx - hw * 0.62f, d, cx, d)
-            cubicTo(cx + hw * 0.62f, d, cx + hw * 0.55f, 0f, cx + hw, 0f)
+            // down into the dip and up again: an eased S on each side (the curve is shared with the Sign In card)
+            easedDipIn(cx - hw, 0f, hw, d)
+            easedDipOut(cx, d, hw, -d)
             lineTo(w - r, 0f)
             arcTo(androidx.compose.ui.geometry.Rect(w - 2 * r, 0f, w, h), -90f, 180f, false)
             lineTo(r, h)
