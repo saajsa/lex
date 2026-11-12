@@ -35,7 +35,7 @@ import java.util.Locale
  *  conversation to it, as the page's "Change" does.
  * ========================================================================== */
 
-enum class Step { QUESTION, CLARIFY, DOCS, ROUTE, ENTITY, COUNTRY, PHONE, DEADLINE }
+enum class Step { QUESTION, CLARIFY, GATHER, DOCS, ROUTE, ENTITY, COUNTRY, PHONE, DEADLINE }
 
 /** A guest's allowance, as the website's (cases CASES_DESK_GUEST_*). */
 const val GUEST_TURNS = 2
@@ -86,6 +86,8 @@ sealed interface Dock {
     data class Waiting(val label: String) : Dock
     data object Question : Dock
     data object Clarify : Dock
+    /** One of Lex's follow-up questions before sending (REQ-017 017.20): an answer, or Send Now. */
+    data object Gather : Dock
     data object Docs : Dock
     data class Actions(val list: List<Action>) : Dock
     data class Entity(val hint: String) : Dock
@@ -99,8 +101,6 @@ sealed interface Dock {
     data class Acct(val turn: AcctTurn) : Dock
     /** A hearing or deadline coming up, in the client's own words: the words and a date (REQ-017). */
     data object Deadline : Dock
-    /** The Review step (REQ-017 Phase 2): the desk's brief of the enquiry, and the client's own words it came from. */
-    data class Review(val brief: DeskBrief, val original: String) : Dock
     /** A document going up and being read (up to a few minutes). */
     data class AcctReading(val label: String, val since: Long) : Dock
 }
@@ -172,11 +172,6 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private var phone: String? = null
     /** A hearing or deadline the client flags: null while unasked, ("", "") for none. */
     private var deadline: Pair<String, String>? = null
-    /** The brief: made once for each exact text (BriefCache); decided when the client has sent it, sent their own words, or no brief came (REQ-017 Phase 2). */
-    private val briefCache = BriefCache()
-    private var briefDecided = false
-    private var briefToSend: DeskBrief? = null
-    private var briefToken = ""
     private var sessionHash: String? = null
     private var consultationId: Int? = null
     /** A saved enquiry waiting for its fee: where to reply, and what it costs. */
@@ -276,6 +271,15 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     private fun asked(step: Step) = _ui.value.lines.any { it.prompt == step }
+    /** Runs [block] (a call to the desk's AI) and, if it is still waiting after SLOW_AFTER_MS, says so on the pending line: [label], in the dock's own style. */
+    private suspend fun <T> withSlowNote(label: String, block: suspend () -> T): T = kotlinx.coroutines.coroutineScope {
+        val note = launch {
+            delay(SLOW_AFTER_MS)
+            if (_ui.value.dock is Dock.Waiting) _ui.update { it.copy(dock = Dock.Waiting(label)) }
+        }
+        try { block() } finally { note.cancel() }
+    }
+
     private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = "") }
     private fun err(s: String) = _ui.update { it.copy(error = s) }
 
@@ -287,6 +291,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             text.isEmpty() -> askQuestion()
             vetted == null -> vet()
             vetted == "clarify" && more == null -> askClarify()
+            !gatherDone -> gather()
             docs == null -> askDocs()
             !welcomed -> welcome()
             route == null && needsRoute() -> askRoute()
@@ -294,7 +299,6 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             entity == "nri" && country == null -> askCountry()
             phone == null -> askPhone()
             deadline == null -> askDeadline()
-            !briefDecided -> makeBrief()
             else -> send()
         }
     }
@@ -311,8 +315,11 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             } else if (again) {
                 say(Para.Text("What else would you like to ask?"), prompt = Step.QUESTION)
             } else {
-                say(Para.Text(hour() + ", and welcome to Legum Lex."))
-                say(Para.Text("What would you like to ask? In your own words: what has happened, who is involved, and what you would like the advocate to do."), prompt = Step.QUESTION)
+                // One welcome, at the start, and then the question (as the website's): "Welcome back" with what is on file when the firm knows them,
+                // else the time of day's welcome. The reading's own notes (an urgent matter) come later, once there is a reading.
+                terms.join()
+                if (_ui.value.termsLoaded) greetBack(withNotes = false) else say(Para.Text(hour() + ", and welcome to Legum Lex."))
+                say(Para.Text(ASK_HELP), prompt = Step.QUESTION)
             }
         }
         dock(Dock.Question)
@@ -351,7 +358,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (retry) _ui.update { it.copy(error = "") }
         else _ui.update { it.copy(lines = it.lines + Line(++nextId, Who.ME, listOf(Para.Text(v))), error = "") }
         dock(Dock.Waiting("…"))
-        val r = repo.guest(guestTurns)
+        val r = withSlowNote(ONE_MOMENT) { repo.guest(guestTurns) }
         if (r == null) {
             // The desk was not reached (or sent nothing): no invented answer, and the try is not one of the two messages.
             guestTurns.removeAt(guestTurns.lastIndex)
@@ -447,7 +454,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         dock(Dock.Waiting("Reading what you have written…"))
         _ui.update { it.copy(typing = true) }
         val started = System.currentTimeMillis()
-        val r = repo.check(text)
+        val r = withSlowNote(ONE_MOMENT) { repo.check(text) }
         // A beat of reading even when the answer is instant.
         delay((800 - (System.currentTimeMillis() - started)).coerceAtLeast(0))
         _ui.update { it.copy(typing = false) }
@@ -524,7 +531,74 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         next()
     }
 
-    private fun fullText() = if (!more.isNullOrEmpty()) text + "\n\n" + more else text
+    private fun fullText() =
+        (if (!more.isNullOrEmpty()) text + "\n\n" + more else text) + gatherLog.joinToString("") { gatherLabel(it.first, it.second) }
+
+    // ---- Lex's follow-up questions (REQ-017 017.20; desk/gather) --------------------------------
+
+    /** The questions Lex has asked, with their answers; the one now waiting; how many were asked in all (the reading's own counts as the first). */
+    private var gatherLog: List<Pair<String, String>> = emptyList()
+    private var gatherPending: String? = null
+    private var gatherAsked = 0
+    private var gatherDone = false
+    /** Any gather call in this journey said it ran: then Lex has already asked about hearings and deadlines, and the separate step is skipped. */
+    private var gatherRan = false
+
+    private val readingAsked get() = if (!more.isNullOrEmpty()) 1 else 0
+    private val readingSkipped get() = more == ""
+
+    /** Ask the desk for the next question; none, done, three asked, a skipped follow-up, or a failure: on to the papers (and the text is read once more if answers were added). */
+    private suspend fun gather() {
+        val askedSoFar = readingAsked + gatherAsked
+        if (!mayAskMore(readingAsked > 0, readingSkipped, askedSoFar)) return finishGather()
+        dock(Dock.Waiting("…"))
+        val r = withSlowNote(ONE_MOMENT) { repo.gather(fullText(), askedSoFar) }
+        if (r?.ran == true) gatherRan = true
+        if (r == null || !r.more) return finishGather()
+        gatherPending = r.question
+        gatherAsked++
+        say(Para.Text(r.question), prompt = Step.GATHER)
+        dock(Dock.Gather)
+    }
+
+    private suspend fun finishGather() {
+        gatherDone = true
+        gatherPending = null
+        if (gatherLog.isNotEmpty()) {
+            // The whole of it is read once more, as with the reading's own question: the answers hold what the first reading lacked.
+            val run = vetRun
+            reread = viewModelScope.async {
+                val r = repo.check(fullText())
+                if (run == vetRun && r != null && deskReadingUsable(r.readingState)) {
+                    if (r.area.isNotEmpty() && r.area != "other") area = r.area
+                    keep(r)
+                }
+            }
+        }
+        next()
+    }
+
+    fun submitGather(raw: String) {
+        val v = raw.trim()
+        val q = gatherPending ?: return
+        if (v.length < 2) { err("Please add a few words, or choose Send Now."); return }
+        if (mashed(v)) { err("That could not be understood. Please use a few plain words."); return }
+        go {
+            gatherLog = gatherLog + (q to v)
+            gatherPending = null
+            answer(Step.GATHER, v)
+            dock(Dock.Waiting("…"))
+            next()
+        }
+    }
+
+    /** Send Now: no more questions. */
+    fun sendNow() = go {
+        // No bubble for it (it is a button, not something the visitor said, and there is nothing to change): the questions simply stop.
+        gatherPending = null
+        gatherDone = false
+        finishGather()
+    }
 
     // ---- Documents -----------------------------------------------------------
 
@@ -576,19 +650,21 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         }
     }
 
+    /** The welcome is said at the start; here only what the reading found (an urgent matter, one outside the home courts) is said, once. */
     private suspend fun welcome() {
         if (!termsReady()) return
         welcomed = true
-        greetBack()
+        val notes = readingNotes()
+        if (notes.isNotEmpty()) say(*notes.toTypedArray())
         next()
     }
 
-    private suspend fun greetBack() {
+    private suspend fun greetBack(withNotes: Boolean = true) {
         val c = ctx
         val first = c?.firstName.orEmpty()
         if (c == null) {
             say(Para.Text((if (first.isNotEmpty()) "Thank you, $first. " else "") + "As this is your first enquiry here, there are a few quick questions, so that the advocates have what they need to reply properly."),
-                *readingNotes().toTypedArray())
+                *(if (withNotes) readingNotes().toTypedArray() else emptyArray()))
             return
         }
         val facts = buildList {
@@ -600,7 +676,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             Para.Text((if (first.isNotEmpty()) "Welcome back, $first." else "Welcome back.") + (if (c.company.isNotEmpty()) " Good to hear from ${c.company} again." else "")),
             *(if (facts.isNotEmpty()) arrayOf<Para>(Para.Facts(facts)) else emptyArray()),
             Para.Text("This will be added to your file, for the advocates who know your matters."),
-            *readingNotes().toTypedArray(),
+            *(if (withNotes) readingNotes().toTypedArray() else emptyArray()),
         )
     }
 
@@ -626,7 +702,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             entity = c.entity
             say(Para.Text("You are on file as " + (if (c.entity == "business") "a business" + (if (c.company.isNotEmpty()) ", ${c.company}" else "") else "an individual")
                 + ", so I will not ask you that again."), prompt = Step.ENTITY)
-            answer(Step.ENTITY, if (c.entity == "business") "Business" else "Individual")
+            // Lex did not ask, so there is no answer bubble to show (nothing for the visitor to "change").
             return next()
         }
         if (!asked(Step.ENTITY)) {
@@ -725,42 +801,11 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         }
     }
 
-    // ---- The Review step (REQ-017 Phase 2) -------------------------------------------------------
-
-    /** The desk's brief of the whole enquiry, asked once for this exact text. Anything but a read brief, an error or a timeout: no Review, and it goes as before. */
-    private suspend fun makeBrief() {
-        val whole = fullText()
-        var r = briefCache.get(whole)
-        if (r == null) {
-            dock(Dock.Waiting("Getting what you wrote ready for the advocates…"))
-            r = repo.brief(whole)
-            briefCache.put(whole, r)
-        }
-        if (!r.reviewable) { briefDecided = true; briefToSend = null; briefToken = ""; return next() }
-        say(Para.Text("Here is what I will tell the advocates, in your own words. Please check it, change anything that is wrong, and send it."))
-        dock(Dock.Review(r.brief!!, whole))
-    }
-
-    /** Send with the brief as it stands (after any edit); the token is the desk's own, unchanged. */
-    fun sendBrief(brief: DeskBrief) = go {
-        val r = briefCache.get(fullText()) ?: return@go
-        briefToSend = brief; briefToken = r.token; briefDecided = true
-        me("Send To The Firm")
-        dock(Dock.Waiting("…"))
-        next()
-    }
-
-    /** Send the client's own words alone: no brief, no token. */
-    fun sendOwnWords() = go {
-        briefToSend = null; briefToken = ""; briefDecided = true
-        me("Send My Own Words Instead")
-        dock(Dock.Waiting("…"))
-        next()
-    }
-
     // ---- A hearing or a deadline, in the client's own words (REQ-017; as the website's step) ----
 
     private suspend fun askDeadline() {
+        // Gathering ran: it has asked about hearings and deadlines already, so this step is skipped (nothing is said or shown).
+        if (skipDeadlineStep(gatherRan)) { deadline = "" to ""; return next() }
         if (!asked(Step.DEADLINE)) {
             say(Para.Text("Is there a hearing or a deadline coming up that the advocates should know about? Tell us in your own words, with the date if you have one."), prompt = Step.DEADLINE)
         }
@@ -1072,8 +1117,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val key = repo.submissionKeys.forEnquiry(SubmissionKeys.fingerprint(fullText(), _ui.value.files.map { it.name to it.size }))
         val flag = deadline
         val r = repo.send(fullText(), entity.orEmpty(), phone.orEmpty(), country, countryOther, reading, sessionHash, _ui.value.files, t,
-            submissionKey = key, deadlineFlag = cleanDeadlineText(flag?.first.orEmpty()), deadlineDate = flag?.second.orEmpty(),
-            brief = briefToSend, briefToken = briefToken)
+            submissionKey = key, deadlineFlag = cleanDeadlineText(flag?.first.orEmpty()), deadlineDate = flag?.second.orEmpty())
         stager.cancel()
         sending = false
         when (r) {
@@ -1208,7 +1252,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun restart() {
         text = ""; more = null; vetted = null; ask = ""; area = ""; read = null; reading = ""; qFiles = 0; docs = null
-        route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; briefDecided = false; briefToSend = null; briefToken = ""; sessionHash = null; consultationId = null
+        route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; sessionHash = null; consultationId = null
         repo.submissionKeys.clear()
         savedEmail = ""; savedPrice = ""; awaitingInvoice = false
         offered.clear(); said.clear(); again = true; gibs = 0; vetRun++; reread = null
@@ -1226,12 +1270,11 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun rewind(step: Step, then: suspend () -> Unit) {
         val i = ORDER.indexOf(step)
         val prior = text
-        // Whatever was changed, the brief is decided again (from the cache if the text is the same, from the desk if it is not).
-        briefDecided = false; briefToSend = null; briefToken = ""
         ORDER.drop(i).forEach { k ->
             when (k) {
                 Step.QUESTION -> { text = ""; vetted = null; read = null; reading = ""; area = ""; vetRun++ }
                 Step.CLARIFY -> { more = null; reread = null }
+                Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false }
                 Step.DOCS -> docs = null
                 Step.ROUTE -> route = null
                 Step.ENTITY -> { entity = null; if (k == step) offered += "entity" }

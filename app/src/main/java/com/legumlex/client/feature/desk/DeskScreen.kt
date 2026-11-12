@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.desk
 
+import androidx.compose.foundation.gestures.animateScrollBy
 import com.legumlex.client.ui.theme.Lex
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -153,7 +154,13 @@ internal val LocalDeskAutoFocus = androidx.compose.runtime.compositionLocalOf { 
 
 @Composable
 private fun body(size: Float = 14.5f, color: Color = D.Ink, weight: FontWeight = FontWeight.Normal) =
-    TextStyle(fontFamily = Inter, fontSize = size.sp, lineHeight = (size * 1.55f).sp, color = color, fontWeight = weight)
+    TextStyle(
+        fontFamily = Inter, fontSize = size.sp, lineHeight = (size * 1.55f).sp, color = color, fontWeight = weight,
+        // Room above and below every line, none trimmed: Gurmukhi and Devanagari marks hang well below the baseline and rise above the line.
+        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true),
+        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center, trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.None),
+    )
 
 private val EXAMPLES = listOf("A cheque I got bounced…", "My tenant owes me rent…", "I got a legal notice…",
     "I want to set up a firm…", "My boss has not paid me…", "Someone took my land…")
@@ -514,9 +521,13 @@ private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, onAcct: (AcctChip
     val revealed = remember { mutableStateMapOf<Long, Boolean>() }
     LaunchedEffect(ui.lines.size, ui.typing) {
         val n = ui.lines.size + if (ui.typing) 1 else 0
-        if (n > 0) list.animateScrollToItem(n - 1)
+        if (n > 0) {
+            list.animateScrollToItem(n - 1)
+            // The last line may be taller than the room: go on to the very end, so its foot (and a Gurmukhi line's lower marks) are in view.
+            list.animateScrollBy(1_000_000f)
+        }
     }
-    LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 16.dp),
+    LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = DESK_SIDE_MARGIN.dp, end = DESK_SIDE_MARGIN.dp, top = 16.dp, bottom = DESK_BOTTOM_ROOM.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         items(ui.lines.size, key = { ui.lines[it].id }) { i ->
             val line = ui.lines[i]
@@ -620,7 +631,7 @@ private fun Words(s: String, upto: Int, flag: Boolean, ink: Color = D.ink(DeskSu
 private fun MeLine(line: Line, canChange: Boolean, onChange: () -> Unit) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         Column(
-            Modifier.padding(start = 48.dp).clip(RoundedCornerShape(14.dp, 14.dp, 4.dp, 14.dp)).background(D.Me).padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.padding(start = 48.dp).clip(RoundedCornerShape(14.dp)).background(D.Me).padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             val s = (line.paras.firstOrNull() as? Para.Text)?.s.orEmpty()
             Text(if (line.step == Step.QUESTION && s.length > 420) s.take(420).trimEnd() + "…" else s, style = body(color = D.MeInk))
@@ -633,7 +644,8 @@ private fun MeLine(line: Line, canChange: Boolean, onChange: () -> Unit) {
             }
         }
         if (canChange) {
-            Text("Change", style = TextStyle(fontFamily = Mono, fontSize = 11.5.sp, color = D.Ink.copy(alpha = 0.58f)),
+            // The secondary ink on the page (4.5:1 or better), not a faded one.
+            Text("Change", style = TextStyle(fontFamily = Mono, fontSize = 11.5.sp, color = D.ink(DeskSurface.Page, DeskRole.Secondary)),
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onChange).padding(horizontal = 8.dp, vertical = 6.dp))
         }
     }
@@ -898,85 +910,6 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
     }
 }
 
-/**
- * The Review step (REQ-017 Phase 2): what the desk will tell the advocates, in four read-only rows, with the client's own words behind a tap and the line
- * that the advocates always read those too. Send To The Firm, Edit, and Send My Own Words Instead (always there). Edit has the four fields; Back throws the
- * edits away. Colours come from the surface (DeskInk): ink on the raised card, the accent's foreground on the accent button.
- */
-@Composable
-private fun ReviewDock(brief: DeskBrief, original: String, onSend: (DeskBrief) -> Unit, onOwn: () -> Unit) {
-    var editing by remember(brief) { mutableStateOf(false) }
-    var own by remember { mutableStateOf(false) }
-    // The fields of Edit: kept while editing, thrown away on Back.
-    var what by remember(brief, editing) { mutableStateOf(brief.whatHappened) }
-    var who by remember(brief, editing) { mutableStateOf(brief.who.joinToString("\n") { it.line() }) }
-    var wants by remember(brief, editing) { mutableStateOf(brief.wants) }
-    var dates by remember(brief, editing) { mutableStateOf(brief.dates.joinToString("\n") { it.line() }) }
-    var problem by remember(brief, editing) { mutableStateOf("") }
-    val ink = D.ink(DeskSurface.Raised)
-    val quiet = D.ink(DeskSurface.Raised, DeskRole.Muted)
-    Column(Modifier.fillMaxWidth()) {
-        Column(
-            Modifier.fillMaxWidth().heightIn(max = 380.dp).clip(RoundedCornerShape(14.dp)).background(D.Raise).border(1.dp, D.Line2, RoundedCornerShape(14.dp))
-                .verticalScroll(rememberScrollState()).padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (!editing) {
-                BriefRow("What Happened", listOf(brief.whatHappened), ink, quiet)
-                BriefRow("Who Is Involved", brief.who.map { it.line() }, ink, quiet)
-                BriefRow("What You Want", listOf(brief.wants), ink, quiet)
-                BriefRow("Dates, As You Wrote Them", brief.dates.map { it.line() }, ink, quiet)
-                Box(Modifier.fillMaxWidth().height(1.dp).background(D.Line2))
-                Row(Modifier.fillMaxWidth().clickable { own = !own }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Your Own Words", style = body(14f, ink, FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                    Text(if (own) "Hide" else "Show", style = body(13f, quiet))
-                }
-                if (own) Text(original, style = body(14f, ink))
-                Text("They always read your own words as well.", style = body(12.5f, quiet))
-            } else {
-                BriefField("What Happened", what, { what = it.take(BRIEF_WHAT_MAX + 40) }, "$BRIEF_WHAT_MAX characters at most", 3, ink, quiet)
-                BriefField("Who Is Involved", who, { who = it }, "One person to a line, name then role, up to $BRIEF_WHO_MAX", 3, ink, quiet)
-                BriefField("What You Want", wants, { wants = it.take(BRIEF_WANTS_MAX + 40) }, "$BRIEF_WANTS_MAX characters at most", 2, ink, quiet)
-                BriefField("Dates, As You Wrote Them", dates, { dates = it }, "One date to a line, as written then what it is about, up to $BRIEF_DATES_MAX", 3, ink, quiet)
-            }
-        }
-        if (problem.isNotEmpty()) ErrorLine(problem)
-        Spacer(Modifier.height(10.dp))
-        Chips(buildList {
-            add(Triple("Send To The Firm", true) {
-                if (!editing) onSend(brief)
-                else when (val e = parseBriefEdit(what, who, wants, dates)) {
-                    is BriefEdit.Ok -> onSend(e.brief)
-                    is BriefEdit.Problem -> problem = e.message
-                }
-            })
-            if (!editing) add(Triple("Edit", false) { editing = true }) else add(Triple("Back", false) { editing = false })
-            add(Triple("Send My Own Words Instead", false, onOwn))
-        })
-    }
-}
-
-@Composable
-private fun BriefRow(label: String, lines: List<String>, ink: Color, quiet: Color) {
-    val shown = lines.filter { it.isNotBlank() }
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(label.uppercase(), style = TextStyle(fontFamily = Mono, fontSize = 10.5.sp, letterSpacing = 0.8.sp, color = quiet))
-        if (shown.isEmpty()) Text("Nothing was said about this.", style = body(14f, quiet))
-        else shown.forEach { Text(it, style = body(14.5f, ink)) }
-    }
-}
-
-@Composable
-private fun BriefField(label: String, value: String, onValue: (String) -> Unit, hint: String, minLines: Int, ink: Color, quiet: Color) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = body(13f, ink, FontWeight.SemiBold))
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.dp, D.Line2, RoundedCornerShape(10.dp)).padding(10.dp)) {
-            BasicTextField(value, onValue, textStyle = body(14.5f, ink), cursorBrush = SolidColor(D.Gold), minLines = minLines, modifier = Modifier.fillMaxWidth())
-        }
-        Text(hint, style = body(11.5f, quiet))
-    }
-}
-
 /** A guest's message: short (GUEST_CHARS), with the sign-in beside it. */
 @Composable
 private fun GuestDock(error: String, onSend: (String) -> Unit, onSignIn: () -> Unit) {
@@ -1016,6 +949,16 @@ private fun Quiet(label: String, onClick: () -> Unit) {
         modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp))
 }
 
+/** One of Lex's follow-up questions: the answer box, and a Send Now chip that sends at once. */
+@Composable
+private fun GatherDock(error: String, onSend: (String) -> Unit, onSendNow: () -> Unit) {
+    Column {
+        Compose("Your answer…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), onSend = onSend)
+        ErrorLine(error)
+        Chips(listOf(Triple(GATHER_SEND_NOW, false, onSendNow)), topGap = CHIP_GAP.dp)
+    }
+}
+
 @Composable
 private fun ClarifyDock(error: String, onSend: (String) -> Unit, onAsIs: () -> Unit) {
     Column {
@@ -1027,8 +970,9 @@ private fun ClarifyDock(error: String, onSend: (String) -> Unit, onAsIs: () -> U
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Chips(list: List<Triple<String, Boolean, () -> Unit>>) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun Chips(list: List<Triple<String, Boolean, () -> Unit>>, topGap: androidx.compose.ui.unit.Dp = 0.dp) {
+    // Rows 8 dp apart and wrapping cleanly; a group of them sits [topGap] below what is above it.
+    FlowRow(Modifier.padding(top = topGap), horizontalArrangement = Arrangement.spacedBy(CHIP_GAP.dp), verticalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
         list.forEach { (label, main, go) ->
             Box(
                 Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).background(if (main) D.Gold else Color.Transparent)
@@ -1329,7 +1273,7 @@ internal fun DeskOpening(
     vm: DeskViewModel, ui: DeskUi, draft: TextFieldValue, onDraft: (TextFieldValue) -> Unit, compose: FocusRequester,
     attach: (() -> Unit)?, onFocus: (Boolean) -> Unit = {},
 ) {
-    Box(Modifier.padding(horizontal = 14.dp)) {
+    Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp)) {
         if (ui.termsLoaded && !ui.terms.isActive) {
             Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
                 style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
@@ -1357,7 +1301,7 @@ internal fun DeskThread(
     Column(modifier) {
         Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))
         if (fullDesk == null && ui.acct && ui.acctNote.isNotBlank()) AcctNote(ui.acctNote)
-        Box(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {
             if (fullDesk != null && ui.needsFullDesk()) {
                 Column(Modifier.fillMaxWidth()) {
                     Chips(listOf(Triple("Continue In The Full Desk", true, fullDesk)))
@@ -1365,15 +1309,16 @@ internal fun DeskThread(
             } else when (val d = ui.dock) {
                 Dock.Question -> QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
                 Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
+                Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
-                is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }); ErrorLine(ui.error) }
+                is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
                 is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
                 Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
                 Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired, ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
-                is Dock.Waiting -> WaitLine(d.label)
+                // One thing at a time: an error replaces the pending line (the dock never shows both), and buttons are a dock of their own.
+                is Dock.Waiting -> if (ui.error.isNotEmpty()) ErrorLine(ui.error) else WaitLine(d.label)
                 Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
                 Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
-                is Dock.Review -> ReviewDock(d.brief, d.original, vm::sendBrief, vm::sendOwnWords)
                 Dock.SignIn -> GoogleDock(signingIn, ui.error, google)
                 is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, acctScan, acctPick, vm::acctFields, vm::acctCode, vm::acctSubmit)
                 is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
@@ -1465,16 +1410,36 @@ fun DeskSampleScreen(onClose: () -> Unit) {
             line(Who.DESK, Para.Stages(active = 2, done = false)),
             line(Who.DESK, Para.Divider("Your registration is with the firm.")),
             line(Who.ME, Para.Text("Here are the papers."), files = listOf("rent-receipts-2026.pdf", "legal-notice.pdf")),
+            // The desk's fixed lines in the visitor's script (the playbook's own examples), to see the glyphs: Hindi, then Punjabi.
+            line(Who.ME, Para.Text(SAMPLE_HINDI_VISITOR)),
+            line(Who.DESK, Para.Text(SAMPLE_HINDI_DESK)),
+            line(Who.ME, Para.Text(SAMPLE_PUNJABI_VISITOR)),
+            line(Who.DESK, Para.Text(SAMPLE_PUNJABI_DESK)),
         )
     }
     val ui = remember(lines) { DeskUi(lines = lines, opened = true, locked = true) }
+    // One state at a time, as the real desk has: the conversation with a dock of buttons, an error, or a pending line, or the Review page.
+    var state by remember { mutableStateOf(0) }
+    val names = listOf("Buttons", "Error", "Pending")
     Column(Modifier.fillMaxSize().background(D.Page)) {
         Head(onClose)
-        Conversation(ui, {}, {}, Modifier.weight(1f))
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Chips(listOf(Triple("Open My Account", true, {}), Triple("No, I Have A Question", false, {})))
-            ErrorLine("This is an error line.")
-            WaitLine("reading your document")
+            Conversation(ui, {}, {}, Modifier.weight(1f))
+            Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {
+                when (state) {
+                    0 -> Chips(listOf(Triple("Open My Account", true, {}), Triple("No, I Have A Question", false, {}), Triple("Not Now", false, {})), topGap = CHIP_GROUP_TOP.dp)
+                    1 -> ErrorLine("This is an error line. It replaces the pending line.")
+                    else -> WaitLine("reading your document")
+                }
+            }
+        // Which state to look at (debug only).
+        Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {
+            Chips(names.mapIndexed { i, n -> Triple("Show $n", i == state) { state = i } })
         }
     }
 }
+
+// The desk playbook's own examples in the visitor's script (cases/config/desk_playbook.php), for the debug sample.
+private const val SAMPLE_HINDI_VISITOR = "क्या मैं अपने मकान मालिक के खिलाफ केस जीत जाऊँगा?"
+private const val SAMPLE_HINDI_DESK = "केस का नतीजा क्या होगा, यह मैं नहीं बता सकता, और अंदाज़ा लगाना ठीक नहीं होगा। वकील आपके कागज़ देखकर सही जवाब दे सकते हैं। आप Google से साइन इन करें, फिर एक वकील आपकी बात पढ़कर आमतौर पर 30 मिनट में जवाब देंगे।"
+private const val SAMPLE_PUNJABI_VISITOR = "ਕੀ ਮੈਂ ਆਪਣੇ ਮਕਾਨ ਮਾਲਕ ਖ਼ਿਲਾਫ਼ ਕੇਸ ਜਿੱਤ ਜਾਵਾਂਗਾ?"
+private const val SAMPLE_PUNJABI_DESK = "ਕੇਸ ਦਾ ਨਤੀਜਾ ਕੀ ਹੋਵੇਗਾ, ਇਹ ਮੈਂ ਨਹੀਂ ਦੱਸ ਸਕਦਾ, ਅਤੇ ਅੰਦਾਜ਼ਾ ਲਾਉਣਾ ਠੀਕ ਨਹੀਂ ਹੋਵੇਗਾ। ਵਕੀਲ ਤੁਹਾਡੇ ਕਾਗਜ਼ ਦੇਖ ਕੇ ਠੀਕ ਜਵਾਬ ਦੇ ਸਕਦੇ ਹਨ। ਤੁਸੀਂ Google ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ, ਫਿਰ ਇੱਕ ਵਕੀਲ ਤੁਹਾਡੀ ਗੱਲ ਪੜ੍ਹ ਕੇ ਆਮ ਤੌਰ 'ਤੇ 30 ਮਿੰਟ ਵਿੱਚ ਜਵਾਬ ਦੇਵੇਗਾ।"

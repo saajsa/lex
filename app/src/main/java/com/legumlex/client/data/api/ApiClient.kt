@@ -34,7 +34,12 @@ object ApiClient {
             // call is open, and that can take more than a minute.
             .addInterceptor { chain ->
                 val req = chain.request()
-                if (req.header("X-Long-Call") == "1") {
+                // A call marked `X-Read-Timeout: <seconds>` waits that long for its answer (the desk's AI calls are given a longer budget by the server).
+                val readSeconds = req.header("X-Read-Timeout")?.toIntOrNull()
+                if (readSeconds != null) {
+                    chain.withReadTimeout(readSeconds, TimeUnit.SECONDS)
+                        .proceed(req.newBuilder().removeHeader("X-Read-Timeout").build())
+                } else if (req.header("X-Long-Call") == "1") {
                     chain.withReadTimeout(120, TimeUnit.SECONDS).withWriteTimeout(120, TimeUnit.SECONDS)
                         .proceed(req.newBuilder().removeHeader("X-Long-Call").build())
                 } else chain.proceed(req)

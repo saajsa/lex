@@ -83,99 +83,12 @@ fun receiptLine(enquiryNumber: String?): String {
         " It will be given to an advocate, and you will be told who has it."
 }
 
-// ---- The brief (REQ-017 Phase 2): what the desk will tell the advocates, checked by the client before it is sent ----
+// ---- What is sent with an enquiry ----
 
-data class BriefPerson(val name: String, val role: String = "")
-data class BriefDate(val asWritten: String, val about: String = "")
-
-/** The desk's draft of the enquiry in closed fields. Nothing in it is advice or a conclusion; the client reads it, may change it, and may send their own words instead. */
-data class DeskBrief(val whatHappened: String, val who: List<BriefPerson>, val wants: String, val dates: List<BriefDate>)
-
-/** The answer to desk/brief: state "read" with a brief and its signed token, or anything else (no Review step). */
-data class BriefResult(val state: String, val brief: DeskBrief?, val token: String) {
-    /** The Review screen is shown only for a read brief with its token; every other state, a network error or a timeout goes on to send as before. */
-    val reviewable: Boolean get() = state == "read" && brief != null && token.isNotEmpty()
-}
-
-val NO_BRIEF = BriefResult("skipped", null, "")
-
-const val BRIEF_WHAT_MAX = 400
-const val BRIEF_WANTS_MAX = 200
-const val BRIEF_WHO_MAX = 5
-const val BRIEF_DATES_MAX = 4
-
-@Suppress("UNCHECKED_CAST")
-fun parseBriefResult(d: Map<String, Any?>?): BriefResult {
-    if (d == null) return NO_BRIEF
-    val state = (d["state"] as? String).orEmpty().ifBlank { "skipped" }
-    val b = d["brief"] as? Map<String, Any?>
-    val brief = b?.let {
-        DeskBrief(
-            whatHappened = (it["what_happened"] as? String).orEmpty(),
-            who = (it["who"] as? List<Map<String, Any?>>).orEmpty().map { w -> BriefPerson((w["name"] as? String).orEmpty(), (w["role"] as? String).orEmpty()) },
-            wants = (it["wants"] as? String).orEmpty(),
-            dates = (it["dates"] as? List<Map<String, Any?>>).orEmpty().map { x -> BriefDate((x["as_written"] as? String).orEmpty(), (x["about"] as? String).orEmpty()) },
-        )
-    }
-    return BriefResult(state, brief, (d["brief_token"] as? String).orEmpty())
-}
-
-/** "name, role" and "as written, about": the line a person or a date is shown and edited as. */
-fun BriefPerson.line() = if (role.isNotBlank()) "$name, $role" else name
-fun BriefDate.line() = if (about.isNotBlank()) "$asWritten, $about" else asWritten
-
-private fun splitFirstComma(s: String): Pair<String, String> {
-    val i = s.indexOf(',')
-    return if (i < 0) s.trim() to "" else s.substring(0, i).trim() to s.substring(i + 1).trim()
-}
-
-/** What the Edit screen turns into: the brief, or what to say under the fields. */
-sealed interface BriefEdit {
-    data class Ok(val brief: DeskBrief) : BriefEdit
-    data class Problem(val message: String) : BriefEdit
-}
-
-/** The four edit fields (who and dates one per line) as a brief; the limits are the server's. The token stays the desk's, unchanged. */
-fun parseBriefEdit(whatHappened: String, whoLines: String, wants: String, datesLines: String): BriefEdit {
-    val what = cleanDeadlineText(whatHappened); val wan = cleanDeadlineText(wants)
-    if (what.length > BRIEF_WHAT_MAX) return BriefEdit.Problem("Please keep What Happened to $BRIEF_WHAT_MAX characters.")
-    if (wan.length > BRIEF_WANTS_MAX) return BriefEdit.Problem("Please keep What You Want to $BRIEF_WANTS_MAX characters.")
-    val who = whoLines.lines().map { cleanDeadlineText(it) }.filter { it.isNotEmpty() }
-    val dates = datesLines.lines().map { cleanDeadlineText(it) }.filter { it.isNotEmpty() }
-    if (who.size > BRIEF_WHO_MAX) return BriefEdit.Problem("Please list at most $BRIEF_WHO_MAX people, one to a line.")
-    if (dates.size > BRIEF_DATES_MAX) return BriefEdit.Problem("Please list at most $BRIEF_DATES_MAX dates, one to a line.")
-    if (what.isEmpty() && wan.isEmpty() && who.isEmpty() && dates.isEmpty()) return BriefEdit.Problem("Please leave something here, or send your own words instead.")
-    return BriefEdit.Ok(DeskBrief(
-        what,
-        who.map { splitFirstComma(it).let { (n, r) -> BriefPerson(n, r) } },
-        wan,
-        dates.map { splitFirstComma(it).let { (a, b) -> BriefDate(a, b) } },
-    ))
-}
-
-private fun jsonString(s: String): String = buildString {
-    append('"')
-    for (c in s) when {
-        c == '"' -> append("\\\"")
-        c == '\\' -> append("\\\\")
-        c == '\n' -> append("\\n")
-        c == '\r' -> append("\\r")
-        c == '\t' -> append("\\t")
-        c < ' ' -> append("\\u%04x".format(c.code))
-        else -> append(c)
-    }
-    append('"')
-}
-
-/** The brief as the server takes it: {what_happened, who:[{name,role}], wants, dates:[{as_written,about}]}. */
-fun DeskBrief.toJson(): String =
-    "{\"what_happened\":${jsonString(whatHappened)},\"who\":[" + who.joinToString(",") { "{\"name\":${jsonString(it.name)},\"role\":${jsonString(it.role)}}" } +
-        "],\"wants\":${jsonString(wants)},\"dates\":[" + dates.joinToString(",") { "{\"as_written\":${jsonString(it.asWritten)},\"about\":${jsonString(it.about)}}" } + "]}"
-
-/** The text fields of desk/enquiry, in the order sent. enquiry_text is always the client's own words, byte for byte; a brief adds brief and brief_token, none adds neither. */
+/** The text fields of desk/enquiry, in the order sent. enquiry_text is always the client's own words, byte for byte. */
 fun enquiryFields(
     text: String, entity: String, phone: String, country: String?, countryOther: String, reading: String, sessionHash: String?,
-    submissionKey: String, deadlineFlag: String, deadlineDate: String, brief: DeskBrief?, briefToken: String,
+    submissionKey: String, deadlineFlag: String, deadlineDate: String,
 ): List<Pair<String, String>> = buildList {
     add("enquiry_text" to text)
     add("entity_type" to entity)
@@ -189,15 +102,6 @@ fun enquiryFields(
     if (submissionKey.isNotEmpty()) add("submission_key" to submissionKey)
     if (deadlineFlag.isNotEmpty()) add("deadline_flag" to deadlineFlag)
     if (deadlineDate.isNotEmpty()) add("deadline_date" to deadlineDate)
-    if (brief != null && briefToken.isNotEmpty()) { add("brief" to brief.toJson()); add("brief_token" to briefToken) }
-}
-
-/** The brief drafts made so far, one per exact text: back and forward, or a retry, never ask the desk again; a changed text is asked again. */
-class BriefCache {
-    private var text: String? = null
-    private var result: BriefResult? = null
-    fun get(forText: String): BriefResult? = if (text == forText) result else null
-    fun put(forText: String, r: BriefResult) { text = forText; result = r }
 }
 
 /** The ask_reasons that make a clear enquiry worth one question. */
@@ -209,3 +113,54 @@ val ASK_REASONS = setOf("time_limit_unknown", "forum_unknown", "missing_facts")
 const val LEX_INTRO = "Hi, I am Lex, your AI assistant. I will listen, note the details, and pass your enquiry to an advocate. What would you like help with?"
 const val LEX_INTRO_HEADING = "Hi, I Am Lex"
 const val LEX_INTRO_BODY = "Your AI assistant. I will listen, note the details, and pass your enquiry to an advocate. What would you like help with?"
+
+// ---- Waiting on the desk's AI calls (REQ-017): the server gives each a fixed budget and falls back itself; the app waits long enough and shows progress ----
+
+/** How long the app waits for the reading, the re-read and the guest chat (the server answers within about 14 s). */
+const val DESK_READ_WAIT_MS = 20_000L
+/** The HTTP read timeouts (seconds) those calls carry, a little over the waits so the wait, not the socket, is what ends them. */
+const val DESK_READ_HTTP_S = 22
+/** After this long with no reply, the pending line says it is still working. */
+const val SLOW_AFTER_MS = 3_000L
+const val ONE_MOMENT = "One moment…"
+
+// ---- The desk's layout rules (REQ-017 UI pass) ----
+
+/** The side margin of everything in the conversation and its docks: Lex's lines, the visitor's bubbles, the cards and the buttons. */
+const val DESK_SIDE_MARGIN = 16f
+/** Between rows of buttons, and above a group of them. */
+const val CHIP_GAP = 8f
+const val CHIP_GROUP_TOP = 12f
+
+/** Room under the last thing in the conversation and the Review page, so the last line and the last button are never flush with, or under, what sits below them. */
+const val DESK_BOTTOM_ROOM = 24f
+
+// ---- Lex's follow-up questions before an enquiry is sent (REQ-017 017.20) ----
+
+/** At most three questions in all, the reading's own follow-up counting as the first. */
+const val GATHER_MAX = 3
+const val GATHER_SEND_NOW = "Send Now"
+
+/** The desk's next question (desk/gather): "" means nothing more, and [done] says it has no more to ask. */
+data class GatherResult(val question: String, val topic: String, val done: Boolean, val ran: Boolean = false) {
+    val more: Boolean get() = !done && question.isNotBlank()
+}
+
+/** The answer of desk/gather; null when it could not be asked (a failure never blocks sending). */
+fun parseGather(d: Map<String, Any?>?): GatherResult? {
+    if (d == null || d["success"] == false) return null
+    return GatherResult((d["question"] as? String).orEmpty().trim(), (d["topic"] as? String).orEmpty(), d["done"] == true, d["ran"] == true)
+}
+
+/** The separate hearing-or-deadline step is skipped when Lex's gathering ran (any call said ran), and kept when it failed, timed out, or never ran. */
+fun skipDeadlineStep(gatherRan: Boolean): Boolean = gatherRan
+
+/** A question and its answer, as appended to the enquiry text. */
+fun gatherLabel(question: String, answer: String): String = "\n\nLex asked: $question\nThey answered: $answer"
+
+/** Whether to ask one more: a clarifying question skipped ("as it is") ends the asking, and three in all is the limit. */
+fun mayAskMore(readingFollowUpAnswered: Boolean, readingFollowUpSkipped: Boolean, askedSoFar: Int): Boolean =
+    !readingFollowUpSkipped && askedSoFar < GATHER_MAX
+
+/** The question after the welcome: one line, no second greeting. */
+const val ASK_HELP = "What would you like help with?"

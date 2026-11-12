@@ -190,7 +190,7 @@ class DeskRepository(private val context: Context) {
      * then asks them to sign in.
      */
     @Suppress("UNCHECKED_CAST")
-    suspend fun guest(turns: List<Pair<String, String>>): GuestReply? = withTimeoutOrNull(15_000) {
+    suspend fun guest(turns: List<Pair<String, String>>): GuestReply? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
             val json = org.json.JSONArray(turns.map { (role, text) -> org.json.JSONObject().put("role", role).put("text", text) }).toString()
             val d = api.guestDesk(json, device)["data"] as? Map<String, Any?> ?: return@runCatching null
@@ -297,7 +297,7 @@ class DeskRepository(private val context: Context) {
 
     /** The reading, or null: the desk fails open, as the page does (9 seconds). */
     @Suppress("UNCHECKED_CAST")
-    suspend fun check(text: String): DeskReading? = withTimeoutOrNull(9_000) {
+    suspend fun check(text: String): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
             val d = (if (lead) api.leadDeskCheck(text) else api.deskCheck(text))["data"] as? Map<String, Any?> ?: return@runCatching null
             if (d["success"] != true) return@runCatching null
@@ -318,15 +318,12 @@ class DeskRepository(private val context: Context) {
         }.getOrNull()
     }
 
-    /**
-     * The desk's draft brief of the whole enquiry (desk/brief), 14 seconds. Anything but a read brief, an error or a timeout is NO_BRIEF: no Review step, and
-     * the enquiry goes as before. A lead's desk asks lead/desk/brief, the same answer.
-     */
+    /** Lex's next question for the enquiry so far (desk/gather; a lead's desk asks lead/desk/gather), 20 seconds. Null when it could not be asked. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun brief(text: String): BriefResult {
-        return withTimeoutOrNull(14_000) {
-            runCatching { parseBriefResult((if (lead) api.leadDeskBrief(text) else api.deskBrief(text))["data"] as? Map<String, Any?>) }.getOrNull()
-        } ?: NO_BRIEF
+    suspend fun gather(text: String, asked: Int): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+        runCatching {
+            parseGather((if (lead) api.leadDeskGather(text, asked) else api.deskGather(text, asked))["data"] as? Map<String, Any?>)
+        }.getOrNull()
     }
 
     /** A chosen file, read as the page reads one: its name, size and bytes. */
@@ -350,10 +347,9 @@ class DeskRepository(private val context: Context) {
         text: String, entity: String, phone: String, country: String?, countryOther: String,
         reading: String, sessionHash: String?, files: List<DeskFile>, terms: DeskTerms,
         submissionKey: String = "", deadlineFlag: String = "", deadlineDate: String = "",
-        brief: DeskBrief? = null, briefToken: String = "",
     ): Sent {
         val parts = buildList {
-            enquiryFields(text, entity, phone, country, countryOther, reading, sessionHash, submissionKey, deadlineFlag, deadlineDate, brief, briefToken)
+            enquiryFields(text, entity, phone, country, countryOther, reading, sessionHash, submissionKey, deadlineFlag, deadlineDate)
                 .forEach { (k, v) -> add(MultipartBody.Part.createFormData(k, v)) }
             files.forEach { f ->
                 add(MultipartBody.Part.createFormData("attachments[]", f.name, f.bytes.toRequestBody(f.mime.toMediaTypeOrNull())))

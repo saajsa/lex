@@ -15,7 +15,7 @@ import com.legumlex.client.ui.theme.LexColors
 enum class DeskSurface { Page, Raised, Bubble, Note, Warn, Accent }
 
 /** What the text is. Strong (bold words, the highlighted quote) is not a different colour from Body: it is the same ink, set heavier. */
-enum class DeskRole { Body, Strong, Muted, Error }
+enum class DeskRole { Body, Strong, Secondary, Muted, Error }
 
 /** The surface's fill. Warn is a tint of the danger colour over the page. */
 fun deskFill(c: LexColors, s: DeskSurface): Color = when (s) {
@@ -33,6 +33,8 @@ fun deskInk(c: LexColors, s: DeskSurface, role: DeskRole): Color = when (s) {
     DeskSurface.Warn -> if (role == DeskRole.Muted) c.mutedForeground else c.foreground
     else -> when (role) {
         DeskRole.Body, DeskRole.Strong -> c.foreground
+        // A step down from the body that is still text to be read (4.5:1 or better): the Review card's "Show" and its closing line.
+        DeskRole.Secondary -> c.secondaryForeground
         DeskRole.Muted -> c.mutedForeground
         DeskRole.Error -> c.danger.solid
     }

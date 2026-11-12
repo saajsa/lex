@@ -636,13 +636,20 @@ interface ApiService {
 
     /** The desk's reading of a question (cases_desk_read): {data:{verdict, follow_up, area, urgency, urgency_reason, place, intent, related, documents[], reading}} */
     @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
     @POST("desk/check")
     suspend fun deskCheck(@Field("text") text: String, @Field("matter_id") matterId: String? = null): Map<String, Any?>
 
-    /** The desk's draft brief of the whole enquiry: {data:{state: read|failed|skipped, reason, brief{what_happened, who[], wants, dates[]}, brief_token}} */
+    /** Lex's next follow-up question: {data:{success, question ('' = none), topic, done}}. `asked` is how many have been asked so far (the reading's own counts as the first). */
     @FormUrlEncoded
-    @POST("desk/brief")
-    suspend fun deskBrief(@Field("text") text: String): Map<String, Any?>
+    @Headers("X-Read-Timeout: 22")
+    @POST("desk/gather")
+    suspend fun deskGather(@Field("text") text: String, @Field("asked") asked: Int): Map<String, Any?>
+
+    @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
+    @POST("lead/desk/gather")
+    suspend fun leadDeskGather(@Field("text") text: String, @Field("asked") asked: Int): Map<String, Any?>
 
     /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, submission_key, deadline_flag, deadline_date, attachments[] */
     @Multipart
@@ -661,7 +668,7 @@ interface ApiService {
 
     // Lex Intelligence before sign-in: two short messages (guest/desk).
     @FormUrlEncoded
-    @Headers("X-Skip-Auth: 1")
+    @Headers("X-Skip-Auth: 1", "X-Read-Timeout: 22")
     @POST("guest/desk")
     suspend fun guestDesk(@Field("turns") turns: String, @Field("device") device: String): Map<String, Any?>
 
@@ -676,10 +683,7 @@ interface ApiService {
     suspend fun leadDesk(): Map<String, Any?>
 
     @FormUrlEncoded
-    @POST("lead/desk/brief")
-    suspend fun leadDeskBrief(@Field("text") text: String): Map<String, Any?>
-
-    @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/check")
     suspend fun leadDeskCheck(@Field("text") text: String): Map<String, Any?>
 
