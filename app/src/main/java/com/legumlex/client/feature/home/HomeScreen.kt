@@ -1398,7 +1398,7 @@ private fun ShimmerBlock(
 }
 
 @Composable
-private fun HomeError(message: String, denied: Boolean, onRetry: () -> Unit) {
+internal fun HomeError(message: String, denied: Boolean, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

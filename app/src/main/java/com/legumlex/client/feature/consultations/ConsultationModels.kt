@@ -133,6 +133,8 @@ data class Consultation(
     val funnelDetail: String? = null,
     /** An enquiry's number (ENQ/2026/12345), where it is in its intake (received | assigned | acknowledged; null for anything that is not an enquiry), whether an advocate has it, and its reference. */
     val enquiryNumber: String? = null,
+    /** A booked Direct Consultation (REQ-020): its label, due time and who accepted; null for any other consultation or an older server. */
+    val direct: com.legumlex.client.feature.desk.DirectRow? = null,
     val intakeState: String? = null,
     val assigned: Boolean? = null,
     val reference: String? = null,
@@ -533,3 +535,9 @@ fun Consultation.intakeLabel(appointmentConfirmed: Boolean? = null): String? {
 /** The advocate to show: never one before the enquiry is assigned (the server leaves assigned_to empty until then; this holds it so as well). */
 fun Consultation.advocateName(): String? =
     if (intake() == IntakeState.RECEIVED || assigned == false) null else assignedTo?.takeIf { it.isNotBlank() }
+
+/**
+ * The line a booked Direct Consultation shows: the server's direct_label ("Direct Consultation" once paid; nothing before) and the due time or Overdue.
+ * Null for any other consultation, and when there is nothing to say.
+ */
+fun Consultation.directLine(): String? = direct?.let { com.legumlex.client.feature.desk.directRowLine(it) }

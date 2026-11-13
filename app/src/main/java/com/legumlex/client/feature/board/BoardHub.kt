@@ -34,6 +34,17 @@ object BoardHub {
     private val _access = MutableStateFlow<BoardAccess>(BoardAccess.Unknown)
     val access: StateFlow<BoardAccess> = _access.asStateFlow()
 
+    /**
+     * The server was asked and could not be reached (or did not answer in time), and nothing is known yet: distinct from Unknown, which is "still asking".
+     * Home then shows its "cannot reach the server" block with Try Again, and the shell shows its chrome instead of waiting. Cleared by any answer.
+     */
+    private val _unreachable = MutableStateFlow(false)
+    val unreachable: StateFlow<Boolean> = _unreachable.asStateFlow()
+    fun markUnreachable() { if (_access.value is BoardAccess.Unknown) _unreachable.value = true }
+
+    /** Try Again: ask once more, and wait again for the answer. */
+    suspend fun retry(context: Context) { _unreachable.value = false; refresh(context) }
+
     /** The credits chip in the Counsel header: balance and whether it is low, as board/today last said. */
     data class Chip(val balance: Int, val low: Boolean)
     private val _chip = MutableStateFlow<Chip?>(null)
@@ -66,12 +77,12 @@ object BoardHub {
     /** Whether this run is known to be in the Counsel workspace (the chooser's answer, or the server's counsel-only). */
     private fun expectCounsel() = com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Counsel
 
-    fun clear() { _paused.value = false; _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; seenToday = null }
+    fun clear() { _paused.value = false; _unreachable.value = false; _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; seenToday = null }
 
-    fun set(summary: BoardSummary) { _access.value = BoardAccess.Yes(summary) }
+    fun set(summary: BoardSummary) { _unreachable.value = false; _access.value = BoardAccess.Yes(summary) }
 
     /** The server refused the board (404 board_off, 403): hide it. */
-    fun hide() { _access.value = BoardAccess.No }
+    fun hide() { _unreachable.value = false; _access.value = BoardAccess.No }
 
     /**
      * Ask the server. A contact whose profile lists no board permission is not
@@ -103,7 +114,8 @@ object BoardHub {
                 }
                 hide()
             }
-            Verdict.Keep -> Unit
+            // Not reached (not refused): what was known stays; with nothing known the attempt is recorded as failed, not left as "still asking".
+            Verdict.Keep -> if (answers.last() == Answer.Failed) markUnreachable()
         }
     }
 
@@ -164,3 +176,18 @@ fun counselChromeFor(access: BoardAccess, mode: com.legumlex.client.feature.work
 /** Neutral chrome only while nothing is known: no choice made and no board answer yet. */
 fun workspaceUnknownFor(access: BoardAccess, mode: com.legumlex.client.feature.workspace.Mode): Boolean =
     mode == com.legumlex.client.feature.workspace.Mode.Unknown && workspaceUnknown(access, false)
+
+/** What Home's wait for the board's answer shows: the spinner while asking, the error block once the server could not be reached, nothing once something is known. */
+enum class BoardWait { Asking, Unreachable, Known }
+
+fun boardWait(access: BoardAccess, unreachable: Boolean): BoardWait = when {
+    access !is BoardAccess.Unknown -> BoardWait.Known
+    unreachable -> BoardWait.Unreachable
+    else -> BoardWait.Asking
+}
+
+/** How long Home waits for the board's answer before saying the server could not be reached. */
+const val BOARD_WAIT_MS = 10_000L
+
+/** Whether the app asks again on coming back to the front: after a refusal, and after the server could not be reached (not while still asking). */
+fun reaskOnResume(access: BoardAccess, unreachable: Boolean): Boolean = access is BoardAccess.No || (access is BoardAccess.Unknown && unreachable)

@@ -31,9 +31,9 @@ class GuestDeskOfflineTest {
     }
 
     @Test fun theSignInLineSaysMatterWhenNothingWasAskedAndQuestionWhenSomethingWas() {
-        assertEquals("To go on, please sign in with Google. Your matter then goes to the advocates, and they write back to you.", signInLine(asked = false))
-        assertEquals("To go on, please sign in with Google. Your question then goes to the advocates, and they write back to you.", signInLine(asked = true))
+        assertEquals("The advocates can help. Sign in with Google and tell them what happened.", signInLine(asked = false))
+        assertEquals("Please sign in with Google. Your question will then reach the advocates, who will get back to you.", signInLine(asked = true))
         val src = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").takeIf { it.isFile }?.readText() ?: return
-        assertTrue(src.contains("signInLine(asked = guestTurns.any { it.first == \"guest\" })"))
+        assertTrue(src.contains("signInLine(asked = asked)"))
     }
 }

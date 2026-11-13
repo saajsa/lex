@@ -24,6 +24,15 @@ import retrofit2.HttpException
 
 data class DeskCountry(val code: String, val name: String, val dial: String)
 
+/** Details already on file (GET desk, data.context.known_details): a step whose flag is true is skipped. */
+data class KnownDetails(val name: Boolean = false, val email: Boolean = false, val phone: Boolean = false, val entity: Boolean = false)
+
+/** {name, email, phone, entity} booleans; a missing object means nothing is known (today's behaviour). */
+fun parseKnownDetails(context: Map<String, Any?>?): KnownDetails {
+    val k = context?.get("known_details") as? Map<*, *> ?: return KnownDetails()
+    return KnownDetails(k["name"] == true, k["email"] == true, k["phone"] == true, k["entity"] == true)
+}
+
 /** What the desk knows of a client (cases_desk_context). */
 data class DeskContext(
     val firstName: String,
@@ -65,6 +74,8 @@ data class DeskTerms(
     val forms: AcctTurn? = null,
     val counselForm: AcctTurn? = null,
     val counselFoot: String = "",
+    /** Which details the server already has on file (desk context.known_details); all false from an older server (today's behaviour). */
+    val known: KnownDetails = KnownDetails(),
 ) {
     val takesFiles get() = maxFiles > 0 && documentTypes.isNotEmpty()
     val priced get() = basePrice > 0
@@ -87,6 +98,16 @@ data class DeskReading(
     val readingState: String? = null,
     /** missing_facts | time_limit_unknown | forum_unknown | none; with follow_up, even on a clear verdict. Null from an older server. */
     val askReason: String? = null,
+    /** The language of the reading, and whether its follow-up was a fixed, translated line (REQ-017 017.26). */
+    val tongue: DeskTongue = DeskTongue(),
+    /** The visitor asked to talk to a person (desk/check wants_person): said once, and the request goes into the enquiry. */
+    val wantsPerson: Boolean = false,
+    /** Only with wants_person: the server really notified an advocate (desk/check advocate_informed). */
+    val advocateInformed: Boolean = false,
+    /** An advocate to speak with directly, for a fee (REQ-020): offered when the visitor insists. */
+    val directOffer: DirectOfferInfo? = null,
+    /** The person already has an open direct consultation: resume it instead of offering a new one. */
+    val directOpen: DirectOpen? = null,
 )
 
 /** A file the client has chosen, read into memory as the page holds a File. */
@@ -100,9 +121,9 @@ sealed interface PayStart {
 }
 
 sealed interface Sent {
-    data class Delivered(val consultationId: Int?, val email: String, val enquiryNumber: String? = null, val intakeState: String? = null) : Sent
-    data class Saved(val displayPrice: String, val email: String, val sessionHash: String) : Sent
-    data class Refused(val message: String, val errors: Map<String, String>, val sessionHash: String?) : Sent
+    data class Delivered(val consultationId: Int?, val email: String, val enquiryNumber: String? = null, val intakeState: String? = null, val direct: DirectBooking? = null) : Sent
+    data class Saved(val displayPrice: String, val email: String, val sessionHash: String, val direct: DirectBooking? = null) : Sent
+    data class Refused(val message: String, val errors: Map<String, String>, val sessionHash: String?, val reason: String? = null, val retryAfterMinutes: Int = 0, val tongue: DeskTongue = DeskTongue()) : Sent
     data class Failed(val message: String, val timedOut: Boolean) : Sent
 }
 
@@ -131,6 +152,10 @@ data class GuestReply(
     val clarify: Boolean = false,
     /** Still unclear after two asks: the two forms (label, href). */
     val forms: List<Pair<String, String>> = emptyList(),
+    /** The language, and the footer when this reply is a fixed, translated line (REQ-017 017.26). */
+    val tongue: DeskTongue = DeskTongue(),
+    /** The "advocates are busy, I will pass on your request" reply: the guest asked for a person. */
+    val person: Boolean = false,
 )
 
 internal fun parseGuestReply(d: Map<String, Any?>): GuestReply? {
@@ -145,6 +170,7 @@ internal fun parseGuestReply(d: Map<String, Any?>): GuestReply? {
         // A clarifying question never sends the visitor to sign in: the text box stays for the answer.
         signIn = !clarify && forms.isEmpty() && (d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0),
         account = d["account"] == true, counsel = d["counsel"] == true, clarify = clarify, forms = forms,
+        tongue = parseTongue(d), person = d["person"] == true,
     )
 }
 
@@ -169,6 +195,27 @@ class DeskRepository(private val context: Context) {
     private val resolver = context.applicationContext.contentResolver
     /** A lead's desk (lead/desk): the same calls, under the lead's token. */
     private val lead get() = com.legumlex.client.data.auth.SessionRole.isLead
+
+    /** A stable id for this desk conversation, made once per desk session and sent on every check (so the server tells one conversation's requests apart). */
+    val conversation: String = java.util.UUID.randomUUID().toString().replace("-", "")
+
+    /** Book a Direct Consultation on an enquiry already in, or take its fee invoice again (desk/direct): the booking, or null (409 direct_unavailable, or not reached). */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun direct(consultationId: Int): DirectBooking? = runCatching {
+        parseDirectBooking((if (lead) api.leadDeskDirect(consultationId, conversation) else api.deskDirect(consultationId, conversation))["data"] as? Map<String, Any?>)
+    }.getOrNull()
+
+    /** The consultation row as the booked-consultation wait reads it (direct_state, who accepted, due, intake_state, assigned_to); null when not read. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun directRow(consultationId: Int): DirectRow? = runCatching {
+        parseDirectRow(api.consultations(id = consultationId.toString())["data"] as? Map<String, Any?>)
+    }.getOrNull()
+
+    /** The status of the enquiry's consultation, for the direct-talk waiting state: null when it could not be read. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun directStatus(consultationId: Int): DirectStatus? = runCatching {
+        parseDirectStatus((api.consultations(id = consultationId.toString())["data"]) as? Map<String, Any?>)
+    }.getOrNull()
 
     /** The submission key for the enquiry as composed, kept on this phone until it is sent (so a retry after a restart is still one enquiry). */
     val submissionKeys = SubmissionKeys(object : KeyValueStore {
@@ -280,6 +327,7 @@ class DeskRepository(private val context: Context) {
             forms         = fixedTurn(d["forms"] as? Map<String, Any?>),
             counselForm   = fixedTurn(d["counsel_form"] as? Map<String, Any?>),
             counselFoot   = (d["counsel_footer"] as? String).orEmpty(),
+            known         = parseKnownDetails(c),
             context       = c?.takeIf { it["known"] == true }?.let {
                 DeskContext(
                     firstName = (it["first_name"] as? String).orEmpty(),
@@ -297,9 +345,9 @@ class DeskRepository(private val context: Context) {
 
     /** The reading, or null: the desk fails open, as the page does (9 seconds). */
     @Suppress("UNCHECKED_CAST")
-    suspend fun check(text: String): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+    suspend fun check(text: String, lang: String? = null): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
-            val d = (if (lead) api.leadDeskCheck(text) else api.deskCheck(text))["data"] as? Map<String, Any?> ?: return@runCatching null
+            val d = (if (lead) api.leadDeskCheck(text, conversation, lang) else api.deskCheck(text, conversation = conversation, lang = lang))["data"] as? Map<String, Any?> ?: return@runCatching null
             if (d["success"] != true) return@runCatching null
             DeskReading(
                 verdict  = (d["verdict"] as? String) ?: "clear",
@@ -314,16 +362,27 @@ class DeskRepository(private val context: Context) {
                 token    = (d["reading"] as? String).orEmpty(),
                 readingState = (d["reading_state"] as? String)?.takeIf { it.isNotBlank() },
                 askReason = (d["ask_reason"] as? String)?.takeIf { it.isNotBlank() },
+                tongue = parseTongue(d),
+                wantsPerson = d["wants_person"] == true,
+                advocateInformed = d["advocate_informed"] == true,
+                directOffer = parseDirectOffer(d["direct_offer"]),
+                directOpen = parseDirectOpen(d["direct_open"]),
             )
         }.getOrNull()
     }
 
     /** Lex's next question for the enquiry so far (desk/gather; a lead's desk asks lead/desk/gather), 20 seconds. Null when it could not be asked. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun gather(text: String, asked: Int): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+    suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
-            parseGather((if (lead) api.leadDeskGather(text, asked) else api.deskGather(text, asked))["data"] as? Map<String, Any?>)
+            parseGather((if (lead) api.leadDeskGather(text, asked, lang, docs, conversation) else api.deskGather(text, asked, lang, docs, conversation))["data"] as? Map<String, Any?>)
         }.getOrNull()
+    }
+
+    /** The fixed lines in [lang] (desk/lines; a lead's desk asks lead/desk/lines), 10 seconds. Null when they could not be had: the English is then kept. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun lines(lang: String): LineBook? = withTimeoutOrNull(10_000L) {
+        runCatching { parseLineBook((if (lead) api.leadDeskLines(lang) else api.deskLines(lang))["data"] as? Map<String, Any?>) }.getOrNull()
     }
 
     /** A chosen file, read as the page reads one: its name, size and bytes. */
@@ -346,10 +405,10 @@ class DeskRepository(private val context: Context) {
     suspend fun send(
         text: String, entity: String, phone: String, country: String?, countryOther: String,
         reading: String, sessionHash: String?, files: List<DeskFile>, terms: DeskTerms,
-        submissionKey: String = "", deadlineFlag: String = "", deadlineDate: String = "",
+        submissionKey: String = "", deadlineFlag: String = "", deadlineDate: String = "", lang: String = "", direct: Boolean = false,
     ): Sent {
         val parts = buildList {
-            enquiryFields(text, entity, phone, country, countryOther, reading, sessionHash, submissionKey, deadlineFlag, deadlineDate)
+            enquiryFields(text, entity, phone, country, countryOther, reading, sessionHash, submissionKey, deadlineFlag, deadlineDate, lang, direct, conversation)
                 .forEach { (k, v) -> add(MultipartBody.Part.createFormData(k, v)) }
             files.forEach { f ->
                 add(MultipartBody.Part.createFormData("attachments[]", f.name, f.bytes.toRequestBody(f.mime.toMediaTypeOrNull())))
@@ -361,7 +420,7 @@ class DeskRepository(private val context: Context) {
             val d = withTimeoutOrNull(ms) { (if (lead) api.leadDeskEnquiry(parts) else api.deskEnquiry(parts))["data"] as? Map<String, Any?> }
                 ?: return Sent.Failed("", timedOut = true)
             val email = (d["email"] as? String).orEmpty()
-            if (d["require_payment"] == true) Sent.Saved(terms.displayPrice, email, d["session_hash"]?.toString().orEmpty())
+            if (d["require_payment"] == true) Sent.Saved(terms.displayPrice, email, d["session_hash"]?.toString().orEmpty(), parseDirectBooking(d["direct"]))
             // A retry of an enquiry already sent answers with the same consultation_id: that is success, as the first answer was.
             else deliveredFrom(d, email)
         } catch (e: HttpException) {
@@ -369,7 +428,10 @@ class DeskRepository(private val context: Context) {
             val errors = buildMap {
                 body?.optJSONObject("errors")?.let { o -> o.keys().forEach { k -> put(k, o.optString(k)) } }
             }
-            if (e.code() == 422) Sent.Refused(body?.optString("message").orEmpty(), errors, body?.optString("session_hash")?.takeIf { it.isNotBlank() })
+            if (e.code() == 422) {
+                val f = parseRefusal(body?.let(::refusalMap))
+                Sent.Refused(f.message, errors, body?.optString("session_hash")?.takeIf { it.isNotBlank() }, f.reason, f.retryAfterMinutes, f.tongue)
+            }
             else Sent.Failed(body?.optString("message").orEmpty(), timedOut = false)
         } catch (e: java.io.InterruptedIOException) {
             Sent.Failed("", timedOut = true)
@@ -441,4 +503,10 @@ internal fun deliveredFrom(d: Map<String, Any?>, email: String): Sent.Delivered 
     email,
     (d["enquiry_number"] as? String)?.takeIf { it.isNotBlank() },
     (d["intake_state"] as? String)?.takeIf { it.isNotBlank() },
+    parseDirectBooking(d["direct"]),
 )
+
+/** A JSON object as a plain map (nested objects too), for the pure parsers. */
+internal fun refusalMap(o: JSONObject): Map<String, Any?> = o.keys().asSequence().associateWith { k ->
+    when (val v = o.opt(k)) { is JSONObject -> refusalMap(v); JSONObject.NULL -> null; else -> v }
+}

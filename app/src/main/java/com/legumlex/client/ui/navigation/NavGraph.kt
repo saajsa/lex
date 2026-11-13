@@ -253,7 +253,16 @@ fun LegumNavGraph(navController: NavHostController) {
                     onOpenCredits = { navController.navigateTab(Route.BoardCredits.path) },
                 )
             } else if (access is com.legumlex.client.feature.board.BoardAccess.Unknown) {
-                androidx.compose.foundation.layout.Box(
+                // Still asking: a spinner; once the server could not be reached (the attempt failed, or 10 s passed): Home's own error block with Try Again.
+                val unreachable by com.legumlex.client.feature.board.BoardHub.unreachable.collectAsState()
+                val boardCtx = LocalContext.current
+                val boardScope = rememberCoroutineScope()
+                if (com.legumlex.client.feature.board.boardWait(access, unreachable) == com.legumlex.client.feature.board.BoardWait.Unreachable) {
+                    com.legumlex.client.feature.home.HomeError(
+                        message = "The server could not be reached. Please check your connection and try again.", denied = false,
+                        onRetry = { boardScope.launch { com.legumlex.client.feature.board.BoardHub.retry(boardCtx) } },
+                    )
+                } else androidx.compose.foundation.layout.Box(
                     androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center,
                 ) { androidx.compose.material3.CircularProgressIndicator(strokeWidth = 2.dp, color = com.legumlex.client.ui.theme.Lex.colors.mutedForeground) }
             } else HomeScreen(

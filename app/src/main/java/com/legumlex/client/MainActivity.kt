@@ -176,6 +176,15 @@ private fun AppShell(deepLinkIntent: Intent?) {
     // The Daily Board: asked of the server once the profile is read (a contact
     // without the board's permission is not asked); until it answers, nothing shows.
     val boardAccess by com.legumlex.client.feature.board.BoardHub.access.collectAsState()
+    val boardUnreachable by com.legumlex.client.feature.board.BoardHub.unreachable.collectAsState()
+    // Waiting for the answer is bounded: after 10 s with nothing known, the server is said to be unreachable (Home shows its error with Try Again,
+    // and the shell its chrome); Try Again, which clears the flag, starts the wait again.
+    LaunchedEffect(boardAccess, boardUnreachable, lead) {
+        if (!lead && boardAccess is com.legumlex.client.feature.board.BoardAccess.Unknown && !boardUnreachable) {
+            kotlinx.coroutines.delay(com.legumlex.client.feature.board.BOARD_WAIT_MS)
+            com.legumlex.client.feature.board.BoardHub.markUnreachable()
+        }
+    }
     LaunchedEffect(currentRoute, profile, lead) {
         if (!lead && boardAccess is com.legumlex.client.feature.board.BoardAccess.Unknown && showAppFooter(currentRoute)) {
             com.legumlex.client.feature.board.BoardHub.refresh(context)
@@ -220,13 +229,14 @@ private fun AppShell(deepLinkIntent: Intent?) {
     var lastBoardAsk by remember { mutableStateOf(0L) }
     LaunchedEffect(resumes) {
         val now = System.currentTimeMillis()
-        if (!lead && boardAccess is com.legumlex.client.feature.board.BoardAccess.No && showAppFooter(currentRoute) && now - lastBoardAsk >= 60_000L) {
+        if (!lead && com.legumlex.client.feature.board.reaskOnResume(boardAccess, boardUnreachable) && showAppFooter(currentRoute) && now - lastBoardAsk >= 60_000L) {
             lastBoardAsk = now
             com.legumlex.client.feature.board.BoardHub.refresh(context)
         }
     }
     val counsel = !lead && com.legumlex.client.feature.board.counselChromeFor(boardAccess, wsMode)
-    val waiting = !lead && com.legumlex.client.feature.board.workspaceUnknownFor(boardAccess, wsMode)
+    // Waiting only while the server is still being asked: once it could not be reached the portal chrome (and its bottom bar) shows.
+    val waiting = !lead && !boardUnreachable && com.legumlex.client.feature.board.workspaceUnknownFor(boardAccess, wsMode)
     var confirmSignOut by remember { mutableStateOf(false) }
     val signOutScope = androidx.compose.runtime.rememberCoroutineScope()
     if (confirmSignOut) com.legumlex.client.feature.board.SignOutDialog(

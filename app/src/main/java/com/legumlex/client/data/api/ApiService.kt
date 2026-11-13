@@ -638,18 +638,18 @@ interface ApiService {
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("desk/check")
-    suspend fun deskCheck(@Field("text") text: String, @Field("matter_id") matterId: String? = null): Map<String, Any?>
+    suspend fun deskCheck(@Field("text") text: String, @Field("matter_id") matterId: String? = null, @Field("conversation") conversation: String? = null, @Field("lang") lang: String? = null): Map<String, Any?>
 
     /** Lex's next follow-up question: {data:{success, question ('' = none), topic, done}}. `asked` is how many have been asked so far (the reading's own counts as the first). */
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("desk/gather")
-    suspend fun deskGather(@Field("text") text: String, @Field("asked") asked: Int): Map<String, Any?>
+    suspend fun deskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/gather")
-    suspend fun leadDeskGather(@Field("text") text: String, @Field("asked") asked: Int): Map<String, Any?>
+    suspend fun leadDeskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null): Map<String, Any?>
 
     /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, submission_key, deadline_flag, deadline_date, attachments[] */
     @Multipart
@@ -665,6 +665,22 @@ interface ApiService {
     @FormUrlEncoded
     @POST("desk/discard")
     suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
+
+    /** Book a Direct Consultation on an enquiry already in (REQ-020): {consultation_id}; answers the same `direct` as desk/enquiry; 409 direct_unavailable. */
+    @FormUrlEncoded
+    @POST("desk/direct")
+    suspend fun deskDirect(@Field("consultation_id") consultationId: Int, @Field("conversation") conversation: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/direct")
+    suspend fun leadDeskDirect(@Field("consultation_id") consultationId: Int, @Field("conversation") conversation: String? = null): Map<String, Any?>
+
+    /** The desk's fixed lines in Hindi, Punjabi or Hinglish: {data:{lang, lines:{key:text}, pool[], footer}}. */
+    @GET("desk/lines")
+    suspend fun deskLines(@Query("lang") lang: String): Map<String, Any?>
+
+    @GET("lead/desk/lines")
+    suspend fun leadDeskLines(@Query("lang") lang: String): Map<String, Any?>
 
     // Lex Intelligence before sign-in: two short messages (guest/desk).
     @FormUrlEncoded
@@ -685,7 +701,7 @@ interface ApiService {
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/check")
-    suspend fun leadDeskCheck(@Field("text") text: String): Map<String, Any?>
+    suspend fun leadDeskCheck(@Field("text") text: String, @Field("conversation") conversation: String? = null, @Field("lang") lang: String? = null): Map<String, Any?>
 
     @Multipart
     @POST("lead/desk/enquiry")

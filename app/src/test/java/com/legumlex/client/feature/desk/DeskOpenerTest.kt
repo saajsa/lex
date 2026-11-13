@@ -11,10 +11,10 @@ class DeskOpenerTest {
     private val screen: String? = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskScreen.kt").takeIf { it.isFile }?.readText()
 
     @Test fun theOpenerIsOneWelcomeThenWhatWouldYouLikeHelpWith() {
-        assertEquals("What would you like help with?", ASK_HELP)
+        assertEquals("How can I help?", ASK_HELP)
         val s = vm ?: return
         val ask = s.substringAfter("private suspend fun askQuestion()").substringBefore("dock(Dock.Question)")
-        assertTrue(ask.contains("say(Para.Text(ASK_HELP), prompt = Step.QUESTION)"))
+        assertTrue(ask.contains("sayKey(\"q_welcomed\", ASK_HELP, prompt = Step.QUESTION)"))
         // The old second line is gone.
         assertFalse(s.contains("What would you like to ask? In your own words"))
         // One welcome only: Welcome back with what is on file when the firm knows them, else the time of day's.
@@ -25,7 +25,7 @@ class DeskOpenerTest {
     @Test fun theWelcomeBackCardComesBeforeTheFirstQuestion() {
         val s = vm ?: return
         val ask = s.substringAfter("private suspend fun askQuestion()").substringBefore("dock(Dock.Question)")
-        assertTrue(ask.indexOf("greetBack(withNotes = false)") < ask.indexOf("say(Para.Text(ASK_HELP)"))
+        assertTrue(ask.indexOf("greetBack(withNotes = false)") < ask.indexOf("sayKey(\"q_welcomed\", ASK_HELP"))
         // Later (after the papers) only what the reading found is said, once; the card is not said again.
         val later = s.substringAfter("private suspend fun welcome()").substringBefore("private suspend fun greetBack")
         assertFalse(later.contains("greetBack("))
@@ -35,7 +35,7 @@ class DeskOpenerTest {
     @Test fun noAnswerBubbleWhenLexDidNotAsk() {
         val s = vm ?: return
         val entity = s.substringAfter("private suspend fun askEntity()").substringBefore("if (!asked(Step.ENTITY))")
-        assertTrue(entity.contains("so I will not ask you that again."))
+        assertTrue(entity.contains("so I will not ask again."))
         assertFalse(entity.contains("answer(Step.ENTITY"))
         // The same for a phone number on file? No: that one is asked ("Shall the advocates call you on...?") and its answer is shown.
         assertTrue(s.contains("answer(Step.PHONE, shown(c.phone))"))

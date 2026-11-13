@@ -314,6 +314,7 @@ internal fun parse(m: Map<String, Any?>): Consultation {
         funnelAction         = ((m["funnel_view"] as? Map<*, *>)?.get("action") as? String)?.takeIf { it.isNotBlank() },
         funnelDetail         = ((m["funnel_view"] as? Map<*, *>)?.get("detail") as? String)?.takeIf { it.isNotBlank() },
         enquiryNumber        = (m["enquiry_number"] as? String)?.trim()?.takeIf { it.isNotBlank() },
+        direct               = com.legumlex.client.feature.desk.parseDirectRow(m),
         intakeState          = (m["intake_state"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         assigned             = if (m.containsKey("assigned")) m["assigned"].asBool() else null,
         reference            = (m["reference"] as? String)?.trim()?.takeIf { it.isNotBlank() },

@@ -99,15 +99,15 @@ class DeskIntakeTest {
     }
 
     @Test fun theReceiptNamesNoAdvocateAndShowsTheNumber() {
-        val line = receiptLine("ENQ/2026/12345")
-        assertEquals("Enquiry ENQ/2026/12345 received. It will be given to an advocate, and you will be told who has it.", line)
-        assertEquals("Your enquiry has been received. It will be given to an advocate, and you will be told who has it.", receiptLine(null))
+        val line = receiptLine("ENQ/2026/12345", "a@b.in")
+        assertEquals("**Enquiry ENQ/2026/12345 received.** It goes to one of the advocates, who usually reply within 30 minutes, to **a@b.in**.", line)
+        assertEquals("**Enquiry received.** It goes to one of the advocates, who usually reply within 30 minutes, to **your email**.", receiptLine(null))
         for (l in listOf(line, receiptLine(" "), receiptLine(null))) {
             assertFalse(l.contains("with your advocate", true)); assertFalse(l.contains("with the advocates", true)); assertFalse(l.contains("Adv.", true))
         }
         val src = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").takeIf { it.isFile }?.readText() ?: return
         val delivered = src.substringAfter("private suspend fun delivered(").substringBefore("private suspend fun restart")
-        assertTrue(delivered.contains("receiptLine(enquiryNumber)") && delivered.contains("usually reply within 30 minutes"))
+        assertTrue(delivered.contains("receiptLine(enquiryNumber, email)"))
         assertFalse(delivered.contains("is with the advocates"))
         // The key is sent on every attempt, with the flag, and cleared when sent.
         assertTrue(src.contains("submissionKey = key, deadlineFlag"))
@@ -118,7 +118,7 @@ class DeskIntakeTest {
         val src = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").takeIf { it.isFile }?.readText() ?: return
         assertTrue(src.contains("phone == null -> askPhone()\n            deadline == null -> askDeadline()"))
         assertTrue(src.contains("\"deadline_flag\" to Step.DEADLINE") && src.contains("\"deadline_date\" to Step.DEADLINE"))
-        assertTrue(src.contains("\"Yes, There Is One\"") && src.contains("\"No, Nothing Yet\""))
+        assertTrue(src.contains("CHIP_FLAG_YES") && src.contains("CHIP_FLAG_NO"))
         assertNull(null)
     }
 }

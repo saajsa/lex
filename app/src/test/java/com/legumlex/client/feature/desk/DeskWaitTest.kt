@@ -16,7 +16,7 @@ class DeskWaitTest {
         assertTrue(DESK_READ_HTTP_S * 1000L > DESK_READ_WAIT_MS)
         val data = src("feature/desk/DeskData.kt") ?: return
         assertTrue(data.contains("fun guest(turns: List<Pair<String, String>>): GuestReply? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
-        assertTrue(data.contains("fun check(text: String): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
+        assertTrue(data.contains("fun check(text: String, lang: String? = null): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
         val api = src("data/api/ApiService.kt")!!
         assertFalse(api.contains("X-Read-Timeout: 35"))          // no brief calls any more
         assertTrue(api.contains("\"X-Read-Timeout: 22\"") && api.contains("@POST(\"desk/check\")") && api.contains("@POST(\"guest/desk\")"))
@@ -27,7 +27,7 @@ class DeskWaitTest {
         assertEquals(3_000L, SLOW_AFTER_MS)
         assertEquals("One moment…", ONE_MOMENT)
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(vm.contains("withSlowNote(ONE_MOMENT) { repo.check(text) }"))
+        assertTrue(vm.contains("withSlowNote(ONE_MOMENT) { repo.check(text, langField(convLang)) }"))
         assertTrue(vm.contains("withSlowNote(ONE_MOMENT) { repo.guest(guestTurns) }"))
         // It only replaces a pending line, and stops when the answer comes.
         val helper = vm.substringAfter("private suspend fun <T> withSlowNote").substringBefore("private fun dock(")

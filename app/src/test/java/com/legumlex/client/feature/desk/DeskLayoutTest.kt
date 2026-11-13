@@ -41,7 +41,7 @@ class DeskLayoutTest {
         assertTrue(vm.contains("private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = \"\") }"))      // a new dock clears the old error
         // The sample shows one state at a time.
         val sample = s.substringAfter("fun DeskSampleScreen(")
-        assertTrue(sample.contains("when (state) {") && sample.contains("1 -> ErrorLine(") && sample.contains("else -> WaitLine("))
+        assertTrue(sample.contains("when (state) {") && sample.contains("1 -> ErrorLine(") && sample.contains("2 -> WaitLine("))
     }
 
     @Test fun nothingInTheDeskIsPinnedToAFontSize() {
@@ -100,5 +100,18 @@ class DeskLayoutTest {
         // What stays from the earlier rounds: margins, bubbles, the foot of the list, the Indic text style, the one-moment line.
         val s = screen!!
         assertTrue(s.contains("DESK_SIDE_MARGIN") && s.contains("clip(RoundedCornerShape(14.dp)).background(D.Me)") && s.contains("list.animateScrollBy(1_000_000f)") && s.contains("Trim.None"))
+    }
+
+    @Test fun theEndOfTheConversationStaysInViewWhenTheDockChangesSize() {
+        val s = screen ?: return
+        val conv = s.substringAfter("private fun Conversation(").substringBefore("@Composable\nprivate fun DeskMark")
+        // The viewport's height changes when a dock appears or grows (the waiting card, its hand-over, the keyboard): scroll to the very end then.
+        assertTrue(conv.contains("snapshotFlow { list.layoutInfo.viewportSize.height }") && conv.contains("list.animateScrollBy(1_000_000f)"))
+        // The first emission only settles; the existing scroll on a new line or the typing mark is unchanged.
+        assertTrue(conv.contains("LaunchedEffect(ui.lines.size, ui.typing)"))
+        // The dock stays a sibling below the conversation (never drawn over it) for every kind of dock.
+        val thread = s.substringAfter("internal fun DeskThread(").substringBefore("internal object DeskHandover")
+        assertTrue(thread.indexOf("Conversation(ui, vm::change") < thread.indexOf("when (val d = ui.dock)"))
+        assertTrue(thread.contains("Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))"))
     }
 }

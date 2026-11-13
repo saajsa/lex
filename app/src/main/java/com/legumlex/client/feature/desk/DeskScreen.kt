@@ -1,6 +1,8 @@
 package com.legumlex.client.feature.desk
 
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.legumlex.client.ui.theme.Lex
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,6 +41,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -58,6 +61,8 @@ import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -527,7 +532,30 @@ private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, onAcct: (AcctChip
             list.animateScrollBy(1_000_000f)
         }
     }
-    LazyColumn(modifier.fillMaxWidth(), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = DESK_SIDE_MARGIN.dp, end = DESK_SIDE_MARGIN.dp, top = 16.dp, bottom = DESK_BOTTOM_ROOM.dp),
+    // The room the conversation has changes when a dock appears or grows (the waiting card, its hand-over, the keyboard): the end stays in view, so the last
+    // line is never left under, or cut by, what sits below it. The dock is a sibling below the list, not drawn over it, so no padding is needed.
+    val lineCount by androidx.compose.runtime.rememberUpdatedState(ui.lines.size)
+    LaunchedEffect(list) {
+        androidx.compose.runtime.snapshotFlow { list.layoutInfo.viewportSize.height }.collect {
+            if (lineCount > 0) { list.scrollToItem(lineCount - 1); list.animateScrollBy(1_000_000f) }
+        }
+    }
+    // A line that is still being revealed (word by word) or a card that grows after the last scroll keeps the end in view, until the visitor scrolls up on purpose.
+    var stuck by remember { mutableStateOf(true) }
+    val follow = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput && available.y > 0f) stuck = false
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(list) {
+        androidx.compose.runtime.snapshotFlow { list.canScrollForward }.collect { more ->
+            if (!more) stuck = true else if (stuck && lineCount > 0) list.scrollBy(1_000_000f)
+        }
+    }
+    LazyColumn(modifier.fillMaxWidth().nestedScroll(follow), state = list, contentPadding = androidx.compose.foundation.layout.PaddingValues(start = DESK_SIDE_MARGIN.dp, end = DESK_SIDE_MARGIN.dp, top = 16.dp, bottom = DESK_BOTTOM_ROOM.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         items(ui.lines.size, key = { ui.lines[it].id }) { i ->
             val line = ui.lines[i]
@@ -586,6 +614,7 @@ private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark
                         }
                     }
                     is Para.Stages -> Stages(p)
+                    is Para.Sent -> SendToAdvocate(p.caption, p.time)
                     Para.Seal -> Seal()
                     is Para.Summary -> AcctSummary(p, onAcct)
                     is Para.Divider -> Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -595,6 +624,21 @@ private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark
                     }
                 }
             }
+            // Translated lines carry the footer (REQ-017 017.26): very small, Secondary ink, the English first and then the local line.
+            line.footer?.let { DeskFooterText(it, line.footerTag) }
+        }
+    }
+}
+
+/** The footer under a translated line, 9 sp in Secondary ink: in full (the English, then the local line) once, under the first; later lines carry only the one-word tag. */
+@Composable
+private fun DeskFooterText(f: DeskFooter, tagOnly: Boolean, surface: DeskSurface = DeskSurface.Page) {
+    val style = TextStyle(fontSize = 9.sp, lineHeight = 12.sp, color = D.ink(surface, DeskRole.Secondary))
+    Column(Modifier.padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (tagOnly) Text(footerTag(f), style = style)
+        else {
+            if (f.en.isNotBlank()) Text(f.en, style = style)
+            if (f.local.isNotBlank()) Text(f.local, style = style)
         }
     }
 }
@@ -661,6 +705,8 @@ private fun NoteLine(line: Line) {
         Spacer(Modifier.width(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             line.paras.forEach { if (it is Para.Text) Words(it.s, Int.MAX_VALUE, false, D.ink(if (line.warn) DeskSurface.Warn else DeskSurface.Note)) }
+            // A translated note or refusal carries the same footer or tag as Lex's lines, in the ink of the card it sits on.
+            line.footer?.let { DeskFooterText(it, line.footerTag, if (line.warn) DeskSurface.Warn else DeskSurface.Note) }
         }
     }
 }
@@ -678,14 +724,16 @@ private fun Typing() {
     }
 }
 
-private val STAGES = listOf("Securing your enquiry", "Sending it to the chamber", "Recording it on the file", "Notifying counsel")
+private val STAGES = listOf("Securing your enquiry", "Sending it to the chamber", "Adding it to your file", "Letting the advocates know")
 
 @Composable
 private fun Stages(p: Para.Stages) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(if (p.done) "Delivered." else "Taking your enquiry in…", style = body(weight = FontWeight.SemiBold, color = D.ink(DeskSurface.Page, DeskRole.Strong)))
-        STAGES.forEachIndexed { i, s ->
+        Text(if (p.done) p.doneTitle ?: "Delivered." else p.title ?: "Taking in your enquiry…", style = body(weight = FontWeight.SemiBold, color = D.ink(DeskSurface.Page, DeskRole.Strong)))
+        (p.steps.takeIf { it.size == STAGES.size } ?: STAGES).forEachIndexed { i, running ->
             val done = p.done || i < p.active
+            // A ticked step reads in its completed form when the server sent one; the running form while it runs.
+            val s = if (done && p.doneSteps.size == STAGES.size) p.doneSteps[i] else running
             val active = !p.done && i == p.active
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -953,7 +1001,7 @@ private fun Quiet(label: String, onClick: () -> Unit) {
 @Composable
 private fun GatherDock(error: String, onSend: (String) -> Unit, onSendNow: () -> Unit) {
     Column {
-        Compose("Your answer…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), onSend = onSend)
+        Compose("Your answer…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), onSend = onSend)
         ErrorLine(error)
         Chips(listOf(Triple(GATHER_SEND_NOW, false, onSendNow)), topGap = CHIP_GAP.dp)
     }
@@ -962,7 +1010,7 @@ private fun GatherDock(error: String, onSend: (String) -> Unit, onSendNow: () ->
 @Composable
 private fun ClarifyDock(error: String, onSend: (String) -> Unit, onAsIs: () -> Unit) {
     Column {
-        Compose("A little more about it…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), onSend = onSend)
+        Compose("A little more about it…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), onSend = onSend)
         ErrorLine(error)
         Quiet("Send it as it is", onAsIs)
     }
@@ -1311,6 +1359,7 @@ internal fun DeskThread(
                 Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
                 Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
+                is Dock.Advocate -> AdvocateWaiting(d.state, { vm.act("advocate_open") })
                 is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
                 is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
                 Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
@@ -1408,6 +1457,7 @@ fun DeskSampleScreen(onClose: () -> Unit) {
             line(Who.NOTE, Para.Text("That did not go through. Please check your connection and try again."), warn = true),
             line(Who.NOTE, Para.Text("The payment has not yet been confirmed. If you have just paid, please wait a minute and try again.")),
             line(Who.DESK, Para.Stages(active = 2, done = false)),
+            line(Who.DESK, Para.Text("I have told an advocate you would like to talk directly."), Para.Sent("Sent to an advocate", "19:44")),
             line(Who.DESK, Para.Divider("Your registration is with the firm.")),
             line(Who.ME, Para.Text("Here are the papers."), files = listOf("rent-receipts-2026.pdf", "legal-notice.pdf")),
             // The desk's fixed lines in the visitor's script (the playbook's own examples), to see the glyphs: Hindi, then Punjabi.
@@ -1420,7 +1470,8 @@ fun DeskSampleScreen(onClose: () -> Unit) {
     val ui = remember(lines) { DeskUi(lines = lines, opened = true, locked = true) }
     // One state at a time, as the real desk has: the conversation with a dock of buttons, an error, or a pending line, or the Review page.
     var state by remember { mutableStateOf(0) }
-    val names = listOf("Buttons", "Error", "Pending")
+    var replay by remember { mutableStateOf(0) }   // the sending animation plays once; this plays it again (debug)
+    val names = listOf("Buttons", "Error", "Pending", "Sending", "Waiting", "Handed Over")
     Column(Modifier.fillMaxSize().background(D.Page)) {
         Head(onClose)
             Conversation(ui, {}, {}, Modifier.weight(1f))
@@ -1428,13 +1479,86 @@ fun DeskSampleScreen(onClose: () -> Unit) {
                 when (state) {
                     0 -> Chips(listOf(Triple("Open My Account", true, {}), Triple("No, I Have A Question", false, {}), Triple("Not Now", false, {})), topGap = CHIP_GROUP_TOP.dp)
                     1 -> ErrorLine("This is an error line. It replaces the pending line.")
-                    else -> WaitLine("reading your document")
+                    2 -> WaitLine("reading your document")
+                    3 -> androidx.compose.runtime.key(replay) { SendToAdvocate("Sent to an advocate", "19:44") }
+                    4 -> AdvocateWaiting(AdvocateWait.Waiting("Waiting for the advocate", "Your final report has been sent. An advocate usually replies within 30 minutes. You can leave this open."), {})
+                    else -> AdvocateWaiting(AdvocateWait.HandedOver("Advocate Asha Rao has your enquiry now", "They will write to you here and by email.", "Open Consultation"), {})
                 }
             }
         // Which state to look at (debug only).
         Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {
-            Chips(names.mapIndexed { i, n -> Triple("Show $n", i == state) { state = i } })
+            Chips(names.mapIndexed { i, n -> Triple("Show $n", i == state) { state = i; replay++ } })
         }
+    }
+}
+
+/**
+ * "Message sent to an advocate": a message glyph travels along a short hairline to an advocate glyph, which gets a small tick badge. About one second,
+ * once; compact (the track is at most 40% of the width, left-aligned), flat, in the palette in force, Mylex radii (8). With animations off in the system
+ * settings it is the final state at once. [caption] and [time] come from the caller (the server's lines); nothing is worded here. It sits inside Lex's
+ * message block, under the informed line.
+ */
+@Composable
+internal fun SendToAdvocate(caption: String, time: String? = null, modifier: Modifier = Modifier) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val on = remember { animationsOn(runCatching { android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) }.getOrDefault(1f)) }
+    // Played once: a line scrolled away and back, or a recomposition, shows the end and does not play again.
+    var played by rememberSaveable { mutableStateOf(!on) }
+    val t = remember { androidx.compose.animation.core.Animatable(if (played) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (!played) { t.animateTo(1f, tween(SEND_ANIM_MS, easing = LinearEasing)); played = true }
+    }
+    val p = sendProgress(t.value)
+    val done = sendDone(p)
+    val ink = D.ink(DeskSurface.Page, DeskRole.Secondary)
+    val hair = D.Line2
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(SEND_TRACK_FRACTION), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, hair, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.ChatBubbleOutline, null, tint = ink, modifier = Modifier.size(16.dp))
+            }
+            // The hairline, with the travelling dot on it.
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).height(28.dp).padding(horizontal = 6.dp)) {
+                Box(Modifier.align(Alignment.CenterStart).fillMaxWidth().height(1.dp).background(hair))
+                Box(Modifier.align(Alignment.CenterStart).width(maxWidth * p).height(1.dp).background(D.Gold))
+                if (!done) Box(Modifier.align(Alignment.CenterStart).offset(x = (maxWidth - 8.dp) * p).size(8.dp).clip(RoundedCornerShape(4.dp)).background(D.Gold))
+            }
+            // The advocate stays; the tick is a small badge on it once the message has arrived.
+            Box(Modifier.size(32.dp), contentAlignment = Alignment.CenterStart) {
+                Box(
+                    Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, if (done) D.Gold else hair, RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.Gavel, null, tint = if (done) D.ink(DeskSurface.Page) else ink, modifier = Modifier.size(16.dp)) }
+                if (done) Box(
+                    Modifier.align(Alignment.TopEnd).size(14.dp).clip(RoundedCornerShape(7.dp)).background(D.Gold),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.Check, null, tint = D.OnGold, modifier = Modifier.size(10.dp)) }
+            }
+        }
+        Text(listOfNotNull(caption.takeIf { it.isNotBlank() }, time?.takeIf { it.isNotBlank() }).joinToString(" · "), style = body(12f, ink))
+    }
+}
+
+/**
+ * The quiet waiting state after the final report is sent: a card with a slow pulse and the waiting line; once the advocate has the enquiry, their line and
+ * a button to open the consultation. Text is the caller's (the server's), so nothing here is invented.
+ */
+@Composable
+internal fun AdvocateWaiting(state: AdvocateWait, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val (title, line) = when (state) { is AdvocateWait.Waiting -> state.title to state.line; is AdvocateWait.HandedOver -> state.title to state.line }
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(D.Raise).border(1.dp, D.Line2, RoundedCornerShape(12.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (state is AdvocateWait.Waiting) { Pulse(); Spacer(Modifier.width(10.dp)) }
+            else { Icon(Icons.Outlined.Check, null, tint = D.Gold, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(8.dp)) }
+            // With no title (waiting) the card is the pulse and its small line (the enquiry's reference).
+            if (title.isNotBlank()) Text(title, style = body(13.5f, D.ink(DeskSurface.Raised, DeskRole.Strong), FontWeight.SemiBold))
+            else if (line.isNotBlank()) Text(line, style = body(12f, D.ink(DeskSurface.Raised, DeskRole.Secondary)))
+        }
+        if (title.isNotBlank() && line.isNotBlank()) Text(line, style = body(12f, D.ink(DeskSurface.Raised, DeskRole.Secondary)))
+        if (state is AdvocateWait.HandedOver) Chips(listOf(Triple(state.button, true, onOpen)), topGap = 4.dp)
     }
 }
 

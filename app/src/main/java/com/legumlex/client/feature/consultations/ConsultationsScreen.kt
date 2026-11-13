@@ -403,6 +403,8 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
         c.lastUpdatedAt.toLocalDate() != c.createdAt.toLocalDate()
     val meta = when {
         mode == RowMode.LIVE -> "Your session is in progress. Tap to join."
+        // A booked Direct Consultation says so, with its due time (or Overdue).
+        c.directLine() != null -> c.directLine()
         mode == RowMode.AWAIT -> c.nextActionLabel() ?: "Open to continue"
         c.kind == ConsultationKind.DIGITAL_OFFICE && c.scheduledAt() != null -> scheduledGlance(c)
         updatedOtherDay -> relativeAge(c.lastUpdatedAt)?.replaceFirstChar { it.uppercase() }

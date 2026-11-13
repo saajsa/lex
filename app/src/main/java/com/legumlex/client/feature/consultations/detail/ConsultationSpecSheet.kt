@@ -3,6 +3,7 @@ package com.legumlex.client.feature.consultations.detail
 import com.legumlex.client.feature.consultations.statusLabel
 import com.legumlex.client.feature.consultations.advocateName
 import com.legumlex.client.feature.consultations.intakeLabel
+import com.legumlex.client.feature.consultations.directLine
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -74,6 +75,7 @@ fun ConsultationSpecContent(c: Consultation) {
         // Status & flags
         SpecSection("Status") {
             SpecRow(Icons.Outlined.Circle, "Status", c.intakeLabel() ?: c.statusLabel)
+            c.directLine()?.let { SpecRow(Icons.Outlined.Bolt, "Booking", it) }
             SpecRow(Icons.Outlined.Flag, "Priority", c.priority ?: "Medium")
             SpecRow(Icons.Outlined.Bolt, "Urgent", if (c.isUrgent) "Yes" else "No")
         }
