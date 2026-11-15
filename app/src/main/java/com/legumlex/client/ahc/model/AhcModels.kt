@@ -82,6 +82,7 @@ sealed interface AhcUiState {
         val remainingSeconds: Int,      // counts down from slaTotalSeconds
     ) : AhcUiState {
         val isOverdue: Boolean get() = remainingSeconds <= 0
+        /** Past its usual turnaround: the reading (seconds of analysis) is long done, so "now" is the advocate's step. */
         /** 0f..1f fraction of the ring still filled. */
         val ringFraction: Float
             get() = (remainingSeconds.toFloat() / slaTotalSeconds).coerceIn(0f, 1f)

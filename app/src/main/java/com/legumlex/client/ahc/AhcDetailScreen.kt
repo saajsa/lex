@@ -148,8 +148,8 @@ private fun PendingScreen(state: AhcUiState.Pending, actions: AhcActions, showTo
             WhatHappensNext(
                 listOf(
                     NextStep("Received and registered", StepState.DONE),
-                    NextStep("Lex reads your agreement", StepState.NOW),
-                    NextStep("Advocate reviews & releases your report", StepState.TODO),
+                    NextStep("Lex reads your agreement", if (state.isOverdue) StepState.DONE else StepState.NOW),
+                    NextStep("Advocate reviews & releases your report", if (state.isOverdue) StepState.NOW else StepState.TODO),
                 )
             )
         }

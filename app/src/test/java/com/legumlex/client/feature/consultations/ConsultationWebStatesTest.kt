@@ -5,6 +5,7 @@ import com.legumlex.client.feature.consultations.detail.generalState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import com.legumlex.client.feature.consultations.detail.atTime
 import org.junit.Test
 
 /**
@@ -78,5 +79,15 @@ class ConsultationWebStatesTest {
         assertTrue(map.contains("slaMinutes = ahcSlaMinutes(ahc)"))
         val repo = java.io.File("src/main/java/com/legumlex/client/feature/consultations/ConsultationsRepository.kt").readText()
         assertTrue(repo.contains("\"review\") as? Map<*, *>)?.get(\"sla_minutes\")") || repo.contains("get(\"sla_minutes\")"))
+    }
+
+    @Test fun anItemNotFromTodayCarriesItsDateAndALateReviewMovesTheNowStep() {
+        val d = java.time.LocalDateTime.of(2026, 10, 16, 10, 30)
+        assertEquals("16 Oct, 10:30 AM", d.atTime(java.time.LocalDate.of(2026, 11, 15)).replace("am", "AM").replace("pm", "PM"))
+        assertEquals("10:30 AM", d.atTime(java.time.LocalDate.of(2026, 10, 16)).replace("am", "AM").replace("pm", "PM"))
+        val screen = java.io.File("src/main/java/com/legumlex/client/ahc/AhcDetailScreen.kt").readText()
+        assertTrue(screen.contains("if (state.isOverdue) StepState.DONE else StepState.NOW"))
+        val rail = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailAHC.kt").readText()
+        assertTrue(rail.contains("maxLines = 2,   // wraps beside the chip"))
     }
 }

@@ -39,7 +39,9 @@ private val timeFmt = DateTimeFormatter.ofPattern("h:mm a")
 private val stampFmt = DateTimeFormatter.ofPattern("d MMM, h:mm a")
 private val dayFmt = DateTimeFormatter.ofPattern("d MMM yyyy")
 
-private fun LocalDateTime.atTime(): String = format(timeFmt)
+/** The time of day for today; the date and time for any other day (an item that is not from today carries its date). */
+internal fun LocalDateTime.atTime(today: java.time.LocalDate = java.time.LocalDate.now()): String =
+    if (toLocalDate() == today) format(timeFmt) else format(stampFmt)
 private fun LocalDateTime.atStamp(): String = format(stampFmt)
 
 // The AHC endpoint returns the parties as a single line ("A ↔ B" / "A vs B").

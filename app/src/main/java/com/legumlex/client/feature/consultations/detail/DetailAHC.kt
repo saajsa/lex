@@ -478,7 +478,7 @@ private fun PendingRail(remaining: Int, overdueMin: Int) {
             Text(
                 if (overdue) "Taking longer than usual" else "Report expected shortly",
                 style = LlText.label.copy(fontSize = 11.5.sp),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                maxLines = 2,   // wraps beside the chip rather than being cut
             )
         }
         LiveChip(overdue = overdue, remaining = remaining, overdueMin = overdueMin)
