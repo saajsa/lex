@@ -410,6 +410,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 // "Have an agreement read": the app's Agreement Check (a lead's
                 // is the website's, under the lead's token).
                 onAgreement = { navController.navigate(if (lead()) Route.LeadAhc.path else Route.AhcFunnel.path) },
+                onAgreements = { navController.navigate(Route.Registry.path) },
                 // Opening an account (lexon Enrolment): the form, Home, and the client sign-in.
                 account = deskEntry.arguments?.getString(Route.NewConsultation.ACCOUNT) == "1",
                 onOpenForm = { navController.navigate(Route.LeadOnboard.path) },

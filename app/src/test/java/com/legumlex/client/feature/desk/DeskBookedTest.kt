@@ -63,7 +63,7 @@ class DeskBookedTest {
         val order = vm.substringAfter("private suspend fun next()").substringBefore("private fun hour()")
         assertTrue(order.indexOf("vetted == null -> vet()") < order.indexOf("pendingOffer != null -> askDirectOffer()") && order.indexOf("pendingOffer != null -> askDirectOffer()") < order.indexOf("!gatherDone -> gather()"))
         assertTrue(vm.contains("if (reading?.directOffer != null && !directAsked) pendingOffer = reading.directOffer"))
-        assertTrue(vm.contains("if (r?.directOffer != null && !directAsked) pendingOffer = r.directOffer"))
+        assertTrue(vm.contains("if (r?.directOffer != null && !directAsked && !danger) pendingOffer = r.directOffer"))
         val ask = vm.substringAfter("private suspend fun askDirectOffer()").substringBefore("private suspend fun deliveredBooked")
         assertTrue(ask.contains("tl(\"direct_offer\", mapOf(\"fee\" to o.feeDisplay))") && ask.contains("\"direct_yes\"") && ask.contains("\"direct_no\"") && ask.contains("directAsked = true"))
         assertEquals("A full consultation with our counsel is ₹500. Once you pay, it is offered to our counsel straight away, and the advocate who takes it, or their office, will contact you to fix a time. Shall I book it?", DIRECT_OFFER_EN.replace("{fee}", "₹500"))
@@ -122,7 +122,7 @@ class DeskBookedTest {
         for (fn in listOf("deskCheck", "leadDeskCheck", "deskGather", "leadDeskGather", "deskDirect", "leadDeskDirect"))
             assertTrue(fn, Regex("suspend fun $fn\\(.*@Field\\(\"conversation\"\\) conversation: String\\? = null").containsMatchIn(api))
         val data = src("feature/desk/DeskData.kt")!!
-        assertTrue(data.contains("api.leadDeskCheck(text, conversation, lang)") && data.contains("api.leadDeskGather(text, asked, lang, docs, conversation)"))
+        assertTrue(data.contains("api.leadDeskCheck(text, conversation, lang, 2, ins, cw, routeCtx, routeLast)") && data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics)"))
         assertTrue(data.contains("deadlineDate, lang, direct, conversation)"))                      // the enquiry submit (direct=1 or not)
         assertEquals("abc", enquiryFields("t", "individual", "9", null, "", "", null, "k", "", "", "", true, "abc").toMap()["conversation"])
         assertFalse(enquiryFields("t", "individual", "9", null, "", "", null, "k", "", "").any { it.first == "conversation" })
@@ -153,7 +153,7 @@ class DeskBookedTest {
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
         val order = vm.substringAfter("private suspend fun next()").substringBefore("private fun hour()")
         assertTrue(order.contains("pendingOpen != null -> askDirectOpen()"))
-        assertTrue(vm.contains("if (reading?.directOpen != null && !directAsked) pendingOpen = reading.directOpen") && vm.contains("if (r?.directOpen != null && !directAsked) pendingOpen = r.directOpen"))
+        assertTrue(vm.contains("if (reading?.directOpen != null && !directAsked) pendingOpen = reading.directOpen") && vm.contains("if (r?.directOpen != null && !directAsked && !danger) pendingOpen = r.directOpen"))
         val open = vm.substringAfter("private suspend fun askDirectOpen()").substringBefore("private fun carryOnToWait")
         assertTrue(open.contains("\"direct_have_pay\"") && open.contains("\"direct_have_wait\"") && open.contains("Action(\"direct_go\"") && open.contains("Action(\"direct_open_pay\""))
         assertTrue(open.contains("DirectPhase.AwaitingPayment"))                                // Pay Now only while awaiting payment

@@ -114,6 +114,15 @@ data class DeskReading(
     val busy: Boolean = false,
     val unreadLine: String = "",
     val retryOnce: Boolean = false,
+    /** desk_v=2 (REQ-029): what the message is (legal_inquiry, person_request, service_question, account_support, greeting_other), whether it is a legal inquiry (null: not classified), and the code's answers. */
+    val messageKind: String = "",
+    val legalInquiry: Boolean? = null,
+    val nonmatter: Boolean = false,
+    val needMatter: Boolean = false,
+    val reply: String = "",
+    /** The consultation-first choice (an advocate was asked for): the lead and the cards. */
+    val insist: ChoiceBlock? = null,
+    val route: RouteInfo? = null,
 )
 
 /** A file the client has chosen, read into memory as the page holds a File. */
@@ -199,6 +208,40 @@ internal fun parseSubmit(d: Map<String, Any?>): AcctSubmit {
     return AcctSubmit(turn, opened)
 }
 
+/** The reading in a desk/check answer (data); null when it is not a success. Plain Kotlin, so the answers can be tested off-device. */
+internal fun parseReading(d: Map<String, Any?>): DeskReading? {
+    if (d["success"] != true) return null
+    return DeskReading(
+        verdict  = (d["verdict"] as? String) ?: "clear",
+        followUp = (d["follow_up"] as? String).orEmpty(),
+        area     = (d["area"] as? String).orEmpty(),
+        urgency  = (d["urgency"] as? String) ?: "none",
+        reason   = (d["urgency_reason"] as? String).orEmpty(),
+        place    = (d["place"] as? String) ?: "unknown",
+        intent   = (d["intent"] as? String) ?: "new_matter",
+        related  = (d["related"] as? String).orEmpty(),
+        documents = (d["documents"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+        token    = (d["reading"] as? String).orEmpty(),
+        readingState = (d["reading_state"] as? String)?.takeIf { it.isNotBlank() },
+        askReason = (d["ask_reason"] as? String)?.takeIf { it.isNotBlank() },
+        tongue = parseTongue(d),
+        wantsPerson = d["wants_person"] == true,
+        advocateInformed = d["advocate_informed"] == true,
+        directOffer = parseDirectOffer(d["direct_offer"]),
+        directOpen = parseDirectOpen(d["direct_open"]),
+        busy = d["busy"] == true,
+        unreadLine = (d["unread_line"] as? String).orEmpty().trim(),
+        retryOnce = d["retry_once"] == true,
+        messageKind = (d["message_kind"] as? String).orEmpty(),
+        legalInquiry = d["legal_inquiry"] as? Boolean,
+        nonmatter = d["nonmatter"] == true,
+        needMatter = d["need_matter"] == true,
+        reply = htmlToMarkup((d["reply"] as? String).orEmpty().trim()),
+        insist = parseChoiceBlock(d["insist"]),
+        route = parseRoute(d),
+)
+}
+
 class DeskRepository(private val context: Context) {
     private val api = ApiClient.get(context)
     private val resolver = context.applicationContext.contentResolver
@@ -217,11 +260,20 @@ class DeskRepository(private val context: Context) {
         parseDirectBooking((if (lead) api.leadDeskDirect(consultationId, conversation) else api.deskDirect(consultationId, conversation))["data"] as? Map<String, Any?>)
     }.getOrNull()
 
+    /** The guest conversation read once after sign-in (desk/resume; a lead's twin), 20 seconds. Null when it could not be read: the app's own plain rule then decides. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun resume(turns: List<Pair<String, String>>, lang: String?): ResumeAnswer? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+        runCatching {
+            val json = turnsJson(turns)
+            parseResume((if (lead) api.leadDeskResume(json, lang, conversation) else api.deskResume(json, lang, conversation))["data"] as? Map<String, Any?>)
+        }.getOrNull()
+    }
+
     /** Lex's closing turn (desk/close; a lead's desk asks lead/desk/close), 20 seconds. Null on an error, a rate limit or no answer: the turn is then skipped. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun close(text: String, lang: String?, chose: String? = null, person: Boolean = false): CloseTurn? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+    suspend fun close(text: String, lang: String?, chose: String? = null, person: Boolean = false, note: String? = null): CloseTurn? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         val p = if (person) 1 else null
-        runCatching { parseCloseTurn((if (lead) api.leadDeskClose(text, lang, chose, p) else api.deskClose(text, lang, chose, p))["data"] as? Map<String, Any?>) }.getOrNull()
+        runCatching { parseCloseTurn((if (lead) api.leadDeskClose(text, lang, chose, p, note) else api.deskClose(text, lang, chose, p, note))["data"] as? Map<String, Any?>) }.getOrNull()
     }
 
     /** The enquiry's number step (REQ-018): ask for a WhatsApp code. */
@@ -279,7 +331,7 @@ class DeskRepository(private val context: Context) {
     suspend fun guest(turns: List<Pair<String, String>>): GuestReply? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
             val json = org.json.JSONArray(turns.map { (role, text) -> org.json.JSONObject().put("role", role).put("text", text) }).toString()
-            val d = api.guestDesk(json, device)["data"] as? Map<String, Any?> ?: return@runCatching null
+            val d = api.guestDesk(json, device, 2)["data"] as? Map<String, Any?> ?: return@runCatching null
             parseGuestReply(d)
         }.getOrNull()
     }
@@ -387,47 +439,29 @@ class DeskRepository(private val context: Context) {
 
     /** The reading, or null: the desk fails open, as the page does (9 seconds). */
     @Suppress("UNCHECKED_CAST")
-    suspend fun check(text: String, lang: String? = null): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+    suspend fun check(text: String, lang: String? = null, insist: Boolean = false, consultWish: Boolean = false, routeCtx: String? = null, routeLast: String? = null): DeskReading? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
-            val d = (if (lead) api.leadDeskCheck(text, conversation, lang) else api.deskCheck(text, conversation = conversation, lang = lang))["data"] as? Map<String, Any?> ?: return@runCatching null
-            if (d["success"] != true) return@runCatching null
-            DeskReading(
-                verdict  = (d["verdict"] as? String) ?: "clear",
-                followUp = (d["follow_up"] as? String).orEmpty(),
-                area     = (d["area"] as? String).orEmpty(),
-                urgency  = (d["urgency"] as? String) ?: "none",
-                reason   = (d["urgency_reason"] as? String).orEmpty(),
-                place    = (d["place"] as? String) ?: "unknown",
-                intent   = (d["intent"] as? String) ?: "new_matter",
-                related  = (d["related"] as? String).orEmpty(),
-                documents = (d["documents"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
-                token    = (d["reading"] as? String).orEmpty(),
-                readingState = (d["reading_state"] as? String)?.takeIf { it.isNotBlank() },
-                askReason = (d["ask_reason"] as? String)?.takeIf { it.isNotBlank() },
-                tongue = parseTongue(d),
-                wantsPerson = d["wants_person"] == true,
-                advocateInformed = d["advocate_informed"] == true,
-                directOffer = parseDirectOffer(d["direct_offer"]),
-                directOpen = parseDirectOpen(d["direct_open"]),
-                busy = d["busy"] == true,
-                unreadLine = (d["unread_line"] as? String).orEmpty().trim(),
-                retryOnce = d["retry_once"] == true,
-            )
+            // desk_v=2: the web's decisions (a bare request for a person, a service question or a greeting is answered by code before any allowance; the consultation-first choice).
+            val ins = if (insist) 1 else null; val cw = if (consultWish) 1 else null
+            val d = (if (lead) api.leadDeskCheck(text, conversation, lang, 2, ins, cw, routeCtx, routeLast) else api.deskCheck(text, conversation = conversation, lang = lang, deskV = 2, insist = ins, consultWish = cw, routeCtx = routeCtx, routeLast = routeLast))["data"] as? Map<String, Any?> ?: return@runCatching null
+            parseReading(d)
         }.getOrNull()
     }
 
     /** Lex's next question for the enquiry so far (desk/gather; a lead's desk asks lead/desk/gather), 20 seconds. Null when it could not be asked. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+    suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null, topics: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
-            parseGather((if (lead) api.leadDeskGather(text, asked, lang, docs, conversation) else api.deskGather(text, asked, lang, docs, conversation))["data"] as? Map<String, Any?>)
+            // mode=focus: the web's questions (reflect, one question, options while the goal is unclear, the emergency pause, reread).
+            parseGather((if (lead) api.leadDeskGather(text, asked, lang, docs, conversation, "focus", topics) else api.deskGather(text, asked, lang, docs, conversation, "focus", topics))["data"] as? Map<String, Any?>)
         }.getOrNull()
     }
 
     /** The fixed lines in [lang] (desk/lines; a lead's desk asks lead/desk/lines), 10 seconds. Null when they could not be had: the English is then kept. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun lines(lang: String): LineBook? = withTimeoutOrNull(10_000L) {
-        runCatching { parseLineBook((if (lead) api.leadDeskLines(lang) else api.deskLines(lang))["data"] as? Map<String, Any?>) }.getOrNull()
+    suspend fun lines(lang: String, guest: Boolean = false): LineBook? = withTimeoutOrNull(10_000L) {
+        // A signed-out box has no token: its lines come from guest/desk/lines (REQ-029).
+        runCatching { parseLineBook((if (guest) api.guestDeskLines(lang) else if (lead) api.leadDeskLines(lang) else api.deskLines(lang))["data"] as? Map<String, Any?>) }.getOrNull()
     }
 
     /** A chosen file, read as the page reads one: its name, size and bytes. */

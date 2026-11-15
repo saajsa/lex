@@ -32,7 +32,7 @@ class DeskCloseTest {
         assertTrue(close.contains("Action(\"close_go\", lbl(\"ui_go_ahead\", CLOSE_GO_AHEAD), main = true)") && close.contains("Action(\"close_no\", lbl(\"ui_not_now\", CLOSE_NOT_NOW))"))
         assertEquals("Yes, Go Ahead", CLOSE_GO_AHEAD); assertEquals("Not Now", CLOSE_NOT_NOW)
         val data = src("feature/desk/DeskData.kt")!!
-        assertTrue(data.contains("api.leadDeskClose(text, lang, chose, p) else api.deskClose(text, lang, chose, p)"))
+        assertTrue(data.contains("api.leadDeskClose(text, lang, chose, p, note) else api.deskClose(text, lang, chose, p, note)"))
         val api = src("data/api/ApiService.kt")!!
         assertTrue(api.contains("@POST(\"desk/close\")") && api.contains("@POST(\"lead/desk/close\")"))
     }
@@ -41,7 +41,7 @@ class DeskCloseTest {
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
         val go = vm.substringAfter("\"close_go\" -> go {").substringBefore("\n")
         assertTrue(go.contains("dock(Dock.Waiting(\"…\")); next()"))
-        val no = vm.substringAfter("\"close_no\" -> go {").substringBefore("\"phone_retry\"")
+        val no = vm.substringAfter("\"close_no\" -> go {").substringBefore("\"route_ahc\"")
         assertTrue(no.contains("sayKey(\"close_stop\", CLOSE_STOP_EN)") && no.contains("Action(\"again\"") && !no.contains("send()") && !no.contains("next()"))
         assertEquals("No problem. Nothing has been sent or charged, and you can come back any time.", CLOSE_STOP_EN)
         // Editing an earlier answer asks again; a restart too.
@@ -110,7 +110,7 @@ class DeskGuestStoryTest {
         org.junit.Assert.assertNull(guestStory(emptyList()))
         org.junit.Assert.assertNull(guestStory(listOf("guest" to "asdfghjklqwertyuiopzxcvbnm asdfghjkl")))
         val vm = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").readText()
-        org.junit.Assert.assertTrue(vm.contains("sayKey(\"q_from_guest\", Q_FROM_GUEST"))
+        org.junit.Assert.assertFalse(vm.contains("sayKey(\"q_from_guest\""))   // the web removed the announcement
     }
 }
 
@@ -194,7 +194,7 @@ class DeskSlice1Test {
         val btn = screen.substringAfter("internal fun SendButton").substringBefore("@Composable\nprivate fun FileChips")
         assertTrue(btn.contains("if (enabled) D.Gold else D.Line2") && btn.contains("if (enabled) D.OnGold else D.Muted") && btn.contains("clickable(enabled = enabled") && btn.contains("Icons.AutoMirrored.Outlined.Send") && btn.contains("Text(label"))
         assertTrue(screen.contains("SendButton(dt(\"ui_send\", \"Send\"), text.isNotBlank(), onClick = onSend)"))
-        assertTrue(screen.contains("SendButton(sendLabel ?: dt(\"ui_send\", \"Send\"), v.isNotBlank())"))
+        assertTrue(screen.contains("SendButton(sendLabel ?: dt(\"ui_send\", \"Send\"), v.isNotBlank() || sendReady)"))
         assertTrue(screen.contains("text.isNotBlank() || date.isNotEmpty()"))
         assertFalse(screen.contains("Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(D.Gold)"))   // no wordless icon square is left
     }
@@ -229,7 +229,7 @@ class DeskEnglishLinesTest {
         assertEquals(en, kotlinx.coroutines.runBlocking { languageSwitch("en", en) { error("must not fetch") } })
         // the view model fetches English once at the start, for a signed-in desk
         val vm = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").readText()
-        assertTrue(vm.contains("repo.lines(\"en\") ?: return@launch") && vm.contains("if (!guest) viewModelScope.launch"))
+        assertTrue(vm.contains("repo.lines(\"en\", guest) ?: return@launch") && vm.contains("/** The English lines come from the server too"))
     }
 
     @org.junit.Test fun hindiBooksStillCountAsTranslated() {
@@ -289,17 +289,18 @@ class DeskUiRulesTest {
         assertEquals(ChipLayout.Row, chipLayout(listOf("Business", "Individual", "NRI")))
         assertEquals(ChipLayout.Row, chipLayout(listOf("I Have Paid", "Pay The Fee", "Set It Aside")))
         assertEquals(ChipLayout.Stack, chipLayout(listOf("See Whether It Arrived", "Send It Again", "Something Else Entirely Long")))
+        assertEquals(ChipLayout.Stack, chipLayout(listOf("Pay Now", "See Your Matters", "Ask Something Else")))      // the pay trio: "Ask Something Else" needs three lines in a third of the width
         assertEquals(ChipLayout.Flow, chipLayout(listOf("India  +91", "United States  +1", "United Kingdom  +44", "Australia  +61", "Somewhere else")))
         val screen = src("DeskScreen.kt")
         val group = screen.substringAfter("private fun ChipGroup(").substringBefore("@Composable\nprivate fun DocsDock")
         // equal weights and equal heights in the row; equal width in the stack; two-line labels inside the button
-        assertTrue(group.contains("Modifier.weight(1f).fillMaxHeight()") && group.contains("height(IntrinsicSize.Min)") && group.contains("Modifier.fillMaxWidth()") && group.contains("maxLines = 2"))
+        assertTrue(group.contains("Modifier.weight(1f).fillMaxHeight()") && group.contains("height(IntrinsicSize.Min)") && group.contains("Modifier.fillMaxWidth()") && group.contains("BoxWithConstraints"))
         assertTrue(screen.contains("is Dock.Actions -> Column { ChipGroup("))
     }
 
     @org.junit.Test fun aChoiceButtonCarriesTheServersFeeAsItsSecondLine() {
         val vm = src("DeskViewModel.kt")
-        assertTrue(vm.contains("Action(\"close_pick_\" + c.key, c.button, main = c.key == \"consultation\", sub = c.price)"))
+        assertTrue(vm.contains("Dock.Cards(ChoiceBlock(r.say, r.cards), \"close\")"))
         assertTrue(src("DeskScreen.kt").contains("ChipSpec(a.label, a.main, a.sub)") && src("DeskScreen.kt").contains("if (c.sub.isNotBlank()) Text(c.sub"))
     }
 
@@ -308,7 +309,7 @@ class DeskUiRulesTest {
         val gather = screen.substringAfter("private fun GatherDock(").substringBefore("@Composable\nprivate fun ClarifyDock")
         assertTrue(gather.contains("Quiet(dt(\"ui_send_now\", GATHER_SEND_NOW), onSendNow)") && !gather.contains("Chips("))
         val foot = screen.substringAfter("private fun Disclaimer(").substringBefore("/**\n * The services")
-        assertTrue(foot.contains("withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) { append(disclaimerLead(t, direct, fee)) }"))   // the web bolds the lead sentence
+        assertTrue(foot.contains("withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) { append(disclaimerLead(t, direct, fee, book)) }"))   // the web bolds the lead sentence
         val dl = screen.substringAfter("private fun DeadlineDock(").substringBefore("if (picking)")
         assertTrue(dl.contains("heightIn(min = 40.dp)") && dl.contains("SendButton(dt(\"ui_send\", \"Send\"), text.isNotBlank() || date.isNotEmpty())"))   // the date pill and Send share one height
         val stop = src("DeskViewModel.kt").substringAfter("private suspend fun unreadStop").substringBefore("private fun keep")
@@ -329,7 +330,7 @@ class DeskKeepAndBoldTest {
     @org.junit.Test fun onlyTheConsultationChoiceIsFilledAndTheWrittenOneIsOutlined() {
         // the server marks `secondary` only when insisting (cases_desk_choice); the close's choice has none, so the rule is the app's: consultation first, filled (R10)
         val vm = src("DeskViewModel.kt")
-        assertTrue(vm.contains("main = c.key == \"consultation\", sub = c.price"))
+        assertTrue(src("DeskScreen.kt").contains("val main = c.key == \"consultation\""))   // the cards: the consultation filled, the written enquiry outlined
         assertFalse(vm.contains("main = !c.secondary"))
     }
 
@@ -380,7 +381,7 @@ class DeskTopicsAndDraftTest {
         assertTrue(vm.contains("if (v.trim().length >= DESK_DRAFT_MIN) putString(draftKey, v) else remove(draftKey)"))
         assertTrue(vm.contains("var draftText: String = draftPrefs.getString(draftKey, \"\").orEmpty()"))
         // cleared on send (submitQuestion), at a finished enquiry and at Start A New Enquiry
-        assertTrue(vm.contains("draftText = \"\"; DeskKeep.renew()") && vm.contains("draftText = \"\"; pollJob?.cancel()") && vm.contains("            draftText = \"\"\n            _ui.update { it.copy(opened = true) }"))
+        assertTrue(vm.contains("draftText = \"\"; DeskKeep.renew()") && vm.contains("draftText = \"\"; pollJob?.cancel()") && vm.contains("            draftText = \"\"\n            _ui.update { it.copy(opened = true, draftClearTick = it.draftClearTick + 1) }"))
         val store = java.io.File("src/main/java/com/legumlex/client/data/auth/TokenStore.kt").readText()
         assertTrue(store.contains("suspend fun accountKey(): String") && store.contains("return \"guest\""))
     }
@@ -439,5 +440,125 @@ class DeskGuestComposerTest {
         val guest = screen.substringAfter("private fun GuestDock(").substringBefore("/** The Google sign-in, in the conversation. */")
         assertTrue(guest.contains("tools = { QuietInRow(dt(\"ui_signin_google\", \"Sign in with Google\"), onSignIn) }") && guest.contains("count = { v -> \"\${v.length} / \$limit\" }"))
         assertFalse(guest.contains("Row(verticalAlignment = Alignment.CenterVertically)"))   // no second row under the card
+    }
+}
+
+/** REQ-029: findings of the held booking (15 Nov): the pay step's order, and a typed number kept in order. */
+class DeskBookingFindingsTest {
+    private fun src(name: String) = java.io.File("src/main/java/com/legumlex/client/feature/desk/$name").readText()
+
+    /** A keyboard typing one character at the cursor, then the field's own formatter (what BasicTextField does with a value). */
+    private fun typeFast(digits: String, nri: Boolean = false): androidx.compose.ui.text.input.TextFieldValue {
+        var f = androidx.compose.ui.text.input.TextFieldValue("", androidx.compose.ui.text.TextRange(0))
+        for (c in digits) {
+            val at = f.selection.start
+            val typed = androidx.compose.ui.text.input.TextFieldValue(f.text.substring(0, at) + c + f.text.substring(at), androidx.compose.ui.text.TextRange(at + 1))
+            f = reformat(typed) { formatPhoneInput(it, nri) }
+        }
+        return f
+    }
+
+    @org.junit.Test fun aNumberTypedDigitByDigitIsKeptInOrderAndTheCursorStaysAtTheEnd() {
+        for (n in listOf("9876543210", "9876543201", "6123456789", "7000000001")) {
+            val f = typeFast(n)
+            assertEquals(n.take(5) + " " + n.drop(5), f.text)
+            assertEquals(n, f.text.filter { it.isDigit() })            // what is sent is exactly what was typed
+            assertEquals(f.text.length, f.selection.start)
+        }
+        assertEquals("98765 43210", typeFast("919876543210").text)       // a pasted +91 form
+        assertEquals("98765 43210", typeFast("09876543210").text)
+        assertEquals("98765", typeFast("98765").text)
+    }
+
+    @org.junit.Test fun theComposerKeepsItsOwnCursorSoAFormatterCannotLeaveItBehind() {
+        val screen = src("DeskScreen.kt")
+        assertTrue(screen.contains("BasicTextField(field, { field = reformat(it, format) }") && screen.contains("var field by remember { mutableStateOf(TextFieldValue(initial"))
+        assertTrue(screen.contains("format = { raw -> formatPhoneInput(raw, nri) }"))
+    }
+
+    @org.junit.Test fun theBookedPayStepIsPayNowThenSeeYourMattersThenAskSomethingElseAsTheWebs() {
+        val vm = src("DeskViewModel.kt")
+        val actions = vm.substringAfter("private fun bookedPayActions").substringBefore("/** Pay The Fee")
+        assertTrue(actions.indexOf("\"direct_pay\", payBtn, main = true") < actions.indexOf("\"seen\"") && actions.indexOf("\"seen\"") < actions.indexOf("\"again\""))
+        assertFalse(actions.contains("I Have Paid"))                       // nothing is paid yet
+        assertFalse(vm.contains("Action(\"direct_paid\""))
+        // the page opens on Pay Now, not by itself on arrival
+        val booked = vm.substringAfter("private suspend fun deliveredBooked").substringBefore("/** The web's pay step")
+        assertFalse(booked.substringBefore("watchBooked()").contains("DeskEvent.OpenUrl"))
+    }
+}
+
+/** REQ-029: the desk's debug-only Test Contact (the web's dev Test visitor). */
+class DeskTestContactTest {
+    private fun src(name: String) = java.io.File("src/main/java/com/legumlex/client/feature/desk/$name").readText()
+
+    @org.junit.Test fun itExistsOnlyInADebugBuildWithTheTestContactConfigured() {
+        assertTrue(deskTestContactOn(true, "test@example.org", "secret"))
+        assertFalse(deskTestContactOn(false, "test@example.org", "secret"))   // a release build: never, whatever the values
+        assertFalse(deskTestContactOn(true, "", "secret")); assertFalse(deskTestContactOn(true, "test@example.org", ""))
+        val build = java.io.File("build.gradle.kts").readText()
+        assertTrue(build.contains("DEV_LOGIN_EMAIL"))                         // the values come from local.properties and are blank without it
+        val screen = src("DeskScreen.kt")
+        assertTrue(screen.contains("deskTestContactOn(com.legumlex.client.BuildConfig.DEBUG, com.legumlex.client.BuildConfig.DEV_LOGIN_EMAIL, com.legumlex.client.BuildConfig.DEV_LOGIN_PASSWORD)"))
+    }
+
+    @org.junit.Test fun itGoesThroughTheSameAfterSignInPathAsGoogle() {
+        val screen = src("DeskScreen.kt")
+        // both end in LoginState.Success, which the desk answers once: vm.signedIn() (resume included), in the same view model
+        assertTrue(screen.contains("is com.legumlex.client.feature.auth.LoginState.Success -> vm.signedIn(st.result.email, st.result.name)"))
+        assertTrue(screen.contains("login.onEmailLogin(com.legumlex.client.BuildConfig.DEV_LOGIN_EMAIL, com.legumlex.client.BuildConfig.DEV_LOGIN_PASSWORD)") && screen.contains("login::onIdTokenReceived"))
+        assertTrue(screen.contains("if (onTestContact != null) Quiet(\"Test Contact\", onTestContact)"))        // absent when null
+        assertTrue(screen.contains("Dock.SignIn -> GoogleDock(signingIn, ui.error, google, testContact)"))
+    }
+}
+
+
+/** REQ-029: no label is ever cut off, at 360 and 412 dp, with the real labels. */
+class DeskChipFitTest {
+    private fun widths() = listOf(360f - 2 * DESK_SIDE_MARGIN, 412f - 2 * DESK_SIDE_MARGIN)
+
+    @org.junit.Test fun noGroupNeedsMoreThanTwoLinesInARowAtTheSupportedWidths() {
+        val groups = listOf(
+            listOf("Book The Full Consultation", "Send The Written Enquiry"), listOf("Yes, Book It", "Send The Written Enquiry"), listOf("Yes, Go Ahead", "Not Now"),
+            listOf("Carry On", "Start A New Enquiry"), listOf("Try Again", "Start A New Enquiry"), listOf("Attach Documents", "Carry On Without"),
+            listOf("Business", "Individual", "NRI"), listOf("Pay Now", "See Your Matters", "Ask Something Else"),
+            listOf("Yes, That Number", "A Different Number"), listOf("See Whether It Arrived", "Send It Again"), listOf("Open My Account", "No, I Have A Question"),
+        )
+        for (w in widths()) for (g in groups) {
+            val layout = chipLayout(g, w)
+            if (layout == ChipLayout.Row) for (l in g) assertTrue("$l at $w dp", chipLines(l, g.size, w) <= 2)   // a row only when every label fits in two lines
+            else assertEquals("$g at $w dp", ChipLayout.Stack, layout)                                           // else equal-width stacked, never a cut label
+        }
+        assertEquals(ChipLayout.Stack, chipLayout(listOf("Pay Now", "See Your Matters", "Ask Something Else"), widths()[0]))
+        assertEquals(ChipLayout.Row, chipLayout(listOf("Business", "Individual", "NRI"), widths()[0]))
+        assertEquals(ChipLayout.Row, chipLayout(listOf("Book The Full Consultation", "Send The Written Enquiry"), widths()[1]))
+    }
+}
+
+
+/** REQ-029 (a) parity fixes: no "I have what you wrote above"; "Signed in as <email>" and the greeting after an in-desk sign-in (reception.php signedIn, welcome, greetBack). */
+class DeskSignInTurnsTest {
+    private fun src(name: String) = java.io.File("src/main/java/com/legumlex/client/feature/desk/$name").readText()
+
+    @org.junit.Test fun nothingAnnouncesWhatTheyWroteAbove() {
+        val vm = src("DeskViewModel.kt")
+        assertFalse(vm.contains("Q_FROM_GUEST") && vm.contains("sayKey(\"q_from_guest\""))
+        val ask = vm.substringAfter("private suspend fun askQuestion()").substringBefore("// ---- A guest")
+        assertFalse(ask.contains("I have what you wrote"))
+    }
+
+    @org.junit.Test fun theVisitorsBubbleSaysSignedInAsTheEmailAndTheGreetingFollows() {
+        val vm = src("DeskViewModel.kt")
+        val sign = vm.substringAfter("fun signedIn(email: String = \"\", name: String = \"\") {").substringBefore("fun signInProblem")
+        assertTrue(sign.contains("go { me(\"Signed in as \$email\") }"))
+        // the greeting comes before the guest conversation is read
+        val ask = vm.substringAfter("private suspend fun askQuestion()").substringBefore("val story = guestStory")
+        assertTrue(ask.indexOf("greetBack(withNotes = false)") in 0 until ask.indexOf("resumeFromGuest()"))
+        // someone the firm does not know yet is thanked by first name (served greet_new)
+        val greet = vm.substringAfter("private suspend fun greetBack(").substringBefore("private fun needsRoute")
+        assertTrue(greet.contains("tl(\"greet_new\", mapOf(\"first\" to first)) ?: \"Thank you for choosing Legum Lex, \$first.\""))
+        assertEquals("Thank you for choosing Legum Lex, Asha.", parseLineBook(mapOf("lang" to "en", "lines" to mapOf("greet_new" to "Thank you for choosing Legum Lex, {first}.")))!!.line("greet_new", mapOf("first" to "Asha")))
+        val screen = src("DeskScreen.kt")
+        assertTrue(screen.contains("vm.signedIn(st.result.email, st.result.name)"))
     }
 }

@@ -53,17 +53,17 @@ class DeskGatherTest {
         assertEquals(GatherResult("When did it arrive?", "dates", false), parseGather(mapOf("success" to true, "question" to " When did it arrive? ", "topic" to "dates", "done" to false)))
         assertTrue(parseGather(mapOf("question" to "When did it arrive?", "done" to false))!!.more)
         val s = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(s.contains("if (r == null || !r.more) return finishGather()"))
+        assertTrue(s.contains("if (r == null || !r.more) {") && s.contains("return finishGather()"))
         // After answers, one more reading of the whole text; the papers step waits for it.
         val fin = s.substringAfter("private suspend fun finishGather()").substringBefore("fun submitGather(")
-        assertTrue(fin.contains("if (gatherLog.isNotEmpty())") && fin.contains("repo.check(fullText(), langField(convLang))") && fin.contains("next()"))
+        assertTrue(fin.contains("if (gatherLog.isNotEmpty() && lastReread)") && fin.contains("repo.check(fullText(), langField(convLang))") && fin.contains("next()"))
         assertTrue(s.contains("reread?.await()"))
     }
 
     @Test fun leadsAskLeadDeskGatherAndTheWaitIsTwentySeconds() {
         val data = src("feature/desk/DeskData.kt") ?: return
-        assertTrue(data.contains("(if (lead) api.leadDeskGather(text, asked, lang, docs, conversation) else api.deskGather(text, asked, lang, docs, conversation))"))
-        assertTrue(data.contains("suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
+        assertTrue(data.contains("(if (lead) api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics) else api.deskGather(text, asked, lang, docs, conversation, \"focus\", topics))"))
+        assertTrue(data.contains("suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null, topics: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
         val api = src("data/api/ApiService.kt")!!
         assertTrue(api.contains("@POST(\"desk/gather\")") && api.contains("@POST(\"lead/desk/gather\")") && api.contains("@Field(\"asked\") asked: Int"))
         assertTrue(Regex("@Headers\\(\"X-Read-Timeout: 22\"\\)\\s+@POST\\(\"desk/gather\"\\)").containsMatchIn(api))
@@ -79,7 +79,7 @@ class DeskGatherTest {
         // Changing an answer starts the questions over; the desk restarting clears them.
         assertTrue(s.contains("Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }"))
         // Asked in Lex's own bubble and voice (a desk line), with the box and a Send Now chip as the dock.
-        assertTrue(s.contains("say(Para.Text(r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)") && s.contains("dock(Dock.Gather)"))
+        assertTrue(s.contains("say(Para.Text(if (reflect.isNotBlank()) reflect + \"\\n\\n\" + r.question else r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)") && s.contains("dock(Dock.Gather)"))
     }
 
     @Test fun theDeadlineStepIsSkippedOnlyWhenGatheringRan() {

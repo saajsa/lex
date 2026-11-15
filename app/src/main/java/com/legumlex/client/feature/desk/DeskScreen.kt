@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -189,6 +190,8 @@ fun DeskScreen(
     onOpenMatters: () -> Unit,
     onOpenConsultation: (Int) -> Unit,
     onAgreement: () -> Unit,
+    /** The portal route's button: My Agreements. */
+    onAgreements: () -> Unit = {},
     /** Opening an account (LeadHome's Open An Account, Fix And Resubmit). */
     account: Boolean = false,
     onOpenForm: () -> Unit = {},
@@ -234,6 +237,8 @@ fun DeskScreen(
                 DeskEvent.OpenedAsClient -> onOpenedAsClient()
                 DeskEvent.Home -> onHome()
                 DeskEvent.SignIn -> onSignIn()
+                DeskEvent.OpenAgreementCheck -> onAgreement()
+                DeskEvent.OpenAgreements -> onAgreements()
             }
         }
     }
@@ -245,7 +250,7 @@ fun DeskScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(loginState) {
         when (val st = loginState) {
-            is com.legumlex.client.feature.auth.LoginState.Success -> vm.signedIn()
+            is com.legumlex.client.feature.auth.LoginState.Success -> vm.signedIn(st.result.email, st.result.name)
             is com.legumlex.client.feature.auth.LoginState.Error -> vm.signInProblem(st.message)
             else -> Unit
         }
@@ -262,6 +267,11 @@ fun DeskScreen(
         }
     }
 
+    // Debug builds only, and only with the test contact configured: the same sign-in the sign-in screen's debug chip makes. Its Success is the same LoginState.Success a Google
+    // sign-in ends in, so the desk goes on through the same vm.signedIn() (resume included). Never in a release build.
+    val testContact: (() -> Unit)? = if (deskTestContactOn(com.legumlex.client.BuildConfig.DEBUG, com.legumlex.client.BuildConfig.DEV_LOGIN_EMAIL, com.legumlex.client.BuildConfig.DEV_LOGIN_PASSWORD))
+        ({ login.clearError(); login.onEmailLogin(com.legumlex.client.BuildConfig.DEV_LOGIN_EMAIL, com.legumlex.client.BuildConfig.DEV_LOGIN_PASSWORD) }) else null
+
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.addFiles(it) }
     // A document for the account: chosen, or scanned (the Aadhaar's two sides as one PDF).
     val acctPick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.acctUpload(uri) }
@@ -274,6 +284,8 @@ fun DeskScreen(
     var draft by remember { mutableStateOf(TextFieldValue(vm.draftText, TextRange(vm.draftText.length))) }
     // The unsent question is kept with the conversation (the web keeps it as lex_desk_draft until it is sent).
     LaunchedEffect(draft.text) { vm.draftText = draft.text }
+    // The message has gone: the box empties, as every composer does on a successful send (the web clears its box too). A refused send never counts, so its text stays.
+    LaunchedEffect(ui.draftClearTick) { if (ui.draftClearTick > 0) draft = TextFieldValue("") }
     val compose = remember { FocusRequester() }
     var focusTick by remember { mutableIntStateOf(0) }
     val put: (String) -> Unit = { draft = TextFieldValue(it, TextRange(it.length)); focusTick++ }
@@ -334,7 +346,7 @@ fun DeskScreen(
                 vm, ui, draft, { draft = it }, compose, attach,
                 signingIn = loginState is com.legumlex.client.feature.auth.LoginState.Loading, google = google,
                 acctScan = { acctScan() }, acctPick = { acctPick.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) },
-                fullDesk = null, modifier = Modifier.weight(1f),
+                fullDesk = null, modifier = Modifier.weight(1f), testContact = testContact,
             )
         }
     }
@@ -452,8 +464,9 @@ private fun Disclaimer(t: DeskTerms, compact: Boolean = false, direct: Boolean =
     Text(
         buildAnnotatedString {
             // The web bolds the lead sentence (reception.php .rcp-disclaim b): web-first parity.
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) { append(disclaimerLead(t, direct, fee)) }
-            append(disclaimerTail(direct))
+            val book = LocalDeskBook.current
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) { append(disclaimerLead(t, direct, fee, book)) }
+            append(disclaimerTail(direct, book))
         },
         style = body(if (compact) 11.5f else 13f, D.Muted).copy(lineHeight = if (compact) 16.sp else 19.sp),
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = if (compact) 8.dp else 16.dp),
@@ -551,12 +564,13 @@ private fun Service(icon: ImageVector, title: String, sub: String, onClick: () -
 // ---- The conversation ---------------------------------------------------------------
 
 @Composable
-private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, onAcct: (AcctChip) -> Unit, modifier: Modifier) {
+private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, onAcct: (AcctChip) -> Unit, modifier: Modifier, onPick: (String) -> Unit = {}) {
     val list = rememberLazyListState()
     // Each desk line's words come in one after another, once.
     val revealed = remember { mutableStateMapOf<Long, Boolean>() }
-    LaunchedEffect(ui.lines.size, ui.typing) {
-        val n = ui.lines.size + if (ui.typing) 1 else 0
+    val cards = (ui.dock as? Dock.Cards)?.block
+    LaunchedEffect(ui.lines.size, ui.typing, cards != null) {
+        val n = ui.lines.size + (if (ui.typing) 1 else 0) + (if (cards != null) 1 else 0)
         if (n > 0) {
             list.animateScrollToItem(n - 1)
             // The last line may be taller than the room: go on to the very end, so its foot (and a Gurmukhi line's lower marks) are in view.
@@ -598,6 +612,8 @@ private fun Conversation(ui: DeskUi, onChange: (Step) -> Unit, onAcct: (AcctChip
             }
         }
         if (ui.typing) item(key = "typing") { Typing() }
+        // The cards are part of the conversation, as on the web (dockChoice appends them to the log): tall content scrolls with it, and only the box and Not Now sit in the dock.
+        if (cards != null) item(key = "cards") { CardsList(cards, onPick) }
     }
 }
 
@@ -780,17 +796,18 @@ private fun Typing() {
     }
 }
 
-private val STAGES = listOf("Securing your enquiry", "Sending it to the chamber", "Adding it to your file", "Letting the advocates know")
+private val STAGES = listOf("Securing your enquiry", "Sending it to the chamber", "Letting the advocates know")
 
 @Composable
 private fun Stages(p: Para.Stages) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(if (p.done) p.doneTitle ?: "Delivered." else p.title ?: "Taking in your enquiry…", style = body(weight = FontWeight.SemiBold, color = D.ink(DeskSurface.Page, DeskRole.Strong)))
-        (p.steps.takeIf { it.size == STAGES.size } ?: STAGES).forEachIndexed { i, running ->
+        val steps = p.steps.ifEmpty { STAGES }
+        steps.forEachIndexed { i, running ->
             val done = p.done || i < p.active
             // A ticked step reads in its completed form when the server sent one; the running form while it runs.
-            val s = if (done && p.doneSteps.size == STAGES.size) p.doneSteps[i] else running
-            val active = !p.done && i == p.active
+            val s = if (done && p.doneSteps.size == steps.size) p.doneSteps[i] else running
+            val active = !p.done && i == p.active && !p.held
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.size(18.dp).clip(CircleShape).background(if (done) D.Gold else Color.Transparent)
@@ -956,8 +973,12 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
                     valid: ((String) -> Boolean)? = null, format: (String) -> String = { it },
                     /** What sits in the card's bottom row, left of Send (the guest's sign-in link), and the counter beside Send. */
                     tools: (@Composable () -> Unit)? = null, count: ((String) -> String)? = null, countWarn: ((String) -> Boolean)? = null,
+                    /** Something other than the text is ready to send (the kept ticks of a question with options). */
+                    sendReady: Boolean = false,
                     onSend: (String) -> Unit) {
-    var v by remember { mutableStateOf(initial) }
+    // The field keeps its own cursor: a formatter that adds a space (a phone number) must not leave the cursor behind, or the next digits land out of order.
+    var field by remember { mutableStateOf(TextFieldValue(initial, TextRange(initial.length))) }
+    val v = field.text
     val focus = remember { FocusRequester() }
     // The full desk puts the cursor in the box; the Sign In chat panel does not (the keyboard opens only when the box is touched).
     val auto = LocalDeskAutoFocus.current
@@ -971,7 +992,7 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
             if (prefix != null) { Text(prefix, style = body(15.5f, D.Muted)); Spacer(Modifier.width(8.dp)) }
             Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
                 if (v.isEmpty()) Text(placeholder, style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
-                BasicTextField(v, { v = format(it) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold), keyboardOptions = keyboard,
+                BasicTextField(field, { field = reformat(it, format) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold), keyboardOptions = keyboard,
                     modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp).focusRequester(focus).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier))
             }
         }
@@ -980,7 +1001,7 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
             Spacer(Modifier.weight(1f))
             if (count != null) Text(count(v), style = body(12f, if (countWarn?.invoke(v) == true) D.Warn else D.Muted), modifier = Modifier.padding(end = 10.dp))
             if (valid != null && valid(v)) Icon(Icons.Outlined.Check, null, tint = D.Live, modifier = Modifier.padding(horizontal = 6.dp).size(18.dp))
-            SendButton(sendLabel ?: dt("ui_send", "Send"), v.isNotBlank()) { onSend(v) }
+            SendButton(sendLabel ?: dt("ui_send", "Send"), v.isNotBlank() || sendReady) { onSend(v) }
         }
     }
 }
@@ -1084,7 +1105,7 @@ private fun GuestDock(error: String, limit: Int, onSend: (String) -> Unit, onSig
 
 /** The Google sign-in, in the conversation. */
 @Composable
-private fun GoogleDock(busy: Boolean, error: String, onGoogle: () -> Unit) {
+private fun GoogleDock(busy: Boolean, error: String, onGoogle: () -> Unit, onTestContact: (() -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(D.Raise).border(1.dp, D.Line2, RoundedCornerShape(14.dp))
@@ -1095,6 +1116,8 @@ private fun GoogleDock(busy: Boolean, error: String, onGoogle: () -> Unit) {
             Spacer(Modifier.width(10.dp))
             Text(if (busy) dt("wait_signing", "Signing You In…") else dt("ui_continue_google", "Continue with Google"), style = body(15f, D.Ink, FontWeight.Medium))
         }
+        // Debug builds only (the web's dev Test visitor): the sign-in screen's test contact, continuing this same conversation as a Google sign-in does.
+        if (onTestContact != null) Quiet("Test Contact", onTestContact)
         ErrorLine(error)
     }
 }
@@ -1141,11 +1164,28 @@ internal enum class ChipLayout { Single, Row, Stack, Flow }
  * The one rule for a group of buttons (owner, 2026-11-15): a pair or a trio sit side by side in one row, equal width, equal height, the main one filled and the others
  * outlined; a long trio stacks as equal-width full rows, never ragged; four or more (a list of countries) flow and wrap. A single button keeps its own width.
  */
-internal fun chipLayout(labels: List<String>): ChipLayout = when {
+internal fun chipLayout(labels: List<String>, availableDp: Float = 324f): ChipLayout = when {
     labels.size <= 1 -> ChipLayout.Single
-    labels.size == 2 -> ChipLayout.Row
-    labels.size == 3 -> if (labels.any { it.length > 22 }) ChipLayout.Stack else ChipLayout.Row
+    // A pair or a trio sits in a row only when every label fits in at most two lines inside its share of the width; otherwise the group stacks. No label is ever cut off.
+    labels.size <= 3 -> if (labels.all { chipLines(it, labels.size, availableDp) <= 2 }) ChipLayout.Row else ChipLayout.Stack
     else -> ChipLayout.Flow
+}
+
+/** About how wide a semibold 14 sp character is in dp (generous, so the estimate stacks a little early rather than clip). */
+internal const val CHIP_CHAR_DP = 8.2f
+
+/** The lines a label needs in one of [count] equal buttons across [availableDp] (a greedy wrap by words, the padding and the gaps taken off). */
+internal fun chipLines(label: String, count: Int, availableDp: Float): Int {
+    val room = (availableDp - (count - 1) * CHIP_GAP) / count - 28f          // 14 dp of padding each side
+    val perLine = (room / CHIP_CHAR_DP).toInt().coerceAtLeast(1)
+    var lines = 1; var used = 0
+    for (word in label.trim().split(Regex("\\s+"))) {
+        var w = word.length
+        if (used == 0) { used = minOf(w, perLine); w -= used; while (w > 0) { lines++; used = minOf(w, perLine); w -= used } }
+        else if (used + 1 + w <= perLine) used += 1 + w
+        else { lines++; used = 0; used = minOf(w, perLine); w -= used; while (w > 0) { lines++; used = minOf(w, perLine); w -= used } }
+    }
+    return lines
 }
 
 @Composable
@@ -1154,7 +1194,8 @@ private fun Chips(list: List<Triple<String, Boolean, () -> Unit>>, topGap: andro
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ChipGroup(list: List<ChipSpec>, topGap: androidx.compose.ui.unit.Dp = 0.dp) {
+private fun ChipGroup(list: List<ChipSpec>, topGap: androidx.compose.ui.unit.Dp = 0.dp) = androidx.compose.foundation.layout.BoxWithConstraints {
+    val width = maxWidth.value
     @Composable
     fun One(c: ChipSpec, modifier: Modifier) {
         Column(
@@ -1162,11 +1203,11 @@ private fun ChipGroup(list: List<ChipSpec>, topGap: androidx.compose.ui.unit.Dp 
                 .border(1.5.dp, if (c.main) D.Gold else D.Line2, RoundedCornerShape(22.dp)).clickable(onClick = c.go).padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
         ) {
-            Text(c.label, style = body(14f, if (c.main) D.OnGold else D.Ink, FontWeight.SemiBold), textAlign = TextAlign.Center, maxLines = 2)
+            Text(c.label, style = body(14f, if (c.main) D.OnGold else D.Ink, FontWeight.SemiBold), textAlign = TextAlign.Center)
             if (c.sub.isNotBlank()) Text(c.sub, style = body(12f, (if (c.main) D.OnGold else D.Muted)), textAlign = TextAlign.Center, maxLines = 1)
         }
     }
-    when (chipLayout(list.map { it.label })) {
+    when (chipLayout(list.map { it.label }, width)) {
         ChipLayout.Single -> Box(Modifier.padding(top = topGap)) { list.forEach { One(it, Modifier) } }
         ChipLayout.Row -> Row(Modifier.padding(top = topGap).fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
             list.forEach { One(it, Modifier.weight(1f).fillMaxHeight()) }
@@ -1225,14 +1266,7 @@ private fun PhoneDock(nri: Boolean, dial: String?, required: Boolean, error: Str
             initial = if (nri && dial != null) "$dial " else "",
             valid = { problem(it).isEmpty() },
             // Shown as it will be dialled: five and five, a leading 91 or 0 dropped.
-            format = { raw ->
-                if (nri || raw.trimStart().startsWith("+")) raw else {
-                    var d = raw.filter { it.isDigit() }
-                    if (d.length > 10 && d.startsWith("91")) d = d.drop(2)
-                    d = d.trimStart('0').take(10)
-                    if (d.length > 5) d.take(5) + " " + d.drop(5) else d
-                }
-            },
+            format = { raw -> formatPhoneInput(raw, nri) },
             onSend = onSend,
         )
         ErrorLine(error)
@@ -1494,13 +1528,18 @@ internal fun DeskUi.needsFullDesk(): Boolean = acct || dock is Dock.SignIn || do
 @Composable
 internal fun DeskThread(
     vm: DeskViewModel, ui: DeskUi, draft: TextFieldValue, onDraft: (TextFieldValue) -> Unit, compose: FocusRequester, attach: (() -> Unit)?,
-    signingIn: Boolean, google: () -> Unit, acctScan: () -> Unit, acctPick: () -> Unit, fullDesk: (() -> Unit)?, modifier: Modifier = Modifier,
+    signingIn: Boolean, google: () -> Unit, acctScan: () -> Unit, acctPick: () -> Unit, fullDesk: (() -> Unit)?, modifier: Modifier = Modifier, testContact: (() -> Unit)? = null,
 ) {
     androidx.compose.runtime.CompositionLocalProvider(LocalDeskBook provides ui.labels) {
-    Column(modifier) {
-        Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))
+    // The dock never takes more than 60% of the room the desk has (the keyboard included): a tall dock scrolls inside itself, so its box and Send stay in reach above the keyboard.
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+    val dockMax = maxHeight * 0.6f
+    Column(Modifier.fillMaxSize()) {
+        Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f), onPick = vm::pickCard)
         if (fullDesk == null && ui.acct && ui.acctNote.isNotBlank()) AcctNote(ui.acctNote)
-        Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {
+        // The tick list keeps its question, its button and its links in reach: only the rows scroll (inside OptionsDock), so this dock does not scroll as a whole.
+        val tickList = (ui.dock as? Dock.Options)?.writing == false
+        Box(Modifier.heightIn(max = dockMax).then(if (tickList) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {
             if (fullDesk != null && ui.needsFullDesk()) {
                 Column(Modifier.fillMaxWidth()) {
                     Chips(listOf(Triple("Continue In The Full Desk", true, fullDesk)))
@@ -1512,6 +1551,10 @@ internal fun DeskThread(
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
                 is Dock.Advocate -> AdvocateWaiting(d.state, { vm.act("advocate_open") })
                 is Dock.Actions -> Column { ChipGroup(d.list.map { a -> ChipSpec(a.label, a.main, a.sub) { vm.act(a.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
+                is Dock.Options -> OptionsDock(d, ui.error, vm::togglePick, vm::sendPicks, vm::writeOwn, vm::backToChoices, vm::sendNow, vm::submitGather)
+                is Dock.Cards -> CardsDock(ui.error, vm::cardText, vm::cardsNotNow)
+                is Dock.Route -> RouteDock(d.route, ui.error, { vm.act("route_ahc") }, vm::submitQuestion)
+                Dock.Matter -> MatterDock(ui.error, vm::matterGo, vm::matterSkip)
                 is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
                 Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
                 Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired || (ui.terms.phoneVerify.required && !ui.terms.phoneVerify.verified), ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
@@ -1520,7 +1563,7 @@ internal fun DeskThread(
                 is Dock.Code -> CodeDock(d.info, ui.error, vm::submitCode, vm::codeAgain, vm::codeSms, vm::changeNumber)
                 Dock.Guest -> GuestDock(ui.error, ui.guestChars, vm::submitGuest, vm::guestSignIn)
                 Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
-                Dock.SignIn -> GoogleDock(signingIn, ui.error, google)
+                Dock.SignIn -> GoogleDock(signingIn, ui.error, google, testContact)
                 is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, acctScan, acctPick, vm::acctFields, vm::acctCode, vm::acctSubmit)
                 is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
             }
@@ -1530,6 +1573,7 @@ internal fun DeskThread(
             val foot = if (ui.counsel && ui.terms.counselFoot.isNotBlank()) ui.terms.counselFoot else ui.terms.accountFoot
             if (foot.isNotBlank()) Text(foot, style = body(12f, D.Muted), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp))
         } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true, direct = ui.footerDirect, fee = ui.directFee, hidden = ui.footerUnread)
+    }
     }
     }
 }
@@ -1761,6 +1805,143 @@ internal fun SuggestedTopics(onTopic: (String) -> Unit) {
                     Text(t.covers, style = body(12.5f, D.Muted))
                 }
             }
+        }
+    }
+}
+
+/**
+ * A typed change, formatted: when the formatter changes the text (it inserts a space, drops a leading 91), the cursor goes to the end, which is where a number being typed is;
+ * when it leaves the text as typed, the cursor stays where the keyboard put it. Plain Kotlin, so typing digit by digit can be tested off-device.
+ */
+internal fun reformat(typed: TextFieldValue, format: (String) -> String): TextFieldValue {
+    val f = format(typed.text)
+    return if (f == typed.text) typed else TextFieldValue(f, TextRange(f.length))
+}
+
+/** The desk's debug-only "Test Contact": a debug build with the test contact configured, never a release build. */
+internal fun deskTestContactOn(debug: Boolean, email: String, password: String): Boolean = debug && email.isNotBlank() && password.isNotBlank()
+
+/** The consultation-first choice (reception.php dockChoice): one card each, the consultation first and filled, the written enquiry outlined. Drawn in the conversation. */
+@Composable
+private fun CardsList(block: ChoiceBlock, onPick: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        block.cards.forEach { c ->
+            val main = c.key == "consultation"
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, if (main) D.Gold else D.Line2, RoundedCornerShape(12.dp))
+                    .background(if (main) D.Raise else Color.Transparent).padding(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.title, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                    Text(c.price, style = body(15f, D.Ink, FontWeight.SemiBold))
+                }
+                if (c.intro.isNotBlank()) Text(c.intro, style = body(12.5f, D.Muted), modifier = Modifier.padding(top = 4.dp))
+                if (c.includes.isNotBlank()) Text(c.includes, style = body(13f, D.Ink.copy(alpha = 0.85f)), modifier = Modifier.padding(top = 6.dp))
+                if (c.timing.isNotBlank()) Text(c.timing, style = body(12.5f, D.Muted), modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).background(if (main) D.Gold else Color.Transparent)
+                        .border(1.5.dp, if (main) D.Gold else D.Line2, RoundedCornerShape(22.dp)).clickable { onPick(c.key) }.padding(horizontal = 14.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(c.button, style = body(14f, if (main) D.OnGold else D.Ink, FontWeight.SemiBold), textAlign = TextAlign.Center) }
+            }
+        }
+    }
+}
+
+/** Under the cards: a box for a question (a choice typed in words picks the card) and a quiet Not Now. Short, so it always stays above the keyboard. */
+@Composable
+private fun CardsDock(error: String, onText: (String) -> Unit, onNotNow: () -> Unit) {
+    Column {
+        Compose(dt("ph_ask_question", CARD_ASK_PLACEHOLDER_EN), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), description = dt("sr_answer", "Your answer"), onSend = onText)
+        ErrorLine(error)
+        Quiet(dt("ui_not_now", "Not Now"), onNotNow)
+    }
+}
+
+/** After the consultation is chosen: one optional line about the matter, and a quiet Skip (reception.php insistMatter). */
+@Composable
+private fun MatterDock(error: String, onGo: (String) -> Unit, onSkip: () -> Unit) {
+    Column {
+        Compose(dt("ph_answer", "Your answer…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), description = dt("sr_answer", "Your answer"), onSend = onGo)
+        ErrorLine(error)
+        Quiet(dt("ui_skip", "Skip"), onSkip)
+    }
+}
+
+/** The Agreement Health Check is on offer: its button above the message box, which stays open for questions about the service (reception.php routeBar). */
+@Composable
+private fun RouteDock(route: RouteInfo, error: String, onOpen: () -> Unit, onSend: (String) -> Unit) {
+    Column {
+        ChipGroup(listOf(ChipSpec(route.button.ifBlank { dt("ui_open_ahc", "Open Agreement Health Check") }, true, "", onOpen)), topGap = 0.dp)
+        Spacer(Modifier.height(8.dp))
+        Compose(dt("ph_ahc_ask", "Ask about the Agreement Health Check…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), description = dt("sr_answer", "Your answer"), onSend = onSend)
+        ErrorLine(error)
+    }
+}
+
+/**
+ * A question with kinds of help to tick (F-029, reception.php dockGather): the question is the heading, "Choose one or more.", tick rows with "I'm not sure" last,
+ * one full-width button that reads "Choose One Or More" until a tick and then "Send N Choices", and the quiet links Write My Own Instead and Skip The Questions.
+ * Write My Own Instead opens the ordinary box for the same question with the ticks kept. Only the rows scroll; the question, the button and the links stay in reach.
+ */
+@Composable
+private fun OptionsDock(
+    d: Dock.Options, error: String, onToggle: (Int) -> Unit, onSend: () -> Unit, onWrite: () -> Unit, onBack: () -> Unit, onSkip: () -> Unit, onText: (String) -> Unit,
+) {
+    val book = LocalDeskBook.current
+    if (d.writing) {
+        Column {
+            if (d.picks.isNotEmpty()) Text(
+                book.fragment("opt_with_choices", mapOf("list" to d.picks.sorted().mapNotNull { d.options.getOrNull(it) }.joinToString("; "))) ?: OPT_WITH_CHOICES_EN.replace("{list}", d.picks.sorted().mapNotNull { d.options.getOrNull(it) }.joinToString("; ")),
+                style = body(12.5f, D.Muted), modifier = Modifier.padding(bottom = 6.dp),
+            )
+            Compose(dt("ph_answer", "Your answer…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), description = dt("sr_answer", "Your answer"), sendReady = d.picks.isNotEmpty(), onSend = onText)
+            ErrorLine(error)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Quiet(dt("ui_back_choices", "Back To The Choices"), onBack)
+                Text("·", style = body(13f, D.Muted), modifier = Modifier.padding(horizontal = 4.dp))
+                Quiet(dt("ui_skip_questions", GATHER_SEND_NOW), onSkip)
+            }
+        }
+        return
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Text(d.question, style = body(15f, D.Ink, FontWeight.SemiBold))
+        Text(dt("opt_choose", OPT_CHOOSE_EN), style = body(12.5f, D.Muted), modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+        val scroll = rememberScrollState()
+        Box(Modifier.weight(1f, fill = false)) {
+            Column(Modifier.verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                d.options.forEachIndexed { i, o ->
+                    val on = i in d.picks
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(1.dp, if (on) D.Gold else D.Line2, RoundedCornerShape(8.dp))
+                            .toggleable(value = on, role = androidx.compose.ui.semantics.Role.Checkbox, onValueChange = { onToggle(i) }).padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)).background(if (on) D.Gold else Color.Transparent).border(1.5.dp, if (on) D.Gold else D.Line2, RoundedCornerShape(4.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) { if (on) Icon(Icons.Outlined.Check, null, tint = D.OnGold, modifier = Modifier.size(14.dp)) }
+                        Spacer(Modifier.width(12.dp))
+                        Text(o, style = body(14f, D.Ink))
+                    }
+                }
+            }
+            // The fade at the foot shows only while more rows follow.
+            if (scroll.canScrollForward) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(24.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, D.Page))))
+        }
+        Spacer(Modifier.height(10.dp))
+        val ready = d.picks.isNotEmpty()
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).background(if (ready) D.Gold else D.Line2).clickable(enabled = ready, onClick = onSend).padding(horizontal = 14.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text(sendChoicesLabel(d.picks.size, book), style = body(14f, if (ready) D.OnGold else D.Muted, FontWeight.SemiBold), textAlign = TextAlign.Center) }
+        ErrorLine(error)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Quiet(dt("ui_write_own", "Write My Own Instead"), onWrite)
+            Text("·", style = body(13f, D.Muted), modifier = Modifier.padding(horizontal = 4.dp))
+            Quiet(dt("ui_skip_questions", GATHER_SEND_NOW), onSkip)
         }
     }
 }

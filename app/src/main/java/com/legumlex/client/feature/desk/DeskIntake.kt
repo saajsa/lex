@@ -148,15 +148,54 @@ const val GATHER_MAX = 3
 const val GATHER_SEND_NOW = "Skip The Questions"
 
 /** The desk's next question (desk/gather): "" means nothing more, and [done] says it has no more to ask. */
-data class GatherResult(val question: String, val topic: String, val done: Boolean, val ran: Boolean = false, val tongue: DeskTongue = DeskTongue(), val directOffer: DirectOfferInfo? = null, val directOpen: DirectOpen? = null) {
+data class GatherResult(
+    val question: String, val topic: String, val done: Boolean, val ran: Boolean = false, val tongue: DeskTongue = DeskTongue(), val directOffer: DirectOfferInfo? = null, val directOpen: DirectOpen? = null,
+    /** mode=focus: what Lex understood (said once, with the question), the kinds of help to tick while the goal is unclear ("not sure" last), and the danger pause. */
+    val reflect: String = "", val options: List<String> = emptyList(), val optionsHint: String = "", val emergency: String = "",
+    /** After the last question, read the whole again only when this is true (an older server says nothing: as before). */
+    val reread: Boolean = true,
+) {
     val more: Boolean get() = !done && question.isNotBlank()
+    val hasOptions: Boolean get() = options.isNotEmpty()
 }
 
 /** The answer of desk/gather; null when it could not be asked (a failure never blocks sending). */
 fun parseGather(d: Map<String, Any?>?): GatherResult? {
     if (d == null || d["success"] == false) return null
-    return GatherResult((d["question"] as? String).orEmpty().trim(), (d["topic"] as? String).orEmpty(), d["done"] == true, d["ran"] == true, parseTongue(d), parseDirectOffer(d["direct_offer"]), parseDirectOpen(d["direct_open"]))
+    return GatherResult(
+        (d["question"] as? String).orEmpty().trim(), (d["topic"] as? String).orEmpty(), d["done"] == true, d["ran"] == true, parseTongue(d), parseDirectOffer(d["direct_offer"]), parseDirectOpen(d["direct_open"]),
+        reflect = (d["reflect"] as? String).orEmpty().trim(), options = (d["options"] as? List<*>).orEmpty().mapNotNull { (it as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } },
+        optionsHint = (d["options_hint"] as? String).orEmpty().trim(), emergency = htmlToMarkup((d["emergency"] as? String).orEmpty().trim()), reread = d["reread"] != false,
+    )
 }
+
+/**
+ * The ticks, as the web keeps them (dockGather): "I'm not sure" (always the last) stands alone; ticking any other kind of help clears it; ticking it clears the rest.
+ * Plain Kotlin, so the rule is tested off-device.
+ */
+fun toggleOption(picks: Set<Int>, index: Int, count: Int): Set<Int> {
+    val unsure = count - 1
+    val on = index !in picks
+    return if (!on) picks - index else if (index == unsure) setOf(index) else (picks - unsure) + index
+}
+
+/** The answer sent for the ticks and what was written beside them: the ticked kinds in order, then the visitor's own words. */
+fun optionsAnswer(options: List<String>, picks: Set<Int>, written: String): String {
+    val picked = picks.sorted().mapNotNull { options.getOrNull(it) }
+    val own = written.trim()
+    return if (picked.isEmpty()) own else picked.joinToString("; ") + (if (own.isNotEmpty()) ". $own" else "")
+}
+
+/** The button of the tick list: "Choose One Or More" until something is ticked, then "Send 1 Choice" or "Send N Choices". */
+fun sendChoicesLabel(n: Int, book: LineBook): String = when (n) {
+    0 -> book.fragment("ui_choose_some") ?: "Choose One Or More"
+    1 -> book.fragment("ui_send_choice") ?: "Send 1 Choice"
+    else -> book.fragment("ui_send_choices", mapOf("n" to n.toString())) ?: "Send $n Choices"
+}
+
+const val OPT_CHOOSE_EN = "Choose one or more."
+const val OPT_WITH_CHOICES_EN = "With your choices: {list}"
+const val SAFE_CARRY_ON_EN = "I'm Safe Now, Carry On"
 
 /** The separate hearing-or-deadline step is skipped when Lex's gathering ran (any call said ran), and kept when it failed, timed out, or never ran. */
 fun skipDeadlineStep(gatherRan: Boolean): Boolean = gatherRan
@@ -427,7 +466,10 @@ data class PhoneCodeUi(val to: String, val resendIn: Int, val smsIn: Int, val ca
 // ---- Lex's closing turn (REQ-023) ----
 
 /** One of the close's two cards (`choice.cards`): which product (key consultation|written), and the button's own words. */
-data class CloseCard(val key: String, val button: String, val title: String, val price: String, val secondary: Boolean)
+data class CloseCard(
+    val key: String, val button: String, val title: String, val price: String, val secondary: Boolean,
+    val includes: String = "", val timing: String = "", val intro: String = "",
+)
 
 /**
  * What Lex says before the enquiry is sent, and where it came from. Beside `say`: `declined` (no ask), `booked` (the full consultation was chosen: one line,
@@ -436,6 +478,8 @@ data class CloseCard(val key: String, val button: String, val title: String, val
 data class CloseTurn(
     val say: String, val source: String, val feeDisplay: String, val feePaise: Int, val declined: Boolean = false,
     val booked: Boolean = false, val cards: List<CloseCard> = emptyList(), val refused: String = "",
+    /** With chose=consultation and a note: the answer to a question in the note (who sees it, the fee, the time), what is left as their note, and whether they said it is urgent. */
+    val bookingAnswer: String = "", val noteRest: String = "", val urgent: Boolean = false,
 )
 
 /** Null when the answer says nothing to show (the turn is skipped and the desk goes on as before). */
@@ -446,16 +490,11 @@ fun parseCloseTurn(d: Map<String, Any?>?): CloseTurn? {
     if (d["success"] == false && refused.isEmpty()) return null
     val say = (d["say"] as? String)?.trim().orEmpty()
     if (say.isEmpty()) return null
-    val cards = ((d["choice"] as? Map<*, *>)?.get("cards") as? List<*>).orEmpty().mapNotNull { c ->
-        val m = c as? Map<*, *> ?: return@mapNotNull null
-        val key = (m["key"] as? String).orEmpty().trim()
-        val button = (m["button"] as? String).orEmpty().trim()
-        if (key !in setOf("consultation", "written") || button.isEmpty()) null
-        else CloseCard(key, button, (m["title"] as? String).orEmpty().trim(), (m["price"] as? String).orEmpty().trim(), m["secondary"] == true)
-    }
+    val cards = parseChoiceBlock(d["choice"])?.cards.orEmpty()
     return CloseTurn(
         htmlToMarkup(say), (d["source"] as? String)?.trim().orEmpty(), (d["fee_display"] as? String)?.trim().orEmpty(), (d["fee_paise"] as? Number)?.toInt() ?: 0,
         declined = d["declined"] == true, booked = d["booked"] == true, cards = cards, refused = refused,
+        bookingAnswer = htmlToMarkup((d["booking_answer"] as? String).orEmpty().trim()), noteRest = (d["note_rest"] as? String).orEmpty().trim(), urgent = d["urgent"] == true,
     )
 }
 
@@ -480,14 +519,16 @@ const val UNREAD_EN = "I can't take your enquiry right now. What you wrote is ke
 
 // The line under the box (the web's reception.php rcp-disclaim; the server does not serve it, so these are the web's own words).
 /** The bold lead: the consultation's fee once the full consultation is chosen (R9, R9a), else the written enquiry's. */
-fun disclaimerLead(t: DeskTerms, direct: Boolean, fee: String): String =
-    if (direct) (if (fee.isNotBlank()) "A full consultation costs $fee, paid when you book it." else "A full consultation is paid when you book it.")
-    else if (t.priced) "Submitting an enquiry costs ${t.displayPrice}, paid once it is written. Nothing is charged before then." else "Submitting an enquiry is free."
+fun disclaimerLead(t: DeskTerms, direct: Boolean, fee: String, book: LineBook = LineBook.English): String =
+    // The words are the server's (desk_lines foot_*); the constants are the offline fallback.
+    if (direct) (if (fee.isNotBlank()) book.line("foot_direct", mapOf("fee2" to fee)) ?: "A full consultation costs $fee, paid when you book it." else "A full consultation is paid when you book it.")
+    else if (t.priced) book.line("foot_fee_paid", mapOf("fee" to t.displayPrice)) ?: "Submitting an enquiry costs ${t.displayPrice}, paid once it is written. Nothing is charged before then."
+    else book.line("foot_fee_free") ?: "Submitting an enquiry is free."
 
 /** The rest: how the consultation is arranged, or the written enquiry's reply target (R6: a target once an advocate accepts it, never a promise). */
-fun disclaimerTail(direct: Boolean): String =
-    if (direct) " The advocate who takes it, or their office, will contact you to fix a time."
-    else " The advocates read every enquiry, and we aim to reply within 30 minutes once an advocate accepts it."
+fun disclaimerTail(direct: Boolean, book: LineBook = LineBook.English): String =
+    if (direct) " " + (book.line("foot_direct_contact") ?: "The advocate who takes it, or their office, will contact you to fix a time.")
+    else " " + (book.line("foot_readers_advocate", mapOf("reply" to (book.fragment("foot_reply") ?: "aim to reply within 30 minutes once an advocate accepts it"))) ?: "The advocates read every enquiry, and we aim to reply within 30 minutes once an advocate accepts it.")
 
 // ---- Suggested Topics (the web's reception.php TOPICS, in the same order; the page holds them in its script, so the server serves no list) ----
 
@@ -522,3 +563,63 @@ fun welcomeFacts(c: DeskContext, day: (String) -> String, label: (String, String
     if (c.openCases > 0) add(label("lab_open", "Open matters") to (matters(c.openCases) ?: "${c.openCases} ${if (c.openCases == 1) "matter" else "matters"}"))
     c.nextHearingDate?.let { d -> add(label("lab_hearing", "Next hearing") to day(d) + (c.nextHearingTitle?.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")) }
 }
+
+/** The number as it is shown while typed: five and five, a leading 91 or 0 dropped (an overseas number or a "+" is left as typed). */
+fun formatPhoneInput(raw: String, nri: Boolean): String =
+    if (nri || raw.trimStart().startsWith("+")) raw else {
+        var d = raw.filter { it.isDigit() }
+        if (d.length > 10 && d.startsWith("91")) d = d.drop(2)
+        d = d.trimStart('0').take(10)
+        if (d.length > 5) d.take(5) + " " + d.drop(5) else d
+    }
+
+// ---- The non-matter branch and the cards (REQ-029 slice 2; reception.php matterAsk, insistOffer, insistMatter, dockChoice, cardAsk) ----
+
+const val PERSON_NEED_MATTER_EN = "I can make a counsel available, but I still really need to know your matter. Please tell me what happened, in your own words."
+const val ASK_MATTER_SHORT_EN = "Please tell me what happened, in your own words."
+const val ASK_MATTER_AGAIN_EN = "Whenever you are ready, tell me what happened and I will take it from there."
+const val ASK_MATTER_OPTIONAL_EN = "If you like, add a line about your matter for the advocate, and the time that suits you for the call."
+const val INSIST_DECLINED_EN = "That is fine. Nothing has been booked or charged, and you can come back any time."
+const val CARD_ASK_PLACEHOLDER_EN = "Ask a question…"
+
+/** The ask for the matter is never the same words twice in a row: the owner's full line, a short one, then a patient one (matterAsk). */
+fun matterAskKey(asks: Int): Pair<String, String> = when (asks) {
+    0 -> "person_need_matter" to PERSON_NEED_MATTER_EN
+    1 -> "ask_matter_short" to ASK_MATTER_SHORT_EN
+    else -> "ask_matter_again" to ASK_MATTER_AGAIN_EN
+}
+
+/** What a typed line under the cards means before anything is read (cardAsk): a short choice in words picks the card; anything else is a question or a story. */
+fun cardPickFromText(text: String): String {
+    val t = text.trim()
+    val short = t.split(Regex("\\s+")).size <= 12 && '?' !in t
+    if (!short) return ""
+    return when {
+        Regex("\\b(?:written|just (?:an |the )?enquiry|only (?:an |the )?enquiry)\\b", RegexOption.IGNORE_CASE).containsMatchIn(t) -> "written"
+        Regex("^\\s*(?:yes|ok(?:ay)?|sure|book|please book|i(?:'ll| will) book)\\b|\\b(?:book it|full consultation|the consultation)\\b", RegexOption.IGNORE_CASE).containsMatchIn(t) -> "consultation"
+        else -> ""
+    }
+}
+
+/** What the reading says to do with a message that is not an enquiry (verdict): the cards, the answer, or the ask for the matter. */
+enum class NonMatterTurn { Insist, Answer, AskMatter, None }
+
+fun nonMatterTurn(r: DeskReading): NonMatterTurn {
+    val not = r.legalInquiry == false || r.messageKind == "person_request" || r.nonmatter
+    if (!not) return NonMatterTurn.None
+    if (r.insist != null) return NonMatterTurn.Insist
+    val ask = r.messageKind == "person_request" || r.needMatter || r.reply.isBlank()
+    return if (ask) NonMatterTurn.AskMatter else NonMatterTurn.Answer
+}
+
+// ---- The send stepper (F-018, F-032): three steps, and the held state for a booking waiting for its fee ----
+
+val STAGE_RUNNING_KEYS = listOf("stage_1", "stage_2", "stage_4")
+val STAGE_DONE_KEYS = listOf("stage_done_1", "stage_done_2", "stage_done_4")
+val STAGE_AT_MS = listOf(0L, 900L, 2200L)
+const val STAGE_HELD_TITLE_EN = "Booked. Waiting for the fee."
+const val STAGE_HELD_1_EN = "Your details are saved"
+const val STAGE_HELD_2_EN = "Pay {fee} to send it to our counsel"
+
+/** A booked consultation whose fee is unpaid: the server holds it (data.intake_state, or direct.state, awaiting_payment). Nothing has reached the advocates. */
+fun isHeldBooking(intakeState: String?, direct: DirectBooking?): Boolean = intakeState == "awaiting_payment" || direct?.state == "awaiting_payment"

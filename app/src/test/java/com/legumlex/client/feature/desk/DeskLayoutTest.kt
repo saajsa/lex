@@ -20,7 +20,7 @@ class DeskLayoutTest {
         val me = s.substringAfter("private fun MeLine(").substringBefore("private fun NoteLine(")
         assertTrue(me.contains("Modifier.padding(start = 48.dp)") && !me.contains("padding(end"))
         // Their docks and the opening box use it too, so the buttons and the composer line up with the text.
-        assertTrue(s.contains("Box(Modifier.padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {\n            if (fullDesk != null"))
+        assertTrue(s.contains("Box(Modifier.heightIn(max = dockMax).then(if (tickList) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(horizontal = DESK_SIDE_MARGIN.dp, vertical = 8.dp)) {\n            if (fullDesk != null"))
         assertTrue(s.substringAfter("internal fun DeskOpening(").take(300).contains("padding(horizontal = DESK_SIDE_MARGIN.dp)"))
     }
 
@@ -108,10 +108,10 @@ class DeskLayoutTest {
         // The viewport's height changes when a dock appears or grows (the waiting card, its hand-over, the keyboard): scroll to the very end then.
         assertTrue(conv.contains("snapshotFlow { list.layoutInfo.viewportSize.height }") && conv.contains("list.animateScrollBy(1_000_000f)"))
         // The first emission only settles; the existing scroll on a new line or the typing mark is unchanged.
-        assertTrue(conv.contains("LaunchedEffect(ui.lines.size, ui.typing)"))
+        assertTrue(conv.contains("LaunchedEffect(ui.lines.size, ui.typing, cards != null)"))
         // The dock stays a sibling below the conversation (never drawn over it) for every kind of dock.
         val thread = s.substringAfter("internal fun DeskThread(").substringBefore("internal object DeskHandover")
         assertTrue(thread.indexOf("Conversation(ui, vm::change") < thread.indexOf("when (val d = ui.dock)"))
-        assertTrue(thread.contains("Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))"))
+        assertTrue(thread.contains("Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f), onPick = vm::pickCard)"))
     }
 }

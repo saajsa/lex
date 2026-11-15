@@ -66,6 +66,8 @@ sealed interface Para {
         val active: Int, val done: Boolean, val title: String? = null, val steps: List<String> = emptyList(),
         /** The completed forms (stage_done_title, stage_done_1..4); empty from an older server, which keeps today's text. */
         val doneTitle: String? = null, val doneSteps: List<String> = emptyList(),
+        /** The held state of a booking waiting for its fee: the second step is the fee to pay, drawn as an empty ring, not running. */
+        val held: Boolean = false,
     ) : Para
     data object Seal : Para
     /** "Message sent to an advocate" with its small animation, inside Lex's message; the caption and the time are the server's words (REQ-017 017.30). */
@@ -106,6 +108,14 @@ sealed interface Dock {
     data object Phone : Dock
     /** Not signed in: a short message (two, of 140 characters). */
     data object Guest : Dock
+    /** The consultation-first choice (an advocate was asked for, or the close's choice): the cards, a box for a question, and Not Now. source: insist | close. */
+    data class Cards(val block: ChoiceBlock, val source: String) : Dock
+    /** After the consultation is chosen: one optional line about the matter, and Skip. */
+    data object Matter : Dock
+    /** One of Lex's questions with kinds of help to tick (the goal is unclear): the question, the options, which are ticked, and whether the visitor is writing their own beside them. */
+    data class Options(val question: String, val options: List<String>, val picks: Set<Int>, val writing: Boolean) : Dock
+    /** The Agreement Health Check is on offer (REQ-026): its button above the message box, which stays open for questions about the service. */
+    data class Route(val route: RouteInfo) : Dock
     /** The WhatsApp code of the enquiry's number step (REQ-018): a six-digit box, Confirm, Send Code Again, Send By SMS Instead, Change Number. */
     data class Code(val info: PhoneCodeUi) : Dock
     /** The Google sign-in, in the conversation. */
@@ -137,6 +147,8 @@ data class DeskUi(
     val footerDirect: Boolean = false,
     val directFee: String = "",
     val footerUnread: Boolean = false,
+    /** Counts up when the first box's message has gone: the box empties (a failed or refused send does not count). */
+    val draftClearTick: Int = 0,
     /** What the question composer should hold when it comes back (a "Change"). */
     val prefill: String = "",
     val prefillTick: Int = 0,
@@ -166,6 +178,10 @@ sealed interface DeskEvent {
     data object Home : DeskEvent
     /** Sign In / My Matters: the client sign-in. */
     data object SignIn : DeskEvent
+    /** The Agreement Health Check route's button: the app's own Agreement Check. */
+    data object OpenAgreementCheck : DeskEvent
+    /** The portal route's button (signed agreements): My Agreements. */
+    data object OpenAgreements : DeskEvent
 }
 
 class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle) : AndroidViewModel(app) {
@@ -338,10 +354,10 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private var convLang = "en"
     private val books = mutableMapOf<String, LineBook>()
 
-    /** The English lines come from the server too (desk/lines?lang=en); the constants in the app are only the offline fallback. A guest (no token yet) keeps the constants. */
+    /** The English lines come from the server too (desk/lines?lang=en); the constants in the app are only the offline fallback. A guest has the same from guest/desk/lines (no token). */
     init {
-        if (!guest) viewModelScope.launch {
-            val en = repo.lines("en") ?: return@launch
+        viewModelScope.launch {
+            val en = repo.lines("en", guest) ?: return@launch
             books["en"] = en
             if (book.lang == "en" && !book.active) { book = en; _ui.update { it.copy(labels = en) } }
         }
@@ -351,7 +367,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun adopt(lang: String) {
         convLang = lang
         if (lang == book.lang) return
-        book = languageSwitch(lang, books[lang]) { repo.lines(lang)?.also { books[lang] = it } }
+        book = languageSwitch(lang, books[lang]) { repo.lines(lang, guest)?.also { books[lang] = it } }
         _ui.update { it.copy(labels = book) }
         repo.lang = langField(lang).orEmpty()
     }
@@ -422,14 +438,44 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         return if (h < 12) "Good morning" else if (h < 17) "Good afternoon" else "Good evening"
     }
 
+    /** The guest conversation is read once, after sign-in (the web's askResume). */
+    private var resumed = false
+
+    /**
+     * Lex's first turn after sign-in, from desk/resume: a story goes straight on; a question is answered and the matter asked for; a service route says its line.
+     * Returns true when it has taken the turn (the conversation goes on from there); false when it could not be read, and the plain rule below decides.
+     */
+    private suspend fun resumeFromGuest(): Boolean {
+        resumed = true
+        dock(Dock.Waiting("…"))
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.resume(guestTurns, langField(convLang)) } ?: return false
+        adopt(r.lang)
+        when {
+            // They insisted on an advocate in the guest chat: the consultation first (slice 2 draws the cards); the matter is still asked for here.
+            r.insist != null -> { directTalk = guestTurns.firstOrNull { it.first == "guest" }?.second; say(Para.Text(r.insist.lead), prompt = Step.QUESTION); dock(Dock.Question); return true }
+            // A service (an agreement review, a copy, help with an agreement): Lex's line; the service's own button comes with the routes.
+            r.kind == "route" && r.route != null -> { routeOffer(r.route, fromCheck = false, prompt = Step.QUESTION); return true }
+            r.kind == "route" && r.reply.isNotBlank() -> { say(Para.Text(r.reply), prompt = Step.QUESTION); dock(Dock.Question); return true }
+            // A question or an intent: answered, and the matter is asked for. Only a story becomes the enquiry.
+            r.kind == "question" && r.reply.isNotBlank() -> { say(Para.Text(r.reply), prompt = Step.QUESTION); dock(Dock.Question); return true }
+            else -> return false
+        }
+    }
+
     private suspend fun askQuestion() {
         if (!asked(Step.QUESTION)) {
+            if (!resumed && guestTurns.any { it.first == "guest" && it.second.isNotBlank() }) {
+                // The web greets first (Welcome back, or Thank you for choosing Legum Lex), then reads the guest conversation.
+                terms.join()
+                if (_ui.value.termsLoaded) greetBack(withNotes = false)
+                if (resumeFromGuest()) return
+            }
             val story = guestStory(guestTurns)
             if (story != null) {
                 // Signed in after writing as a guest (web parity): their own words are the enquiry; Lex does not ask again.
                 text = story
                 qFiles = _ui.value.files.size
-                sayKey("q_from_guest", Q_FROM_GUEST, prompt = Step.QUESTION)
+                // No announcement here (the web removed it): the next turn simply goes on.
                 _ui.update { it.copy(opened = true) }
                 guestTurns.clear()
                 dock(Dock.Waiting("…"))
@@ -528,7 +574,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     /** Signed in (a lead or a client): the desk goes on, with the firm's terms. */
-    fun signedIn() {
+    /** The first name the sign-in gave, for the greeting when the firm has no record of them yet. */
+    private var signedFirst = ""
+
+    fun signedIn(email: String = "", name: String = "") {
+        signedFirst = name.trim().substringBefore(' ')
+        // The web's answer('signin'): the visitor's own bubble, "Signed in as <email>", before anything else is said.
+        if (email.isNotBlank()) go { me("Signed in as $email") }
         guest = false
         terms = loadTerms()
         // Asked for an account before signing in: straight to it.
@@ -570,7 +622,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (mashed(v)) { err(lbl("err_mashed", "That could not be understood. Please describe, in plain words, what has happened.")); return }
         go {
             draftText = ""
-            _ui.update { it.copy(opened = true) }
+            _ui.update { it.copy(opened = true, draftClearTick = it.draftClearTick + 1) }
             text = v
             qFiles = _ui.value.files.size
             answer(Step.QUESTION, v, _ui.value.files.map { it.name + " · " + mb(it.size) })
@@ -586,11 +638,149 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         dock(Dock.Waiting(lbl("wait_reading", "Reading what you have written…")))
         _ui.update { it.copy(typing = true) }
         val started = System.currentTimeMillis()
-        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.check(text, langField(convLang)) }
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.check(text, langField(convLang), insist = insisting(), consultWish = consultWish, routeCtx = routeOffered.takeIf { it == "ahc" }, routeLast = routeLast.takeIf { routeOffered == "ahc" }) }
         // A beat of reading even when the answer is instant.
         delay((800 - (System.currentTimeMillis() - started)).coerceAtLeast(0))
         _ui.update { it.copy(typing = false) }
         if (run == vetRun) verdict(r)
+    }
+
+    // ---- The non-matter branch and the cards (REQ-029 slice 2) ---------------------------------------------
+
+    /** Which service the desk is offering now (ahc, portal_docs or clarify), and Lex's line for it: a follow-up while it is on screen keeps the route (route_ctx, route_last). */
+    private var routeOffered = ""
+    private var routeLast = ""
+
+    /** A service route's line and its way in (the web's routeOffer / dockRoute). */
+    private suspend fun routeOffer(route: RouteInfo, fromCheck: Boolean, prompt: Step? = null) {
+        routeOffered = route.route; routeLast = route.line
+        if (route.route == "clarify") {
+            if (fromCheck) { backToQuestion(route.line, false); return }
+            say(Para.Text(route.line), prompt = prompt); releaseQuestionBubble(); resetStory(); dock(Dock.Question); return
+        }
+        if (fromCheck) { releaseQuestionBubble(); resetStory() }
+        val signedIn = !guest && !com.legumlex.client.data.auth.SessionRole.isLead
+        say(Para.Text(if (route.route == "portal_docs" && signedIn && route.lineIn.isNotBlank()) route.lineIn else route.line), prompt = prompt)
+        if (route.route == "ahc") { dock(Dock.Route(route)); return }
+        // signed agreements: My Agreements for someone in the portal (a lead has no portal, so only the line); never a link to a file.
+        val open = if (signedIn) listOf(Action("route_portal", route.buttonIn.ifBlank { "Open My Agreements" }, main = true)) else emptyList()
+        dock(Dock.Actions(open + Action("route_else", lbl("ui_ask_else", "Ask Something Else"), main = open.isEmpty())))
+    }
+
+    /** How many times the matter has been asked for in this conversation: never the same words twice in a row (matterAsk). */
+    private var matterAsks = 0
+    /** The visitor has been shown the consultation cards, or asked for an advocate: later reads say so (insist=1, consult_wish=1). */
+    private var cardsSeen = false
+    private var consultWish = false
+    private var cardsAgain = false
+    /** What they wrote when the cards came up: the booking's own request if they book. */
+    private var insistAsked = ""
+
+    private fun routeButtonLabel() = ((_ui.value.dock as? Dock.Route)?.route?.button ?: "").ifBlank { lbl("ui_open_ahc", "Open Agreement Health Check") }
+
+    private fun insisting() = "person" in said || directTalk != null || matterAsks > 0 || cardsSeen
+
+    private fun nextMatterAsk(): String { val (key, en) = matterAskKey(matterAsks); matterAsks++; return tl(key) ?: en }
+
+    /** Their message stays in the thread but is no longer "the question"; nothing it gathered carries to the next story (web resetStory). */
+    private fun releaseQuestionBubble() = _ui.update { u ->
+        val i = u.lines.indexOfLast { it.who == Who.ME && it.step == Step.QUESTION }
+        if (i < 0) u else u.copy(lines = u.lines.toMutableList().also { it[i] = it[i].copy(step = null) })
+    }
+
+    private fun resetStory() {
+        text = ""; vetted = null; qFiles = 0; read = null; reading = ""; area = ""; more = null; ask = ""
+        gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; docs = null; vetRun++
+    }
+
+    /** Lex answers, or asks for the matter, and the box opens again; the text is cleared: nothing here is the enquiry. */
+    private suspend fun backToQuestion(line: String, keepTalk: Boolean) {
+        if (keepTalk && directTalk == null) directTalk = text
+        releaseQuestionBubble(); resetStory()
+        say(Para.Text(line))
+        next()
+    }
+
+    /** Someone asking for an advocate: the full consultation first, the written enquiry as the alternative (REQ-023 R10). */
+    private suspend fun insistOffer(block: ChoiceBlock) {
+        said += "person"; cardsSeen = true; consultWish = true
+        block.cards.firstOrNull { it.key == "consultation" }?.price?.takeIf { it.isNotBlank() }?.let { offerFee = it }
+        if (directTalk == null) directTalk = text.ifBlank { null }
+        insistAsked = text
+        releaseQuestionBubble(); resetStory(); cardsAgain = false
+        if (block.lead.isNotBlank()) say(Para.Text(block.lead))
+        dock(Dock.Cards(block, "insist"))
+    }
+
+    /** A card is picked (a button, or its words typed). */
+    fun pickCard(key: String) = go { pickCardNow(key) }
+
+    private suspend fun pickCardNow(key: String) {
+        val cards = (_ui.value.dock as? Dock.Cards) ?: return
+        val card = cards.block.cards.firstOrNull { it.key == key } ?: return
+        me(card.button)
+        directAsked = true
+        if (cards.source == "close") { directBook = key == "consultation"; dock(Dock.Waiting("…")); next(); return }
+        if (key == "consultation") { directBook = true; sayKey("ask_matter_optional", ASK_MATTER_OPTIONAL_EN); dock(Dock.Matter) }
+        else { directBook = false; text = ""; vetted = null; say(Para.Text(tl("ask_matter_short") ?: ASK_MATTER_SHORT_EN)); next() }
+    }
+
+    /** The one optional line after choosing the consultation, or Skip: the booking's text is their own request, with the line after it. */
+    fun matterGo(raw: String) {
+        val v = raw.trim()
+        if (v.length < 2) { err(lbl("err_few_words", "Write a few words first.")); return }
+        go { me(v); finishInsist(v) }
+    }
+    fun matterSkip() = go { me(lbl("ui_skip", "Skip")); finishInsist("") }
+
+    private suspend fun finishInsist(extraTyped: String) {
+        val base = (guestStory(guestTurns) ?: directTalk ?: insistAsked).trim()
+        var extra = extraTyped
+        // The server answers a question in the optional line from the catalogue (who sees it, the fee, how the time is fixed), keeps the rest as their note, and says when it is urgent.
+        if (extraTyped.isNotBlank()) {
+            dock(Dock.Waiting("…"))
+            val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.close(base.ifBlank { extraTyped }, langField(convLang), chose = "consultation", person = true, note = extraTyped) }
+            if (r != null && r.booked) {
+                if (r.bookingAnswer.isNotBlank()) say(Para.Text(r.bookingAnswer))
+                extra = r.noteRest
+                if (r.urgent) sayKey("urgent_marked", "I have marked it urgent for the advocate.")
+            }
+        }
+        var t = base + (if (extra.isNotBlank()) "\n\n" + extra else "")
+        if (t.length < 20) t = (t + " (I would like to speak to an advocate.)").trim()
+        // The reading and the closing turn are not needed for a booking: it goes straight on to the details.
+        text = t; vetted = "ok"; closeDone = true; docs = true; more = null; gatherDone = true; gatherRan = true
+        dock(Dock.Waiting("…")); next()
+    }
+
+    /** Something typed under the cards (cardAsk): a choice in words picks the card; a question is answered and the cards come again once; a story leaves the cards. */
+    fun cardText(raw: String) {
+        val v = raw.trim()
+        if (v.length < 2) return
+        go {
+            val c = (_ui.value.dock as? Dock.Cards) ?: return@go
+            me(v)
+            val pick = cardPickFromText(v)
+            if (pick.isNotEmpty() && c.block.cards.any { it.key == pick }) { pickCardNow(pick); return@go }
+            dock(Dock.Waiting("…"))
+            val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.check(v, langField(convLang), insist = true, consultWish = true) }
+            when {
+                r?.insist != null -> { say(Para.Text(r.insist.lead)); if (!cardsAgain) { cardsAgain = true; dock(Dock.Cards(r.insist, c.source)) } else dock(c) }
+                r?.busy == true -> { say(Para.Text(r.unreadLine.ifBlank { UNREAD_EN })); dock(c) }
+                r != null && (r.legalInquiry == false || r.nonmatter || r.messageKind == "person_request") -> { if (r.reply.isNotBlank()) say(Para.Text(r.reply)); dock(c) }
+                r == null -> dock(c)
+                // A matter: the cards are set aside and it goes on as an enquiry; the choice is made at the close.
+                c.source == "insist" -> { text = v; qFiles = 0; directBook = false; directAsked = false; verdict(r) }
+                else -> { text = text + "\n\n" + v; closeDone = false; next() }
+            }
+        }
+    }
+
+    /** Not Now under the cards: it rests there, with the declined line and only Start A New Enquiry. */
+    fun cardsNotNow() = go {
+        me(lbl("ui_not_now", CLOSE_NOT_NOW))
+        say(Para.Text(tl("insist_declined") ?: INSIST_DECLINED_EN))
+        dock(Dock.Actions(listOf(Action("again", lbl("ui_start_new", CLOSE_START_NEW), main = true))))
     }
 
     /** One silent second reading when the server says the reading failed and a retry may work (retry_once); reset by any reading that was made. */
@@ -612,6 +802,25 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         // From the raw reading: a request for a person may come with a reading that was skipped, which is no finding but is still the visitor's words.
         if (reading?.directOffer != null && !directAsked) pendingOffer = reading.directOffer
         if (reading?.directOpen != null && !directAsked) pendingOpen = reading.directOpen
+        // A service route (REQ-026): an agreement review, a signed copy, "help with an agreement". The route stays on offer only while the visitor is still on it.
+        routeOffered = reading?.route?.route?.takeIf { it in setOf("ahc", "portal_docs", "clarify") }.orEmpty()
+        if (reading?.route != null && routeOffered.isNotEmpty()) { keep(reading); routeOffer(reading.route, fromCheck = true); return }
+        if (reading != null && (reading.wantsPerson || reading.messageKind == "person_request" || reading.needMatter || reading.insist != null)) consultWish = true
+        // An explicit wish to speak to an advocate (a route of consultation): the consultation first, the cards, whatever the reading says about an agreement.
+        if (reading?.insist != null && reading.route?.route == "consultation") { keep(reading); insistOffer(reading.insist); return }
+        // Not an enquiry (only a request for a person, a service question, account help or a greeting): never the story, an offer, a fee or a send.
+        if (reading != null) when (nonMatterTurn(reading)) {
+            NonMatterTurn.Insist -> { keep(reading); insistOffer(reading.insist!!); return }
+            NonMatterTurn.Answer -> { keep(reading); backToQuestion(reading.reply, false); return }
+            NonMatterTurn.AskMatter -> { keep(reading); said += "person"; backToQuestion(nextMatterAsk(), true); return }
+            NonMatterTurn.None -> Unit
+        }
+        if (reading?.insist != null) { keep(reading); insistOffer(reading.insist); return }
+        if (reading?.needMatter == true) {
+            said += "person"; keep(reading)
+            vetted = "clarify"; ask = tl("person_need_matter") ?: PERSON_NEED_MATTER_EN
+            next(); return
+        }
         if (reading?.wantsPerson == true && "person" !in said) {
             said += "person"
             if (reading.advocateInformed) {
@@ -731,19 +940,67 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }
         if (r?.ran == true) gatherRan = true
         r?.let { adopt(it.tongue.lang) }
-        if (r?.directOffer != null && !directAsked) pendingOffer = r.directOffer
-        if (r?.directOpen != null && !directAsked) pendingOpen = r.directOpen
-        if (r == null || !r.more) return finishGather()
+        if (r != null) lastReread = r.reread
+        // The danger pause comes first: no booking is pushed while someone may be in danger.
+        if (r != null && r.emergency.isNotBlank()) { dangerPause(r.emergency); return }
+        if (r?.directOffer != null && !directAsked && !danger) pendingOffer = r.directOffer
+        if (r?.directOpen != null && !directAsked && !danger) pendingOpen = r.directOpen
+        // Lex shows it understood, once, in its own bubble with the question (if there is one).
+        val reflect = if (r != null && r.reflect.isNotBlank() && !reflected) { reflected = true; r.reflect } else ""
+        if (r == null || !r.more) {
+            if (reflect.isNotBlank()) say(Para.Text(reflect), prompt = null, footer = r?.tongue?.lineFooter)
+            return finishGather()
+        }
         gatherPending = r.question
         gatherAsked++
-        say(Para.Text(r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)
-        dock(Dock.Gather)
+        say(Para.Text(if (reflect.isNotBlank()) reflect + "\n\n" + r.question else r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)
+        picks = emptySet()
+        if (r.hasOptions) dock(Dock.Options(r.question, r.options, picks, writing = false)) else dock(Dock.Gather)
+    }
+
+    /** Whether Lex has said what it understood in this conversation, and whether the last answer wants the whole read again. */
+    private var reflected = false
+    private var lastReread = true
+    private var danger = false
+    private var picks: Set<Int> = emptySet()
+
+    /** Immediate danger: the emergency line alone, and one button; nothing else (no papers, no offer) until they say they are safe. */
+    private suspend fun dangerPause(line: String) {
+        danger = true
+        say(Para.Text(line))
+        dock(Dock.Actions(listOf(Action("safe_now", lbl("ui_safe_carry_on", SAFE_CARRY_ON_EN), main = true))))
+    }
+
+    // ---- The tick list (F-029): Choose one or more, Send N Choices, Write My Own Instead, Back To The Choices ----
+
+    fun togglePick(i: Int) {
+        val d = _ui.value.dock as? Dock.Options ?: return
+        picks = toggleOption(picks, i, d.options.size)
+        dock(d.copy(picks = picks))
+    }
+
+    fun sendPicks() = go {
+        val d = _ui.value.dock as? Dock.Options ?: return@go
+        if (picks.isEmpty()) return@go
+        recordGatherAnswer(d.question, optionsAnswer(d.options, picks, ""))
+    }
+
+    fun writeOwn() { val d = _ui.value.dock as? Dock.Options ?: return; dock(d.copy(writing = true)) }
+    fun backToChoices() { val d = _ui.value.dock as? Dock.Options ?: return; dock(d.copy(writing = false)) }
+
+    /** An answer, from the ticks or the box: it goes into the enquiry, the ticks are spent, and the next question is asked. */
+    private suspend fun recordGatherAnswer(q: String, v: String) {
+        gatherLog = gatherLog + (q to v)
+        gatherPending = null; picks = emptySet()
+        answer(Step.GATHER, v)
+        dock(Dock.Waiting("…"))
+        next()
     }
 
     private suspend fun finishGather() {
         gatherDone = true
         gatherPending = null
-        if (gatherLog.isNotEmpty()) {
+        if (gatherLog.isNotEmpty() && lastReread) {
             // The whole of it is read once more, as with the reading's own question: the answers hold what the first reading lacked.
             val run = vetRun
             reread = viewModelScope.async {
@@ -758,17 +1015,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     fun submitGather(raw: String) {
-        val v = raw.trim()
+        val opt = _ui.value.dock as? Dock.Options
         val q = gatherPending ?: return
+        // With ticks kept (Write My Own Instead), the ticks and the words go together; the ticks alone are something to send too.
+        val v = if (opt != null) optionsAnswer(opt.options, picks, raw) else raw.trim()
         if (v.length < 2) { err(lbl("err_more_now", "Please add a few words, or choose Skip The Questions.")); return }
-        if (mashed(v)) { err(lbl("err_mashed", "That could not be understood. Please use a few plain words.")); return }
-        go {
-            gatherLog = gatherLog + (q to v)
-            gatherPending = null
-            answer(Step.GATHER, v)
-            dock(Dock.Waiting("…"))
-            next()
-        }
+        if (mashed(raw.trim().ifEmpty { v })) { err(lbl("err_mashed", "That could not be understood. Please use a few plain words.")); return }
+        go { recordGatherAnswer(q, v) }
     }
 
     /** Send Now: no more questions. */
@@ -844,10 +1097,10 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun greetBack(withNotes: Boolean = true) {
         val c = ctx
-        val first = c?.firstName.orEmpty()
+        val first = c?.firstName.orEmpty().ifBlank { signedFirst }
         // The web's welcome (reception.php greetBack, F-018): someone we do not know yet is thanked; someone on file is welcomed back by first name only.
         if (c == null) {
-            say(Para.Text(tl("greet_new_noname") ?: GREET_NEW_NOENAME_EN), *(if (withNotes) readingNotes().toTypedArray() else emptyArray()))
+            say(Para.Text(if (first.isNotBlank()) tl("greet_new", mapOf("first" to first)) ?: "Thank you for choosing Legum Lex, $first." else tl("greet_new_noname") ?: GREET_NEW_NOENAME_EN), *(if (withNotes) readingNotes().toTypedArray() else emptyArray()))
             return
         }
         val facts = welcomeFacts(c, { d -> day(d) }, { key, en -> lbl(key, en) }, { n -> matterCount(book, n) })
@@ -1078,6 +1331,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     /** After gathering, before the details: Lex's closing turn. An error, a rate limit or no answer skips it and the desk goes on as before. */
     private suspend fun askClose() {
         closeDone = true
+        // Someone who may be in danger is not sold a close.
+        if (danger) return next()
         // The full consultation is already chosen: no written-enquiry close (R9, F-001). The booking goes on to the details and the send.
         if (directBook) return next()
         dock(Dock.Waiting("…"))
@@ -1098,17 +1353,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                 Action("again", lbl("ui_start_new", CLOSE_START_NEW)),
             )))
             // They asked for a person and the full consultation is on: the server's two cards, the consultation first. Each button carries the card's own words.
-            r.cards.isNotEmpty() -> dock(Dock.Actions(r.cards.map { c -> Action("close_pick_" + c.key, c.button, main = c.key == "consultation", sub = c.price) }))
+            r.cards.isNotEmpty() -> dock(Dock.Cards(ChoiceBlock(r.say, r.cards), "close"))
             else -> dock(Dock.Actions(listOf(
                 Action("close_go", lbl("ui_go_ahead", CLOSE_GO_AHEAD), main = true),
                 Action("close_no", lbl("ui_not_now", CLOSE_NOT_NOW)),
             )))
         }
-        closeCards = r.cards
     }
-
-    /** The cards of the close's choice, to read a pick's label from. */
-    private var closeCards: List<CloseCard> = emptyList()
 
     fun noPhone() = go {
         phone = ""
@@ -1130,15 +1381,17 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             // Lex's closing turn: Yes carries on to the details; Not Now ends kindly with nothing sent or charged.
             "close_go" -> go { me(lbl("ui_go_ahead", CLOSE_GO_AHEAD)); dock(Dock.Waiting("…")); next() }
             "close_carry" -> go { me(tl("direct_go") ?: DIRECT_GO); dock(Dock.Waiting("…")); next() }
-            // The close's cards: the full consultation books it (no written-enquiry close, no enquiry fee); the written enquiry goes on as an enquiry.
-            "close_pick_consultation" -> go { me(closeCards.firstOrNull { it.key == "consultation" }?.button ?: DIRECT_YES); closeCards.firstOrNull { it.key == "consultation" }?.price?.takeIf { it.isNotBlank() }?.let { offerFee = it }; directBook = true; directAsked = true; dock(Dock.Waiting("…")); next() }
-            "close_pick_written" -> go { me(closeCards.firstOrNull { it.key == "written" }?.button ?: DIRECT_NO); directBook = false; directAsked = true; dock(Dock.Waiting("…")); next() }
             "close_no" -> go {
                 me(lbl("ui_not_now", CLOSE_NOT_NOW))
                 sayKey("close_stop", CLOSE_STOP_EN)
                 dock(Dock.Actions(listOf(Action("again", lbl("ui_start_new", CLOSE_START_NEW), main = true))))
             }
             // The unread screen: Try Again reads the same words once more (nothing was sent); Start A New Enquiry begins afresh.
+            // The Agreement Health Check route: its button opens the app's own Agreement Check (nothing is sent from here, no enquiry, no fee).
+            "route_ahc" -> go { me(routeButtonLabel()); _events.tryEmit(DeskEvent.OpenAgreementCheck) }
+            "route_portal" -> go { me((_ui.value.dock as? Dock.Actions)?.list?.firstOrNull { it.id == "route_portal" }?.label ?: "Open My Agreements"); _events.tryEmit(DeskEvent.OpenAgreements) }
+            "route_else" -> go { me(lbl("ui_ask_else", "Ask Something Else")); routeOffered = ""; releaseQuestionBubble(); resetStory(); next() }
+            "safe_now" -> go { me(lbl("ui_safe_carry_on", SAFE_CARRY_ON_EN)); dock(Dock.Waiting("…")); finishGather() }
             "unread_try" -> go { vetted = null; unreadRetried = false; unreadShown = false; vet() }
             "unread_new" -> go { unreadShown = false; restart() }
             "phone_retry" -> go { verifyPhone() }
@@ -1153,7 +1406,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                 val url = o.payUrl ?: repo.direct(o.consultationId)?.payUrl
                 consultationId = o.consultationId
                 if (url != null) { awaitingBooked = true; _events.tryEmit(DeskEvent.OpenUrl(url)); bookedRef = ""; bookedSaid.clear()
-                    dock(Dock.Actions(listOf(Action("direct_paid", lbl("ui_paid", "I Have Paid"), main = true), Action("direct_pay", tl("direct_pay_btn") ?: DIRECT_PAY_BTN)))); watchBooked() }
+                    dock(Dock.Actions(bookedPayActions(tl("direct_pay_btn") ?: DIRECT_PAY_BTN))); watchBooked() }
                 else payBookedAgain()
             }
             // Carry On: this conversation goes on as an ordinary enquiry (the rest of the questions, an ordinary submit, no direct=1); the open booking stays in the list.
@@ -1422,16 +1675,18 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         sending = true
         _ui.update { it.copy(locked = true) }
         dock(Dock.Waiting(lbl("wait_sending", "Sending — please keep this open.")))
-        val doneSteps = listOf("stage_done_1", "stage_done_2", "stage_done_3", "stage_done_4").map { tl(it) }
-        say(Para.Stages(0, false, tl("stage_title"), if (book.active) listOf("stage_1", "stage_2", "stage_3", "stage_4").map { tl(it).orEmpty() } else emptyList(),
+        // Three steps (F-018: "Added to your file" is no longer said): the served stage_1, stage_2 and stage_4, and their completed forms.
+        val running = STAGE_RUNNING_KEYS.map { tl(it) }
+        val doneSteps = STAGE_DONE_KEYS.map { tl(it) }
+        say(Para.Stages(0, false, tl("stage_title"), if (running.all { it != null }) running.filterNotNull() else emptyList(),
             tl("stage_done_title"), if (doneSteps.all { it != null }) doneSteps.filterNotNull() else emptyList()), footer = ft(book.has("stage_title")))
         val stagesId = _ui.value.lines.last().id
         val stager = viewModelScope.launch {
-            for ((i, at) in listOf(0L, 900L, 2200L, 3800L).withIndex()) {
-                delay(if (i == 0) 0 else at - listOf(0L, 900L, 2200L, 3800L)[i - 1])
+            for ((i, at) in STAGE_AT_MS.withIndex()) {
+                delay(if (i == 0) 0 else at - STAGE_AT_MS[i - 1])
                 setStages(stagesId, i, false)
             }
-            delay(9_000 - 3_800)
+            delay(9_000 - STAGE_AT_MS.last())
             dock(Dock.Waiting(tl("wait_slow") ?: "Still working; the chamber is slow just now. Please keep this open."))
         }
         // The key is made once for this enquiry as composed and sent on every attempt: a retry after a timeout or a restart is the same enquiry.
@@ -1443,7 +1698,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         sending = false
         when (r) {
             is Sent.Delivered -> {
-                setStages(stagesId, 3, true)
+                // A booked consultation held for its fee (F-032): nothing has reached the advocates, so no delivered ticks and no seal; the web's held state, then the pay prompt.
+                if (isHeldBooking(r.intakeState, r.direct)) holdStages(stagesId, r.direct?.feeDisplay.orEmpty()) else setStages(stagesId, STAGE_AT_MS.size, true)
                 consultationId = r.consultationId
                 delivered(r.email, r.enquiryNumber, r.direct)
             }
@@ -1582,6 +1838,14 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         u.copy(lines = u.lines.map { if (it.id == id) it.copy(paras = listOf((it.paras.firstOrNull() as? Para.Stages ?: Para.Stages(active, done)).copy(active = active, done = done))) else it })
     }
 
+    /** The held state in place of the stepper: "Booked. Waiting for the fee.", the details saved (ticked) and the fee to pay (not ticked). Served stage_held_*. */
+    private fun holdStages(id: Long, fee: String) = _ui.update { u ->
+        val title = tl("stage_held_title") ?: STAGE_HELD_TITLE_EN
+        val one = tl("stage_held_1") ?: STAGE_HELD_1_EN
+        val two = tl("stage_held_2", mapOf("fee" to fee)) ?: STAGE_HELD_2_EN.replace("{fee}", fee)
+        u.copy(lines = u.lines.map { if (it.id == id) it.copy(paras = listOf(Para.Stages(1, false, title, listOf(one, two), held = true))) else it })
+    }
+
     private fun dropLine(id: Long) = _ui.update { u -> u.copy(lines = u.lines.filterNot { it.id == id }) }
 
     /** [msg] in English, or [translated] when the book had the line (then it carries the footer). */
@@ -1668,9 +1932,9 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         }
         when {
             awaiting && url != null -> {
+                // The page opens when Pay Now is pressed (the web opens it on a click, never by itself).
                 awaitingBooked = true
-                _events.tryEmit(DeskEvent.OpenUrl(url))
-                dock(Dock.Actions(listOf(Action("direct_paid", lbl("ui_paid", "I Have Paid"), main = true), Action("direct_pay", payBtn))))
+                dock(Dock.Actions(bookedPayActions(payBtn)))
             }
             // The ordinary enquiry payment is the booking payment: nothing separate to pay; the poll shows it offered once paid.
             awaiting && b.via == "enquiry_payment" -> dock(Dock.Advocate(AdvocateWait.Waiting("", bookedRef)))
@@ -1681,6 +1945,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         watchBooked()
     }
 
+    /** The web's pay step for a booked consultation (reception.php directBooked): Pay Now (main), then See Your Matters and Ask Something Else. The fee is not paid yet, so no "I Have Paid". */
+    private fun bookedPayActions(payBtn: String) = listOf(
+        Action("direct_pay", payBtn, main = true),
+        Action("seen", lbl("ui_see_matters", "See Your Matters")),
+        Action("again", lbl("ui_ask_else", "Ask Something Else")),
+    )
+
     /** Pay The Fee (or Try Again): ask desk/direct for the fee page; with none, say so (the server's line, else "That did not go through.") with Try Again. */
     private suspend fun payBookedAgain() {
         val id = consultationId ?: return
@@ -1690,7 +1961,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             url != null -> {
                 awaitingBooked = true
                 _events.tryEmit(DeskEvent.OpenUrl(url))
-                dock(Dock.Actions(listOf(Action("direct_paid", lbl("ui_paid", "I Have Paid"), main = true), Action("direct_pay", tl("direct_pay_btn") ?: DIRECT_PAY_BTN))))
+                dock(Dock.Actions(bookedPayActions(tl("direct_pay_btn") ?: DIRECT_PAY_BTN)))
             }
             // Paid meanwhile: the wait carries on from the row.
             b != null && directPhase(b.state) != DirectPhase.AwaitingPayment -> repo.directRow(id)?.let { advanceBooked(it) }
@@ -1770,6 +2041,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     private suspend fun restart() {
+        reflected = false; lastReread = true; danger = false; picks = emptySet(); matterAsks = 0; cardsSeen = false; consultWish = false; cardsAgain = false; insistAsked = ""
         draftText = ""; pollJob?.cancel(); bookedPoll?.cancel(); informed = false; phoneProved = false; forcePhone = false; codeUi = null; pendingOffer = null; pendingOpen = null; openBooking = null; directAsked = false; directBook = false; awaitingBooked = false; bookedSaid.clear()
         text = ""; more = null; vetted = null; ask = ""; area = ""; read = null; reading = ""; qFiles = 0; docs = null
         route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; unreadRetried = false; unreadShown = false; sessionHash = null; consultationId = null

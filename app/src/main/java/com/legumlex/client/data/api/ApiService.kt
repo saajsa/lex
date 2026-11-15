@@ -638,18 +638,22 @@ interface ApiService {
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("desk/check")
-    suspend fun deskCheck(@Field("text") text: String, @Field("matter_id") matterId: String? = null, @Field("conversation") conversation: String? = null, @Field("lang") lang: String? = null): Map<String, Any?>
+    suspend fun deskCheck(@Field("text") text: String, @Field("matter_id") matterId: String? = null, @Field("conversation") conversation: String? = null, @Field("lang") lang: String? = null,
+                          @Field("desk_v") deskV: Int? = null, @Field("insist") insist: Int? = null, @Field("consult_wish") consultWish: Int? = null,
+                          @Field("route_ctx") routeCtx: String? = null, @Field("route_last") routeLast: String? = null): Map<String, Any?>
 
     /** Lex's next follow-up question: {data:{success, question ('' = none), topic, done}}. `asked` is how many have been asked so far (the reading's own counts as the first). */
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("desk/gather")
-    suspend fun deskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null): Map<String, Any?>
+    suspend fun deskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null,
+                           @Field("mode") mode: String? = null, @Field("topics") topics: String? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/gather")
-    suspend fun leadDeskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null): Map<String, Any?>
+    suspend fun leadDeskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null,
+                               @Field("mode") mode: String? = null, @Field("topics") topics: String? = null): Map<String, Any?>
 
     /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, submission_key, deadline_flag, deadline_date, attachments[] */
     @Multipart
@@ -666,16 +670,27 @@ interface ApiService {
     @POST("desk/discard")
     suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
 
+    /** Lex's first turn after sign-in (REQ-029): {turns (JSON [{role: guest|desk, text}]), lang?, conversation?} -> {success, kind story|question|route, reply, nonmatter?, insist?, route…, lang}. */
+    @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
+    @POST("desk/resume")
+    suspend fun deskResume(@Field("turns") turns: String, @Field("lang") lang: String? = null, @Field("conversation") conversation: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
+    @POST("lead/desk/resume")
+    suspend fun leadDeskResume(@Field("turns") turns: String, @Field("lang") lang: String? = null, @Field("conversation") conversation: String? = null): Map<String, Any?>
+
     /** Lex's closing turn (REQ-023): {text, lang?, chose? consultation|written, person? 1} -> {success, say, source ai|fixed, fee_display, fee_paise}; 429 when rate-limited. */
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("desk/close")
-    suspend fun deskClose(@Field("text") text: String, @Field("lang") lang: String? = null, @Field("chose") chose: String? = null, @Field("person") person: Int? = null): Map<String, Any?>
+    suspend fun deskClose(@Field("text") text: String, @Field("lang") lang: String? = null, @Field("chose") chose: String? = null, @Field("person") person: Int? = null, @Field("note") note: String? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/close")
-    suspend fun leadDeskClose(@Field("text") text: String, @Field("lang") lang: String? = null, @Field("chose") chose: String? = null, @Field("person") person: Int? = null): Map<String, Any?>
+    suspend fun leadDeskClose(@Field("text") text: String, @Field("lang") lang: String? = null, @Field("chose") chose: String? = null, @Field("person") person: Int? = null, @Field("note") note: String? = null): Map<String, Any?>
 
     // The enquiry's verified mobile number (REQ-018): a WhatsApp code of this enquiry session. All answer {data:{session_hash, ...}}; refusals are 422 {code, message}.
     @FormUrlEncoded
@@ -722,7 +737,12 @@ interface ApiService {
     @FormUrlEncoded
     @Headers("X-Skip-Auth: 1", "X-Read-Timeout: 22")
     @POST("guest/desk")
-    suspend fun guestDesk(@Field("turns") turns: String, @Field("device") device: String): Map<String, Any?>
+    suspend fun guestDesk(@Field("turns") turns: String, @Field("device") device: String, @Field("desk_v") deskV: Int? = null): Map<String, Any?>
+
+    /** The fixed desk lines with no token (REQ-029): the signed-out box's own English, and hi, pa or hx. */
+    @Headers("X-Skip-Auth: 1")
+    @GET("guest/desk/lines")
+    suspend fun guestDeskLines(@Query("lang") lang: String): Map<String, Any?>
 
     // --- A lead signed in (owner, 2026-10-20) ---
     // Who they are to the firm now; once the firm has opened their account,
@@ -737,7 +757,9 @@ interface ApiService {
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/check")
-    suspend fun leadDeskCheck(@Field("text") text: String, @Field("conversation") conversation: String? = null, @Field("lang") lang: String? = null): Map<String, Any?>
+    suspend fun leadDeskCheck(@Field("text") text: String, @Field("conversation") conversation: String? = null, @Field("lang") lang: String? = null,
+                              @Field("desk_v") deskV: Int? = null, @Field("insist") insist: Int? = null, @Field("consult_wish") consultWish: Int? = null,
+                              @Field("route_ctx") routeCtx: String? = null, @Field("route_last") routeLast: String? = null): Map<String, Any?>
 
     @Multipart
     @POST("lead/desk/enquiry")

@@ -18,7 +18,7 @@ class DeskOpenerTest {
         // The old second line is gone.
         assertFalse(s.contains("What would you like to ask? In your own words"))
         // One welcome only: Welcome back with what is on file when the firm knows them, else the time of day's.
-        assertEquals(1, Regex("greetBack\\(withNotes = false\\)").findAll(ask).count())
+        assertEquals(2, Regex("greetBack\\(withNotes = false\\)").findAll(ask).count())   // one for a guest who signed in (before the resume), one for anyone else; never both
         assertEquals(1, Regex("and welcome to Legum Lex").findAll(ask).count())
     }
 

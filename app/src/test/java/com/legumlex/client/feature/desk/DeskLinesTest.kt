@@ -61,7 +61,7 @@ class DeskLinesTest {
 
     @Test fun aLinesCallThatThrowsIsNoBookEither() {
         val data = src("feature/desk/DeskData.kt") ?: return
-        assertTrue(data.contains("fun lines(lang: String): LineBook?"))
+        assertTrue(data.contains("fun lines(lang: String, guest: Boolean = false): LineBook?"))
         assertTrue(data.contains("api.leadDeskLines(lang)") && data.contains("api.deskLines(lang)"))
         val api = src("data/api/ApiService.kt")!!
         assertTrue(api.contains("@GET(\"desk/lines\")") && api.contains("@GET(\"lead/desk/lines\")"))
@@ -262,11 +262,11 @@ class DeskLinesTest {
 
     @Test fun completedStepsUseTheirDoneFormsAndOldServersKeepToday() {
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(vm.contains("tl(\"stage_done_title\")") && vm.contains("\"stage_done_1\", \"stage_done_2\", \"stage_done_3\", \"stage_done_4\""))
+        assertTrue(vm.contains("tl(\"stage_done_title\")") && vm.contains("STAGE_DONE_KEYS.map { tl(it) }"))
         assertTrue(vm.contains("if (doneSteps.all { it != null }) doneSteps.filterNotNull() else emptyList()"))   // all four, or none
         val screen = src("feature/desk/DeskScreen.kt")!!
         assertTrue(screen.contains("p.doneTitle ?: \"Delivered.\""))                                          // old server: "Delivered."
-        assertTrue(screen.contains("if (done && p.doneSteps.size == STAGES.size) p.doneSteps[i] else running")) // running form while it runs
+        assertTrue(screen.contains("if (done && p.doneSteps.size == steps.size) p.doneSteps[i] else running")) // running form while it runs
         val p = Para.Stages(1, false)
         assertTrue(p.doneSteps.isEmpty() && p.doneTitle == null)
         assertEquals(Para.Stages(3, true, null, emptyList(), "Done", listOf("a", "b", "c", "d")), p.copy(active = 3, done = true, doneTitle = "Done", doneSteps = listOf("a", "b", "c", "d")))
