@@ -105,7 +105,7 @@ fun DetailAHC(
     // tblfiles attachments.
     val hasDocument = hasAttachments || ahcData != null
 
-    val remainingSeconds = rememberAhcRemainingSeconds(consultation.createdAt)
+    val remainingSeconds = rememberAhcRemainingSeconds(ahcReviewTarget(consultation, ahcData))
     val state = buildAhcUiState(
         consultation = consultation,
         ahc = ahcData,
@@ -169,7 +169,6 @@ fun DetailAHC(
  *  Color in the header is meaning only; the spine stays ink-on-paper.
  * ========================================================================== */
 
-private const val AHC_SLA_SECONDS = 30 * 60   // 30-minute review window
 
 @Composable
 private fun AhcWarmHeader(
@@ -196,7 +195,8 @@ private fun AhcWarmHeader(
 
     // Live, signed SLA seconds (negative once the 30-min window elapses) — drives
     // the countdown chip and the depleting / overdue bottom rail.
-    val signed = rememberSignedRemaining(consultation.createdAt)
+    val ahcSlaSeconds = ahcSlaMinutes(ahcData) * 60
+    val signed = rememberSignedRemaining(ahcReviewTarget(consultation, ahcData))
     val remaining = signed.coerceAtLeast(0)
     val overdueMin = ((-signed) / 60).coerceAtLeast(0)
 
@@ -321,7 +321,7 @@ private fun AhcWarmHeader(
                 pending && awaitingPay -> SignalRail(fill = 1f, color = LlColor.AmberMid)
                 pending   ->
                     if (signed > 0) SignalRail(
-                        fill = (remaining.toFloat() / AHC_SLA_SECONDS).coerceIn(0f, 1f),
+                        fill = (remaining.toFloat() / ahcSlaSeconds).coerceIn(0f, 1f),
                         color = if (remaining <= 300) LlColor.AmberMid else LlColor.VerdantMid,
                     ) else SignalRail(fill = 1f, color = LlColor.AmberMid)
                 else -> Unit   // closed: no signature rail
@@ -652,9 +652,8 @@ private fun healthBand(level: ConsultRiskLevel?, score: Int?): RiskLevel {
  * second from `createdAt + 30m`, clamped at zero. Returns 0 with no timestamp.
  */
 @Composable
-private fun rememberAhcRemainingSeconds(createdAt: LocalDateTime?): Int {
-    if (createdAt == null) return 0
-    val target = remember(createdAt) { createdAt.plusMinutes(30) }
+private fun rememberAhcRemainingSeconds(target: LocalDateTime?): Int {
+    if (target == null) return 0
     val remaining by produceState(initialValue = secondsUntil(target), key1 = target) {
         while (true) {
             value = secondsUntil(target)
@@ -665,6 +664,13 @@ private fun rememberAhcRemainingSeconds(createdAt: LocalDateTime?): Int {
     return remaining
 }
 
+/** The review's due time: the served clock (review.due_at), else the 30-minute window from creation (older server). */
+internal fun ahcReviewTarget(c: Consultation, ahc: AhcAnalysis?): LocalDateTime? =
+    ahc?.reviewDueAt ?: c.createdAt?.plusMinutes(ahcSlaMinutes(ahc).toLong())
+
+/** The usual turnaround in minutes: served (review.sla_minutes), else the fallback. */
+internal fun ahcSlaMinutes(ahc: AhcAnalysis?): Int = ahc?.reviewSlaMinutes ?: com.legumlex.client.ahc.components.AHC_TURNAROUND_FALLBACK_MINUTES
+
 private fun secondsUntil(target: LocalDateTime): Int =
     Duration.between(LocalDateTime.now(), target).seconds.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
 
@@ -674,9 +680,8 @@ private fun secondsUntil(target: LocalDateTime): Int =
  * and the chip can tick "+N min"). Keeps ticking past zero, capped at -24h.
  */
 @Composable
-private fun rememberSignedRemaining(createdAt: LocalDateTime?): Int {
-    if (createdAt == null) return 0
-    val target = remember(createdAt) { createdAt.plusMinutes(30) }
+private fun rememberSignedRemaining(target: LocalDateTime?): Int {
+    if (target == null) return 0
     val value by produceState(initialValue = signedSecondsUntil(target), key1 = target) {
         while (true) {
             value = signedSecondsUntil(target)

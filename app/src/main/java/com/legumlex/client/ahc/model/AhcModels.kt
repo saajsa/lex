@@ -77,6 +77,7 @@ sealed interface AhcUiState {
         val advocate: Advocate,
         val submittedAtLabel: String,   // "9:42 AM"
         val etaLabel: String,           // "10:12 AM IST"
+        val slaMinutes: Int = 30,
         val slaTotalSeconds: Int = 30 * 60,
         val remainingSeconds: Int,      // counts down from slaTotalSeconds
     ) : AhcUiState {

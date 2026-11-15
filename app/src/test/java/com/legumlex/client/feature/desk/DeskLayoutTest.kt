@@ -38,7 +38,7 @@ class DeskLayoutTest {
         // One dock at a time in the real state: Waiting shows the error if there is one, else the pending line; Actions is its own dock.
         assertTrue(s.contains("is Dock.Waiting -> if (ui.error.isNotEmpty()) ErrorLine(ui.error) else WaitLine(d.label)"))
         val vm = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").readText()
-        assertTrue(vm.contains("private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = \"\", footerDirect = directBook, directFee = offerFee, footerUnread = unreadShown) }"))      // a new dock clears the old error
+        assertTrue(vm.contains("private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = \"\", footerDirect = directBook, directFee = offerFee, footerUnread = unreadShown || routeOffered in ROUTE_KEYS) }"))      // a new dock clears the old error
         // The sample shows one state at a time.
         val sample = s.substringAfter("fun DeskSampleScreen(")
         assertTrue(sample.contains("when (state) {") && sample.contains("1 -> ErrorLine(") && sample.contains("2 -> WaitLine("))

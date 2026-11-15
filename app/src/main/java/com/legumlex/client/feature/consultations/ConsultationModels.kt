@@ -133,6 +133,9 @@ data class Consultation(
     val funnelDetail: String? = null,
     /** An enquiry's number (ENQ/2026/12345), where it is in its intake (received | assigned | acknowledged; null for anything that is not an enquiry), whether an advocate has it, and its reference. */
     val enquiryNumber: String? = null,
+    /** The AHC review clock (REQ-029 step 7): its due time and the server's late flag; null/false when no clock is shown. */
+    val reviewDueAt: LocalDateTime? = null,
+    val late: Boolean = false,
     /** The full consultation the counsel recommended in the latest reply, bookable from here (REQ-023); null when none, no fee is set, it is booked or closed. */
     val consultationOffer: ConsultationOffer? = null,
     /** The language the consultation was begun in (en|hi|pa|hx; null when the server says nothing): the offer is shown in it. */
@@ -448,6 +451,9 @@ data class AhcAnalysis(
     val parties: String? = null,           // e.g. "Davinder Singh ↔ Lakhwinder Singh"
     val agreementSummary: String? = null,  // factual one-liner
     val released: Boolean = false,         // server: report released to the client
+    /** The review clock as served (review {started_at, due_at, sla_minutes}); null when none. */
+    val reviewDueAt: java.time.LocalDateTime? = null,
+    val reviewSlaMinutes: Int? = null,
 )
 
 /**

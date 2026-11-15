@@ -839,11 +839,12 @@ private fun initialsOf(name: String?): String =
 internal data class GeneralState(val title: String, val text: String)
 
 /** The portal's line under an empty conversation (consultation.php:649). */
+internal const val GENERAL_RUNNING_LATE = "The answer is running late. It has been flagged to the firm."
 internal const val GENERAL_NOT_ANSWERED = "Not answered yet. It will appear here, and in Messages, as soon as your advocate replies."
 
 /**
  * The state, from the fields the API already gives (enquiry_number, reference, intake_state, assigned, acknowledged_at, assigned_to, request_status, status).
- * The web's "running late" state needs a review clock the app's API does not carry (no due time, no late flag), so it is never shown here: it falls to "With Your Advocate".
+ * The "running late" line shows only when the server says late (review_due_at / late, REQ-029 step 7).
  */
 internal fun generalState(c: Consultation): GeneralState {
     val enquiry = c.enquiryNumber != null || c.type == "legal_enquiry"
@@ -856,6 +857,9 @@ internal fun generalState(c: Consultation): GeneralState {
         enquiry && unacknowledged && holder.isNotEmpty() -> GeneralState("$holder Has Your Enquiry", "They will read it and reply to you.")
         c.requestStatus == "pending" || c.status == ConsultationStatus.PENDING_REVIEW ->
             GeneralState("Waiting For The Firm To Take This On", "An advocate will be assigned and will pick it up.")
+        // The portal's own three lines (Mylex_model.php): late, a clock still running, and no clock.
+        c.late -> GeneralState("With Your Advocate", GENERAL_RUNNING_LATE)
+        c.reviewDueAt != null -> GeneralState("With Your Advocate", "An advocate is working on it.")
         else -> GeneralState("With Your Advocate", "An advocate is working on it. Nothing is needed from you right now.")
     }
 }

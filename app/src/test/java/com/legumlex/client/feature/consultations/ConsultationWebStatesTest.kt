@@ -58,4 +58,25 @@ class ConsultationWebStatesTest {
         assertTrue(card.contains("\"Usual turnaround, \$slaMinutes minutes\"") && card.contains("AHC_TURNAROUND_FALLBACK_MINUTES = 30") && card.contains("slaMinutes: Int = AHC_TURNAROUND_FALLBACK_MINUTES"))
         assertFalse(card.contains("releases reviews"))
     }
+
+    @Test fun runningLateShowsOnlyWhenTheServerSaysLate() {
+        fun c(vararg p: Pair<String, Any?>) = parse(mapOf("id" to "9", "consultation_type" to "ahc", "status" to "In Progress", "request_status" to "approved", "phase" to "consultation", "acknowledged_at" to "2026-11-15 09:30:00") + p)
+        assertEquals("The answer is running late. It has been flagged to the firm.", generalState(c("review_due_at" to "2026-11-15 10:00:00", "late" to true)).text)
+        assertEquals("An advocate is working on it.", generalState(c("review_due_at" to "2026-11-15 10:00:00", "late" to false)).text)
+        assertEquals("An advocate is working on it. Nothing is needed from you right now.", generalState(c()).text)
+    }
+
+    @Test fun theStartNewLabelIsTitleCaseAndRoutesHideTheFooter() {
+        assertEquals("Start A New Enquiry", com.legumlex.client.feature.desk.startNewLabel("Start a New Enquiry"))
+        assertEquals(setOf("ahc", "portal_docs", "clarify"), com.legumlex.client.feature.desk.ROUTE_KEYS)
+    }
+
+    @Test fun theReviewClockComesFromTheServer() {
+        val src = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailAHC.kt").readText()
+        assertTrue(src.contains("ahc?.reviewDueAt ?: c.createdAt?.plusMinutes") && !src.contains("AHC_SLA_SECONDS"))
+        val map = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/AhcUiStateMapper.kt").readText()
+        assertTrue(map.contains("slaMinutes = ahcSlaMinutes(ahc)"))
+        val repo = java.io.File("src/main/java/com/legumlex/client/feature/consultations/ConsultationsRepository.kt").readText()
+        assertTrue(repo.contains("\"review\") as? Map<*, *>)?.get(\"sla_minutes\")") || repo.contains("get(\"sla_minutes\")"))
+    }
 }

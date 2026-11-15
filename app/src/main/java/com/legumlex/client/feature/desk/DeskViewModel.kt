@@ -402,7 +402,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         try { block() } finally { note.cancel() }
     }
 
-    private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = "", footerDirect = directBook, directFee = offerFee, footerUnread = unreadShown) }
+    private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = "", footerDirect = directBook, directFee = offerFee, footerUnread = unreadShown || routeOffered in ROUTE_KEYS) }
 
     /** The full consultation's fee as the server last said it (the offer, or the choice's card), for the line under the box. */
     private var offerFee = ""
@@ -780,7 +780,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     fun cardsNotNow() = go {
         me(lbl("ui_not_now", CLOSE_NOT_NOW))
         say(Para.Text(tl("insist_declined") ?: INSIST_DECLINED_EN))
-        dock(Dock.Actions(listOf(Action("again", lbl("ui_start_new", CLOSE_START_NEW), main = true))))
+        dock(Dock.Actions(listOf(Action("again", startNewLabel(lbl("ui_start_new", CLOSE_START_NEW)), main = true))))
     }
 
     /** One silent second reading when the server says the reading failed and a retry may work (retry_once); reset by any reading that was made. */
@@ -864,7 +864,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         say(Para.Text(r.unreadLine.ifBlank { UNREAD_EN }))
         dock(Dock.Actions(listOf(
             Action("unread_try", lbl("ui_try_again", "Try Again"), main = true),
-            Action("unread_new", lbl("ui_start_new", CLOSE_START_NEW)),
+            Action("unread_new", startNewLabel(lbl("ui_start_new", CLOSE_START_NEW))),
         )))
     }
 
@@ -1350,7 +1350,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             // Already said no or later: no new ask; carry on or start over.
             r.declined -> dock(Dock.Actions(listOf(
                 Action("close_carry", tl("direct_go") ?: DIRECT_GO, main = true),
-                Action("again", lbl("ui_start_new", CLOSE_START_NEW)),
+                Action("again", startNewLabel(lbl("ui_start_new", CLOSE_START_NEW))),
             )))
             // They asked for a person and the full consultation is on: the server's two cards, the consultation first. Each button carries the card's own words.
             r.cards.isNotEmpty() -> dock(Dock.Cards(ChoiceBlock(r.say, r.cards), "close"))
@@ -1384,7 +1384,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             "close_no" -> go {
                 me(lbl("ui_not_now", CLOSE_NOT_NOW))
                 sayKey("close_stop", CLOSE_STOP_EN)
-                dock(Dock.Actions(listOf(Action("again", lbl("ui_start_new", CLOSE_START_NEW), main = true))))
+                dock(Dock.Actions(listOf(Action("again", startNewLabel(lbl("ui_start_new", CLOSE_START_NEW)), main = true))))
             }
             // The unread screen: Try Again reads the same words once more (nothing was sent); Start A New Enquiry begins afresh.
             // The Agreement Health Check route: its button opens the app's own Agreement Check (nothing is sent from here, no enquiry, no fee).

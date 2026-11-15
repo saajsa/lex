@@ -198,8 +198,10 @@ fun buildAhcUiState(
             submittedAtLabel = c.createdAt?.atTime() ?: "",
             // Unpaid: the review has not begun, so no clock runs yet.
             etaLabel = if (c.awaitingPayment()) "After Payment"
-                       else c.createdAt?.plusMinutes(30)?.atTime()?.let { "$it IST" } ?: "",
-            remainingSeconds = if (c.awaitingPayment()) 30 * 60 else remainingSeconds,
+                       else ahcReviewTarget(c, ahc)?.atTime()?.let { "$it IST" } ?: "",
+            slaMinutes = ahcSlaMinutes(ahc),
+            slaTotalSeconds = ahcSlaMinutes(ahc) * 60,
+            remainingSeconds = if (c.awaitingPayment()) ahcSlaMinutes(ahc) * 60 else remainingSeconds,
         )
     }
 }

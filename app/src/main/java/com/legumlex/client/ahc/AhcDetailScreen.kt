@@ -126,6 +126,7 @@ private fun PendingScreen(state: AhcUiState.Pending, actions: AhcActions, showTo
                 submittedAtLabel = state.submittedAtLabel,
                 etaLabel = state.etaLabel,
                 isOverdue = state.isOverdue,
+                slaMinutes = state.slaMinutes,
             )
         }
         // overdue: offer a way to reach the advocate (no alarm)

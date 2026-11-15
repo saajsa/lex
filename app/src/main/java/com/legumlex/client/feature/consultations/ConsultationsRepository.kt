@@ -288,6 +288,8 @@ internal fun parse(m: Map<String, Any?>): Consultation {
         preferredDate    = parseDate(m["preferred_date"] as? String),
         preferredTime    = parseTime(m["preferred_time"] as? String),
         acknowledgedAt   = acknowledgedAt,
+        reviewDueAt      = parseDateTime(m["review_due_at"] as? String),
+        late             = m["late"].asBool(),
         assignedTo       = (m["assigned_to"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         assignedToDesignation = (m["assigned_to_designation"] as? String)?.takeIf { it.isNotBlank() },
         assignedToAvatarUrl   = (m["assigned_to_avatar_url"] as? String)?.takeIf { it.isNotBlank() },
@@ -531,6 +533,8 @@ private fun parseAhcAnalysis(m: Map<String, Any?>) = AhcAnalysis(
     parties          = (m["context"] as? Map<*, *>)?.get("parties")?.let { it as? String }?.takeIf { it.isNotBlank() },
     agreementSummary = (m["context"] as? Map<*, *>)?.get("summary")?.let { it as? String }?.takeIf { it.isNotBlank() },
     released         = m["released"].asBool(),
+    reviewDueAt      = parseDateTime((m["review"] as? Map<*, *>)?.get("due_at") as? String),
+    reviewSlaMinutes = (m["review"] as? Map<*, *>)?.get("sla_minutes").asIntOrNull()?.takeIf { it > 0 },
 )
 
 // --- date helpers ---------------------------------------------------------
