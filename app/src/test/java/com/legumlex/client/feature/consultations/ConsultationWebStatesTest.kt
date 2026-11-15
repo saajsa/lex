@@ -129,7 +129,7 @@ class ConsultationWebStatesTest {
     @Test fun theHeldConversationCardSaysNothingWasSentAndTheHeroLaysOutNormally() {
         assertEquals("Nothing has been sent to the advocates yet. It goes to them once the fee is paid.", com.legumlex.client.feature.consultations.detail.GENERAL_HELD_NOT_SENT)
         val src = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailGeneral.kt").readText()
-        assertTrue(src.contains("if (!c.heldBooking()) Text(") && src.contains("if (c.heldBooking()) GENERAL_HELD_NOT_SENT"))
+        assertTrue(src.contains("if (!c.heldBooking()) Text(") && src.contains("if (c.heldBooking()) (c.directClient?.detail?.takeIf { it.isNotBlank() } ?: GENERAL_HELD_NOT_SENT)"))
         assertTrue(src.contains("Box(Modifier.matchParentSize()) { Box(Modifier.fillMaxHeight().width(LlDimen.HeroStripeWidth)"))
         assertTrue(src.contains("Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                    Icon(spec.icon"))
     }

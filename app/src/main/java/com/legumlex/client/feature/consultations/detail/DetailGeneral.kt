@@ -643,7 +643,7 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
         )
         if (!c.heldBooking()) Spacer(Modifier.height(7.dp))
         Text(
-            if (c.heldBooking()) GENERAL_HELD_NOT_SENT
+            if (c.heldBooking()) (c.directClient?.detail?.takeIf { it.isNotBlank() } ?: GENERAL_HELD_NOT_SENT)   // the served detail; the constant is only an older server's fallback
             else if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
             else GENERAL_NOT_ANSWERED,   // the portal's own line (consultation.php:649), no time
             fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
