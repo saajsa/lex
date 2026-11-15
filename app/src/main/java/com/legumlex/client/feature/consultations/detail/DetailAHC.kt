@@ -249,14 +249,11 @@ private fun AhcWarmHeader(
                                 Icons.Filled.EventAvailable else Icons.Filled.RecordVoiceOver,
                         )
                         released -> Text(
-                            "Released" + consultation.releasedAt?.let { " ${it.format(timeFmt)}" }.orEmpty(),
+                            "Released" + consultation.releasedAt?.let { " ${it.atTime()}" }.orEmpty(),
                             style = LlText.mono, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         closed -> Text("Closed", style = LlText.mono)
-                        else -> Text(
-                            "Submitted" + consultation.createdAt?.let { " ${it.format(timeFmt)}" }.orEmpty(),
-                            style = LlText.mono, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
+                        else -> Unit   // the Submitted row under the title says it, with its date
                     }
                 }
 

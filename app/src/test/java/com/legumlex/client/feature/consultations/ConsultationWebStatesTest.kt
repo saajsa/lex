@@ -90,4 +90,10 @@ class ConsultationWebStatesTest {
         val rail = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailAHC.kt").readText()
         assertTrue(rail.contains("maxLines = 2,   // wraps beside the chip"))
     }
+
+    @Test fun theHeaderCornerNoLongerRepeatsSubmittedAndReleasedCarriesItsDate() {
+        val src = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailAHC.kt").readText()
+        assertFalse(src.contains("\"Submitted\" + consultation.createdAt"))
+        assertTrue(src.contains("\"Released\" + consultation.releasedAt?.let { \" \${it.atTime()}\" }"))
+    }
 }
