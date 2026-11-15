@@ -41,6 +41,13 @@ class TokenStore(private val context: Context) {
         SessionRole.set(p[roleKey] ?: "client", p[statusKey])
     }
 
+    /** Who this phone is signed in as, for what is kept per account (the desk's unsent draft): "guest" with no token, else the role and contact. */
+    suspend fun accountKey(): String {
+        val p = context.dataStore.data.first()
+        if (p[tokenKey].isNullOrBlank()) return "guest"
+        return (p[roleKey] ?: "client") + "-" + p[contactIdKey].orEmpty()
+    }
+
     suspend fun saveLeadStatus(status: String) {
         context.dataStore.edit { it[statusKey] = status }
         SessionRole.set("lead", status)

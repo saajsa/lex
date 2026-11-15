@@ -35,7 +35,8 @@ class DeskOpenerTest {
     @Test fun noAnswerBubbleWhenLexDidNotAsk() {
         val s = vm ?: return
         val entity = s.substringAfter("private suspend fun askEntity()").substringBefore("if (!asked(Step.ENTITY))")
-        assertTrue(entity.contains("so I will not ask again."))
+        assertFalse(entity.contains("so I will not ask again."))   // R23a: said to no one
+        assertTrue(entity.contains("entity = c.entity"))
         assertFalse(entity.contains("answer(Step.ENTITY"))
         // The same for a phone number on file? No: that one is asked ("Shall the advocates call you on...?") and its answer is shown.
         assertTrue(s.contains("answer(Step.PHONE, shown(c.phone))"))

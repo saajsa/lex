@@ -34,6 +34,9 @@ import com.legumlex.client.ahc.theme.LlText
  *  never "AI". On overdue it flips to a calm amber "Running late" — no alarm.
  * ========================================================================== */
 
+/** The web's review turnaround, 30 minutes, until the API carries sla_minutes. */
+const val AHC_TURNAROUND_FALLBACK_MINUTES = 30
+
 @Composable
 fun CountdownCard(
     ringFraction: Float,       // 1f full → 0f empty
@@ -42,18 +45,20 @@ fun CountdownCard(
     etaLabel: String,
     isOverdue: Boolean,
     modifier: Modifier = Modifier,
+    /** The review's turnaround as the server says it (sla_minutes); the API does not carry it yet, so the firm's 30 until it does. */
+    slaMinutes: Int = AHC_TURNAROUND_FALLBACK_MINUTES,
 ) {
     LlCard(modifier) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp)) {
             if (isOverdue) OverdueBody(submittedAtLabel, etaLabel)
-            else CountingBody(ringFraction, timeLabel, submittedAtLabel, etaLabel)
+            else CountingBody(ringFraction, timeLabel, submittedAtLabel, etaLabel, slaMinutes)
         }
     }
 }
 
 @Composable
 private fun CountingBody(
-    ringFraction: Float, timeLabel: String, submittedAtLabel: String, etaLabel: String,
+    ringFraction: Float, timeLabel: String, submittedAtLabel: String, etaLabel: String, slaMinutes: Int,
 ) {
     val animated by animateFloatAsState(targetValue = ringFraction, label = "ring")
     // Ring color: verdant while comfortably on time, amber in the last ~5 min.
@@ -90,7 +95,7 @@ private fun CountingBody(
         }
         Spacer(Modifier.height(17.dp))
         Text(
-            "Your advocate releases reviews within 30 minutes of submission.",
+            "Usual turnaround, $slaMinutes minutes",   // the web's own wording (ahc_funnel.php:1348)
             style = LlText.body, textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 264.dp),
         )

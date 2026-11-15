@@ -80,7 +80,7 @@ class DeskDirectTest {
         assertTrue(direct.contains("AdvocateWait.HandedOver(handover, ref, OPEN_CONSULTATION)"))
         assertTrue(vm.contains("\"advocate_open\" -> _events.tryEmit(consultationId?.let { DeskEvent.OpenConsultation(it) }"))
         assertEquals("Your enquiry has been sent to the advocate.", PERSON_HANDOVER)         // no advocate name in the card line
-        assertEquals("The final report has gone to the advocate. Waiting for them now; they usually attend within 30 minutes.", PERSON_FINAL)
+        assertEquals("The final report has gone to the advocate. Waiting for them now; they or their office will contact you to fix a time.", PERSON_FINAL)
         assertEquals(20_000L, DIRECT_POLL_MS)
     }
 

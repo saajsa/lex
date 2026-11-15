@@ -280,10 +280,11 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
     // Only what the advocate wrote for the client; never the consultation's own text.
     val reason = c.advocateNote?.takeIf { it.isNotBlank() }
     val spec = when (phase) {
-        GenPhase.AWAITING -> Spec(
-            LlColor.AmberMid, Icons.Outlined.HourglassTop, "Awaiting Your Advocate",
-            "Submitted ${c.createdAt?.let { com.legumlex.client.feature.consultations.relativeAgo(it) } ?: "recently"}. $adv will see it shortly — the firm usually replies within 30 minutes during chamber hours.",
-        )
+        // The web's own state for this moment (Mylex_model.php: the firm's move), with no time promised (R6).
+        GenPhase.AWAITING -> generalState(c).let { st ->
+            Spec(LlColor.AmberMid, Icons.Outlined.HourglassTop, st.title,
+                "Submitted ${c.createdAt?.let { com.legumlex.client.feature.consultations.relativeAgo(it) } ?: "recently"}. ${st.text}")
+        }
         GenPhase.ACTIVE -> Spec(LlColor.SlateMid, Icons.Outlined.Forum, "With Your Advocate", null)
         GenPhase.RESOLVED -> Spec(
             LlColor.Verdant, Icons.Outlined.TaskAlt, "Resolved",
@@ -627,14 +628,14 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
         ) { Icon(Icons.Outlined.MarkEmailUnread, null, tint = LlColor.AmberMid, modifier = Modifier.size(27.dp)) }
         Spacer(Modifier.height(15.dp))
         Text(
-            if (phase == GenPhase.CLOSED) "This Enquiry Is Closed" else "Your Question Is With ${advName(c.assignedTo)}",
+            if (phase == GenPhase.CLOSED) "This Enquiry Is Closed" else generalState(c).title,
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
             letterSpacing = (-0.01).em, color = LlColor.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(7.dp))
         Text(
             if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
-            else "${advName(c.assignedTo)} will respond shortly — the firm usually replies within 30 minutes during chamber hours. You will get a notification the moment there is an answer.",
+            else GENERAL_NOT_ANSWERED,   // the portal's own line (consultation.php:649), no time
             fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
@@ -700,13 +701,6 @@ private fun AdvocateCard(c: Consultation, phase: GenPhase) {
             c.assignedToDesignation?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(2.dp))
                 Text(it, fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
-            }
-            if (phase != GenPhase.CLOSED && phase != GenPhase.DECLINED) {
-                Spacer(Modifier.height(5.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(LlColor.Verdant))
-                    Text("Usually replies within 30 minutes", fontFamily = Inter, fontSize = 11.sp, color = LlColor.InkMuted)
-                }
             }
         }
     }
@@ -841,6 +835,31 @@ private fun initialsOf(name: String?): String =
         ?.take(2)?.joinToString("") { it.first().uppercase() }?.ifBlank { "?" } ?: "?"
 
 /** The advocate's name as recorded (the portal adds no prefix). */
+/** What the web's consultation page says while the firm has the move (Mylex_model.php:1733-1760): a title and a line, no time. */
+internal data class GeneralState(val title: String, val text: String)
+
+/** The portal's line under an empty conversation (consultation.php:649). */
+internal const val GENERAL_NOT_ANSWERED = "Not answered yet. It will appear here, and in Messages, as soon as your advocate replies."
+
+/**
+ * The state, from the fields the API already gives (enquiry_number, reference, intake_state, assigned, acknowledged_at, assigned_to, request_status, status).
+ * The web's "running late" state needs a review clock the app's API does not carry (no due time, no late flag), so it is never shown here: it falls to "With Your Advocate".
+ */
+internal fun generalState(c: Consultation): GeneralState {
+    val enquiry = c.enquiryNumber != null || c.type == "legal_enquiry"
+    val unacknowledged = c.acknowledgedAt == null && c.intakeState != "acknowledged"
+    val holder = c.assignedTo?.trim().orEmpty()
+    return when {
+        // An enquiry nobody holds yet: waiting in the intake queue; no advocate is named because none has it.
+        enquiry && unacknowledged && (c.assigned == false || (c.assigned == null && holder.isEmpty())) ->
+            GeneralState("Enquiry " + (c.reference ?: c.enquiryNumber)?.let { "$it " }.orEmpty() + "Received", "It is waiting to be given to an advocate. You will be told who has it.")
+        enquiry && unacknowledged && holder.isNotEmpty() -> GeneralState("$holder Has Your Enquiry", "They will read it and reply to you.")
+        c.requestStatus == "pending" || c.status == ConsultationStatus.PENDING_REVIEW ->
+            GeneralState("Waiting For The Firm To Take This On", "An advocate will be assigned and will pick it up.")
+        else -> GeneralState("With Your Advocate", "An advocate is working on it. Nothing is needed from you right now.")
+    }
+}
+
 private fun advName(name: String?): String {
     val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return "your advocate"
     return n   // as recorded, as the portal shows it

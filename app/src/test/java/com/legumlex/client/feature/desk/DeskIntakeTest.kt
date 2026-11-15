@@ -100,8 +100,8 @@ class DeskIntakeTest {
 
     @Test fun theReceiptNamesNoAdvocateAndShowsTheNumber() {
         val line = receiptLine("ENQ/2026/12345", "a@b.in")
-        assertEquals("**Enquiry ENQ/2026/12345 received.** It goes to one of the advocates, who usually reply within 30 minutes, to **a@b.in**.", line)
-        assertEquals("**Enquiry received.** It goes to one of the advocates, who usually reply within 30 minutes, to **your email**.", receiptLine(null))
+        assertEquals("**Enquiry ENQ/2026/12345 received.** It goes to one of the advocates; once one accepts it, we aim to reply within 30 minutes, to **a@b.in**.", line)
+        assertEquals("**Enquiry received.** It goes to one of the advocates; once one accepts it, we aim to reply within 30 minutes, to **your email**.", receiptLine(null))
         for (l in listOf(line, receiptLine(" "), receiptLine(null))) {
             assertFalse(l.contains("with your advocate", true)); assertFalse(l.contains("with the advocates", true)); assertFalse(l.contains("Adv.", true))
         }

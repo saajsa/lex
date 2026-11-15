@@ -666,16 +666,16 @@ interface ApiService {
     @POST("desk/discard")
     suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
 
-    /** Lex's closing turn (REQ-023): {text, lang?} -> {success, say, source ai|fixed, fee_display, fee_paise}; 429 when rate-limited. */
+    /** Lex's closing turn (REQ-023): {text, lang?, chose? consultation|written, person? 1} -> {success, say, source ai|fixed, fee_display, fee_paise}; 429 when rate-limited. */
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("desk/close")
-    suspend fun deskClose(@Field("text") text: String, @Field("lang") lang: String? = null): Map<String, Any?>
+    suspend fun deskClose(@Field("text") text: String, @Field("lang") lang: String? = null, @Field("chose") chose: String? = null, @Field("person") person: Int? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/close")
-    suspend fun leadDeskClose(@Field("text") text: String, @Field("lang") lang: String? = null): Map<String, Any?>
+    suspend fun leadDeskClose(@Field("text") text: String, @Field("lang") lang: String? = null, @Field("chose") chose: String? = null, @Field("person") person: Int? = null): Map<String, Any?>
 
     // The enquiry's verified mobile number (REQ-018): a WhatsApp code of this enquiry session. All answer {data:{session_hash, ...}}; refusals are 422 {code, message}.
     @FormUrlEncoded

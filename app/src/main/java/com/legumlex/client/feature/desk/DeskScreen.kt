@@ -114,6 +114,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -198,7 +199,13 @@ fun DeskScreen(
     onSignIn: () -> Unit = onClose,
 ) {
     // From the Sign In chat panel the conversation arrives with it (DeskHandover); otherwise a fresh desk.
-    val vm: DeskViewModel = remember { DeskHandover.take() } ?: viewModel()
+    // Closing the desk keeps the conversation for this app session (as the web keeps its page state when the desk is closed and opened again): the view model lives with the
+    // activity, under a key that changes with the signed-in person and after a finished enquiry. An account entry is fresh each time.
+    val deskContext = androidx.compose.ui.platform.LocalContext.current
+    val vm: DeskViewModel = remember { DeskHandover.take() } ?: if (account) viewModel() else {
+        val key = remember { DeskKeep.key(deskContext) }
+        viewModel(viewModelStoreOwner = deskActivity(deskContext), key = key)
+    }
     val ui by vm.ui.collectAsState()
     var tracking by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -264,7 +271,9 @@ fun DeskScreen(
 
     // The question's draft lives here, so a "Change" can hand it back; a
     // starter or a "Change" puts the cursor at its end and the focus on it.
-    var draft by remember { mutableStateOf(TextFieldValue("")) }
+    var draft by remember { mutableStateOf(TextFieldValue(vm.draftText, TextRange(vm.draftText.length))) }
+    // The unsent question is kept with the conversation (the web keeps it as lex_desk_draft until it is sent).
+    LaunchedEffect(draft.text) { vm.draftText = draft.text }
     val compose = remember { FocusRequester() }
     var focusTick by remember { mutableIntStateOf(0) }
     val put: (String) -> Unit = { draft = TextFieldValue(it, TextRange(it.length)); focusTick++ }
@@ -300,8 +309,18 @@ fun DeskScreen(
             // foot, as a chat is laid out.
             // The three steps sit at the foot, just above the message box.
             Column(Modifier.weight(1f)) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    DeskIntro(vm, ui)
+                // The intro scrolls above the steps; where more lies below, the edge fades (no row is cut off without a cue).
+                val introScroll = rememberScrollState()
+                Box(Modifier.weight(1f)) {
+                    Column(Modifier.verticalScroll(introScroll)) {
+                        DeskIntro(vm, ui)
+                        SuggestedTopics(onTopic = put)
+                        Spacer(Modifier.height(28.dp))
+                    }
+                    if (introScroll.canScrollForward) Box(
+                        Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(28.dp)
+                            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, D.Page))),
+                    )
                 }
                 if (!typing) {
                     Process()
@@ -309,7 +328,7 @@ fun DeskScreen(
                 }
             }
             DeskOpening(vm, ui, draft, { draft = it }, compose, attach, onFocus = { if (it && services) services = false })
-            if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
+            if (ui.termsLoaded) Disclaimer(ui.terms, compact = true, direct = ui.footerDirect, fee = ui.directFee, hidden = ui.footerUnread)
         } else {
             DeskThread(
                 vm, ui, draft, { draft = it }, compose, attach,
@@ -389,7 +408,7 @@ private fun Process() {
     val steps = listOf(
         Triple(Icons.Outlined.Hub, "Analysed by AI", "> analysing your enquiry"),
         Triple(Icons.Outlined.HowToReg, "Reviewed by an advocate", "> routing to an advocate for review"),
-        Triple(Icons.Outlined.Timer, "Usually answered within 30 minutes", "> reply on its way, usually within 30 minutes"),
+        Triple(Icons.Outlined.Timer, "Reply aimed in 30 minutes", "> we aim to reply within 30 minutes once an advocate accepts it"),
     )
     var at by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(2_600); at = (at + 1) % steps.size } }
@@ -418,22 +437,23 @@ private fun Process() {
         Row(Modifier.fillMaxWidth()) {
             steps.forEachIndexed { i, (_, label, _) ->
                 Text(label, style = body(9.1f, if (i == at) D.Ink else D.Muted, FontWeight.SemiBold).copy(lineHeight = 12.sp),
-                    textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(horizontal = 3.dp))
+                    textAlign = TextAlign.Center, minLines = 2, maxLines = 2, modifier = Modifier.weight(1f).padding(horizontal = 3.dp))   // equal label heights: the three steps share one baseline
             }
         }
         Spacer(Modifier.height(7.dp))
-        Text(steps[at].third, style = TextStyle(fontFamily = Mono, fontSize = 8.75.sp, color = D.Gold), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(steps[at].third, style = TextStyle(fontFamily = Mono, fontSize = 8.75.sp, color = D.Gold), textAlign = TextAlign.Center, minLines = 2, maxLines = 2, modifier = Modifier.fillMaxWidth())   // a fixed two-line caption: the layout does not jump as the line changes
     }
 }
 
 @Composable
-private fun Disclaimer(t: DeskTerms, compact: Boolean = false) {
+private fun Disclaimer(t: DeskTerms, compact: Boolean = false, direct: Boolean = false, fee: String = "", hidden: Boolean = false) {
+    // While a message is unread nothing is offered, so no fee and no 30-minute line (web, F-017).
+    if (hidden) return
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) {
-                append(if (t.priced) "Submitting an enquiry costs ${t.displayPrice}, paid once it is written. Nothing is charged before then." else "Submitting an enquiry is free.")
-            }
-            append(" The advocates read every enquiry, and usually reply within 30 minutes of it reaching them.")
+            // The web bolds the lead sentence (reception.php .rcp-disclaim b): web-first parity.
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) { append(disclaimerLead(t, direct, fee)) }
+            append(disclaimerTail(direct))
         },
         style = body(if (compact) 11.5f else 13f, D.Muted).copy(lineHeight = if (compact) 16.sp else 19.sp),
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = if (compact) 8.dp else 16.dp),
@@ -888,12 +908,29 @@ private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Uni
                 }
                 Spacer(Modifier.weight(1f))
                 if (text.length > 4000) Text("${text.length} / ${ui.terms.maxChars}", style = TextStyle(fontFamily = Mono, fontSize = 11.sp, color = D.Muted), modifier = Modifier.padding(end = 10.dp))
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable(onClick = onSend), contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Outlined.Send, dt("ui_send", "Send"), tint = D.OnGold, modifier = Modifier.size(19.dp))
-                }
+                SendButton(dt("ui_send", "Send"), text.isNotBlank(), onClick = onSend)
             }
         }
         ErrorLine(ui.error)
+    }
+}
+
+/**
+ * The one Send button of every composer (owner, 2026-11-15, F-030): the word and the icon, gold with the dark ink, and grey and not pressable until there is
+ * something to send.
+ */
+@Composable
+internal fun SendButton(label: String, enabled: Boolean, height: Dp = 40.dp, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    val ink = if (enabled) D.OnGold else D.Muted
+    Row(
+        Modifier.height(height).clip(shape).background(if (enabled) D.Gold else D.Line2).clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = label }.padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+    ) {
+        Text(label, style = body(14f, ink, FontWeight.SemiBold))
+        Spacer(Modifier.width(6.dp))
+        Icon(Icons.AutoMirrored.Outlined.Send, null, tint = ink, modifier = Modifier.size(17.dp))
     }
 }
 
@@ -916,27 +953,34 @@ private fun FileChips(files: List<DeskFile>, onRemove: (Int) -> Unit) {
 
 @Composable
 private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: String? = null, initial: String = "", description: String? = null, sendLabel: String? = null,
-                    valid: ((String) -> Boolean)? = null, format: (String) -> String = { it }, onSend: (String) -> Unit) {
+                    valid: ((String) -> Boolean)? = null, format: (String) -> String = { it },
+                    /** What sits in the card's bottom row, left of Send (the guest's sign-in link), and the counter beside Send. */
+                    tools: (@Composable () -> Unit)? = null, count: ((String) -> String)? = null, countWarn: ((String) -> Boolean)? = null,
+                    onSend: (String) -> Unit) {
     var v by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
     // The full desk puts the cursor in the box; the Sign In chat panel does not (the keyboard opens only when the box is touched).
     val auto = LocalDeskAutoFocus.current
     LaunchedEffect(Unit) { if (auto) runCatching { focus.requestFocus() } }
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
-            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    // One composer in every text step (owner, 2026-11-15, F-030): the field above, and the one Send button at the bottom right, as the first box has it.
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
+            .padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
     ) {
-        if (prefix != null) { Text(prefix, style = body(15.5f, D.Muted)); Spacer(Modifier.width(8.dp)) }
-        Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
-            if (v.isEmpty()) Text(placeholder, style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
-            BasicTextField(v, { v = format(it) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold), keyboardOptions = keyboard,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp).focusRequester(focus).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (prefix != null) { Text(prefix, style = body(15.5f, D.Muted)); Spacer(Modifier.width(8.dp)) }
+            Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                if (v.isEmpty()) Text(placeholder, style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
+                BasicTextField(v, { v = format(it) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold), keyboardOptions = keyboard,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp).focusRequester(focus).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier))
+            }
         }
-        if (valid != null && valid(v)) Icon(Icons.Outlined.Check, null, tint = D.Live, modifier = Modifier.padding(horizontal = 6.dp).size(18.dp))
-        Box(Modifier.height(40.dp).then(if (sendLabel == null) Modifier.width(40.dp) else Modifier.widthIn(min = 40.dp)).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable { onSend(v) }, contentAlignment = Alignment.Center) {
-            if (sendLabel != null) Text(sendLabel, style = body(14f, D.OnGold, FontWeight.SemiBold), modifier = Modifier.padding(horizontal = 12.dp))
-            else Icon(Icons.AutoMirrored.Outlined.Send, dt("ui_send", "Send"), tint = D.OnGold, modifier = Modifier.size(19.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            tools?.invoke()
+            Spacer(Modifier.weight(1f))
+            if (count != null) Text(count(v), style = body(12f, if (countWarn?.invoke(v) == true) D.Warn else D.Muted), modifier = Modifier.padding(end = 10.dp))
+            if (valid != null && valid(v)) Icon(Icons.Outlined.Check, null, tint = D.Live, modifier = Modifier.padding(horizontal = 6.dp).size(18.dp))
+            SendButton(sendLabel ?: dt("ui_send", "Send"), v.isNotBlank()) { onSend(v) }
         }
     }
 }
@@ -971,7 +1015,7 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).clickable { picking = true }.semantics { contentDescription = dtDate }.padding(horizontal = 16.dp),
+                Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).clickable { picking = true }.semantics { contentDescription = dtDate }.padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(if (date.isEmpty()) dt("ui_pick_date", "Pick A Date") else deadlineShown("", date), style = body(14f, D.Ink, FontWeight.SemiBold))
@@ -979,9 +1023,8 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
             if (date.isNotEmpty()) Text(dt("ui_clear", "Clear"), style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
                 modifier = Modifier.clickable { date = "" }.padding(12.dp))
             Spacer(Modifier.weight(1f))
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(D.Gold).clickable { onGive(text, date) }, contentAlignment = Alignment.Center) {
-                Icon(Icons.AutoMirrored.Outlined.Send, dt("ui_send", "Send"), tint = D.OnGold, modifier = Modifier.size(19.dp))
-            }
+            // Either the words or the date is enough.
+            SendButton(dt("ui_send", "Send"), text.isNotBlank() || date.isNotEmpty()) { onGive(text, date) }
         }
         ErrorLine(error)
     }
@@ -1026,18 +1069,15 @@ private fun CodeDock(info: PhoneCodeUi, error: String, onConfirm: (String) -> Un
     }
 }
 
-/** A guest's message: short (GUEST_CHARS), with the sign-in beside it. */
+/** A guest's message: up to the server's guest_chars, with the sign-in beside it. */
 @Composable
-private fun GuestDock(error: String, onSend: (String) -> Unit, onSignIn: () -> Unit) {
-    var n by remember { mutableIntStateOf(0) }
+private fun GuestDock(error: String, limit: Int, onSend: (String) -> Unit, onSignIn: () -> Unit) {
     Column {
+        // One composer (F-030): the sign-in link and the counter sit in the card's bottom row, left of Send, as the web's guest box has them.
         Compose(dt("ph_ask", "Ask a short question…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), description = dt("sr_message", "Your message"),
-            format = { it.take(GUEST_CHARS).also { v -> n = v.length } }, onSend = onSend)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Quiet(dt("ui_signin_google", "Sign in with Google"), onSignIn)
-            Spacer(Modifier.weight(1f))
-            Text("$n / $GUEST_CHARS", style = body(12f, if (n > GUEST_CHARS - 20) D.Warn else D.Muted))
-        }
+            format = { it.take(limit) },
+            tools = { QuietInRow(dt("ui_signin_google", "Sign in with Google"), onSignIn) },
+            count = { v -> "${v.length} / $limit" }, countWarn = { v -> v.length > limit - 20 }, onSend = onSend)
         ErrorLine(error)
     }
 }
@@ -1059,19 +1099,26 @@ private fun GoogleDock(busy: Boolean, error: String, onGoogle: () -> Unit) {
     }
 }
 
+/** The quiet link inside a composer's bottom row (no extra top gap). */
+@Composable
+private fun QuietInRow(label: String, onClick: () -> Unit) {
+    Text(label, style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp))
+}
+
 @Composable
 private fun Quiet(label: String, onClick: () -> Unit) {
     Text(label, style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
         modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp))
 }
 
-/** One of Lex's follow-up questions: the answer box, and a Send Now chip that sends at once. */
+/** One of Lex's follow-up questions: the answer box, and the quiet Skip The Questions under it. */
 @Composable
 private fun GatherDock(error: String, onSend: (String) -> Unit, onSendNow: () -> Unit) {
     Column {
         Compose(dt("ph_answer", "Your answer…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), description = dt("sr_answer", "Your answer"), onSend = onSend)
         ErrorLine(error)
-        Chips(listOf(Triple(dt("ui_send_now", GATHER_SEND_NOW), false, onSendNow)), topGap = CHIP_GAP.dp)
+        Quiet(dt("ui_send_now", GATHER_SEND_NOW), onSendNow)   // a quiet text button under the box, as the web's, not a second main action
     }
 }
 
@@ -1084,17 +1131,51 @@ private fun ClarifyDock(error: String, onSend: (String) -> Unit, onAsIs: () -> U
     }
 }
 
+/** One button of a group: its words, whether it is the main one, an optional second line (a fee), and what it does. */
+internal data class ChipSpec(val label: String, val main: Boolean, val sub: String = "", val go: () -> Unit = {})
+
+/** How a group of buttons is laid out. */
+internal enum class ChipLayout { Single, Row, Stack, Flow }
+
+/**
+ * The one rule for a group of buttons (owner, 2026-11-15): a pair or a trio sit side by side in one row, equal width, equal height, the main one filled and the others
+ * outlined; a long trio stacks as equal-width full rows, never ragged; four or more (a list of countries) flow and wrap. A single button keeps its own width.
+ */
+internal fun chipLayout(labels: List<String>): ChipLayout = when {
+    labels.size <= 1 -> ChipLayout.Single
+    labels.size == 2 -> ChipLayout.Row
+    labels.size == 3 -> if (labels.any { it.length > 22 }) ChipLayout.Stack else ChipLayout.Row
+    else -> ChipLayout.Flow
+}
+
+@Composable
+private fun Chips(list: List<Triple<String, Boolean, () -> Unit>>, topGap: androidx.compose.ui.unit.Dp = 0.dp) =
+    ChipGroup(list.map { (l, m, g) -> ChipSpec(l, m, "", g) }, topGap)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Chips(list: List<Triple<String, Boolean, () -> Unit>>, topGap: androidx.compose.ui.unit.Dp = 0.dp) {
-    // Rows 8 dp apart and wrapping cleanly; a group of them sits [topGap] below what is above it.
-    FlowRow(Modifier.padding(top = topGap), horizontalArrangement = Arrangement.spacedBy(CHIP_GAP.dp), verticalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
-        list.forEach { (label, main, go) ->
-            Box(
-                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).background(if (main) D.Gold else Color.Transparent)
-                    .border(1.5.dp, if (main) D.Gold else D.Line2, RoundedCornerShape(50)).clickable(onClick = go).padding(horizontal = 18.dp),
-                contentAlignment = Alignment.Center,
-            ) { Text(label, style = body(14f, if (main) D.OnGold else D.Ink, FontWeight.SemiBold)) }
+private fun ChipGroup(list: List<ChipSpec>, topGap: androidx.compose.ui.unit.Dp = 0.dp) {
+    @Composable
+    fun One(c: ChipSpec, modifier: Modifier) {
+        Column(
+            modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).background(if (c.main) D.Gold else Color.Transparent)
+                .border(1.5.dp, if (c.main) D.Gold else D.Line2, RoundedCornerShape(22.dp)).clickable(onClick = c.go).padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Text(c.label, style = body(14f, if (c.main) D.OnGold else D.Ink, FontWeight.SemiBold), textAlign = TextAlign.Center, maxLines = 2)
+            if (c.sub.isNotBlank()) Text(c.sub, style = body(12f, (if (c.main) D.OnGold else D.Muted)), textAlign = TextAlign.Center, maxLines = 1)
+        }
+    }
+    when (chipLayout(list.map { it.label })) {
+        ChipLayout.Single -> Box(Modifier.padding(top = topGap)) { list.forEach { One(it, Modifier) } }
+        ChipLayout.Row -> Row(Modifier.padding(top = topGap).fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
+            list.forEach { One(it, Modifier.weight(1f).fillMaxHeight()) }
+        }
+        ChipLayout.Stack -> Column(Modifier.padding(top = topGap).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
+            list.forEach { One(it, Modifier.fillMaxWidth()) }
+        }
+        ChipLayout.Flow -> FlowRow(Modifier.padding(top = topGap), horizontalArrangement = Arrangement.spacedBy(CHIP_GAP.dp), verticalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
+            list.forEach { One(it, Modifier) }
         }
     }
 }
@@ -1395,7 +1476,7 @@ internal fun DeskOpening(
             Text("The desk is not taking new enquiries just now. Please write to your advocate on one of your matters, or try again later.",
                 style = body(14f, D.Muted), modifier = Modifier.padding(vertical = 12.dp))
         } else if (vm.guest) {
-            GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
+            GuestDock(ui.error, ui.guestChars, vm::submitGuest, vm::guestSignIn)
         } else {
             QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile, onFocus = onFocus) { vm.submitQuestion(draft.text) }
         }
@@ -1430,14 +1511,14 @@ internal fun DeskThread(
                 Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
                 is Dock.Advocate -> AdvocateWaiting(d.state, { vm.act("advocate_open") })
-                is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
+                is Dock.Actions -> Column { ChipGroup(d.list.map { a -> ChipSpec(a.label, a.main, a.sub) { vm.act(a.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
                 is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
                 Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
                 Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired || (ui.terms.phoneVerify.required && !ui.terms.phoneVerify.verified), ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
                 // One thing at a time: an error replaces the pending line (the dock never shows both), and buttons are a dock of their own.
                 is Dock.Waiting -> if (ui.error.isNotEmpty()) ErrorLine(ui.error) else WaitLine(d.label)
                 is Dock.Code -> CodeDock(d.info, ui.error, vm::submitCode, vm::codeAgain, vm::codeSms, vm::changeNumber)
-                Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
+                Dock.Guest -> GuestDock(ui.error, ui.guestChars, vm::submitGuest, vm::guestSignIn)
                 Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
                 Dock.SignIn -> GoogleDock(signingIn, ui.error, google)
                 is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, acctScan, acctPick, vm::acctFields, vm::acctCode, vm::acctSubmit)
@@ -1448,7 +1529,7 @@ internal fun DeskThread(
             // A counsel registration has its own footer (what to have at hand), the client's is the account footer.
             val foot = if (ui.counsel && ui.terms.counselFoot.isNotBlank()) ui.terms.counselFoot else ui.terms.accountFoot
             if (foot.isNotBlank()) Text(foot, style = body(12f, D.Muted), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp))
-        } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
+        } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true, direct = ui.footerDirect, fee = ui.directFee, hidden = ui.footerUnread)
     }
     }
 }
@@ -1457,6 +1538,16 @@ internal fun DeskThread(
  * The guest desk's view model, handed from the Sign In chat panel to the full desk screen so the conversation carries over (the same
  * state, not a copy). The panel gives it just before navigating; the full screen takes it once.
  */
+/** Which kept conversation the desk opens (see DeskScreen): a new key after a finished enquiry or another person signing in. */
+internal object DeskKeep {
+    @Volatile private var generation = 0
+    fun renew() { generation++ }
+    fun key(context: android.content.Context): String {
+        val token = kotlinx.coroutines.runBlocking { com.legumlex.client.data.auth.TokenStore(context.applicationContext).read() }.orEmpty()
+        return "desk-$generation-" + (if (token.isBlank()) "guest" else token.hashCode().toString())
+    }
+}
+
 internal object DeskHandover {
     @Volatile private var held: DeskViewModel? = null
     fun give(vm: DeskViewModel) { held = vm }
@@ -1553,7 +1644,7 @@ fun DeskSampleScreen(onClose: () -> Unit) {
                     1 -> ErrorLine("This is an error line. It replaces the pending line.")
                     2 -> WaitLine("reading your document")
                     3 -> androidx.compose.runtime.key(replay) { SendToAdvocate("Sent to an advocate", "19:44") }
-                    4 -> AdvocateWaiting(AdvocateWait.Waiting("Waiting for the advocate", "Your final report has been sent. An advocate usually replies within 30 minutes. You can leave this open."), {})
+                    4 -> AdvocateWaiting(AdvocateWait.Waiting("Waiting for the advocate", "Your final report has been sent. The advocate, or their office, will contact you to fix a time. You can leave this open."), {})
                     else -> AdvocateWaiting(AdvocateWait.HandedOver("Advocate Asha Rao has your enquiry now", "They will write to you here and by email.", "Open Consultation"), {})
                 }
             }
@@ -1639,3 +1730,37 @@ private const val SAMPLE_HINDI_VISITOR = "क्या मैं अपने �
 private const val SAMPLE_HINDI_DESK = "केस का नतीजा क्या होगा, यह मैं नहीं बता सकता, और अंदाज़ा लगाना ठीक नहीं होगा। वकील आपके कागज़ देखकर सही जवाब दे सकते हैं। आप Google से साइन इन करें, फिर एक वकील आपकी बात पढ़कर आमतौर पर 30 मिनट में जवाब देंगे।"
 private const val SAMPLE_PUNJABI_VISITOR = "ਕੀ ਮੈਂ ਆਪਣੇ ਮਕਾਨ ਮਾਲਕ ਖ਼ਿਲਾਫ਼ ਕੇਸ ਜਿੱਤ ਜਾਵਾਂਗਾ?"
 private const val SAMPLE_PUNJABI_DESK = "ਕੇਸ ਦਾ ਨਤੀਜਾ ਕੀ ਹੋਵੇਗਾ, ਇਹ ਮੈਂ ਨਹੀਂ ਦੱਸ ਸਕਦਾ, ਅਤੇ ਅੰਦਾਜ਼ਾ ਲਾਉਣਾ ਠੀਕ ਨਹੀਂ ਹੋਵੇਗਾ। ਵਕੀਲ ਤੁਹਾਡੇ ਕਾਗਜ਼ ਦੇਖ ਕੇ ਠੀਕ ਜਵਾਬ ਦੇ ਸਕਦੇ ਹਨ। ਤੁਸੀਂ Google ਨਾਲ ਸਾਈਨ ਇਨ ਕਰੋ, ਫਿਰ ਇੱਕ ਵਕੀਲ ਤੁਹਾਡੀ ਗੱਲ ਪੜ੍ਹ ਕੇ ਆਮ ਤੌਰ 'ਤੇ 30 ਮਿੰਟ ਵਿੱਚ ਜਵਾਬ ਦੇਵੇਗਾ।"
+
+/** The activity that holds the kept conversation (the context may be wrapped). */
+internal fun deskActivity(context: android.content.Context): androidx.activity.ComponentActivity {
+    var c: android.content.Context? = context
+    while (c is android.content.ContextWrapper) { if (c is androidx.activity.ComponentActivity) return c; c = c.baseContext }
+    error("The desk needs an activity")
+}
+
+/**
+ * The web's Suggested Topics (reception.php): a heading with See all, three one-tap topics (six with See all). A tap puts the topic's starter in the question box and
+ * focuses it; nothing is sent.
+ */
+@Composable
+internal fun SuggestedTopics(onTopic: (String) -> Unit) {
+    var all by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = DESK_SIDE_MARGIN.dp).padding(top = 22.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(dt("ui_topics", "Suggested Topics"), style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+            Quiet(if (all) dt("ui_show_fewer", "Show Fewer") else dt("ui_see_all", "See All")) { all = !all }
+        }
+        Spacer(Modifier.height(6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(CHIP_GAP.dp)) {
+            DESK_TOPICS.take(if (all) DESK_TOPICS.size else DESK_TOPICS_SHOWN).forEach { t ->
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, D.Line2, RoundedCornerShape(12.dp))
+                        .clickable { onTopic(t.starter) }.padding(horizontal = 14.dp, vertical = 11.dp),
+                ) {
+                    Text(t.title, style = body(14.5f, D.Ink, FontWeight.SemiBold))
+                    Text(t.covers, style = body(12.5f, D.Muted))
+                }
+            }
+        }
+    }
+}

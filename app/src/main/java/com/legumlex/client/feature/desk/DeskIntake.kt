@@ -83,7 +83,7 @@ fun deskReadingUsable(state: String?): Boolean = state == null || state == "read
 fun receiptLine(enquiryNumber: String?, email: String = ""): String {
     val n = enquiryNumber?.trim().orEmpty()
     return (if (n.isNotEmpty()) "**Enquiry $n received.**" else "**Enquiry received.**") +
-        " It goes to one of the advocates, who usually reply within 30 minutes, to **${email.trim().ifBlank { "your email" }}**."
+        " It goes to one of the advocates; once one accepts it, we aim to reply within 30 minutes, to **${email.trim().ifBlank { "your email" }}**."
 }
 
 // ---- What is sent with an enquiry ----
@@ -145,7 +145,7 @@ const val DESK_BOTTOM_ROOM = 24f
 
 /** At most three questions in all, the reading's own follow-up counting as the first. */
 const val GATHER_MAX = 3
-const val GATHER_SEND_NOW = "Send Now"
+const val GATHER_SEND_NOW = "Skip The Questions"
 
 /** The desk's next question (desk/gather): "" means nothing more, and [done] says it has no more to ask. */
 data class GatherResult(val question: String, val topic: String, val done: Boolean, val ran: Boolean = false, val tongue: DeskTongue = DeskTongue(), val directOffer: DirectOfferInfo? = null, val directOpen: DirectOpen? = null) {
@@ -223,7 +223,7 @@ sealed interface AdvocateWait {
 
 /** web's English lines, used when no book is in force (the same words as desk_lines.json). */
 const val PERSON_INFORMED = "I have messaged one of the advocates. As soon as they are free, I will hand over. Meanwhile, a few details will save time and let them come prepared."
-const val PERSON_FINAL = "The final report has gone to the advocate. Waiting for them now; they usually attend within 30 minutes."
+const val PERSON_FINAL = "The final report has gone to the advocate. Waiting for them now; they or their office will contact you to fix a time."
 const val PERSON_HANDOVER = "Your enquiry has been sent to the advocate."
 const val PERSON_SENT_CAPTION = "Sent to an advocate"
 const val OPEN_CONSULTATION = "Open Consultation"
@@ -309,7 +309,7 @@ fun directPhase(state: String?): DirectPhase = when (state?.trim()) {
 }
 
 /** web's English for the lines of a booked consultation (the same words as desk_lines.json). */
-const val DIRECT_OFFER_EN = "An advocate can speak with you directly for {fee}. Pay now and one will take your enquiry, usually within 30 minutes. Shall I book it?"
+const val DIRECT_OFFER_EN = "A full consultation with our counsel is {fee}. Once you pay, it is offered to our counsel straight away, and the advocate who takes it, or their office, will contact you to fix a time. Shall I book it?"
 const val DIRECT_YES = "Yes, Book It"
 const val DIRECT_NO = "No, Carry On"
 const val DIRECT_PAY_WAIT = "Payment received. I have asked the advocates to take it; waiting for one to accept."
@@ -426,16 +426,41 @@ data class PhoneCodeUi(val to: String, val resendIn: Int, val smsIn: Int, val ca
 
 // ---- Lex's closing turn (REQ-023) ----
 
-/** What Lex says before the enquiry is sent: at most two short sentences and one ask (fixed copy may carry <b> around the fee), and where it came from. */
-data class CloseTurn(val say: String, val source: String, val feeDisplay: String, val feePaise: Int, val declined: Boolean = false)
+/** One of the close's two cards (`choice.cards`): which product (key consultation|written), and the button's own words. */
+data class CloseCard(val key: String, val button: String, val title: String, val price: String, val secondary: Boolean)
+
+/**
+ * What Lex says before the enquiry is sent, and where it came from. Beside `say`: `declined` (no ask), `booked` (the full consultation was chosen: one line,
+ * nothing more), `choice` (the two cards, the consultation first) and `refused` ("no_matter": the text holds no matter; `say` asks for it).
+ */
+data class CloseTurn(
+    val say: String, val source: String, val feeDisplay: String, val feePaise: Int, val declined: Boolean = false,
+    val booked: Boolean = false, val cards: List<CloseCard> = emptyList(), val refused: String = "",
+)
 
 /** Null when the answer says nothing to show (the turn is skipped and the desk goes on as before). */
 fun parseCloseTurn(d: Map<String, Any?>?): CloseTurn? {
-    if (d == null || d["success"] == false) return null
+    if (d == null) return null
+    val refused = (d["refused"] as? String).orEmpty().trim()
+    // A refusal answers success:false with its own say: it must not be skipped (the server found no matter in the text).
+    if (d["success"] == false && refused.isEmpty()) return null
     val say = (d["say"] as? String)?.trim().orEmpty()
     if (say.isEmpty()) return null
-    return CloseTurn(htmlToMarkup(say), (d["source"] as? String)?.trim().orEmpty(), (d["fee_display"] as? String)?.trim().orEmpty(), (d["fee_paise"] as? Number)?.toInt() ?: 0, d["declined"] == true)
+    val cards = ((d["choice"] as? Map<*, *>)?.get("cards") as? List<*>).orEmpty().mapNotNull { c ->
+        val m = c as? Map<*, *> ?: return@mapNotNull null
+        val key = (m["key"] as? String).orEmpty().trim()
+        val button = (m["button"] as? String).orEmpty().trim()
+        if (key !in setOf("consultation", "written") || button.isEmpty()) null
+        else CloseCard(key, button, (m["title"] as? String).orEmpty().trim(), (m["price"] as? String).orEmpty().trim(), m["secondary"] == true)
+    }
+    return CloseTurn(
+        htmlToMarkup(say), (d["source"] as? String)?.trim().orEmpty(), (d["fee_display"] as? String)?.trim().orEmpty(), (d["fee_paise"] as? Number)?.toInt() ?: 0,
+        declined = d["declined"] == true, booked = d["booked"] == true, cards = cards, refused = refused,
+    )
 }
+
+/** What the visitor chose so far, as desk/close wants it: "consultation" (booked), "written" (said no to the booking), or nothing yet. */
+fun closeChose(booked: Boolean, offerAnswered: Boolean): String? = if (booked) "consultation" else if (offerAnswered) "written" else null
 
 const val CLOSE_GO_AHEAD = "Yes, Go Ahead"
 const val CLOSE_NOT_NOW = "Not Now"
@@ -449,3 +474,51 @@ const val GUEST_STORY_MIN = 20
 /** The guest's own messages, joined, when they wrote at least GUEST_STORY_MIN characters in all; else null, also when it is keyboard-mash text (the question is asked as before). */
 fun guestStory(turns: List<Pair<String, String>>): String? =
     turns.filter { it.first == "guest" }.map { it.second.trim() }.filter { it.isNotEmpty() }.joinToString(" ").takeIf { it.length >= GUEST_STORY_MIN && !DeskViewModel.mashed(it) }
+
+/** The unread answer's own line is shown; this is only for an answer without one. */
+const val UNREAD_EN = "I can't take your enquiry right now. What you wrote is kept here; please try again later."
+
+// The line under the box (the web's reception.php rcp-disclaim; the server does not serve it, so these are the web's own words).
+/** The bold lead: the consultation's fee once the full consultation is chosen (R9, R9a), else the written enquiry's. */
+fun disclaimerLead(t: DeskTerms, direct: Boolean, fee: String): String =
+    if (direct) (if (fee.isNotBlank()) "A full consultation costs $fee, paid when you book it." else "A full consultation is paid when you book it.")
+    else if (t.priced) "Submitting an enquiry costs ${t.displayPrice}, paid once it is written. Nothing is charged before then." else "Submitting an enquiry is free."
+
+/** The rest: how the consultation is arranged, or the written enquiry's reply target (R6: a target once an advocate accepts it, never a promise). */
+fun disclaimerTail(direct: Boolean): String =
+    if (direct) " The advocate who takes it, or their office, will contact you to fix a time."
+    else " The advocates read every enquiry, and we aim to reply within 30 minutes once an advocate accepts it."
+
+// ---- Suggested Topics (the web's reception.php TOPICS, in the same order; the page holds them in its script, so the server serves no list) ----
+
+/** One suggested topic: the line, what it covers, and the starter text a tap puts in the question box (it is never sent). */
+data class DeskTopic(val title: String, val covers: String, val starter: String)
+
+val DESK_TOPICS = listOf(
+    DeskTopic("A cheque given to me has bounced.", "Complaints under Section 138 of the NI Act.", "A cheque given to me has bounced. "),
+    DeskTopic("My tenant will not pay rent or leave.", "Rent, eviction and security deposits.", "My tenant will not pay rent or leave. "),
+    DeskTopic("I have received a legal notice.", "Understanding it, and replying in time.", "I have received a legal notice from "),
+    DeskTopic("I live abroad and have property in India.", "Sale, possession and Power of Attorney.", "I live abroad and have property in India. "),
+    DeskTopic("A business partner broke our agreement.", "Contracts, recovery and disputes.", "A business partner has broken our agreement. "),
+    DeskTopic("My employer has not paid my dues.", "Salary, gratuity and termination.", "My employer has not paid my dues. "),
+)
+/** How many the web shows before "See all". */
+const val DESK_TOPICS_SHOWN = 3
+/** The draft is kept from this many characters (the web's rule). */
+const val DESK_DRAFT_MIN = 3
+
+// ---- The welcome, as the web says it (reception.php greetBack, F-018 / R23a) ----
+
+const val GREET_NEW_NOENAME_EN = "Thank you for choosing Legum Lex."
+
+/** "Welcome back, {first}." (served welcome_back_name / welcome_back): the first name only, with nothing else about the account and no note about the file. */
+fun welcomeLine(first: String, book: LineBook): String =
+    if (first.isNotBlank()) book.line("welcome_back_name", mapOf("first" to first)) ?: "Welcome back, $first."
+    else book.line("welcome_back") ?: "Welcome back."
+
+/** The facts card: advocates, open matters, next hearing (labels lab_counsel / lab_open / lab_hearing; the count by matter_one / matter_many). */
+fun welcomeFacts(c: DeskContext, day: (String) -> String, label: (String, String) -> String, matters: (Int) -> String?): List<Pair<String, String>> = buildList {
+    if (c.counsel.isNotEmpty()) add(label("lab_counsel", "Your advocates") to DeskViewModel.names(c.counsel))
+    if (c.openCases > 0) add(label("lab_open", "Open matters") to (matters(c.openCases) ?: "${c.openCases} ${if (c.openCases == 1) "matter" else "matters"}"))
+    c.nextHearingDate?.let { d -> add(label("lab_hearing", "Next hearing") to day(d) + (c.nextHearingTitle?.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")) }
+}

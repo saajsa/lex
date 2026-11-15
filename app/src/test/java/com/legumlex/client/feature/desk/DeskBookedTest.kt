@@ -66,7 +66,7 @@ class DeskBookedTest {
         assertTrue(vm.contains("if (r?.directOffer != null && !directAsked) pendingOffer = r.directOffer"))
         val ask = vm.substringAfter("private suspend fun askDirectOffer()").substringBefore("private suspend fun deliveredBooked")
         assertTrue(ask.contains("tl(\"direct_offer\", mapOf(\"fee\" to o.feeDisplay))") && ask.contains("\"direct_yes\"") && ask.contains("\"direct_no\"") && ask.contains("directAsked = true"))
-        assertEquals("An advocate can speak with you directly for ₹500. Pay now and one will take your enquiry, usually within 30 minutes. Shall I book it?", DIRECT_OFFER_EN.replace("{fee}", "₹500"))
+        assertEquals("A full consultation with our counsel is ₹500. Once you pay, it is offered to our counsel straight away, and the advocate who takes it, or their office, will contact you to fix a time. Shall I book it?", DIRECT_OFFER_EN.replace("{fee}", "₹500"))
         assertEquals("Yes, Book It", DIRECT_YES); assertEquals("No, Carry On", DIRECT_NO)
     }
 

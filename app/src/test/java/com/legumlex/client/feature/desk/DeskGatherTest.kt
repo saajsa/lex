@@ -35,13 +35,13 @@ class DeskGatherTest {
     }
 
     @Test fun sendNowEndsTheQuestionsAtOnce() {
-        assertEquals("Send Now", GATHER_SEND_NOW)
+        assertEquals("Skip The Questions", GATHER_SEND_NOW)
         val s = src("feature/desk/DeskViewModel.kt") ?: return
         val now = s.substringAfter("fun sendNow()").substringBefore("// ---- Documents")
         assertFalse(now.contains("answer(Step."))            // no visitor bubble, so no Change link
         assertTrue(now.contains("finishGather()"))
         val screen = src("feature/desk/DeskScreen.kt")!!
-        assertTrue(screen.contains("Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)") && screen.contains("Chips(listOf(Triple(dt(\"ui_send_now\", GATHER_SEND_NOW), false, onSendNow))"))
+        assertTrue(screen.contains("Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)") && screen.contains("Quiet(dt(\"ui_send_now\", GATHER_SEND_NOW), onSendNow)"))   // the quiet Skip The Questions, not a chip
     }
 
     @Test fun aFailureNeverBlocksSendingAndTheTextIsReadOnceMore() {
@@ -92,6 +92,6 @@ class DeskGatherTest {
         assertTrue(s.contains("if (r?.ran == true) gatherRan = true"))
         assertTrue(s.substringAfter("private suspend fun askDeadline()").take(300).contains("if (skipDeadlineStep(gatherRan)) { deadline = \"\" to \"\"; return next() }"))
         // Reset when the questions start over and when the desk restarts.
-        assertTrue(s.contains("gatherDone = false; gatherRan = false; closeDone = false }") && s.contains("gatherDone = false; gatherRan = false; closeDone = false; sessionHash = null"))
+        assertTrue(s.contains("gatherDone = false; gatherRan = false; closeDone = false }") && s.contains("gatherDone = false; gatherRan = false; closeDone = false; unreadRetried = false; unreadShown = false; sessionHash = null"))
     }
 }

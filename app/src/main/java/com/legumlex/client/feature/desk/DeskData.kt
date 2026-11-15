@@ -110,6 +110,10 @@ data class DeskReading(
     val directOffer: DirectOfferInfo? = null,
     /** The person already has an open direct consultation: resume it instead of offering a new one. */
     val directOpen: DirectOpen? = null,
+    /** The server did not read the message (REQ-023 F-017, R20a): `busy` with `unread_line`, kept words, and a silent retry when `retry_once`. */
+    val busy: Boolean = false,
+    val unreadLine: String = "",
+    val retryOnce: Boolean = false,
 )
 
 /** A file the client has chosen, read into memory as the page holds a File. */
@@ -158,6 +162,8 @@ data class GuestReply(
     val tongue: DeskTongue = DeskTongue(),
     /** The "advocates are busy, I will pass on your request" reply: the guest asked for a person. */
     val person: Boolean = false,
+    /** The most characters a guest's message may hold (`guest_chars`); null when the server did not say. */
+    val guestChars: Int? = null,
 )
 
 internal fun parseGuestReply(d: Map<String, Any?>): GuestReply? {
@@ -173,6 +179,7 @@ internal fun parseGuestReply(d: Map<String, Any?>): GuestReply? {
         signIn = !clarify && forms.isEmpty() && (d["sign_in"] == true || (d["left"] as? Number)?.toInt() == 0),
         account = d["account"] == true, counsel = d["counsel"] == true, clarify = clarify, forms = forms,
         tongue = parseTongue(d), person = d["person"] == true,
+        guestChars = (d["guest_chars"] as? Number)?.toInt()?.takeIf { it > 0 },
     )
 }
 
@@ -212,8 +219,9 @@ class DeskRepository(private val context: Context) {
 
     /** Lex's closing turn (desk/close; a lead's desk asks lead/desk/close), 20 seconds. Null on an error, a rate limit or no answer: the turn is then skipped. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun close(text: String, lang: String?): CloseTurn? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
-        runCatching { parseCloseTurn((if (lead) api.leadDeskClose(text, lang) else api.deskClose(text, lang))["data"] as? Map<String, Any?>) }.getOrNull()
+    suspend fun close(text: String, lang: String?, chose: String? = null, person: Boolean = false): CloseTurn? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+        val p = if (person) 1 else null
+        runCatching { parseCloseTurn((if (lead) api.leadDeskClose(text, lang, chose, p) else api.deskClose(text, lang, chose, p))["data"] as? Map<String, Any?>) }.getOrNull()
     }
 
     /** The enquiry's number step (REQ-018): ask for a WhatsApp code. */
@@ -401,6 +409,9 @@ class DeskRepository(private val context: Context) {
                 advocateInformed = d["advocate_informed"] == true,
                 directOffer = parseDirectOffer(d["direct_offer"]),
                 directOpen = parseDirectOpen(d["direct_open"]),
+                busy = d["busy"] == true,
+                unreadLine = (d["unread_line"] as? String).orEmpty().trim(),
+                retryOnce = d["retry_once"] == true,
             )
         }.getOrNull()
     }

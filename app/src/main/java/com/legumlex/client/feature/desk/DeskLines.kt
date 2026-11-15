@@ -122,22 +122,22 @@ class LineBook(val lang: String, private val lines: Map<String, String>, val foo
 
     /** The line [key], filled; null when the book has none (the English is then said). */
     fun line(key: String, vars: Map<String, String> = emptyMap()): String? =
-        if (!active) null else lines[key]?.takeIf { it.isNotBlank() }?.let { fillLine(it, vars) }
+        lines[key]?.takeIf { it.isNotBlank() }?.let { fillLine(it, vars) }
 
     /** A fragment that goes inside another line ("ek business", "3 matters"): filled but not capitalised, so it never opens a sentence of its own. */
     fun fragment(key: String, vars: Map<String, String> = emptyMap()): String? =
-        if (!active) null else lines[key]?.takeIf { it.isNotBlank() }?.let { fillLine(it, vars, capitalise = false) }
+        lines[key]?.takeIf { it.isNotBlank() }?.let { fillLine(it, vars, capitalise = false) }
 
     companion object {
         val English = LineBook("en", emptyMap(), null)
     }
 }
 
-/** desk/lines: {lang, lines: {key: text}, pool: [..], footer}; null when it is not a usable book (the English is then kept). */
+/** desk/lines: {lang, lines: {key: text}, pool: [..], footer (null for English)}; null when it is not a usable book (the app's own English is then kept). */
 fun parseLineBook(d: Map<String, Any?>?): LineBook? {
     if (d == null) return null
+    // English too (desk/lines?lang=en): its lines override the app's English constants, which stay only as the offline fallback. English never counts as `active` (translated).
     val lang = deskLang(d["lang"] as? String)
-    if (lang == "en") return null
     val lines = (d["lines"] as? Map<*, *>).orEmpty().mapNotNull { (k, v) -> (k as? String)?.let { key -> (v as? String)?.let { key to it } } }.toMap()
     if (lines.isEmpty()) return null
     val pool = (d["pool"] as? List<*>).orEmpty().mapNotNull { it as? String }.filter { it.isNotBlank() }
@@ -152,6 +152,6 @@ fun matterCount(book: LineBook, n: Int): String? = book.fragment(if (n == 1) "ma
  * when /lines cannot be had (null), the English lines are kept and nothing else changes.
  */
 suspend fun languageSwitch(lang: String, cached: LineBook?, fetch: suspend () -> LineBook?): LineBook {
-    if (lang == "en") return LineBook.English
+    // English included: the served English lines when they could be had, else the app's own constants (LineBook.English has no lines).
     return cached ?: fetch() ?: LineBook.English
 }

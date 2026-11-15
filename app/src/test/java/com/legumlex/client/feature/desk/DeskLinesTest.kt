@@ -46,7 +46,7 @@ class DeskLinesTest {
         assertSame(book, first); assertEquals(1, calls)
         val again = languageSwitch("hi", first) { calls++; null }   // cached: no second call
         assertSame(book, again); assertEquals(1, calls)
-        assertSame(LineBook.English, languageSwitch("en", book) { calls++; book })   // back to English
+        assertSame(LineBook.English, languageSwitch("en", null) { null })   // back to English: the app's constants when no English lines were served
     }
 
     @Test fun aFailureOfLinesFallsBackToEnglish() = runBlocking {
@@ -56,7 +56,7 @@ class DeskLinesTest {
         assertNull(b.line("received_no", mapOf("n" to "5")))   // the English line is then said by the caller
         assertNull(b.footer)
         assertNull(parseLineBook(mapOf("lang" to "hi", "lines" to emptyMap<String, String>())))   // an empty book is no book
-        assertNull(parseLineBook(null)); assertNull(parseLineBook(mapOf("lang" to "en", "lines" to mapOf("a" to "b"))))
+        assertNull(parseLineBook(null)); assertEquals("en", parseLineBook(mapOf("lang" to "en", "lines" to mapOf("a" to "b")))!!.lang)   // English is served now (desk/lines?lang=en)
     }
 
     @Test fun aLinesCallThatThrowsIsNoBookEither() {

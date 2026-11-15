@@ -26,11 +26,11 @@ class DeskLayoutTest {
 
     @Test fun buttonsAreEightApartWrapAndSitTwelveBelowWhatIsAbove() {
         val s = screen ?: return
-        val chips = s.substringAfter("private fun Chips(").substringBefore("@Composable\nprivate fun DocsDock")
+        val chips = s.substringAfter("private fun ChipGroup(").substringBefore("@Composable\nprivate fun DocsDock")
         assertTrue(chips.contains("FlowRow(Modifier.padding(top = topGap)") && chips.contains("spacedBy(CHIP_GAP.dp)"))
-        assertEquals(2, Regex("spacedBy\\(CHIP_GAP.dp\\)").findAll(chips).count())      // across and down
+        assertEquals(4, Regex("spacedBy\\(CHIP_GAP.dp\\)").findAll(chips).count())      // the row, the stack, and the flow across and down
         // The actions dock and the sample ask for the 12 dp above the group.
-        assertTrue(s.contains("vm.act(it.id) } }, topGap = CHIP_GROUP_TOP.dp)"))
+        assertTrue(s.contains("vm.act(a.id) } }, topGap = CHIP_GROUP_TOP.dp)"))
     }
 
     @Test fun anErrorReplacesThePendingLineAndButtonsNeverShowWithIt() {
@@ -38,7 +38,7 @@ class DeskLayoutTest {
         // One dock at a time in the real state: Waiting shows the error if there is one, else the pending line; Actions is its own dock.
         assertTrue(s.contains("is Dock.Waiting -> if (ui.error.isNotEmpty()) ErrorLine(ui.error) else WaitLine(d.label)"))
         val vm = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").readText()
-        assertTrue(vm.contains("private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = \"\") }"))      // a new dock clears the old error
+        assertTrue(vm.contains("private fun dock(d: Dock) = _ui.update { it.copy(dock = d, error = \"\", footerDirect = directBook, directFee = offerFee, footerUnread = unreadShown) }"))      // a new dock clears the old error
         // The sample shows one state at a time.
         val sample = s.substringAfter("fun DeskSampleScreen(")
         assertTrue(sample.contains("when (state) {") && sample.contains("1 -> ErrorLine(") && sample.contains("2 -> WaitLine("))
