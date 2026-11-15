@@ -27,8 +27,8 @@ class DeskWaitTest {
         assertEquals(3_000L, SLOW_AFTER_MS)
         assertEquals("One moment…", ONE_MOMENT)
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(vm.contains("withSlowNote(ONE_MOMENT) { repo.check(text, langField(convLang)) }"))
-        assertTrue(vm.contains("withSlowNote(ONE_MOMENT) { repo.guest(guestTurns) }"))
+        assertTrue(vm.contains("withSlowNote(lbl(\"wait_moment\", ONE_MOMENT)) { repo.check(text, langField(convLang)) }"))
+        assertTrue(vm.contains("withSlowNote(lbl(\"wait_moment\", ONE_MOMENT)) { repo.guest(guestTurns) }"))
         // It only replaces a pending line, and stops when the answer comes.
         val helper = vm.substringAfter("private suspend fun <T> withSlowNote").substringBefore("private fun dock(")
         assertTrue(helper.contains("delay(SLOW_AFTER_MS)") && helper.contains("is Dock.Waiting") && helper.contains("note.cancel()"))

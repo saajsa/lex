@@ -76,6 +76,8 @@ data class DeskTerms(
     val counselFoot: String = "",
     /** Which details the server already has on file (desk context.known_details); all false from an older server (today's behaviour). */
     val known: KnownDetails = KnownDetails(),
+    /** REQ-018: whether the enquiry needs a verified mobile number, and whether one is on record (a masked number only). Absent = not required. */
+    val phoneVerify: PhoneVerify = PhoneVerify(),
 ) {
     val takesFiles get() = maxFiles > 0 && documentTypes.isNotEmpty()
     val priced get() = basePrice > 0
@@ -197,6 +199,9 @@ class DeskRepository(private val context: Context) {
     private val lead get() = com.legumlex.client.data.auth.SessionRole.isLead
 
     /** A stable id for this desk conversation, made once per desk session and sent on every check (so the server tells one conversation's requests apart). */
+    /** The conversation's language for the account flow's calls (hi|pa|hx; "" for English): the server translates its chips and buttons. */
+    @Volatile var lang: String = ""
+
     val conversation: String = java.util.UUID.randomUUID().toString().replace("-", "")
 
     /** Book a Direct Consultation on an enquiry already in, or take its fee invoice again (desk/direct): the booking, or null (409 direct_unavailable, or not reached). */
@@ -204,6 +209,32 @@ class DeskRepository(private val context: Context) {
     suspend fun direct(consultationId: Int): DirectBooking? = runCatching {
         parseDirectBooking((if (lead) api.leadDeskDirect(consultationId, conversation) else api.deskDirect(consultationId, conversation))["data"] as? Map<String, Any?>)
     }.getOrNull()
+
+    /** Lex's closing turn (desk/close; a lead's desk asks lead/desk/close), 20 seconds. Null on an error, a rate limit or no answer: the turn is then skipped. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun close(text: String, lang: String?): CloseTurn? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+        runCatching { parseCloseTurn((if (lead) api.leadDeskClose(text, lang) else api.deskClose(text, lang))["data"] as? Map<String, Any?>) }.getOrNull()
+    }
+
+    /** The enquiry's number step (REQ-018): ask for a WhatsApp code. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun phoneCode(number: String, entityType: String, sessionHash: String?): PhoneResult =
+        phoneCall { (if (lead) api.leadDeskPhoneCode(number, entityType.ifBlank { null }, sessionHash, langField(lang)) else api.deskPhoneCode(number, entityType.ifBlank { null }, sessionHash, langField(lang))) }
+
+    suspend fun phoneSms(sessionHash: String): PhoneResult =
+        phoneCall { if (lead) api.leadDeskPhoneSms(sessionHash, langField(lang)) else api.deskPhoneSms(sessionHash, langField(lang)) }
+
+    suspend fun phoneVerify(code: String, sessionHash: String): PhoneResult =
+        phoneCall { if (lead) api.leadDeskPhoneVerify(code, sessionHash, langField(lang)) else api.deskPhoneVerify(code, sessionHash, langField(lang)) }
+
+    private suspend fun phoneCall(call: suspend () -> Map<String, Any?>): PhoneResult = try {
+        parsePhoneOk(call()["data"] as? Map<String, Any?>)
+    } catch (e: HttpException) {
+        val body = runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()) }.getOrNull()
+        if (e.code() == 422 && body != null) parsePhoneRefusal(refusalMap(body)) else PhoneResult.Failed
+    } catch (e: Exception) {
+        PhoneResult.Failed
+    }
 
     /** The consultation row as the booked-consultation wait reads it (direct_state, who accepted, due, intake_state, assigned_to); null when not read. */
     @Suppress("UNCHECKED_CAST")
@@ -250,7 +281,7 @@ class DeskRepository(private val context: Context) {
     /** The server's turn, or null (no connection). */
     @Suppress("UNCHECKED_CAST")
     suspend fun acctTurn(open: Boolean, counsel: Boolean = false): AcctTurn? = runCatching {
-        ((api.leadOnboardingTurn(if (open) 1 else 0, if (counsel) "counsel" else null)["data"] as? Map<String, Any?>)?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
+        ((api.leadOnboardingTurn(if (open) 1 else 0, if (counsel) "counsel" else null, langField(lang))["data"] as? Map<String, Any?>)?.get("turn") as? Map<String, Any?>)?.let(::parseTurn)
     }.getOrNull()
 
     /** An answer: (accepted, the next turn), or null (no connection). */
@@ -259,6 +290,7 @@ class DeskRepository(private val context: Context) {
         val body = buildMap {
             put("step", step); put("id", id)
             if (code.isNotEmpty()) put("code", code)
+            langField(lang)?.let { put("lang", it) }
             if (fields.isNotEmpty()) put("fields", org.json.JSONObject(fields).toString())
         }
         val d = api.leadOnboardingAnswer(body)["data"] as? Map<String, Any?> ?: return@runCatching null
@@ -277,6 +309,7 @@ class DeskRepository(private val context: Context) {
         val parts = listOf(
             MultipartBody.Part.createFormData("document_type", type),
             MultipartBody.Part.createFormData("desk", "1"),
+            *listOfNotNull(langField(lang)?.let { MultipartBody.Part.createFormData("lang", it) }).toTypedArray(),
             MultipartBody.Part.createFormData("document", name, bytes.toRequestBody(mime.toMediaTypeOrNull())),
         )
         val d = try { api.leadOnboardingDocument(parts)["data"] as? Map<String, Any?> } catch (e: HttpException) {
@@ -289,7 +322,7 @@ class DeskRepository(private val context: Context) {
     /** The final tick: the sent turn, or the turn that fixes a refusal. */
     @Suppress("UNCHECKED_CAST")
     suspend fun acctSubmit(step: String): AcctSubmit? = runCatching {
-        val d = try { api.leadOnboardingSubmit(mapOf("form" to "chat", "step" to step, "terms" to "1"))["data"] as? Map<String, Any?> } catch (e: HttpException) {
+        val d = try { api.leadOnboardingSubmit(mapOf("form" to "chat", "step" to step, "terms" to "1") + (langField(lang)?.let { mapOf("lang" to it) } ?: emptyMap()))["data"] as? Map<String, Any?> } catch (e: HttpException) {
             runCatching { JSONObject(e.response()?.errorBody()?.string().orEmpty()).optJSONObject("data")?.let(::jsonMap) }.getOrNull()
         }
         d?.let(::parseSubmit)
@@ -310,6 +343,7 @@ class DeskRepository(private val context: Context) {
             minChars      = d["min_chars"].int().takeIf { it > 0 } ?: 20,
             maxChars      = d["max_chars"].int().takeIf { it > 0 } ?: 5000,
             phoneRequired = d["phone_required"] as? Boolean ?: false,
+            phoneVerify   = parsePhoneVerify(d["phone_verify"]),
             countries     = (d["countries"] as? List<Map<String, Any?>>)?.map {
                 DeskCountry(it["code"].toString(), it["name"].toString(), it["dial"].toString())
             } ?: emptyList(),

@@ -23,7 +23,7 @@ class DeskDirectTest {
     @Test fun aStepIsSkippedOnTheServersFlagAndNeverOnBeingSignedIn() {
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
         val phone = vm.substringAfter("private suspend fun askPhone()").substringBefore("val c = ctx")
-        assertTrue(phone.contains("if (t.known.phone) { phone = \"\"; return next() }"))
+        assertTrue(phone.contains("if (t.known.phone && !forcePhone) { phone = \"\"; return next() }"))
         val entity = vm.substringAfter("private suspend fun askEntity()").substringBefore("val abroad")
         assertTrue(entity.contains("if (t.known.entity)"))
         // Nothing in the skip looks at who is signed in.
@@ -87,7 +87,7 @@ class DeskDirectTest {
     @Test fun theUsualReceiptIsUnchangedForEveryOtherEnquiry() {
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
         val delivered = vm.substringAfter("private suspend fun delivered(").substringBefore("private suspend fun deliveredDirect")
-        assertTrue(delivered.contains("receiptLine(enquiryNumber, email)") && delivered.contains("Action(\"seen\", \"See Your Matters\""))
+        assertTrue(delivered.contains("receiptLine(enquiryNumber, email)") && delivered.contains("Action(\"seen\", lbl(\"ui_see_matters\", \"See Your Matters\")"))
     }
 
     @Test fun theSentCaptionComesFromTheBookWithWebsEnglishAsFallback() {

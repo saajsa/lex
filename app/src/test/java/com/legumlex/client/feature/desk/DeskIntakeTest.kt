@@ -116,7 +116,7 @@ class DeskIntakeTest {
 
     @Test fun theDeadlineStepSitsAfterThePhoneAndOwnsItsErrors() {
         val src = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").takeIf { it.isFile }?.readText() ?: return
-        assertTrue(src.contains("phone == null -> askPhone()\n            deadline == null -> askDeadline()"))
+        assertTrue(src.contains("phone == null -> askPhone()\n            needsVerifyNow() -> verifyPhone()\n            deadline == null -> askDeadline()"))
         assertTrue(src.contains("\"deadline_flag\" to Step.DEADLINE") && src.contains("\"deadline_date\" to Step.DEADLINE"))
         assertTrue(src.contains("CHIP_FLAG_YES") && src.contains("CHIP_FLAG_NO"))
         assertNull(null)

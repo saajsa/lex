@@ -25,6 +25,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +65,7 @@ import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.Close
@@ -153,6 +158,12 @@ private object D {
 }
 
 private val Mono = FontFamily.Monospace
+
+/** The language's fixed labels (REQ-017 017.31): buttons, placeholders and screen-reader texts come from it, English when it has no such key. */
+internal val LocalDeskBook = androidx.compose.runtime.compositionLocalOf { LineBook.English }
+
+@Composable
+private fun dt(key: String, english: String): String = LocalDeskBook.current.fragment(key) ?: english
 
 /** Whether the desk's boxes take the focus on arrival: yes on the full screen, no in the Sign In chat panel. */
 internal val LocalDeskAutoFocus = androidx.compose.runtime.compositionLocalOf { true }
@@ -625,22 +636,47 @@ private fun DeskLine(line: Line, revealed: SnapshotStateMap<Long, Boolean>, mark
                 }
             }
             // Translated lines carry the footer (REQ-017 017.26): very small, Secondary ink, the English first and then the local line.
-            line.footer?.let { DeskFooterText(it, line.footerTag) }
+            line.footer?.let { DeskFooterText(it) }
         }
     }
 }
 
-/** The footer under a translated line, 9 sp in Secondary ink: in full (the English, then the local line) once, under the first; later lines carry only the one-word tag. */
+/**
+ * A translated line carries only a small tag (the footer's own label, 9 sp, Secondary ink) with an information icon; tapping it opens the full disclaimer
+ * (the English, then the local line) in a small dialog. The disclaimer is never shown inline.
+ */
+/** The strip the tag takes in the line (dp); its tappable row is 48 dp and overflows it evenly. */
+private const val TAG_STRIP_HEIGHT = 20
+
 @Composable
-private fun DeskFooterText(f: DeskFooter, tagOnly: Boolean, surface: DeskSurface = DeskSurface.Page) {
-    val style = TextStyle(fontSize = 9.sp, lineHeight = 12.sp, color = D.ink(surface, DeskRole.Secondary))
-    Column(Modifier.padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (tagOnly) Text(footerTag(f), style = style)
-        else {
-            if (f.en.isNotBlank()) Text(f.en, style = style)
-            if (f.local.isNotBlank()) Text(f.local, style = style)
+private fun DeskFooterText(f: DeskFooter, surface: DeskSurface = DeskSurface.Page) {
+    val ink = D.ink(surface, DeskRole.Secondary)
+    var open by remember { mutableStateOf(false) }
+    // The tag and icon keep their small size and take the same room in the line (a 20 dp strip); the tappable row is 48 dp, overflowing the strip evenly
+    // above and below (wrapContentSize unbounded) so nothing in the line is pushed around.
+    Box(Modifier.padding(top = 2.dp).fillMaxWidth().height(TAG_STRIP_HEIGHT.dp), contentAlignment = Alignment.CenterStart) {
+        Row(
+            Modifier.wrapContentSize(Alignment.CenterStart, unbounded = true).clip(RoundedCornerShape(6.dp)).clickable { open = true }
+                .minimumInteractiveComponentSize().padding(horizontal = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(footerTag(f), style = TextStyle(fontSize = 9.sp, lineHeight = 12.sp, color = ink))
+            Spacer(Modifier.width(3.dp))
+            Icon(Icons.Outlined.Info, contentDescription = f.infoLabel.ifBlank { dt("ui_translation_info", "About This Translation") }, tint = ink, modifier = Modifier.size(11.dp))
         }
     }
+    if (open) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { open = false },
+        title = { Text(f.infoLabel.ifBlank { footerTag(f) }, style = body(15f, D.Ink, FontWeight.SemiBold)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (f.en.isNotBlank()) Text(f.en, style = body(13.5f, D.Ink))
+                if (f.local.isNotBlank()) Text(f.local, style = body(13.5f, D.Ink))
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { open = false }) { Text(dt("ui_close", "Close"), style = body(14f, D.Ink, FontWeight.SemiBold)) } },
+        containerColor = D.Raise,
+    )
 }
 
 /** A paragraph with **bold**, showing its first [upto] words. */
@@ -689,7 +725,7 @@ private fun MeLine(line: Line, canChange: Boolean, onChange: () -> Unit) {
         }
         if (canChange) {
             // The secondary ink on the page (4.5:1 or better), not a faded one.
-            Text("Change", style = TextStyle(fontFamily = Mono, fontSize = 11.5.sp, color = D.ink(DeskSurface.Page, DeskRole.Secondary)),
+            Text(dt("ui_change", "Change"), style = TextStyle(fontFamily = Mono, fontSize = 11.5.sp, color = D.ink(DeskSurface.Page, DeskRole.Secondary)),
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onChange).padding(horizontal = 8.dp, vertical = 6.dp))
         }
     }
@@ -706,7 +742,7 @@ private fun NoteLine(line: Line) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             line.paras.forEach { if (it is Para.Text) Words(it.s, Int.MAX_VALUE, false, D.ink(if (line.warn) DeskSurface.Warn else DeskSurface.Note)) }
             // A translated note or refusal carries the same footer or tag as Lex's lines, in the ink of the card it sits on.
-            line.footer?.let { DeskFooterText(it, line.footerTag, if (line.warn) DeskSurface.Warn else DeskSurface.Note) }
+            line.footer?.let { DeskFooterText(it, if (line.warn) DeskSurface.Warn else DeskSurface.Note) }
         }
     }
 }
@@ -805,6 +841,7 @@ private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Uni
     val ruleW by androidx.compose.animation.core.animateDpAsState(if (focused) 2.dp else 1.dp, tween(180), label = "ruleW")
     val room by androidx.compose.animation.core.animateDpAsState(if (focused) 96.dp else 44.dp, tween(220), label = "room")
     val text = value.text
+    val enquiryDesc = dt("sr_enquiry", "Your enquiry")
     // The examples type themselves into the empty box, letter by letter, and
     // erase for the next; they stop the moment the client writes.
     // Focused, it rests on a whole example and leaves the cursor to the field.
@@ -831,26 +868,28 @@ private fun QuestionDock(value: TextFieldValue, onValue: (TextFieldValue) -> Uni
         ) {
             Box(Modifier.fillMaxWidth().heightIn(min = room)) {
                 if (text.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(shown, style = body(15.5f, D.Ink.copy(alpha = if (focused) 0.32f else 0.42f)))
-                    if (!focused) Box(Modifier.padding(start = 1.dp).width(2.dp).height(18.dp).background(D.Gold.copy(alpha = 0.7f)))
+                    // A translated conversation shows its own static prompt; the typing examples are English.
+                    val describe = LocalDeskBook.current.fragment("ph_describe")
+                    Text(describe ?: shown, style = body(15.5f, D.Ink.copy(alpha = if (focused) 0.32f else 0.42f)))
+                    if (!focused && describe == null) Box(Modifier.padding(start = 1.dp).width(2.dp).height(18.dp).background(D.Gold.copy(alpha = 0.7f)))
                 }
                 BasicTextField(
                     value, { if (it.text.length <= ui.terms.maxChars) onValue(it) },
                     textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 168.dp).focusRequester(focus)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 168.dp).focusRequester(focus).semantics { contentDescription = enquiryDesc }
                         .onFocusChanged { if (it.isFocused != focused) { focused = it.isFocused; onFocus(it.isFocused) } },
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (attach != null) {
                     Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, D.Line2, RoundedCornerShape(10.dp)).clickable(onClick = attach),
-                        contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Add, "Attach files", tint = D.Ink, modifier = Modifier.size(20.dp)) }
+                        contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Add, dt("ui_attach_aria", "Attach files"), tint = D.Ink, modifier = Modifier.size(20.dp)) }
                 }
                 Spacer(Modifier.weight(1f))
                 if (text.length > 4000) Text("${text.length} / ${ui.terms.maxChars}", style = TextStyle(fontFamily = Mono, fontSize = 11.sp, color = D.Muted), modifier = Modifier.padding(end = 10.dp))
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable(onClick = onSend), contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Outlined.Send, "Send", tint = D.OnGold, modifier = Modifier.size(19.dp))
+                    Icon(Icons.AutoMirrored.Outlined.Send, dt("ui_send", "Send"), tint = D.OnGold, modifier = Modifier.size(19.dp))
                 }
             }
         }
@@ -868,7 +907,7 @@ private fun FileChips(files: List<DeskFile>, onRemove: (Int) -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text(f.name + " · " + DeskViewModel.mb(f.size), style = body(13f), maxLines = 1, modifier = Modifier.weight(1f))
                 Box(Modifier.size(40.dp).clickable { onRemove(i) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Close, "Remove", tint = D.Muted, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Close, dt("ui_remove", "Remove"), tint = D.Muted, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -876,7 +915,7 @@ private fun FileChips(files: List<DeskFile>, onRemove: (Int) -> Unit) {
 }
 
 @Composable
-private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: String? = null, initial: String = "",
+private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: String? = null, initial: String = "", description: String? = null, sendLabel: String? = null,
                     valid: ((String) -> Boolean)? = null, format: (String) -> String = { it }, onSend: (String) -> Unit) {
     var v by remember { mutableStateOf(initial) }
     val focus = remember { FocusRequester() }
@@ -892,11 +931,12 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
         Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
             if (v.isEmpty()) Text(placeholder, style = body(15.5f, D.Ink.copy(alpha = 0.42f)))
             BasicTextField(v, { v = format(it) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold), keyboardOptions = keyboard,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp).focusRequester(focus))
+                modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp).focusRequester(focus).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier))
         }
         if (valid != null && valid(v)) Icon(Icons.Outlined.Check, null, tint = D.Live, modifier = Modifier.padding(horizontal = 6.dp).size(18.dp))
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable { onSend(v) }, contentAlignment = Alignment.Center) {
-            Icon(Icons.AutoMirrored.Outlined.Send, "Send", tint = D.OnGold, modifier = Modifier.size(19.dp))
+        Box(Modifier.height(40.dp).then(if (sendLabel == null) Modifier.width(40.dp) else Modifier.widthIn(min = 40.dp)).clip(RoundedCornerShape(10.dp)).background(D.Gold).clickable { onSend(v) }, contentAlignment = Alignment.Center) {
+            if (sendLabel != null) Text(sendLabel, style = body(14f, D.OnGold, FontWeight.SemiBold), modifier = Modifier.padding(horizontal = 12.dp))
+            else Icon(Icons.AutoMirrored.Outlined.Send, dt("ui_send", "Send"), tint = D.OnGold, modifier = Modifier.size(19.dp))
         }
     }
 }
@@ -911,31 +951,36 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
     var text by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }          // YYYY-MM-DD
     var picking by remember { mutableStateOf(false) }
+    val dtFlagWords = dt("sr_flag", "Your words about the hearing or deadline")
+    val dtDate = dt("sr_date", "Date, if you know it")
+    val dtChoose = dt("ui_choose", "Choose")
+    val dtCancel = dt("ui_cancel", "Cancel")
     Column {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
                 .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
         ) {
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                if (text.isEmpty()) Text("For example: the notice says reply by Friday", style = body(15f, D.Ink.copy(alpha = 0.42f)))
+                if (text.isEmpty()) Text(dt("ph_flag", "For example: the notice says reply by Friday"), style = body(15f, D.Ink.copy(alpha = 0.42f)))
                 BasicTextField(text, { text = it.take(DEADLINE_MAX) }, textStyle = body(15.5f, D.MeInk), cursorBrush = SolidColor(D.Gold),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp))
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp).semantics { contentDescription = dtFlagWords })
             }
             Text("${text.length} / $DEADLINE_MAX", style = body(11.5f, D.Muted), modifier = Modifier.align(Alignment.End))
         }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).clickable { picking = true }.padding(horizontal = 16.dp),
+                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).clickable { picking = true }.semantics { contentDescription = dtDate }.padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (date.isEmpty()) "Pick A Date" else deadlineShown("", date), style = body(14f, D.Ink, FontWeight.SemiBold))
+                Text(if (date.isEmpty()) dt("ui_pick_date", "Pick A Date") else deadlineShown("", date), style = body(14f, D.Ink, FontWeight.SemiBold))
             }
-            if (date.isNotEmpty()) Text("Clear", style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+            if (date.isNotEmpty()) Text(dt("ui_clear", "Clear"), style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
                 modifier = Modifier.clickable { date = "" }.padding(12.dp))
             Spacer(Modifier.weight(1f))
             Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(D.Gold).clickable { onGive(text, date) }, contentAlignment = Alignment.Center) {
-                Icon(Icons.AutoMirrored.Outlined.Send, "Send", tint = D.OnGold, modifier = Modifier.size(19.dp))
+                Icon(Icons.AutoMirrored.Outlined.Send, dt("ui_send", "Send"), tint = D.OnGold, modifier = Modifier.size(19.dp))
             }
         }
         ErrorLine(error)
@@ -951,10 +996,33 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
                 androidx.compose.material3.TextButton(onClick = {
                     st.selectedDateMillis?.let { date = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() }
                     picking = false
-                }) { Text("Choose") }
+                }) { Text(dtChoose) }
             },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { picking = false }) { Text("Cancel") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { picking = false }) { Text(dtCancel) } },
         ) { androidx.compose.material3.DatePicker(state = st) }
+    }
+}
+
+/** The WhatsApp code (REQ-018): six digits, Confirm; Send Code Again unlocks after resend_in, Send By SMS Instead after sms_in (when offered); Change Number any time. */
+@Composable
+private fun CodeDock(info: PhoneCodeUi, error: String, onConfirm: (String) -> Unit, onAgain: () -> Unit, onSms: () -> Unit, onChange: () -> Unit) {
+    val elapsed by androidx.compose.runtime.produceState(initialValue = 0, info.sentAtMs) {
+        while (true) { value = ((System.currentTimeMillis() - info.sentAtMs) / 1000L).toInt(); delay(1_000) }
+    }
+    val againLeft = unlockLeft(info.resendIn, elapsed)
+    val smsLeft = unlockLeft(info.smsIn, elapsed)
+    Column {
+        Compose(dt("ph_code", "6-digit code"), KeyboardOptions(keyboardType = KeyboardType.NumberPassword), description = dt("sr_code", "Code from WhatsApp"),
+            format = { it.filter { c -> c.isDigit() }.take(6) }, sendLabel = dt("ui_confirm", "Confirm"), onSend = onConfirm)
+        ErrorLine(error)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val again = dt("ui_resend", "Send Code Again")
+            Text(if (againLeft > 0) "$again ($againLeft)" else again, style = body(13f, D.Ink.copy(alpha = if (againLeft > 0) 0.35f else 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).clickable(enabled = againLeft == 0, onClick = onAgain).padding(horizontal = 4.dp, vertical = 8.dp))
+            if (info.canSms) Text(dt("ui_sms_instead", "Send By SMS Instead"), style = body(13f, D.Ink.copy(alpha = if (smsLeft > 0) 0.35f else 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+                modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).clickable(enabled = smsLeft == 0, onClick = onSms).padding(horizontal = 4.dp, vertical = 8.dp))
+            Quiet(dt("ui_change_number", "Change Number"), onChange)
+        }
     }
 }
 
@@ -963,10 +1031,10 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
 private fun GuestDock(error: String, onSend: (String) -> Unit, onSignIn: () -> Unit) {
     var n by remember { mutableIntStateOf(0) }
     Column {
-        Compose("Ask a short question…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+        Compose(dt("ph_ask", "Ask a short question…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), description = dt("sr_message", "Your message"),
             format = { it.take(GUEST_CHARS).also { v -> n = v.length } }, onSend = onSend)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Quiet("Sign in with Google", onSignIn)
+            Quiet(dt("ui_signin_google", "Sign in with Google"), onSignIn)
             Spacer(Modifier.weight(1f))
             Text("$n / $GUEST_CHARS", style = body(12f, if (n > GUEST_CHARS - 20) D.Warn else D.Muted))
         }
@@ -985,7 +1053,7 @@ private fun GoogleDock(busy: Boolean, error: String, onGoogle: () -> Unit) {
         ) {
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.legumlex.client.R.drawable.ic_google_g), null, Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
-            Text(if (busy) "Signing You In…" else "Continue with Google", style = body(15f, D.Ink, FontWeight.Medium))
+            Text(if (busy) dt("wait_signing", "Signing You In…") else dt("ui_continue_google", "Continue with Google"), style = body(15f, D.Ink, FontWeight.Medium))
         }
         ErrorLine(error)
     }
@@ -1001,18 +1069,18 @@ private fun Quiet(label: String, onClick: () -> Unit) {
 @Composable
 private fun GatherDock(error: String, onSend: (String) -> Unit, onSendNow: () -> Unit) {
     Column {
-        Compose("Your answer…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), onSend = onSend)
+        Compose(dt("ph_answer", "Your answer…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), description = dt("sr_answer", "Your answer"), onSend = onSend)
         ErrorLine(error)
-        Chips(listOf(Triple(GATHER_SEND_NOW, false, onSendNow)), topGap = CHIP_GAP.dp)
+        Chips(listOf(Triple(dt("ui_send_now", GATHER_SEND_NOW), false, onSendNow)), topGap = CHIP_GAP.dp)
     }
 }
 
 @Composable
 private fun ClarifyDock(error: String, onSend: (String) -> Unit, onAsIs: () -> Unit) {
     Column {
-        Compose("A little more about it…", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), onSend = onSend)
+        Compose(dt("ph_more", "A little more about it…"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), description = dt("sr_answer", "Your answer"), onSend = onSend)
         ErrorLine(error)
-        Quiet("Send it as it is", onAsIs)
+        Quiet(dt("ui_send_as_is", "Send it as it is"), onAsIs)
     }
 }
 
@@ -1037,8 +1105,8 @@ private fun DocsDock(ui: DeskUi, attach: (() -> Unit)?, onRemove: (Int) -> Unit,
         FileChips(ui.files, onRemove)
         val n = ui.files.size
         Chips(listOfNotNull(
-            attach?.let { Triple("Attach Documents", false, it) },
-            Triple(if (n > 0) "Continue with $n ${if (n == 1) "File" else "Files"}" else "Carry On Without", true, onGo),
+            attach?.let { Triple(dt("ui_attach_docs", "Attach Documents"), false, it) },
+            Triple(if (n > 1) LocalDeskBook.current.fragment("ui_continue_files", mapOf("n" to n.toString())) ?: "Continue with $n Files" else if (n == 1) dt("ui_continue_file", "Continue with 1 File") else dt("ui_carry_without", "Carry On Without"), true, onGo),
         ))
         ErrorLine(ui.error)
     }
@@ -1047,7 +1115,7 @@ private fun DocsDock(ui: DeskUi, attach: (() -> Unit)?, onRemove: (Int) -> Unit,
 @Composable
 private fun EntityDock(hint: String, onPick: (String) -> Unit) {
     Column {
-        Chips(listOf("business" to "Business", "individual" to "Individual", "nri" to "NRI").map { (v, l) -> Triple(l, hint == v) { onPick(v) } })
+        Chips(listOf("business" to dt("ui_business", "Business"), "individual" to dt("ui_individual", "Individual"), "nri" to dt("ui_nri", "NRI")).map { (v, l) -> Triple(l, hint == v) { onPick(v) } })
         Text("If the advocates take the matter on, they will ask for the exact legal form then, not now.", style = body(12f, D.Muted), modifier = Modifier.padding(top = 8.dp, start = 4.dp))
     }
 }
@@ -1056,10 +1124,10 @@ private fun EntityDock(hint: String, onPick: (String) -> Unit) {
 private fun CountryDock(ui: DeskUi, onPick: (String) -> Unit, onOther: (String) -> Unit) {
     var other by remember { mutableStateOf(false) }
     Column {
-        Chips(ui.terms.countries.map { c -> Triple("${c.name}  ${c.dial}", false) { onPick(c.code) } } + Triple("Somewhere else", other) { other = true })
+        Chips(ui.terms.countries.map { c -> Triple("${c.name}  ${c.dial}", false) { onPick(c.code) } } + Triple(dt("ui_somewhere_else", "Somewhere else"), other) { other = true })
         if (other) {
             Spacer(Modifier.height(10.dp))
-            Compose("Dubai, Singapore, Germany…", KeyboardOptions(capitalization = KeyboardCapitalization.Words), onSend = onOther)
+            Compose(dt("ph_country", "Dubai, Singapore, Germany…"), KeyboardOptions(capitalization = KeyboardCapitalization.Words), description = dt("sr_country", "Country or city"), onSend = onOther)
         }
         ErrorLine(ui.error)
     }
@@ -1070,6 +1138,7 @@ private fun PhoneDock(nri: Boolean, dial: String?, required: Boolean, error: Str
     Column {
         Compose(
             placeholder = if (nri) "+1 416 555 0123" else "98765 43210",
+            description = if (nri) dt("sr_phone_cc", "Phone number with country code") else dt("sr_mobile", "Mobile number"),
             keyboard = KeyboardOptions(keyboardType = KeyboardType.Phone),
             prefix = if (nri) null else "+91",
             initial = if (nri && dial != null) "$dial " else "",
@@ -1086,7 +1155,7 @@ private fun PhoneDock(nri: Boolean, dial: String?, required: Boolean, error: Str
             onSend = onSend,
         )
         ErrorLine(error)
-        if (!required) Quiet("I would rather not give a number", onNone)
+        if (!required) Quiet(dt("ui_no_number", "I would rather not give a number"), onNone)
     }
 }
 
@@ -1346,6 +1415,7 @@ internal fun DeskThread(
     vm: DeskViewModel, ui: DeskUi, draft: TextFieldValue, onDraft: (TextFieldValue) -> Unit, compose: FocusRequester, attach: (() -> Unit)?,
     signingIn: Boolean, google: () -> Unit, acctScan: () -> Unit, acctPick: () -> Unit, fullDesk: (() -> Unit)?, modifier: Modifier = Modifier,
 ) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalDeskBook provides ui.labels) {
     Column(modifier) {
         Conversation(ui, vm::change, vm::acctChip, Modifier.weight(1f))
         if (fullDesk == null && ui.acct && ui.acctNote.isNotBlank()) AcctNote(ui.acctNote)
@@ -1363,9 +1433,10 @@ internal fun DeskThread(
                 is Dock.Actions -> Column { Chips(d.list.map { Triple(it.label, it.main) { vm.act(it.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
                 is Dock.Entity -> EntityDock(d.hint, vm::chooseEntity)
                 Dock.Country -> CountryDock(ui, vm::chooseCountry, vm::otherCountry)
-                Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired, ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
+                Dock.Phone -> PhoneDock(vm.nri, vm.dial, ui.terms.phoneRequired || (ui.terms.phoneVerify.required && !ui.terms.phoneVerify.verified), ui.error, vm::phoneProblem, vm::givePhone, vm::noPhone)
                 // One thing at a time: an error replaces the pending line (the dock never shows both), and buttons are a dock of their own.
                 is Dock.Waiting -> if (ui.error.isNotEmpty()) ErrorLine(ui.error) else WaitLine(d.label)
+                is Dock.Code -> CodeDock(d.info, ui.error, vm::submitCode, vm::codeAgain, vm::codeSms, vm::changeNumber)
                 Dock.Guest -> GuestDock(ui.error, vm::submitGuest, vm::guestSignIn)
                 Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
                 Dock.SignIn -> GoogleDock(signingIn, ui.error, google)
@@ -1378,6 +1449,7 @@ internal fun DeskThread(
             val foot = if (ui.counsel && ui.terms.counselFoot.isNotBlank()) ui.terms.counselFoot else ui.terms.accountFoot
             if (foot.isNotBlank()) Text(foot, style = body(12f, D.Muted), modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 10.dp))
         } else if (ui.termsLoaded) Disclaimer(ui.terms, compact = true)
+    }
     }
 }
 

@@ -40,7 +40,7 @@ class DeskRefusalTest {
         // The server's line, with its footer when translated; no app prefix in front of it.
         assertTrue(refused.contains("say(Para.Text(msg), note = true, warn = true, footer = r.tongue.lineFooter)"))
         assertFalse(refused.contains("That did not go through. \""))
-        assertTrue(refused.contains("retryHelps(r.reason) -> dock(Dock.Actions(listOf(Action(\"try\", \"Try Again\"") && refused.contains("else -> dock(Dock.Actions(listOf(Action(\"matters\""))
+        assertTrue(refused.contains("retryHelps(r.reason) -> dock(Dock.Actions(listOf(Action(\"try\", lbl(\"ui_try_again\", \"Try Again\")") && refused.contains("else -> dock(Dock.Actions(listOf(Action(\"matters\""))
         // An older server (no reason) keeps today's path.
         assertTrue(vm.contains("if (r.reason != null && !(r.errors.isNotEmpty() && r.reason in setOf(\"check_details\", \"check_files\"))) refused(r)"))
         assertTrue(vm.contains("lang = book.lang.takeIf { it != \"en\" }.orEmpty()"))
@@ -51,9 +51,9 @@ class DeskRefusalTest {
     @Test fun aTranslatedRefusalCardCarriesTheFooterOrTag() {
         val screen = src("feature/desk/DeskScreen.kt") ?: return
         val note = screen.substringAfter("private fun NoteLine(").substringBefore("\n}\n")
-        assertTrue(note.contains("line.footer?.let { DeskFooterText(it, line.footerTag,"))
-        // The refusal says its line with the footer rule of Lex's lines (full once, then the tag).
+        assertTrue(note.contains("line.footer?.let { DeskFooterText(it, if (line.warn) DeskSurface.Warn else DeskSurface.Note) }"))
+        // The refusal says its line with the same tag as Lex's lines (the disclaimer opens from it).
         val vm = src("feature/desk/DeskViewModel.kt")!!
-        assertTrue(vm.substringAfter("private suspend fun refused(").contains("footer = r.tongue.lineFooter") && vm.contains("footerOnce.next(footer)"))
+        assertTrue(vm.substringAfter("private suspend fun refused(").contains("footer = r.tongue.lineFooter"))
     }
 }

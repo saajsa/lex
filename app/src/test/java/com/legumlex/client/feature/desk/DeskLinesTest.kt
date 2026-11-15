@@ -117,13 +117,17 @@ class DeskLinesTest {
 
     @Test fun theFooterIsShownSmallInSecondaryInkEnglishFirst() {
         val screen = src("feature/desk/DeskScreen.kt") ?: return
-        assertTrue(screen.contains("line.footer?.let { DeskFooterText(it, line.footerTag) }"))
+        assertTrue(screen.contains("line.footer?.let { DeskFooterText(it) }"))
         val at = screen.indexOf("private fun DeskFooterText")
         val body = screen.substring(at, screen.indexOf("/** A paragraph with **bold**", at))
-        assertTrue(body.contains("fontSize = 9.sp"))
-        assertTrue(body.contains("tagOnly") && body.contains("footerTag(f)"))
-        assertTrue(body.contains("DeskRole.Secondary"))
-        assertTrue(body.indexOf("f.en") < body.indexOf("f.local"))
+        // Only the small tag with an information icon is inline; the full disclaimer (English, then local) opens from it, never inline.
+        assertTrue(body.contains("fontSize = 9.sp") && body.contains("DeskRole.Secondary"))
+        assertTrue(body.contains("Icons.Outlined.Info") && body.contains("clickable { open = true }") && body.contains("AlertDialog"))
+        assertTrue(body.contains("footerTag(f)") && body.indexOf("f.en") < body.indexOf("f.local"))
+        // The tap area is 48 dp (minimumInteractiveComponentSize) while the line keeps a fixed 20 dp strip: the row overflows it, so nothing is pushed.
+        assertTrue(body.contains(".minimumInteractiveComponentSize()") && body.contains("wrapContentSize(Alignment.CenterStart, unbounded = true)") && body.contains("height(TAG_STRIP_HEIGHT.dp)"))
+        assertTrue(screen.contains("private const val TAG_STRIP_HEIGHT = 20"))
+        assertTrue(body.indexOf("AlertDialog") < body.indexOf("f.en"))                 // the footer text is inside the dialog
         val vm = src("feature/desk/DeskViewModel.kt")!!
         // A line has a footer only when it was said from the book or the server called it translated.
         assertTrue(vm.contains("footer = ft(t != null)"))
@@ -153,19 +157,15 @@ class DeskLinesTest {
 
     // ---- Footer once, then a tag ----
 
-    @Test fun theFullFooterIsShownOncePerConversationThenOnlyATag() {
+    @Test fun everyTranslatedLineCarriesOnlyTheTagNeverTheFullFooterInline() {
         val f = DeskFooter("hi", "Translated. We are testing.", "अनुवादित। हम जाँच रहे हैं।")
-        val once = FooterOnce()
-        assertEquals(null to false, once.next(null))                // a line with no footer does not use up the first
-        assertEquals(f to false, once.next(f))                       // the first translated line: the full footer
-        assertEquals(f to true, once.next(f)); assertEquals(f to true, once.next(f))   // later ones: the tag only
-        once.reset()
-        assertEquals(f to false, once.next(f))                       // a new conversation starts again
         assertEquals("अनुवादित", footerTag(f))
         assertEquals("Translated", footerTag(DeskFooter("hx", "Translated. x", "Translated. Hum test kar rahe hain.")))
         assertEquals("ਅਨੁਵਾਦਿਤ", footerTag(DeskFooter("pa", "e", "ਅਨੁਵਾਦਿਤ। ਅਸੀਂ")))
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(vm.contains("footerOnce.next(footer)") && vm.contains("footerOnce.reset()"))
+        // No "first time in full" rule any more: the line carries the footer as given, and the screen shows the tag.
+        assertFalse(vm.contains("FooterOnce") || vm.contains("footerOnce") || vm.contains("footerTag"))
+        assertTrue(vm.contains("warn = warn, footer = footer)"))
     }
 
     // ---- A token that opens a sentence is capitalised ----
@@ -219,8 +219,8 @@ class DeskLinesTest {
             assertFalse(Regex("(?:text|more|v|raw|answer)\\.(?:replaceFirstChar|capitalize|titlecase|uppercase)").containsMatchIn(code))
         }
         val screen = src("feature/desk/DeskScreen.kt")!!
-        assertTrue(screen.contains("Compose(\"A little more about it…\", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false)"))
-        assertTrue(screen.contains("Compose(\"Your answer…\", KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false)"))
+        assertTrue(screen.contains("Compose(dt(\"ph_more\", \"A little more about it…\"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false)"))
+        assertTrue(screen.contains("Compose(dt(\"ph_answer\", \"Your answer…\"), KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false)"))
     }
 
     @Test fun aPersonRequestIsHeardEvenWhenTheReadingWasSkipped() {
@@ -270,5 +270,41 @@ class DeskLinesTest {
         val p = Para.Stages(1, false)
         assertTrue(p.doneSteps.isEmpty() && p.doneTitle == null)
         assertEquals(Para.Stages(3, true, null, emptyList(), "Done", listOf("a", "b", "c", "d")), p.copy(active = 3, done = true, doneTitle = "Done", doneSteps = listOf("a", "b", "c", "d")))
+    }
+
+    // ---- 017.31 (2): translated labels ----
+
+    @Test fun theFooterObjectGivesTheTagTheNoteAndTheInfoLabelAndOlderOnesStillWork() {
+        val f = parseDeskFooter(mapOf("lang" to "hi", "tag" to mapOf("en" to "Translated", "local" to "अनुवादित"), "note" to mapOf("en" to "Test note.", "local" to "टेस्ट नोट।"), "info_label" to "इस अनुवाद के बारे में"))!!
+        assertEquals("अनुवादित", footerTag(f)); assertEquals("Test note.", f.en); assertEquals("टेस्ट नोट।", f.local); assertEquals("इस अनुवाद के बारे में", f.infoLabel)
+        val hx = parseDeskFooter(mapOf("lang" to "hx", "tag" to mapOf("en" to "Translated", "local" to ""), "note" to mapOf("en" to "n", "local" to "m")))!!
+        assertEquals("Translated", footerTag(hx))                                    // an empty local tag falls back to the English one
+        // The old shape {lang, en, local}: the chip is taken from the local line, as before.
+        val old = parseDeskFooter(mapOf("lang" to "hi", "en" to "Translated. x", "local" to "अनुवादित। y"))!!
+        assertEquals("अनुवादित", footerTag(old)); assertEquals("Translated. x", old.en); assertEquals("", old.infoLabel)
+        assertNull(parseDeskFooter(mapOf("lang" to "hi")))
+        val screen = src("feature/desk/DeskScreen.kt") ?: return
+        assertTrue(screen.contains("f.infoLabel.ifBlank { dt(\"ui_translation_info\", \"About This Translation\") }") && screen.contains("f.infoLabel.ifBlank { footerTag(f) }"))
+    }
+
+    @Test fun buttonsPlaceholdersAndScreenReaderTextsComeFromTheBookWithEnglishFallbacks() {
+        val screen = src("feature/desk/DeskScreen.kt") ?: return
+        assertTrue(screen.contains("compositionLocalOf { LineBook.English }") && screen.contains("LocalDeskBook provides ui.labels"))
+        for (k in listOf("ui_send", "ui_change", "ui_signin_google", "ui_send_as_is", "ui_send_now", "ui_no_number", "ui_attach_docs", "ui_carry_without", "ui_continue_file",
+            "ui_continue_files", "ui_business", "ui_individual", "ui_nri", "ui_somewhere_else", "ui_remove", "ui_attach_aria", "ui_translation_info",
+            "ph_more", "ph_answer", "ph_ask", "ph_country", "ph_flag", "ph_describe", "sr_message", "sr_answer", "sr_enquiry", "sr_flag", "sr_date", "sr_country", "sr_mobile", "sr_phone_cc"))
+            assertTrue(k, screen.contains("\"$k\""))
+        assertTrue(screen.contains("semantics { contentDescription = description }"))        // sr_* are contentDescriptions
+        val vm = src("feature/desk/DeskViewModel.kt")!!
+        for (k in listOf("ui_try_again", "ui_see_matters", "ui_ask_else", "ui_open_matters", "ui_send_new", "ui_diff_number", "ui_have_question", "ui_see_arrived", "ui_send_again", "ui_pay_send", "ui_discard_it",
+            "wait_reading", "wait_sending", "wait_payment", "wait_confirming", "wait_discarding", "wait_moment", "err_few_words", "err_more_asis", "err_mashed", "err_more_now", "err_flag", "err_country", "err_country_letters"))
+            assertTrue(k, vm.contains("\"$k\""))
+        assertTrue(vm.contains("private fun lbl(key: String, english: String): String = book.fragment(key) ?: english"))
+        assertTrue(vm.contains("_ui.update { it.copy(labels = book) }"))
+        // English stays: no book means every label is the English one.
+        assertNull(LineBook.English.fragment("ui_send")); assertEquals("Send", LineBook.English.fragment("ui_send") ?: "Send")
+        val book = LineBook("hi", mapOf("ui_continue_files" to "{n} फ़ाइलों के साथ जारी रखें", "ui_send" to "भेजें"), null)
+        assertEquals("भेजें", book.fragment("ui_send")); assertEquals("3 फ़ाइलों के साथ जारी रखें", book.fragment("ui_continue_files", mapOf("n" to "3")))
+        assertEquals(DEADLINE_EMPTY_EN, deadlineProblem("", ""))                                // the one message err_flag translates
     }
 }

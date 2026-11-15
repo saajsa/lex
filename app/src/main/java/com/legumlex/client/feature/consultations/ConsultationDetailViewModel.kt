@@ -98,6 +98,43 @@ class ConsultationDetailViewModel(
     private val _lifecycleEvents = MutableSharedFlow<DetailLifecycleEvent>()
     val lifecycleEvents: SharedFlow<DetailLifecycleEvent> = _lifecycleEvents.asSharedFlow()
 
+    /** The offer's words in the consultation's language (hi|pa|hx), fetched once; English until then or when they cannot be had. */
+    private val _offerBook = MutableStateFlow(com.legumlex.client.feature.desk.LineBook.English)
+    val offerBook: StateFlow<com.legumlex.client.feature.desk.LineBook> = _offerBook.asStateFlow()
+    private var offerLang: String? = null
+
+    /** Called with each loaded consultation: fetches the offer's language once. */
+    fun offerLanguage(lang: String?) {
+        val l = consultationLang(lang) ?: return
+        if (l == offerLang) return
+        offerLang = l
+        viewModelScope.launch { repo.lines(l)?.let { _offerBook.value = it } }
+    }
+
+    private val _booking = MutableStateFlow(false)
+    val booking: StateFlow<Boolean> = _booking.asStateFlow()
+    private val _payUrls = MutableSharedFlow<String>(extraBufferCapacity = 2)
+    /** The fee page of a booked consultation: the screen opens it through the existing pay screens. */
+    val payUrls: SharedFlow<String> = _payUrls.asSharedFlow()
+
+    /** Book A Consultation: desk/direct; its invoice (or the lead's particulars page) is opened to pay. The server decides everything else. */
+    fun bookConsultation() {
+        if (_booking.value) return
+        viewModelScope.launch {
+            _booking.value = true
+            repo.bookConsultation(consultationId)
+                .onSuccess { b ->
+                    when {
+                        b == null -> _events.tryEmit(ReplyEvent.Failed("That did not go through."))
+                        b.payUrl != null -> _payUrls.tryEmit(b.payUrl)
+                        else -> { _events.tryEmit(ReplyEvent.Info("Your consultation is booked.")); refresh() }
+                    }
+                }
+                .onFailure { e -> _events.tryEmit(ReplyEvent.Failed(e.apiError().message.orEmpty().ifBlank { "That did not go through." })) }
+            _booking.value = false
+        }
+    }
+
     init { load() }
 
     fun load() = viewModelScope.launch {

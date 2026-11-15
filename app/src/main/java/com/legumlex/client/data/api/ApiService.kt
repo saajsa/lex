@@ -666,6 +666,42 @@ interface ApiService {
     @POST("desk/discard")
     suspend fun deskDiscard(@Field("session_hash") sessionHash: String): Map<String, Any?>
 
+    /** Lex's closing turn (REQ-023): {text, lang?} -> {success, say, source ai|fixed, fee_display, fee_paise}; 429 when rate-limited. */
+    @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
+    @POST("desk/close")
+    suspend fun deskClose(@Field("text") text: String, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @Headers("X-Read-Timeout: 22")
+    @POST("lead/desk/close")
+    suspend fun leadDeskClose(@Field("text") text: String, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    // The enquiry's verified mobile number (REQ-018): a WhatsApp code of this enquiry session. All answer {data:{session_hash, ...}}; refusals are 422 {code, message}.
+    @FormUrlEncoded
+    @POST("desk/phone_code")
+    suspend fun deskPhoneCode(@Field("number") number: String, @Field("entity_type") entityType: String?, @Field("session_hash") sessionHash: String?, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("desk/phone_sms")
+    suspend fun deskPhoneSms(@Field("session_hash") sessionHash: String, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("desk/phone_verify")
+    suspend fun deskPhoneVerify(@Field("code") code: String, @Field("session_hash") sessionHash: String, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/phone_code")
+    suspend fun leadDeskPhoneCode(@Field("number") number: String, @Field("entity_type") entityType: String?, @Field("session_hash") sessionHash: String?, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/phone_sms")
+    suspend fun leadDeskPhoneSms(@Field("session_hash") sessionHash: String, @Field("lang") lang: String? = null): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("lead/desk/phone_verify")
+    suspend fun leadDeskPhoneVerify(@Field("code") code: String, @Field("session_hash") sessionHash: String, @Field("lang") lang: String? = null): Map<String, Any?>
+
     /** Book a Direct Consultation on an enquiry already in (REQ-020): {consultation_id}; answers the same `direct` as desk/enquiry; 409 direct_unavailable. */
     @FormUrlEncoded
     @POST("desk/direct")
@@ -861,7 +897,7 @@ interface ApiService {
     // Opening an account in the desk's conversation (lexon Enrolment): the
     // server's turn, an answer, and a document read for the conversation.
     @GET("lead/onboarding/turn")
-    suspend fun leadOnboardingTurn(@Query("open") open: Int = 0, @Query("intent") intent: String? = null): Map<String, Any?>
+    suspend fun leadOnboardingTurn(@Query("open") open: Int = 0, @Query("intent") intent: String? = null, @Query("lang") lang: String? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @POST("lead/onboarding/answer")

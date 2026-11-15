@@ -41,7 +41,7 @@ class DeskGatherTest {
         assertFalse(now.contains("answer(Step."))            // no visitor bubble, so no Change link
         assertTrue(now.contains("finishGather()"))
         val screen = src("feature/desk/DeskScreen.kt")!!
-        assertTrue(screen.contains("Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)") && screen.contains("Chips(listOf(Triple(GATHER_SEND_NOW, false, onSendNow))"))
+        assertTrue(screen.contains("Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)") && screen.contains("Chips(listOf(Triple(dt(\"ui_send_now\", GATHER_SEND_NOW), false, onSendNow))"))
     }
 
     @Test fun aFailureNeverBlocksSendingAndTheTextIsReadOnceMore() {
@@ -68,16 +68,16 @@ class DeskGatherTest {
         assertTrue(api.contains("@POST(\"desk/gather\")") && api.contains("@POST(\"lead/desk/gather\")") && api.contains("@Field(\"asked\") asked: Int"))
         assertTrue(Regex("@Headers\\(\"X-Read-Timeout: 22\"\\)\\s+@POST\\(\"desk/gather\"\\)").containsMatchIn(api))
         // "One moment…" after about 3 s.
-        assertTrue(src("feature/desk/DeskViewModel.kt")!!.contains("withSlowNote(ONE_MOMENT) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }"))
+        assertTrue(src("feature/desk/DeskViewModel.kt")!!.contains("withSlowNote(lbl(\"wait_moment\", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }"))
     }
 
     @Test fun theQuestionsComeAfterTheReadingsOwnFollowUpAndBeforeThePapers() {
         val steps = Step.values().toList()
         assertTrue(steps.indexOf(Step.CLARIFY) < steps.indexOf(Step.GATHER) && steps.indexOf(Step.GATHER) < steps.indexOf(Step.DOCS))
         val s = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(s.contains("vetted == \"clarify\" && more == null -> askClarify()\n            !gatherDone -> gather()\n            docs == null -> askDocs()"))
+        assertTrue(s.contains("vetted == \"clarify\" && more == null -> askClarify()\n            !gatherDone -> gather()\n            !closeDone -> askClose()\n            docs == null -> askDocs()"))
         // Changing an answer starts the questions over; the desk restarting clears them.
-        assertTrue(s.contains("Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false }"))
+        assertTrue(s.contains("Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }"))
         // Asked in Lex's own bubble and voice (a desk line), with the box and a Send Now chip as the dock.
         assertTrue(s.contains("say(Para.Text(r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)") && s.contains("dock(Dock.Gather)"))
     }
@@ -92,6 +92,6 @@ class DeskGatherTest {
         assertTrue(s.contains("if (r?.ran == true) gatherRan = true"))
         assertTrue(s.substringAfter("private suspend fun askDeadline()").take(300).contains("if (skipDeadlineStep(gatherRan)) { deadline = \"\" to \"\"; return next() }"))
         // Reset when the questions start over and when the desk restarts.
-        assertTrue(s.contains("gatherDone = false; gatherRan = false }") && s.contains("gatherDone = false; gatherRan = false; sessionHash = null"))
+        assertTrue(s.contains("gatherDone = false; gatherRan = false; closeDone = false }") && s.contains("gatherDone = false; gatherRan = false; closeDone = false; sessionHash = null"))
     }
 }

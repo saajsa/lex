@@ -133,6 +133,16 @@ fun DetailGeneral(
                 HeroStatus(phase, consultation)
             }
 
+            // ── the counsel recommended a full consultation (REQ-023): bookable from here ──
+            consultation.consultationOffer?.takeIf { it.canBook }?.let { offer ->
+                val booking by vm.booking.collectAsState()
+                val offerBook by vm.offerBook.collectAsState()
+                androidx.compose.runtime.LaunchedEffect(consultation.lang) { vm.offerLanguage(consultation.lang) }
+                Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = LlDimen.SectionGap)) {
+                    ConsultationOfferCard(offer, booking, offerBook, onBook = vm::bookConsultation)
+                }
+            }
+
             // ── linked matter (only when tied to a case) ────────────────────
             if (!consultation.linkedCaseId.isNullOrBlank()) {
                 Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = LlDimen.SectionGap)) {
@@ -849,4 +859,24 @@ private fun DCard(content: @Composable ColumnScope.() -> Unit) {
             .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card),
         content = content,
     )
+}
+
+/** The counsel's recommendation of a full consultation, and the way to book it (desk/direct; the fee page is paid as any invoice). */
+@Composable
+private fun ConsultationOfferCard(offer: com.legumlex.client.feature.consultations.ConsultationOffer, busy: Boolean, book: com.legumlex.client.feature.desk.LineBook, onBook: () -> Unit) {
+    DCard {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(com.legumlex.client.feature.consultations.consultationOfferLine(book), fontFamily = Inter, fontSize = 14.sp, lineHeight = 21.sp, color = LlColor.Ink)
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp)).background(LlColor.Ink)
+                    .clickable(enabled = !busy, onClick = onBook).padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (busy) "…" else com.legumlex.client.feature.consultations.consultationOfferLabel(offer, book),
+                    fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LlColor.Paper,
+                )
+            }
+        }
+    }
 }

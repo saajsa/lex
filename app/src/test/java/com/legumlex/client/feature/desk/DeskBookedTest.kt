@@ -112,7 +112,7 @@ class DeskBookedTest {
         val booked = vm.substringAfter("private suspend fun deliveredBooked(").substringBefore("private suspend fun payBookedAgain")
         assertTrue(booked.contains("awaiting -> { awaitingBooked = true; dock(Dock.Actions(listOf(Action(\"direct_pay\", payBtn, main = true)))) }"))
         val again = vm.substringAfter("private suspend fun payBookedAgain()").substringBefore("private fun watchBooked")
-        assertTrue(again.contains("repo.direct(id)") && again.contains("sayKey(\"err_generic\", \"That did not go through.\"") && again.contains("Action(\"direct_pay\", \"Try Again\", main = true)"))
+        assertTrue(again.contains("repo.direct(id)") && again.contains("sayKey(\"err_generic\", \"That did not go through.\"") && again.contains("Action(\"direct_pay\", lbl(\"ui_try_again\", \"Try Again\"), main = true)"))
         assertTrue(again.contains("directPhase(b.state) != DirectPhase.AwaitingPayment"))     // paid meanwhile: on to the wait
         assertTrue(vm.contains("\"direct_pay\" -> go { payBookedAgain() }"))
     }

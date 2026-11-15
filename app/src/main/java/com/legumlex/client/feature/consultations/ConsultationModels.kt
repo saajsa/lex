@@ -133,6 +133,10 @@ data class Consultation(
     val funnelDetail: String? = null,
     /** An enquiry's number (ENQ/2026/12345), where it is in its intake (received | assigned | acknowledged; null for anything that is not an enquiry), whether an advocate has it, and its reference. */
     val enquiryNumber: String? = null,
+    /** The full consultation the counsel recommended in the latest reply, bookable from here (REQ-023); null when none, no fee is set, it is booked or closed. */
+    val consultationOffer: ConsultationOffer? = null,
+    /** The language the consultation was begun in (en|hi|pa|hx; null when the server says nothing): the offer is shown in it. */
+    val lang: String? = null,
     /** A booked Direct Consultation (REQ-020): its label, due time and who accepted; null for any other consultation or an older server. */
     val direct: com.legumlex.client.feature.desk.DirectRow? = null,
     val intakeState: String? = null,
@@ -541,3 +545,29 @@ fun Consultation.advocateName(): String? =
  * Null for any other consultation, and when there is nothing to say.
  */
 fun Consultation.directLine(): String? = direct?.let { com.legumlex.client.feature.desk.directRowLine(it) }
+
+/** consultation_offer: {fee_paise, fee_display, reply_id, can_book}. */
+data class ConsultationOffer(val feePaise: Int, val feeDisplay: String, val replyId: String, val canBook: Boolean)
+
+/** Null when absent (an older server, or no recommendation); the offer is shown only when can_book is true. */
+fun parseConsultationOffer(m: Any?): ConsultationOffer? {
+    val o = m as? Map<*, *> ?: return null
+    val paise = (o["fee_paise"] as? Number)?.toInt() ?: 0
+    val shown = (o["fee_display"] as? String)?.trim().orEmpty().ifBlank { if (paise > 0) "₹" + (paise / 100) else "" }
+    return ConsultationOffer(paise, shown, o["reply_id"]?.toString().orEmpty(), o["can_book"] == true)
+}
+
+/** The button's words: "Book A Consultation (₹499)". Title Case; no firm or advocate named. */
+fun consultationOfferLabel(o: ConsultationOffer, book: com.legumlex.client.feature.desk.LineBook = com.legumlex.client.feature.desk.LineBook.English): String {
+    val base = book.fragment("ui_book_consultation") ?: "Book A Consultation"
+    return if (o.feeDisplay.isNotBlank()) "$base (${o.feeDisplay})" else base
+}
+
+/** The offer's line in the consultation's language (consult_offer_line), else the English. */
+fun consultationOfferLine(book: com.legumlex.client.feature.desk.LineBook = com.legumlex.client.feature.desk.LineBook.English): String =
+    book.line("consult_offer_line") ?: CONSULTATION_OFFER_LINE
+
+/** hi, pa or hx when the server says so; null for English or nothing (the English constants are then used). */
+fun consultationLang(raw: String?): String? = com.legumlex.client.feature.desk.langField(com.legumlex.client.feature.desk.deskLang(raw))
+
+const val CONSULTATION_OFFER_LINE = "Our counsel recommends a full consultation for this matter."

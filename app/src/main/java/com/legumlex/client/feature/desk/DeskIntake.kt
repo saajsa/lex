@@ -54,10 +54,13 @@ const val DEADLINE_MAX = 240
 /** The words, as the server keeps them: runs of whitespace made one, trimmed. */
 fun cleanDeadlineText(raw: String): String = raw.replace(Regex("\\s+"), " ").trim()
 
+/** The empty-answer message of deadlineProblem (the one the book's err_flag translates). */
+const val DEADLINE_EMPTY_EN = "Write a few words, or pick a date, or choose No, Nothing Yet."
+
 /** What is wrong with a deadline answer (the web's own rules); "" when nothing is. Both may not be empty; the date, when given, is YYYY-MM-DD between 2000 and 2100. */
 fun deadlineProblem(text: String, date: String): String {
     val t = cleanDeadlineText(text)
-    if (t.isEmpty() && date.isBlank()) return "Write a few words, or pick a date, or choose No, Nothing Yet."
+    if (t.isEmpty() && date.isBlank()) return DEADLINE_EMPTY_EN
     if (t.length > DEADLINE_MAX) return "Please keep this to $DEADLINE_MAX characters."
     if (date.isNotBlank()) {
         val d = try { LocalDate.parse(date.trim()) } catch (_: DateTimeParseException) { null }
@@ -366,3 +369,83 @@ const val PAY_INVOICE_NOTE = "The fee is an invoice from the firm. Once it is pa
 /** The reference under the waiting card: the enquiry's number, else the consultation number ("#17"), else nothing. */
 fun bookedReference(enquiryNumber: String?, consultationId: Int?): String =
     enquiryNumber?.trim().orEmpty().ifBlank { consultationId?.takeIf { it > 0 }?.let { "#$it" }.orEmpty() }
+
+// ---- A verified mobile number (REQ-018) ----
+
+/** GET desk phone_verify: {required, verified, number_masked}. */
+data class PhoneVerify(val required: Boolean = false, val verified: Boolean = false, val numberMasked: String = "")
+
+fun parsePhoneVerify(m: Any?): PhoneVerify {
+    val o = m as? Map<*, *> ?: return PhoneVerify()
+    return PhoneVerify(o["required"] == true, o["verified"] == true, (o["number_masked"] as? String).orEmpty())
+}
+
+/** The number step needs proving: required, none on record verified, and not proved in this conversation. */
+fun needsPhoneVerify(v: PhoneVerify, provedHere: Boolean): Boolean = v.required && !v.verified && !provedHere
+
+/** What a code request, an SMS request or a check answered. */
+sealed interface PhoneResult {
+    /** 200: the session the code is bound to; for a request also where it went and when the buttons unlock. */
+    data class Ok(val sessionHash: String, val verified: Boolean, val to: String, val resendIn: Int, val smsIn: Int, val canSms: Boolean, val number: String) : PhoneResult
+    /** 422: a code (invalid_number, busy, wait, number_limit, session_limit, switched_off, wrong, expired, locked, used, session_locked, nocode, sms_unavailable) and the server's message. */
+    data class Refused(val code: String, val message: String, val retryAfterMinutes: Int, val sessionHash: String?) : PhoneResult
+    data object Failed : PhoneResult
+}
+
+fun parsePhoneOk(d: Map<String, Any?>?): PhoneResult {
+    if (d == null) return PhoneResult.Failed
+    return PhoneResult.Ok(
+        sessionHash = (d["session_hash"] as? String).orEmpty(), verified = d["verified"] == true, to = (d["to"] as? String).orEmpty(),
+        resendIn = ((d["resend_in"] as? Number)?.toInt() ?: 60).coerceAtLeast(0), smsIn = ((d["sms_in"] as? Number)?.toInt() ?: 30).coerceAtLeast(0),
+        canSms = d["can_sms"] == true, number = (d["number"] as? String).orEmpty(),
+    )
+}
+
+fun parsePhoneRefusal(b: Map<String, Any?>): PhoneResult.Refused = PhoneResult.Refused(
+    code = (b["code"] as? String)?.trim().orEmpty().ifEmpty { "generic" }, message = (b["message"] as? String)?.trim().orEmpty(),
+    retryAfterMinutes = (b["retry_after_minutes"] as? Number)?.toInt() ?: 0, sessionHash = (b["session_hash"] as? String)?.takeIf { it.isNotBlank() },
+)
+
+/** The book's own line for a refusal code (perr_<code>) when it has one; else the server's message; else the generic line. */
+fun phoneErrorText(book: LineBook, r: PhoneResult.Refused): String =
+    book.fragment("perr_" + r.code) ?: r.message.ifBlank { book.fragment("perr_generic") ?: "That did not work. Please try again." }
+
+/** Seconds left before a button unlocks, from when the code was sent. */
+fun unlockLeft(unlockIn: Int, elapsedSeconds: Int): Int = (unlockIn - elapsedSeconds).coerceAtLeast(0)
+
+/** desk/enquiry refused because the number is not proved: the visitor is sent back to the number step and the enquiry is sent again once it is. */
+fun isPhoneRefusal(reason: String?): Boolean = reason == "phone_unverified" || reason == "phone_required"
+
+const val PHONE_CODE_SENT_EN = "I have sent a 6-digit code to {to} on WhatsApp. Please type it here to confirm your number."
+const val PHONE_CONFIRMED_EN = "Thank you, your number is confirmed."
+const val PHONE_CONFIRM_FIRST_EN = "Before I can send this, please confirm your mobile number."
+const val PHONE_REQUIRED_EN = "Please give a mobile number the advocates can reach you on."
+
+/** The code step's dock state: where the code went, when its buttons unlock, and when it was sent (for the countdowns). */
+data class PhoneCodeUi(val to: String, val resendIn: Int, val smsIn: Int, val canSms: Boolean, val sentAtMs: Long)
+
+// ---- Lex's closing turn (REQ-023) ----
+
+/** What Lex says before the enquiry is sent: at most two short sentences and one ask (fixed copy may carry <b> around the fee), and where it came from. */
+data class CloseTurn(val say: String, val source: String, val feeDisplay: String, val feePaise: Int, val declined: Boolean = false)
+
+/** Null when the answer says nothing to show (the turn is skipped and the desk goes on as before). */
+fun parseCloseTurn(d: Map<String, Any?>?): CloseTurn? {
+    if (d == null || d["success"] == false) return null
+    val say = (d["say"] as? String)?.trim().orEmpty()
+    if (say.isEmpty()) return null
+    return CloseTurn(htmlToMarkup(say), (d["source"] as? String)?.trim().orEmpty(), (d["fee_display"] as? String)?.trim().orEmpty(), (d["fee_paise"] as? Number)?.toInt() ?: 0, d["declined"] == true)
+}
+
+const val CLOSE_GO_AHEAD = "Yes, Go Ahead"
+const val CLOSE_NOT_NOW = "Not Now"
+const val CLOSE_STOP_EN = "No problem. Nothing has been sent or charged, and you can come back any time."
+
+const val CLOSE_START_NEW = "Start A New Enquiry"
+
+const val Q_FROM_GUEST = "Thank you. I have what you wrote above, so I will ask only what our counsel still need."
+const val GUEST_STORY_MIN = 20
+
+/** The guest's own messages, joined, when they wrote at least GUEST_STORY_MIN characters in all; else null, also when it is keyboard-mash text (the question is asked as before). */
+fun guestStory(turns: List<Pair<String, String>>): String? =
+    turns.filter { it.first == "guest" }.map { it.second.trim() }.filter { it.isNotEmpty() }.joinToString(" ").takeIf { it.length >= GUEST_STORY_MIN && !DeskViewModel.mashed(it) }

@@ -17,6 +17,21 @@ class ConsultationsRepository(private val api: ApiService) {
         data.map(::parse)
     }
 
+    /** The fixed lines in [lang] (desk/lines; a lead's twin), for the offer; null when they could not be had (the English is then shown). */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun lines(lang: String): com.legumlex.client.feature.desk.LineBook? = runCatching {
+        com.legumlex.client.feature.desk.parseLineBook((if (com.legumlex.client.data.auth.SessionRole.isLead) api.leadDeskLines(lang) else api.deskLines(lang))["data"] as? Map<String, Any?>)
+    }.getOrNull()
+
+    /** Book the recommended consultation (desk/direct {consultation_id}; a lead's desk its twin): the booking, whose fee page is paid through the existing pay screens. */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun bookConsultation(id: String): Result<com.legumlex.client.feature.desk.DirectBooking?> = runCatching {
+        val n = id.toIntOrNull() ?: error("bad id")
+        val r = if (com.legumlex.client.data.auth.SessionRole.isLead) api.leadDeskDirect(n) else api.deskDirect(n)
+        com.legumlex.client.feature.desk.parseDirectBooking(r["data"] as? Map<String, Any?>)
+    }
+
+
     suspend fun detail(id: String): Result<Consultation> = runCatching {
         val response = api.consultations(id = id)
         @Suppress("UNCHECKED_CAST")
@@ -315,6 +330,8 @@ internal fun parse(m: Map<String, Any?>): Consultation {
         funnelDetail         = ((m["funnel_view"] as? Map<*, *>)?.get("detail") as? String)?.takeIf { it.isNotBlank() },
         enquiryNumber        = (m["enquiry_number"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         direct               = com.legumlex.client.feature.desk.parseDirectRow(m),
+        consultationOffer    = parseConsultationOffer(m["consultation_offer"]),
+        lang                 = (m["lang"] as? String)?.trim()?.takeIf { it.isNotEmpty() },
         intakeState          = (m["intake_state"] as? String)?.trim()?.takeIf { it.isNotBlank() },
         assigned             = if (m.containsKey("assigned")) m["assigned"].asBool() else null,
         reference            = (m["reference"] as? String)?.trim()?.takeIf { it.isNotBlank() },
@@ -544,4 +561,5 @@ private fun parseDateTime(s: String?): LocalDateTime? {
         try { return LocalDateTime.parse(s.trim(), DateTimeFormatter.ofPattern(p)) } catch (_: DateTimeParseException) {}
     }
     return null
+
 }

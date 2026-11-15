@@ -85,10 +85,8 @@ data class Line(
     val step: Step? = null,
     val warn: Boolean = false,
     val files: List<String> = emptyList(),
-    /** Small print under a translated fixed line (REQ-017 017.26); null on English and on lines the model wrote. */
+    /** The disclaimer behind a translated fixed line's small "Translated" tag (REQ-017 017.31); null on English and on lines the model wrote. */
     val footer: DeskFooter? = null,
-    /** Only the one-word tag of [footer] is shown (every translated line after the first). */
-    val footerTag: Boolean = false,
 )
 
 data class Action(val id: String, val label: String, val main: Boolean = false)
@@ -106,6 +104,8 @@ sealed interface Dock {
     data object Phone : Dock
     /** Not signed in: a short message (two, of 140 characters). */
     data object Guest : Dock
+    /** The WhatsApp code of the enquiry's number step (REQ-018): a six-digit box, Confirm, Send Code Again, Send By SMS Instead, Change Number. */
+    data class Code(val info: PhoneCodeUi) : Dock
     /** The Google sign-in, in the conversation. */
     data object SignIn : Dock
     /** The quiet wait after a direct-talk enquiry is sent, and the hand-over to the advocate who has it (REQ-017 017.30). */
@@ -140,6 +140,8 @@ data class DeskUi(
     val counsel: Boolean = false,
     /** A guest's desk: whether the server's desk takes counsel (google_config counsel_desk, readable before sign-in): the intro's Register As Counsel chip. */
     val guestCounselDesk: Boolean = false,
+    /** The language's fixed labels (buttons, placeholders, screen-reader texts) the screens draw with; English when no book is in force. */
+    val labels: LineBook = LineBook.English,
 )
 
 sealed interface DeskEvent {
@@ -200,6 +202,17 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private var gibs = 0
     /** The server informed an advocate during this conversation (desk/check advocate_informed): its end is the direct-talk waiting state. */
     private var informed = false
+    /** Lex's closing turn (REQ-023) has been taken for this enquiry (said, or skipped on an error). */
+    private var closeDone = false
+
+    // ---- A verified mobile number (REQ-018) ----
+    /** The number was proved in this conversation (a code confirmed, or the server said it was already verified). */
+    private var phoneProved = false
+    /** The number step is asked again whatever is on file (a refusal at send, or Change Number). */
+    private var forcePhone = false
+    private var codeUi: PhoneCodeUi? = null
+
+    private fun needsVerifyNow() = needsPhoneVerify(t.phoneVerify, phoneProved) && !phone.isNullOrEmpty()
 
     // ---- A booked Direct Consultation (REQ-020 020.4) ----
     /** The server offered a direct consultation (desk/check or desk/gather) and the visitor has not been asked yet. */
@@ -276,7 +289,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         terms.join()
         if (_ui.value.termsLoaded) return true
         say(Para.Text("The desk could not connect to the firm. Please check your connection and try again."), note = true, warn = true)
-        dock(Dock.Actions(listOf(Action("terms", "Try Again", main = true))))
+        dock(Dock.Actions(listOf(Action("terms", lbl("ui_try_again", "Try Again"), main = true))))
         return false
     }
 
@@ -296,8 +309,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val chars = paras.sumOf { (it as? Para.Text)?.s?.length ?: 40 }
         _ui.update { it.copy(typing = true) }
         delay((350L + chars * 6L).coerceAtMost(1_100L))
-        val (shownFooter, tagOnly) = footerOnce.next(footer)
-        _ui.update { it.copy(typing = false, lines = it.lines + Line(++nextId, if (note) Who.NOTE else Who.DESK, paras.toList(), prompt = prompt, warn = warn, footer = shownFooter, footerTag = tagOnly)) }
+        _ui.update { it.copy(typing = false, lines = it.lines + Line(++nextId, if (note) Who.NOTE else Who.DESK, paras.toList(), prompt = prompt, warn = warn, footer = footer)) }
     }
 
     // ---- Language (REQ-017 017.26) ----------------------------------------------------
@@ -306,7 +318,6 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private var book: LineBook = LineBook.English
     /** The language the last answer named (whether or not its lines could be fetched): sent on the follow-up calls so the server keeps it after one-word answers. */
     private var convLang = "en"
-    private val footerOnce = FooterOnce()
     private val books = mutableMapOf<String, LineBook>()
 
     /** Take the language an answer names: from the first reading that is not English on, the fixed lines come from /lines (fetched once per language). */
@@ -314,10 +325,15 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         convLang = lang
         if (lang == book.lang) return
         book = languageSwitch(lang, books[lang]) { repo.lines(lang)?.also { books[lang] = it } }
+        _ui.update { it.copy(labels = book) }
+        repo.lang = langField(lang).orEmpty()
     }
 
     /** The fixed line [key] in this language, filled; null in English or when the book lacks it (the English line is then said). */
     private fun tl(key: String, vars: Map<String, String> = emptyMap()): String? = book.line(key, vars)
+
+    /** A button, chip, wait or error label (REQ-017 017.31): the book's ui_/wait_/err_ key as given, else the English. */
+    private fun lbl(key: String, english: String): String = book.fragment(key) ?: english
 
     /** The footer for a line the app said from the book. */
     private fun ft(translated: Boolean): DeskFooter? = if (translated) book.footer else null
@@ -357,12 +373,14 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             pendingOpen != null -> askDirectOpen()
             vetted == "clarify" && more == null -> askClarify()
             !gatherDone -> gather()
+            !closeDone -> askClose()
             docs == null -> askDocs()
             !welcomed -> welcome()
             route == null && needsRoute() -> askRoute()
             entity == null -> askEntity()
             entity == "nri" && country == null -> askCountry()
             phone == null -> askPhone()
+            needsVerifyNow() -> verifyPhone()
             deadline == null -> askDeadline()
             else -> send()
         }
@@ -375,6 +393,18 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun askQuestion() {
         if (!asked(Step.QUESTION)) {
+            val story = guestStory(guestTurns)
+            if (story != null) {
+                // Signed in after writing as a guest (web parity): their own words are the enquiry; Lex does not ask again.
+                text = story
+                qFiles = _ui.value.files.size
+                sayKey("q_from_guest", Q_FROM_GUEST, prompt = Step.QUESTION)
+                _ui.update { it.copy(opened = true) }
+                guestTurns.clear()
+                dock(Dock.Waiting("…"))
+                next()
+                return
+            }
             if (guestTurns.isNotEmpty()) {
                 sayKey("q_guest", "Tell me what happened, in your own words.", prompt = Step.QUESTION)
             } else if (again) {
@@ -405,7 +435,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     fun submitGuest(raw: String) {
         val v = raw.trim()
-        if (v.length < 2) { err("Write a few words first."); return }
+        if (v.length < 2) { err(lbl("err_few_words", "Write a few words first.")); return }
         if (v.length > GUEST_CHARS) { err("At most $GUEST_CHARS characters, please."); return }
         go { sendGuest(v, retry = false) }
     }
@@ -423,14 +453,14 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (retry) _ui.update { it.copy(error = "") }
         else _ui.update { it.copy(lines = it.lines + Line(++nextId, Who.ME, listOf(Para.Text(v))), error = "") }
         dock(Dock.Waiting("…"))
-        val r = withSlowNote(ONE_MOMENT) { repo.guest(guestTurns) }
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.guest(guestTurns) }
         if (r == null) {
             // The desk was not reached (or sent nothing): no invented answer, and the try is not one of the two messages.
             guestTurns.removeAt(guestTurns.lastIndex)
             if (answering) { guestFree--; guestAnswering = true }
             guestRetry = v
             sayKey("api_unavailable", GUEST_UNREACHABLE, note = true, warn = true)
-            dock(Dock.Actions(GUEST_RETRY_ACTIONS))
+            dock(Dock.Actions(listOf(Action("guest_retry", lbl("ui_try_again", "Try Again"), main = true), Action("guest_signin", lbl("ui_signin_google", "Sign In With Google")))))
             return
         }
         adopt(r.tongue.lang)
@@ -504,7 +534,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             err(if (v.isNotEmpty()) "Please add a sentence or two describing what has happened." else "Tell the advocate what happened, in your own words.")
             return
         }
-        if (mashed(v)) { err("That could not be understood. Please describe, in plain words, what has happened."); return }
+        if (mashed(v)) { err(lbl("err_mashed", "That could not be understood. Please describe, in plain words, what has happened.")); return }
         go {
             _ui.update { it.copy(opened = true) }
             text = v
@@ -519,10 +549,10 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun vet() {
         val run = ++vetRun
-        dock(Dock.Waiting("Reading what you have written…"))
+        dock(Dock.Waiting(lbl("wait_reading", "Reading what you have written…")))
         _ui.update { it.copy(typing = true) }
         val started = System.currentTimeMillis()
-        val r = withSlowNote(ONE_MOMENT) { repo.check(text, langField(convLang)) }
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.check(text, langField(convLang)) }
         // A beat of reading even when the answer is instant.
         delay((800 - (System.currentTimeMillis() - started)).coerceAtLeast(0))
         _ui.update { it.copy(typing = false) }
@@ -590,8 +620,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     fun submitClarify(raw: String) {
         val v = raw.trim()
-        if (v.length < 3) { err("Please add a few words, or send it as it is."); return }
-        if (mashed(v)) { err("That could not be understood. Please use a few plain words."); return }
+        if (v.length < 3) { err(lbl("err_more_asis", "Please add a few words, or send it as it is.")); return }
+        if (mashed(v)) { err(lbl("err_mashed", "That could not be understood. Please use a few plain words.")); return }
         go {
             more = v
             answer(Step.CLARIFY, v)
@@ -642,7 +672,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val askedSoFar = readingAsked + gatherAsked
         if (!mayAskMore(readingAsked > 0, readingSkipped, askedSoFar)) return finishGather()
         dock(Dock.Waiting("…"))
-        val r = withSlowNote(ONE_MOMENT) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }
         if (r?.ran == true) gatherRan = true
         r?.let { adopt(it.tongue.lang) }
         if (r?.directOffer != null && !directAsked) pendingOffer = r.directOffer
@@ -674,8 +704,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     fun submitGather(raw: String) {
         val v = raw.trim()
         val q = gatherPending ?: return
-        if (v.length < 2) { err("Please add a few words, or choose Send Now."); return }
-        if (mashed(v)) { err("That could not be understood. Please use a few plain words."); return }
+        if (v.length < 2) { err(lbl("err_more_now", "Please add a few words, or choose Send Now.")); return }
+        if (mashed(v)) { err(lbl("err_mashed", "That could not be understood. Please use a few plain words.")); return }
         go {
             gatherLog = gatherLog + (q to v)
             gatherPending = null
@@ -785,7 +815,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                 "This looks like " + (if (r.related.isNotEmpty()) "**${r.related}**, already" else "a matter already") + " with the advocates. Writing on it in My Matters is the quickest way to reach them.",
                 mapOf("related" to r.related), prompt = Step.ROUTE)
         }
-        dock(Dock.Actions(listOf(Action("matters", "Open My Matters", main = true), Action("new", "Send as a New Enquiry"))))
+        dock(Dock.Actions(listOf(Action("matters", lbl("ui_open_matters", "Open My Matters"), main = true), Action("new", lbl("ui_send_new", "Send as a New Enquiry")))))
     }
 
     // ---- Entity, country, phone ------------------------------------------------
@@ -838,8 +868,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     fun otherCountry(raw: String) {
         val v = raw.trim()
-        if (v.isEmpty()) { err("Please enter the country or city."); return }
-        if (!Regex("^[\\p{L}\\p{Zs}.,'’()-]+$").matches(v)) { err("Please enter the country or city name, using letters only."); return }
+        if (v.isEmpty()) { err(lbl("err_country", "Please enter the country or city.")); return }
+        if (!Regex("^[\\p{L}\\p{Zs}.,'’()-]+$").matches(v)) { err(lbl("err_country_letters", "Please enter the country or city name, using letters only.")); return }
         go {
             country = "OTHER"; countryOther = v
             answer(Step.COUNTRY, v)
@@ -850,13 +880,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun askPhone() {
         // The number is on file (context.known_details.phone): no question and no on-file confirm; the server uses the number on record when none is sent.
-        if (t.known.phone) { phone = ""; return next() }
+        if (t.known.phone && !forcePhone) { phone = ""; return next() }
         val c = ctx
         if (c != null && c.phone.length == 10 && entity != "nri" && "phone" !in offered) {
             if (!asked(Step.PHONE)) {
                 sayKey("phone_onfile", "May the advocates call you on **${shown(c.phone)}**, the number on file, if needed?", mapOf("num" to shown(c.phone)), prompt = Step.PHONE)
             }
-            dock(Dock.Actions(listOf(Action("phone_yes", "Yes, That Number", main = true), Action("phone_other", "A Different Number"))))
+            dock(Dock.Actions(listOf(Action("phone_yes", lbl("ui_yes_number", "Yes, That Number"), main = true), Action("phone_other", lbl("ui_diff_number", "A Different Number")))))
             return
         }
         if (!asked(Step.PHONE)) {
@@ -921,13 +951,99 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     /** The words and the date (YYYY-MM-DD or empty); a problem is said under the box and nothing moves on. */
     fun giveDeadline(text: String, date: String) {
         val p = deadlineProblem(text, date)
-        if (p.isNotEmpty()) { err(p); return }
+        if (p.isNotEmpty()) { err(if (p == DEADLINE_EMPTY_EN) lbl("err_flag", p) else p); return }
         go {
             deadline = cleanDeadlineText(text) to date.trim()
             answer(Step.DEADLINE, deadlineShown(text, date))
             dock(Dock.Waiting("…"))
             next()
         }
+    }
+
+    /** The number is asked, then proved with a WhatsApp code when the server says verification is required and nothing verified is on record. */
+    private suspend fun verifyPhone() {
+        dock(Dock.Waiting("…"))
+        when (val r = repo.phoneCode(phone.orEmpty(), entity.orEmpty(), sessionHash)) {
+            is PhoneResult.Ok -> {
+                if (r.sessionHash.isNotBlank()) sessionHash = r.sessionHash
+                if (r.verified) { phoneProved = true; forcePhone = false; return next() }
+                val line = tl("phone_code_sent", mapOf("to" to r.to))
+                say(Para.Text(line ?: PHONE_CODE_SENT_EN.replace("{to}", r.to)), footer = ft(line != null))
+                codeUi = PhoneCodeUi(r.to, r.resendIn, r.smsIn, r.canSms, System.currentTimeMillis())
+                dock(Dock.Code(codeUi!!))
+            }
+            is PhoneResult.Refused -> {
+                r.sessionHash?.let { sessionHash = it }
+                say(Para.Text(phoneErrorText(book, r)), note = true, warn = true, footer = ft(book.has("perr_" + r.code)))
+                dock(Dock.Actions(listOf(Action("phone_retry", lbl("ui_try_again", "Try Again"), main = true), Action("phone_change", lbl("ui_change_number", "Change Number")))))
+            }
+            PhoneResult.Failed -> {
+                sayKey("perr_generic", "That did not work. Please try again.", note = true, warn = true)
+                dock(Dock.Actions(listOf(Action("phone_retry", lbl("ui_try_again", "Try Again"), main = true), Action("phone_change", lbl("ui_change_number", "Change Number")))))
+            }
+        }
+    }
+
+    /** Confirm: the six digits. The server's refusal (wrong, expired, locked, used, session_locked) keeps the box and says why. */
+    fun submitCode(raw: String) {
+        val c = raw.filter { it.isDigit() }
+        if (c.length != 6) { err(lbl("perr_wrong", "That code is not right. Please check it and try again.")); return }
+        val hash = sessionHash ?: return
+        go {
+            val back = codeUi
+            dock(Dock.Waiting("…"))
+            when (val r = repo.phoneVerify(c, hash)) {
+                is PhoneResult.Ok -> {
+                    phoneProved = true; forcePhone = false; codeUi = null
+                    sayKey("phone_confirmed", PHONE_CONFIRMED_EN, note = true)
+                    next()
+                }
+                is PhoneResult.Refused -> { if (back != null) dock(Dock.Code(back)); err(phoneErrorText(book, r)) }
+                PhoneResult.Failed -> { if (back != null) dock(Dock.Code(back)); err(lbl("perr_generic", "That did not work. Please try again.")) }
+            }
+        }
+    }
+
+    /** Send Code Again: a new code for the same number. */
+    fun codeAgain() = go { verifyPhone() }
+
+    /** Send By SMS Instead (Indian numbers; unlocked by the server's sms_in). */
+    fun codeSms() {
+        val hash = sessionHash ?: return
+        go {
+            val back = codeUi
+            when (val r = repo.phoneSms(hash)) {
+                is PhoneResult.Refused -> { if (back != null) dock(Dock.Code(back)); err(phoneErrorText(book, r)) }
+                PhoneResult.Failed -> err(lbl("perr_generic", "That did not work. Please try again."))
+                else -> Unit
+            }
+        }
+    }
+
+    /** Change Number: the number step again, whatever is on file; the next number is proved afresh. */
+    fun changeNumber() = go {
+        phone = null; phoneProved = false; codeUi = null; forcePhone = true; offered += "phone"
+        dock(Dock.Waiting("…")); next()
+    }
+
+    /** After gathering, before the details: Lex's closing turn. An error, a rate limit or no answer skips it and the desk goes on as before. */
+    private suspend fun askClose() {
+        closeDone = true
+        dock(Dock.Waiting("…"))
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.close(fullText(), langField(convLang)) } ?: return next()
+        say(Para.Text(r.say))
+        if (r.declined) {
+            // The visitor already said no: no ask, only Carry On (as today) or a new enquiry.
+            dock(Dock.Actions(listOf(
+                Action("close_carry", tl("direct_go") ?: DIRECT_GO, main = true),
+                Action("again", lbl("ui_start_new", CLOSE_START_NEW)),
+            )))
+            return
+        }
+        dock(Dock.Actions(listOf(
+            Action("close_go", lbl("ui_go_ahead", CLOSE_GO_AHEAD), main = true),
+            Action("close_no", lbl("ui_not_now", CLOSE_NOT_NOW)),
+        )))
     }
 
     fun noPhone() = go {
@@ -947,6 +1063,16 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             "deadline_yes" -> dock(Dock.Deadline)
             "deadline_no" -> go { deadline = "" to ""; answer(Step.DEADLINE, tl("ans_no_deadline") ?: ANS_NO_DEADLINE); dock(Dock.Waiting("…")); next() }
             "try" -> go { send() }
+            // Lex's closing turn: Yes carries on to the details; Not Now ends kindly with nothing sent or charged.
+            "close_go" -> go { me(lbl("ui_go_ahead", CLOSE_GO_AHEAD)); dock(Dock.Waiting("…")); next() }
+            "close_carry" -> go { me(tl("direct_go") ?: DIRECT_GO); dock(Dock.Waiting("…")); next() }
+            "close_no" -> go {
+                me(lbl("ui_not_now", CLOSE_NOT_NOW))
+                sayKey("close_stop", CLOSE_STOP_EN)
+                dock(Dock.Actions(listOf(Action("again", lbl("ui_ask_else", "Ask Something Else"), main = true))))
+            }
+            "phone_retry" -> go { verifyPhone() }
+            "phone_change" -> changeNumber()
             // A booked Direct Consultation (REQ-020): Yes books it, No carries on as an ordinary enquiry; the fee is paid on its page.
             "direct_yes" -> go { me(tl("direct_yes") ?: DIRECT_YES); directBook = true; dock(Dock.Waiting("…")); next() }
             "direct_no" -> go { me(tl("direct_no") ?: DIRECT_NO); dock(Dock.Waiting("…")); next() }
@@ -957,7 +1083,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                 val url = o.payUrl ?: repo.direct(o.consultationId)?.payUrl
                 consultationId = o.consultationId
                 if (url != null) { awaitingBooked = true; _events.tryEmit(DeskEvent.OpenUrl(url)); bookedRef = ""; bookedSaid.clear()
-                    dock(Dock.Actions(listOf(Action("direct_paid", "I Have Paid", main = true), Action("direct_pay", tl("direct_pay_btn") ?: DIRECT_PAY_BTN)))); watchBooked() }
+                    dock(Dock.Actions(listOf(Action("direct_paid", lbl("ui_paid", "I Have Paid"), main = true), Action("direct_pay", tl("direct_pay_btn") ?: DIRECT_PAY_BTN)))); watchBooked() }
                 else payBookedAgain()
             }
             // Carry On: this conversation goes on as an ordinary enquiry (the rest of the questions, an ordinary submit, no direct=1); the open booking stays in the list.
@@ -1060,7 +1186,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun offer() {
         say(Para.Text(t.offer.ifBlank { "It sounds as though you would like to open an account with the firm. Shall we do that now?" }))
-        dock(Dock.Actions(listOf(Action("acct_offer_yes", "Open My Account", main = true), Action("acct_offer_no", "No, I Have A Question"))))
+        dock(Dock.Actions(listOf(Action("acct_offer_yes", "Open My Account", main = true), Action("acct_offer_no", lbl("ui_have_question", "No, I Have A Question")))))
     }
 
     /** Back to the enquiry (Ask A Question, Not Now, No, I Have A Question). */
@@ -1080,7 +1206,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun render(t: AcctTurn?, ok: Boolean?) {
         if (t == null) {
             say(Para.Text("That did not go through."), note = true, warn = true)
-            dock(Dock.Actions(listOf(Action("acct_retry", "Try Again", main = true))))
+            dock(Dock.Actions(listOf(Action("acct_retry", lbl("ui_try_again", "Try Again"), main = true))))
             return
         }
         val prev = turn
@@ -1225,7 +1351,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (sending) return
         sending = true
         _ui.update { it.copy(locked = true) }
-        dock(Dock.Waiting("Sending — please keep this open."))
+        dock(Dock.Waiting(lbl("wait_sending", "Sending — please keep this open.")))
         val doneSteps = listOf("stage_done_1", "stage_done_2", "stage_done_3", "stage_done_4").map { tl(it) }
         say(Para.Stages(0, false, tl("stage_title"), if (book.active) listOf("stage_1", "stage_2", "stage_3", "stage_4").map { tl(it).orEmpty() } else emptyList(),
             tl("stage_done_title"), if (doneSteps.all { it != null }) doneSteps.filterNotNull() else emptyList()), footer = ft(book.has("stage_title")))
@@ -1276,7 +1402,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                     // Not "try again": the enquiry may be on a desk already.
                     val ta = tl("timeout_a")
                     say(Para.Text(ta ?: "This is taking long. It may already have reached the advocates; please check My Matters before sending again."), note = true, warn = true, footer = ft(ta != null))
-                    dock(Dock.Actions(listOf(Action("matters", "See Whether It Arrived", main = true), Action("try", "Send It Again"))))
+                    dock(Dock.Actions(listOf(Action("matters", lbl("ui_see_arrived", "See Whether It Arrived"), main = true), Action("try", lbl("ui_send_again", "Send It Again")))))
                 } else {
                     failed(if (r.message.isNotBlank()) "That did not go through. ${r.message}" else "That did not go through. Please check your connection and try again.",
                         if (r.message.isNotBlank()) tl("err_generic")?.let { it + " " + r.message } else tl("send_failed"))
@@ -1291,25 +1417,33 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
      * the visitor wrote stays on screen.
      */
     private suspend fun refused(r: Sent.Refused) {
+        // The server will not send it until the number is proved: back to the number step; once proved, the enquiry goes on as it was.
+        if (isPhoneRefusal(r.reason)) {
+            val line = tl("refuse_" + r.reason)
+            val en = r.message.ifBlank { if (r.reason == "phone_unverified") PHONE_CONFIRM_FIRST_EN else PHONE_REQUIRED_EN }
+            say(Para.Text(line ?: en), note = true, warn = true, footer = ft(line != null))
+            phoneProved = false; forcePhone = true; offered += "phone"; phone = null
+            return next()
+        }
         val msg = r.message.ifBlank { tl("err_generic") ?: "That did not go through." }
         say(Para.Text(msg), note = true, warn = true, footer = r.tongue.lineFooter)
         when {
-            retryHelps(r.reason) -> dock(Dock.Actions(listOf(Action("try", "Try Again", main = true))))
+            retryHelps(r.reason) -> dock(Dock.Actions(listOf(Action("try", lbl("ui_try_again", "Try Again"), main = true))))
             r.reason == "awaiting_payment" && sessionHash != null -> payActions()
-            else -> dock(Dock.Actions(listOf(Action("matters", "See Your Matters", main = true))))
+            else -> dock(Dock.Actions(listOf(Action("matters", lbl("ui_see_matters", "See Your Matters"), main = true))))
         }
     }
 
     // ---- The fee (lexon Funnel_orchestrator, via desk/pay) --------------------------
 
     private fun payActions() = dock(Dock.Actions(listOf(
-        Action("pay", "Pay ${savedPrice.ifBlank { "the Fee" }} and Send", main = true),
-        Action("discard", "Set It Aside"),
+        Action("pay", book.fragment("ui_pay_send") ?: "Pay ${savedPrice.ifBlank { "the Fee" }} and Send", main = true),
+        Action("discard", lbl("ui_discard_it", "Set It Aside")),
     )))
 
     private suspend fun pay() {
         val hash = sessionHash ?: return
-        dock(Dock.Waiting("Opening the invoice…"))
+        dock(Dock.Waiting(lbl("wait_payment", "Opening the invoice…")))
         repo.pay(hash)
             .onSuccess { p ->
                 when (p) {
@@ -1325,7 +1459,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                             if (line != null) say(Para.Text(line), footer = ft(true))
                             else if (!book.active) say(Para.Text(PAY_INVOICE_NOTE))
                         }
-                        dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Pay The Fee"), Action("discard", "Set It Aside"))))
+                        dock(Dock.Actions(listOf(Action("paid", lbl("ui_paid", "I Have Paid"), main = true), Action("pay", lbl("ui_pay_fee", "Pay The Fee")), Action("discard", lbl("ui_discard_it", "Set It Aside")))))
                     }
                 }
             }
@@ -1341,11 +1475,11 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private suspend fun checkPaid(asked: Boolean) {
         val hash = sessionHash ?: return
-        if (asked) dock(Dock.Waiting("Checking the payment…"))
+        if (asked) dock(Dock.Waiting(lbl("wait_confirming", "Checking the payment…")))
         repo.pay(hash).onFailure { e ->
             if (asked) {
                 say(Para.Text(e.message ?: "The payment could not be checked. Please try again."), note = true, warn = true)
-                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Pay The Fee"), Action("discard", "Set It Aside"))))
+                dock(Dock.Actions(listOf(Action("paid", lbl("ui_paid", "I Have Paid"), main = true), Action("pay", lbl("ui_pay_fee", "Pay The Fee")), Action("discard", lbl("ui_discard_it", "Set It Aside")))))
             }
         }.onSuccess { p ->
             if (p is PayStart.Sent) {
@@ -1354,19 +1488,19 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
                 delivered(savedEmail, null, bookedAfterPay())
             } else if (asked) {
                 say(Para.Text("The payment has not yet been confirmed. If you have just paid, please wait a minute and try again."), note = true)
-                dock(Dock.Actions(listOf(Action("paid", "I Have Paid", main = true), Action("pay", "Pay The Fee"), Action("discard", "Set It Aside"))))
+                dock(Dock.Actions(listOf(Action("paid", lbl("ui_paid", "I Have Paid"), main = true), Action("pay", lbl("ui_pay_fee", "Pay The Fee")), Action("discard", lbl("ui_discard_it", "Set It Aside")))))
             }
         }
     }
 
     private suspend fun discard() {
         val hash = sessionHash ?: return
-        dock(Dock.Waiting("…"))
+        dock(Dock.Waiting(lbl("wait_discarding", "…")))
         repo.discard(hash)
             .onSuccess {
                 awaitingInvoice = false
                 say(Para.Text("Your enquiry has been set aside. Nothing was charged."))
-                dock(Dock.Actions(listOf(Action("again", "Ask Something Else", main = true))))
+                dock(Dock.Actions(listOf(Action("again", lbl("ui_ask_else", "Ask Something Else"), main = true))))
             }
             .onFailure { e ->
                 say(Para.Text(e.message ?: "The enquiry could not be set aside. Please try again."), note = true, warn = true)
@@ -1383,7 +1517,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     /** [msg] in English, or [translated] when the book had the line (then it carries the footer). */
     private suspend fun failed(msg: String, translated: String? = null) {
         say(Para.Text(translated ?: msg), note = true, warn = true, footer = ft(translated != null))
-        dock(Dock.Actions(listOf(Action("try", "Try Again", main = true))))
+        dock(Dock.Actions(listOf(Action("try", lbl("ui_try_again", "Try Again"), main = true))))
     }
 
     /** A server complaint goes back to the question it is about. */
@@ -1413,7 +1547,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val full = tl(if (!enquiryNumber.isNullOrBlank()) "received_no" else "received_plain", mapOf("n" to enquiryNumber.orEmpty(), "email" to email.ifBlank { "your email" }))
         if (full != null) say(Para.Seal, Para.Text(full), footer = ft(true))
         else say(Para.Seal, Para.Text(receiptLine(enquiryNumber, email)))
-        dock(Dock.Actions(listOf(Action("seen", "See Your Matters", main = true), Action("again", "Ask Something Else"))))
+        dock(Dock.Actions(listOf(Action("seen", lbl("ui_see_matters", "See Your Matters"), main = true), Action("again", lbl("ui_ask_else", "Ask Something Else")))))
     }
 
     /** After a direct-talk enquiry: the final-report line in place of the usual receipt, then the quiet waiting card, which hands over when the advocate acknowledges. */
@@ -1464,7 +1598,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             awaiting && url != null -> {
                 awaitingBooked = true
                 _events.tryEmit(DeskEvent.OpenUrl(url))
-                dock(Dock.Actions(listOf(Action("direct_paid", "I Have Paid", main = true), Action("direct_pay", payBtn))))
+                dock(Dock.Actions(listOf(Action("direct_paid", lbl("ui_paid", "I Have Paid"), main = true), Action("direct_pay", payBtn))))
             }
             // The ordinary enquiry payment is the booking payment: nothing separate to pay; the poll shows it offered once paid.
             awaiting && b.via == "enquiry_payment" -> dock(Dock.Advocate(AdvocateWait.Waiting("", bookedRef)))
@@ -1484,13 +1618,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             url != null -> {
                 awaitingBooked = true
                 _events.tryEmit(DeskEvent.OpenUrl(url))
-                dock(Dock.Actions(listOf(Action("direct_paid", "I Have Paid", main = true), Action("direct_pay", tl("direct_pay_btn") ?: DIRECT_PAY_BTN))))
+                dock(Dock.Actions(listOf(Action("direct_paid", lbl("ui_paid", "I Have Paid"), main = true), Action("direct_pay", tl("direct_pay_btn") ?: DIRECT_PAY_BTN))))
             }
             // Paid meanwhile: the wait carries on from the row.
             b != null && directPhase(b.state) != DirectPhase.AwaitingPayment -> repo.directRow(id)?.let { advanceBooked(it) }
             else -> {
                 sayKey("err_generic", "That did not go through.", note = true, warn = true)
-                dock(Dock.Actions(listOf(Action("direct_pay", "Try Again", main = true))))
+                dock(Dock.Actions(listOf(Action("direct_pay", lbl("ui_try_again", "Try Again"), main = true))))
             }
         }
     }
@@ -1564,12 +1698,12 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     private suspend fun restart() {
-        pollJob?.cancel(); bookedPoll?.cancel(); informed = false; pendingOffer = null; pendingOpen = null; openBooking = null; directAsked = false; directBook = false; awaitingBooked = false; bookedSaid.clear()
+        pollJob?.cancel(); bookedPoll?.cancel(); informed = false; phoneProved = false; forcePhone = false; codeUi = null; pendingOffer = null; pendingOpen = null; openBooking = null; directAsked = false; directBook = false; awaitingBooked = false; bookedSaid.clear()
         text = ""; more = null; vetted = null; ask = ""; area = ""; read = null; reading = ""; qFiles = 0; docs = null
-        route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; sessionHash = null; consultationId = null
+        route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; sessionHash = null; consultationId = null
         repo.submissionKeys.clear()
         savedEmail = ""; savedPrice = ""; awaitingInvoice = false
-        footerOnce.reset(); directTalk = null
+        directTalk = null
         offered.clear(); said.clear(); again = true; gibs = 0; vetRun++; reread = null
         _ui.update { it.copy(lines = emptyList(), files = emptyList(), locked = false, error = "", opened = true) }
         next()
@@ -1589,7 +1723,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             when (k) {
                 Step.QUESTION -> { text = ""; vetted = null; read = null; reading = ""; area = ""; vetRun++ }
                 Step.CLARIFY -> { more = null; reread = null }
-                Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false }
+                Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }
                 Step.DOCS -> docs = null
                 Step.ROUTE -> route = null
                 Step.ENTITY -> { entity = null; if (k == step) offered += "entity" }

@@ -16,15 +16,30 @@ val DESK_LANGS = setOf("hi", "pa", "hx")
 fun deskLang(raw: String?): String = raw?.trim()?.lowercase()?.takeIf { it in DESK_LANGS } ?: "en"
 
 /** Small print under a translated line: the English, then the local line. */
-data class DeskFooter(val lang: String, val en: String, val local: String)
+data class DeskFooter(
+    val lang: String,
+    /** The dialog body: the note in English, then in the local language. */
+    val en: String, val local: String,
+    /** The small chip's own word ("Translated" / "अनुवादित"), when the server sends it; else it is taken from [local]. */
+    val tag: String = "",
+    /** The icon's description and the dialog's title, when the server sends it. */
+    val infoLabel: String = "",
+)
 
-/** {lang, en, local} from the server; null when it is not all there. */
+/**
+ * The footer object: {lang, tag{en,local}, note{en,local}, info_label}; an older server sends {lang, en, local} (the chip then comes from the local line).
+ * Null when there is nothing to show.
+ */
 fun parseDeskFooter(raw: Any?): DeskFooter? {
     val m = raw as? Map<*, *> ?: return null
-    val en = (m["en"] as? String).orEmpty().trim()
-    val local = (m["local"] as? String).orEmpty().trim()
-    if (en.isEmpty() && local.isEmpty()) return null
-    return DeskFooter(deskLang(m["lang"] as? String), en, local)
+    fun pair(x: Any?): Pair<String, String>? = (x as? Map<*, *>)?.let { ((it["en"] as? String).orEmpty().trim()) to ((it["local"] as? String).orEmpty().trim()) }
+    val note = pair(m["note"])
+    val en = (note?.first ?: (m["en"] as? String)).orEmpty().trim()
+    val local = (note?.second ?: (m["local"] as? String)).orEmpty().trim()
+    val tag = (pair(m["tag"])?.let { it.second.ifBlank { it.first } } ?: (m["tag"] as? String)).orEmpty().trim()
+    val info = ((m["info_label"] as? String) ?: pair(m["info_label"])?.let { it.second.ifBlank { it.first } }).orEmpty().trim()
+    if (en.isEmpty() && local.isEmpty() && tag.isEmpty()) return null
+    return DeskFooter(deskLang(m["lang"] as? String), en, local, tag, info)
 }
 
 /** What a server answer says about its own language: `lang`, and whether this line was a fixed, translated one (with its footer). */
@@ -94,21 +109,9 @@ fun opensSentence(before: String): Boolean {
     return b.isBlank() || Regex("[.!?\u0964]\\s+$").containsMatchIn(b)
 }
 
-/** The one word that tags a later translated line: the footer's own label (its local line up to the first stop or danda). */
+/** The one word that tags a translated line: the footer's own label (its local line up to the first stop or danda). The full disclaimer opens from it. */
 fun footerTag(f: DeskFooter): String =
-    f.local.substringBefore('\u0964').substringBefore('.').trim().ifBlank { f.local.trim() }
-
-/** The full footer is shown once per conversation, under the first translated line; every later translated line gets only the tag. */
-class FooterOnce {
-    private var shown = false
-    /** (footer, tagOnly): the footer as given for the first, then tagOnly = true; null footer stays null and does not use up the first. */
-    fun next(f: DeskFooter?): Pair<DeskFooter?, Boolean> {
-        if (f == null) return null to false
-        if (!shown) { shown = true; return f to false }
-        return f to true
-    }
-    fun reset() { shown = false }
-}
+    f.tag.ifBlank { f.local.substringBefore('\u0964').substringBefore('.').trim().ifBlank { f.local.trim() } }
 
 /** One language's fixed lines, as desk/lines gives them. */
 class LineBook(val lang: String, private val lines: Map<String, String>, val footer: DeskFooter?, val pool: List<String> = emptyList()) {

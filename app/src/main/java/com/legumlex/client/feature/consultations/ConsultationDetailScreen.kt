@@ -108,6 +108,10 @@ fun ConsultationDetailScreen(
             }
         }
     }
+    // A booked consultation's fee page (REQ-023): an invoice opens in the app's checkout, any other page in the pay page.
+    LaunchedEffect(vm) {
+        vm.payUrls.collect { url -> com.legumlex.client.feature.finance.PayActivity.open(context, url) }
+    }
     // Attachment opens — VM produces a cached File; we hand it to the
     // system viewer via FileProvider so it doesn't matter what app handles it.
     LaunchedEffect(vm) {
