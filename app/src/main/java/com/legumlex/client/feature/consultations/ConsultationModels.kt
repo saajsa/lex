@@ -142,6 +142,8 @@ data class Consultation(
     val lang: String? = null,
     /** A booked Direct Consultation (REQ-020): its label, due time and who accepted; null for any other consultation or an older server. */
     val direct: com.legumlex.client.feature.desk.DirectRow? = null,
+    /** The booking's state for the client (F-035): held (awaiting_payment), offered or unclaimed, in the server's words; null when none or accepted. */
+    val directClient: DirectClient? = null,
     val intakeState: String? = null,
     val assigned: Boolean? = null,
     val reference: String? = null,
@@ -198,6 +200,7 @@ fun Consultation.needsAction(): Boolean {
             ConsultationStatus.COMPLETED,
         )) return false
     return when {
+        heldBooking() -> true
         funnelNeedsYou() -> true
         hasUnreadReplies -> true
         kind == ConsultationKind.DOC_REQUEST && pendingDocCount > 0 -> true
@@ -259,6 +262,7 @@ fun Consultation.displayTitle(): String =
 
 // Short "what to do next" hint for the Needs-action card subline.
 fun Consultation.nextActionLabel(): String? = when {
+    heldBooking() -> directClient?.detail?.takeIf { it.isNotBlank() }
     funnelNeedsYou() && funnelCopy() != null           -> funnelCopy()!!.detail
     hasUnreadReplies                                   -> "New message from your advocate"
     kind == ConsultationKind.DOC_REQUEST && pendingDocCount > 0 ->
@@ -545,6 +549,29 @@ fun Consultation.intakeLabel(appointmentConfirmed: Boolean? = null): String? {
 /** The advocate to show: never one before the enquiry is assigned (the server leaves assigned_to empty until then; this holds it so as well). */
 fun Consultation.advocateName(): String? =
     if (intake() == IntakeState.RECEIVED || assigned == false) null else assignedTo?.takeIf { it.isNotBlank() }
+
+/** direct_client (F-035): the server's wording for a booked consultation that is held, offered or unclaimed. payUrl is the public invoice page (held only). */
+data class DirectClient(
+    val state: String,
+    val label: String,
+    val title: String,
+    val detail: String,
+    val payUrl: String?,
+    val payLabel: String?,
+    val feeDisplay: String?,
+) {
+    val held: Boolean get() = state == "awaiting_payment"
+}
+
+fun parseDirectClient(m: Map<String, Any?>): DirectClient? {
+    val d = m["direct_client"] as? Map<*, *> ?: return null
+    val state = d["state"] as? String ?: return null
+    fun s(k: String) = (d[k] as? String)?.takeIf { it.isNotBlank() }
+    return DirectClient(state, s("label").orEmpty(), s("title").orEmpty(), s("detail").orEmpty(), s("pay_url"), s("pay_label"), s("fee_display"))
+}
+
+/** A booked consultation held until its fee is paid: nothing has gone to an advocate, so no reply, follow-up or call. */
+fun Consultation.heldBooking(): Boolean = directClient?.held == true
 
 /**
  * The line a booked Direct Consultation shows: the server's direct_label ("Direct Consultation" once paid; nothing before) and the due time or Overdue.

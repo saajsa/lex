@@ -379,6 +379,8 @@ private fun ConsultationTimelineRow(c: Consultation, mode: RowMode, next: Consul
     val at = c.when_()
     val done = mode == RowMode.DONE
     val (statusLabel, statusColor) = when {
+        c.heldBooking() -> (c.directClient!!.label.ifBlank { "Awaiting Payment" }) to Lex.colors.warning.solid
+        c.directClient != null && c.directClient.label.isNotBlank() -> c.directClient.label to c.status.palette.solid
         c.awaitingPayment() -> "Awaiting Payment" to Lex.colors.warning.solid
         // An enquiry says where it is in its intake, in the server's words.
         c.intakeLabel() != null && !c.funnelNeedsYou() -> c.intakeLabel()!! to c.status.palette.solid

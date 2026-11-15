@@ -4,6 +4,7 @@ import com.legumlex.client.feature.consultations.detail.GENERAL_NOT_ANSWERED
 import com.legumlex.client.feature.consultations.detail.generalState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import com.legumlex.client.feature.consultations.detail.atTime
 import org.junit.Test
@@ -68,7 +69,6 @@ class ConsultationWebStatesTest {
     }
 
     @Test fun theStartNewLabelIsTitleCaseAndRoutesHideTheFooter() {
-        assertEquals("Start A New Enquiry", com.legumlex.client.feature.desk.startNewLabel("Start a New Enquiry"))
         assertEquals(setOf("ahc", "portal_docs", "clarify"), com.legumlex.client.feature.desk.ROUTE_KEYS)
     }
 
@@ -95,5 +95,42 @@ class ConsultationWebStatesTest {
         val src = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailAHC.kt").readText()
         assertFalse(src.contains("\"Submitted\" + consultation.createdAt"))
         assertTrue(src.contains("\"Released\" + consultation.releasedAt?.let { \" \${it.atTime()}\" }"))
+    }
+
+    private val held = mapOf("direct_client" to mapOf("state" to "awaiting_payment", "label" to "Awaiting Payment", "title" to "Your Consultation Is Held", "detail" to "It goes to an advocate once the fee is paid.",
+        "pay_url" to "https://x.test/invoice/1/abc", "pay_label" to "Pay ₹499", "fee_display" to "₹499"))
+
+    @Test fun aHeldBookingReadsDirectClientFirstAndCountsAsOwed() {
+        val c = enquiry("direct_state" to "awaiting_payment") .let { parse(mapOf("id" to "41", "consultation_type" to "legal_enquiry", "status" to "Open", "request_status" to "pending", "phase" to "consultation", "enquiry_number" to "ENQ/2026/1") + held) }
+        assertTrue(c.heldBooking())
+        assertEquals("Your Consultation Is Held", generalState(c).title)
+        assertEquals("It goes to an advocate once the fee is paid.", generalState(c).text)
+        assertTrue(c.needsAction())
+        assertEquals("https://x.test/invoice/1/abc", c.directClient?.payUrl)
+        assertEquals("It goes to an advocate once the fee is paid.", c.nextActionLabel())
+    }
+
+    @Test fun offeredCarriesItsOwnWordsAndIsNotHeld() {
+        val c = parse(mapOf("id" to "42", "consultation_type" to "legal_enquiry", "status" to "Open", "request_status" to "pending", "phase" to "consultation",
+            "direct_client" to mapOf("state" to "offered", "label" to "Paid", "title" to "Offered To Counsel", "detail" to "Waiting for counsel.")))
+        assertFalse(c.heldBooking())
+        assertEquals("Offered To Counsel", generalState(c).title)
+        assertNull(parse(mapOf("id" to "43", "status" to "Open", "direct_client" to null)).directClient)
+    }
+
+    @Test fun theDetailHidesTheComposerWhileHeldAndOffersOnePayButton() {
+        val src = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailGeneral.kt").readText()
+        assertTrue(src.contains("if (!consultation.heldBooking()) Composer("))
+        assertTrue(src.contains("HeldPayButton(dc.payLabel"))
+        val desk = java.io.File("src/main/java/com/legumlex/client/feature/desk/DeskViewModel.kt").readText()
+        assertFalse(desk.contains("startNewLabel"))
+    }
+
+    @Test fun theHeldConversationCardSaysNothingWasSentAndTheHeroLaysOutNormally() {
+        assertEquals("Nothing has been sent to the advocates yet. It goes to them once the fee is paid.", com.legumlex.client.feature.consultations.detail.GENERAL_HELD_NOT_SENT)
+        val src = java.io.File("src/main/java/com/legumlex/client/feature/consultations/detail/DetailGeneral.kt").readText()
+        assertTrue(src.contains("if (!c.heldBooking()) Text(") && src.contains("if (c.heldBooking()) GENERAL_HELD_NOT_SENT"))
+        assertTrue(src.contains("Box(Modifier.matchParentSize()) { Box(Modifier.fillMaxHeight().width(LlDimen.HeroStripeWidth)"))
+        assertTrue(src.contains("Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                    Icon(spec.icon"))
     }
 }

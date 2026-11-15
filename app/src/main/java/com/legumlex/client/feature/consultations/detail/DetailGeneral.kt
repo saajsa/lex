@@ -43,6 +43,7 @@ import com.legumlex.client.feature.consultations.ConsultationAttachment
 import com.legumlex.client.feature.consultations.ConsultationDetailUiState
 import com.legumlex.client.feature.consultations.ConsultationDetailViewModel
 import com.legumlex.client.feature.consultations.ConsultationStatus
+import com.legumlex.client.feature.consultations.heldBooking
 import com.legumlex.client.feature.consultations.Reply
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -102,7 +103,7 @@ fun DetailGeneral(
         // the nested Scaffold re-adds it as a fixed empty band under the header.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            Composer(
+            if (!consultation.heldBooking()) Composer(
                 value = composing,
                 onChange = { composing = it },
                 onSend = {
@@ -131,6 +132,13 @@ fun DetailGeneral(
             // ── status hero (left colour band) ──────────────────────────────
             Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = 2.dp)) {
                 HeroStatus(phase, consultation)
+            }
+
+            // ── held booking (F-035): the fee is the one thing to do; paid on the public invoice page ──
+            consultation.directClient?.takeIf { it.held && !it.payUrl.isNullOrBlank() }?.let { dc ->
+                Box(Modifier.padding(start = LlDimen.ScreenPad, end = LlDimen.ScreenPad, top = LlDimen.SectionGap)) {
+                    HeldPayButton(dc.payLabel ?: ("Pay " + (dc.feeDisplay ?: "Fee")), dc.payUrl!!)
+                }
             }
 
             // ── the counsel recommended a full consultation (REQ-023): bookable from here ──
@@ -307,14 +315,14 @@ private fun HeroStatus(phase: GenPhase, c: Consultation) {
             .background(LlColor.Surface)
             .border(LlDimen.HairlineWidth, LlColor.Border, LlShape.Card),
     ) {
-        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(LlDimen.HeroStripeWidth).background(spec.band))
+        Box(Modifier.matchParentSize()) { Box(Modifier.fillMaxHeight().width(LlDimen.HeroStripeWidth).background(spec.band)) }   // the stripe follows the card, it never sets its height
         Column(Modifier.padding(start = 20.dp, end = 16.dp, top = 15.dp, bottom = 15.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(spec.icon, null, tint = LlColor.Ink, modifier = Modifier.size(19.dp))
                     Text(spec.title, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = LlColor.Ink)
                 }
@@ -627,14 +635,16 @@ private fun ThreadEmpty(phase: GenPhase, c: Consultation) {
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Outlined.MarkEmailUnread, null, tint = LlColor.AmberMid, modifier = Modifier.size(27.dp)) }
         Spacer(Modifier.height(15.dp))
-        Text(
+        // Held until the fee is paid: nothing has reached an advocate, so no title repeated and no "will appear" promise (the portal's own sentence).
+        if (!c.heldBooking()) Text(
             if (phase == GenPhase.CLOSED) "This Enquiry Is Closed" else generalState(c).title,
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
             letterSpacing = (-0.01).em, color = LlColor.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        Spacer(Modifier.height(7.dp))
+        if (!c.heldBooking()) Spacer(Modifier.height(7.dp))
         Text(
-            if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
+            if (c.heldBooking()) GENERAL_HELD_NOT_SENT
+            else if (phase == GenPhase.CLOSED) "The conversation will appear here once it begins."
             else GENERAL_NOT_ANSWERED,   // the portal's own line (consultation.php:649), no time
             fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 19.sp, color = LlColor.InkMuted,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -840,6 +850,7 @@ internal data class GeneralState(val title: String, val text: String)
 
 /** The portal's line under an empty conversation (consultation.php:649). */
 internal const val GENERAL_RUNNING_LATE = "The answer is running late. It has been flagged to the firm."
+internal const val GENERAL_HELD_NOT_SENT = "Nothing has been sent to the advocates yet. It goes to them once the fee is paid."
 internal const val GENERAL_NOT_ANSWERED = "Not answered yet. It will appear here, and in Messages, as soon as your advocate replies."
 
 /**
@@ -851,6 +862,8 @@ internal fun generalState(c: Consultation): GeneralState {
     val unacknowledged = c.acknowledgedAt == null && c.intakeState != "acknowledged"
     val holder = c.assignedTo?.trim().orEmpty()
     return when {
+        // A booked consultation held or offered: the server's own title and detail (F-035), never "Received" or a wait for an advocate.
+        c.directClient != null && c.directClient.title.isNotBlank() -> GeneralState(c.directClient.title, c.directClient.detail)
         // An enquiry nobody holds yet: waiting in the intake queue; no advocate is named because none has it.
         enquiry && unacknowledged && (c.assigned == false || (c.assigned == null && holder.isEmpty())) ->
             GeneralState("Enquiry " + (c.reference ?: c.enquiryNumber)?.let { "$it " }.orEmpty() + "Received", "It is waiting to be given to an advocate. You will be told who has it.")
@@ -862,6 +875,22 @@ internal fun generalState(c: Consultation): GeneralState {
         c.reviewDueAt != null -> GeneralState("With Your Advocate", "An advocate is working on it.")
         else -> GeneralState("With Your Advocate", "An advocate is working on it. Nothing is needed from you right now.")
     }
+}
+
+/** The one action on a held booking: the fee, paid on the server's public invoice page in the browser (the app takes no payment itself). */
+@Composable
+private fun HeldPayButton(label: String, url: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Box(
+        Modifier.fillMaxWidth().clip(LlShape.Card).background(LlColor.Ink).clickable {
+            try {
+                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (_: Exception) {
+                android.widget.Toast.makeText(context, "The payment page could not be opened.", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.padding(vertical = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = LlColor.Paper) }
 }
 
 private fun advName(name: String?): String {

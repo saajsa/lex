@@ -510,9 +510,6 @@ const val CLOSE_START_NEW = "Start A New Enquiry"
 /** The service routes under which the enquiry footer (fee, 30 minutes) is not shown (web syncFooter). */
 val ROUTE_KEYS = setOf("ahc", "portal_docs", "clarify")
 
-/** The served English line reads "Start a New Enquiry"; labels here are Title Case. */
-fun startNewLabel(served: String): String = served.replace("Start a New Enquiry", CLOSE_START_NEW)
-
 const val Q_FROM_GUEST = "Thank you. I have what you wrote above, so I will ask only what our counsel still need."
 const val GUEST_STORY_MIN = 20
 

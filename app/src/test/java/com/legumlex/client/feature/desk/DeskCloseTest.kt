@@ -172,7 +172,7 @@ class DeskSlice1Test {
         assertTrue(close.contains("r.refused == \"no_matter\"") && close.contains("r.booked -> next()") && close.contains("r.cards.isNotEmpty()"))
         val api = java.io.File("src/main/java/com/legumlex/client/data/api/ApiService.kt").readText()
         assertTrue(api.contains("@Field(\"chose\") chose: String? = null, @Field(\"person\") person: Int? = null"))
-        assertTrue(vm.contains("startNewLabel(lbl(\"ui_start_new\", CLOSE_START_NEW)), main = true)"))               // Not Now rests on Start A New Enquiry, as the web's
+        assertTrue(vm.contains("lbl(\"ui_start_new\", CLOSE_START_NEW), main = true)"))               // Not Now rests on Start A New Enquiry, as the web's
     }
 
     @org.junit.Test fun theGuestLimitIsTheServersAndTheDefaultIsAThousand() {
