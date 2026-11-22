@@ -49,11 +49,8 @@ data class Hearing(
     val purpose: String?,
     val nextDate: LocalDate?,
     val nextTime: LocalTime?,
-    val adjournmentReason: String?,
     val createdAt: LocalDateTime?,
     val history: List<HearingHistoryEntry> = emptyList(),
-    /** What happened at the hearing, as the advocate noted it. */
-    val description: String? = null,
     /** "required" | "optional" | "not_required" | null. */
     val clientAttendance: String? = null,
     /** What the advocate has asked the client to bring or do, as written. */
@@ -80,14 +77,15 @@ data class HearingHistoryEntry(
     val date: LocalDate?,
     val time: LocalTime?,
     val status: HearingStatus,
-    val adjournmentReason: String?,
     val createdAt: LocalDateTime?,
-    val description: String? = null,
     val nextDate: LocalDate? = null,
     val outcome: String? = null,
 ) {
     val statusLabel: String get() = hearingStatusLabel(status.label, outcome)
 }
+
+/** "Outcome: Heard"; null when none is recorded. Staff notes never reach the client (REQ-039 B5), the outcome does. */
+fun outcomeLine(outcome: String?): String? = outcome?.trim()?.takeIf { it.isNotEmpty() }?.let { "Outcome: $it" }
 
 /**
  * What to show for a hearing (REQ-016): its outcome when one is recorded, as "Completed · Adjourned" (the server makes a hearing with an outcome

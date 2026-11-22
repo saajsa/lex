@@ -435,11 +435,6 @@ private fun UpcomingCard(h: HearingRow, today: LocalDate, lead: Boolean, expande
                 Text(it, color = InverseText, fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
-        h.description?.takeIf { it.isNotBlank() }?.let {
-            Spacer(Modifier.height(10.dp))
-            Text(it, color = InverseText.copy(alpha = 0.7f), fontFamily = Inter, fontSize = 13.sp, lineHeight = 19.sp,
-                maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-        }
         if (expanded) {
             Spacer(Modifier.height(12.dp))
             Row(
@@ -488,18 +483,8 @@ private fun ConcludedRow(
                 Spacer(Modifier.width(8.dp))
                 Outcome(h.status, h.outcome)
             }
-            val meta = listOfNotNull(h.outcome?.let { com.legumlex.client.feature.hearings.hearingStatusLabel(h.status, it) }, h.time?.format(Time), h.nextDate?.let { "Next ${it.format(DayYear)}" })
+            val meta = listOfNotNull(com.legumlex.client.feature.hearings.outcomeLine(h.outcome), h.time?.format(Time), h.nextDate?.let { "Next ${it.format(DayYear)}" })
             if (meta.isNotEmpty()) Text(meta.joinToString(" · "), color = TertiaryText, fontFamily = Inter, fontSize = 12.sp)
-            h.adjournmentReason?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(4.dp))
-                Text("Adjourned: $it", color = SecondaryText, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp,
-                    maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-            }
-            h.description?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(2.dp))
-                Text(it, color = SecondaryText, fontFamily = Inter, fontSize = 12.5.sp, lineHeight = 18.sp,
-                    maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-            }
             if (orders.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 orders.forEach { o -> OrderLine(o, d, onOpenOrderDocument, showDate = false) }

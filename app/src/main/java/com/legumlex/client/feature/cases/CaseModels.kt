@@ -155,8 +155,6 @@ data class HearingRow(
     val time: LocalTime?,
     val status: String,
     val purpose: String?,
-    val description: String? = null,   // hearing notes / what happened
-    val adjournmentReason: String? = null,
     val nextDate: LocalDate? = null,
     /** "required" | "optional" | "not_required" | null — whether the client is to attend. */
     val clientAttendance: String? = null,

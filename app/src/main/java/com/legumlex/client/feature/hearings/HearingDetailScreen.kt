@@ -136,13 +136,6 @@ private fun HearingDetailContent(h: Hearing, onOpenCase: (String) -> Unit) {
             }
         }
 
-        if (!h.description.isNullOrBlank()) {
-            Spacer(Modifier.height(spacing.s5))
-            EyebrowText("What Happened")
-            Spacer(Modifier.height(spacing.s2))
-            Text(h.description, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
-        }
-
         h.nextDate?.let { nd ->
             Spacer(Modifier.height(spacing.s5))
             EyebrowText("Next Date")
@@ -307,7 +300,7 @@ private fun StatusCard(h: Hearing) {
             // as the case's hearing list says. The badge alone; the label said it twice.
             val listed = h.date != null && h.date.isBefore(LocalDate.now(IST)) && h.status.label.equals("Scheduled", true)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusBadge(if (listed) "Listed" else h.statusLabel, h.status.palette)
+                StatusBadge(if (listed) "Listed" else h.status.label, h.status.palette)   // the outcome shows once, below
                 Spacer(Modifier.width(10.dp))
                 Text(if (listed) "No outcome recorded for this date" else "Status on record",
                     style = MaterialTheme.typography.bodyMedium, color = SecondaryText)
@@ -325,13 +318,9 @@ private fun StatusCard(h: Hearing) {
                     if (i != earlier.lastIndex) Spacer(Modifier.height(10.dp))
                 }
             }
-            if (!h.adjournmentReason.isNullOrBlank()) {
-                Spacer(Modifier.height(14.dp))
-                Divider()
-                Spacer(Modifier.height(14.dp))
-                EyebrowText("Adjournment Reason")
-                Spacer(Modifier.height(4.dp))
-                Text(h.adjournmentReason, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
+            outcomeLine(h.outcome)?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
             }
         }
     }
@@ -353,10 +342,6 @@ private fun HistoryRow(entry: HearingHistoryEntry) {
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = Inter),
             color = SecondaryText,
         )
-    }
-    // What happened that day, as the advocate noted it.
-    entry.description?.let {
-        Text(it, style = MaterialTheme.typography.bodySmall, color = PrimaryText, modifier = Modifier.padding(start = 18.dp, top = 2.dp))
     }
     }
 }
