@@ -193,7 +193,7 @@ fun BoardCreditsScreen() {
                             Eyebrow("Your Balance", Modifier.weight(1f))
                             // The long explanation lives behind the "i".
                             InfoTip(
-                                "Free: the board and the cause list. Credits pay for reading a case from the court: Add By CNR costs ${creditsLabel(d.costAdd)}, Update From Court Now costs ${creditsLabel(d.costAdd)}, and the morning check costs ${creditsLabel(d.costCheck)} a case. Credits last ${d.creditMonths} months.",
+                                CREDITS_NOTE,
                                 label = "What credits pay for",
                             )
                         }
@@ -206,7 +206,7 @@ fun BoardCreditsScreen() {
                         )
                         Text(
                             nextLapseLine(d.nextLapse), style = MaterialTheme.typography.bodySmall,
-                            color = if (d.nextLapse != null) Lex.colors.danger.softText else Lex.colors.mutedForeground,
+                            color = if (lapseIsNear(d.nextLapse, BoardDates.today())) Lex.colors.danger.softText else Lex.colors.mutedForeground,
                         )
                     }
                 }
@@ -286,6 +286,13 @@ internal fun nextLapseLine(n: NextLapse?): String {
     val on = BoardDates.parse(n.expiresAt)?.let { BoardDates.long(it) } ?: n.expiresAt
     return "Expiring Next: ${creditsLabel(n.credits)}, $kind, $on"
 }
+
+/** The (i) note: short, per the owner; the costs show on the buttons themselves. */
+internal const val CREDITS_NOTE = "Board and cause list free. Court reads cost credits. Paid credits never expire."
+
+/** The lapse line turns red only when the lot lapses within 30 days (only trial credits lapse now). */
+internal fun lapseIsNear(n: NextLapse?, today: java.time.LocalDate): Boolean =
+    BoardDates.parse(n?.expiresAt)?.let { !it.isAfter(today.plusDays(30)) } ?: false
 
 /** What identifies the first page of the history: its newest row and its length. Equal keys mean the same history was read again. */
 internal fun historyKey(rows: List<LedgerRow>?): Pair<Int?, Int> = rows?.firstOrNull()?.id to (rows?.size ?: 0)

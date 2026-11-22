@@ -140,7 +140,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
                 }
                 x.check?.let { KeyValueRow("Last Check", it.label + (BoardDates.parse(it.forDate)?.let { d -> " for ${BoardDates.short(d, today)}" } ?: "")) }
                 if (x.note.isNotBlank()) KeyValueRow("Note", x.note)
-                KeyValueRow("Source", x.source.replaceFirstChar { it.uppercase() })
+                KeyValueRow("Source", sourceLabel(x.source))
             }
             DateHistoryCard(x.history, today)
             refusal?.let {
@@ -282,6 +282,10 @@ internal fun dailyCheckLine(on: Boolean, hasCnr: Boolean, cost: Int?): String {
         else -> "Not checked. Its date stays as it was."
     }
 }
+
+/** A board case's source as a label: the server's keys (cnr, import, hand, sheet). */
+internal fun sourceLabel(s: String): String =
+    mapOf("cnr" to "CNR", "import" to "Import", "hand" to "By Hand", "sheet" to "Sheet")[s] ?: s.replaceFirstChar { it.uppercase() }
 
 /** "1 Credit" / "5 Credits", for a button label. */
 internal fun creditsTitle(n: Int): String = creditsLabel(n).replaceFirstChar { it.uppercase() }.replace(" credit", " Credit")
