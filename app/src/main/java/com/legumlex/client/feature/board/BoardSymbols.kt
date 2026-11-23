@@ -23,6 +23,8 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.PriorityHigh
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Update
@@ -54,7 +56,7 @@ import java.time.LocalDate
 // readers and explained in one legend (the ⓘ on Cases and on a case). Colour only for green (good) and red (needs you).
 
 /** A symbol's tone: grey, green or red (the app's only colours). */
-enum class SymTone { Grey, Green, Red }
+enum class SymTone { Grey, Green, Red, Ink, Pale }
 
 /** Every symbol the counsel workspace shows. [name] is what a screen reader says and the legend's line explains it. */
 enum class Sym(val label: String, val line: String, val tone: SymTone) {
@@ -63,8 +65,10 @@ enum class Sym(val label: String, val line: String, val tone: SymTone) {
     Moved("Date Moved", "eCourts moved the next date today or yesterday.", SymTone.Red),
     NeedsEye("Needs Your Eye", "eCourts shows a different date: choose which is right.", SymTone.Red),
     Undated("No Date", "The case has no next date yet.", SymTone.Grey),
-    Watched("Green Tint", "Watched daily: checked with eCourts every morning.", SymTone.Green),
-    RedEdge("Red Edge", "Needs your eye, or the date was moved.", SymTone.Red),
+    EdgeRed("Red Edge", "Needs your eye, or the date was moved.", SymTone.Red),
+    EdgeInk("Black Edge", "Disposed.", SymTone.Ink),
+    EdgeGreen("Green Edge", "Watched daily: checked with eCourts every morning.", SymTone.Green),
+    EdgeGrey("Grey Edge", "Not watched.", SymTone.Pale),
     OrderKept("Order Kept", "Kept on the platform: tap to open, free.", SymTone.Green),
     OrderAvailable("Order Not Fetched", "Tap to get it.", SymTone.Grey),
     OrderSealed("Signed Order", "Signed or locked: opens on its own.", SymTone.Grey),
@@ -72,18 +76,19 @@ enum class Sym(val label: String, val line: String, val tone: SymTone) {
     Tag("Tag", "#name: a tag on the case.", SymTone.Grey),
 }
 
-/** A Cases row's colour (owner, 23 Nov 2026, "use colours to symbolise"): a green tint when watched; a start-edge bar, red when it needs you. */
-enum class Edge { None, Green, Red }
-data class RowLook(val tint: Boolean, val edge: Edge)
-
-/** Watched (daily check on) tints the row green with a green edge; Needs Your Eye or a recent move makes the edge red. Red wins on the edge. */
-internal fun rowLook(c: BoardCase, today: LocalDate): RowLook {
-    val alert = c.needsEye || movedToday(c, today)
-    return RowLook(tint = c.morningCheck, edge = if (alert) Edge.Red else if (c.morningCheck) Edge.Green else Edge.None)
-}
-
-/** The legend, in the order it reads: dates, the daily check, orders, filing, source. */
+/** The legend, in the order it reads: dates, orders, filing, then the four status edges. */
 val LEGEND: List<Sym> = Sym.entries
+
+/** A case's status, carried by its tile's left edge alone (owner, 23 Nov 2026), one colour each. */
+enum class Edge(val sym: Sym) { Red(Sym.EdgeRed), Ink(Sym.EdgeInk), Green(Sym.EdgeGreen), Grey(Sym.EdgeGrey) }
+
+/** Red (needs your eye, or moved today or yesterday), then black (disposed), then green (watched daily), then pale grey (not watched). */
+internal fun rowEdge(c: BoardCase, today: LocalDate): Edge = when {
+    c.needsEye || movedToday(c, today) -> Edge.Red
+    c.disposed -> Edge.Ink
+    c.morningCheck -> Edge.Green
+    else -> Edge.Grey
+}
 
 /** The next date's mark: no date, Needs Your Eye, moved (from the case's Date History), confirmed today, checked earlier, or none. */
 internal fun dateMark(c: BoardCase, today: LocalDate): Sym? = when {
@@ -124,13 +129,6 @@ internal fun orderHint(o: BoardOrder): String = orderLabel(o) + ". " + when (ord
     else -> "Not fetched yet. Tap to get it."
 }
 
-/** How much green goes into the watched tint: enough to read as pale green, little enough for ink on it to keep AA contrast. */
-const val WATCH_MIX = 0.20f
-
-/** The watched tint: the palette's green mixed into white (the card in dark mode), opaque, so the warm grey under it cannot turn it grey. */
-@Composable
-fun watchTint(): Color = androidx.compose.ui.graphics.lerp(if (Lex.colors.isDark) Lex.colors.card else Color.White, Lex.colors.success.solid, WATCH_MIX)
-
 /** The text form of a case's tags: "#Urgent #Bank". */
 internal fun tagsLine(c: BoardCase): String = c.tags.joinToString(" ") { "#" + it.name }
 
@@ -138,22 +136,29 @@ internal fun tagsLine(c: BoardCase): String = c.tags.joinToString(" ") { "#" + i
 internal fun activeFilters(q: CaseQuery): Int = listOf(q.court.isNotBlank(), q.folder.isNotBlank(), q.tag > 0).count { it }
 
 @Composable
-private fun toneColor(t: SymTone): Color = when (t) {
+internal fun toneColor(t: SymTone): Color = when (t) {
     SymTone.Green -> Lex.colors.success.solid
     SymTone.Red -> Lex.colors.danger.solid
     SymTone.Grey -> Lex.colors.mutedForeground
+    SymTone.Ink -> Lex.colors.foreground
+    SymTone.Pale -> Lex.colors.border
 }
+
+/** The colour of a status edge. */
+@Composable
+fun edgeColor(e: Edge): Color = toneColor(e.sym.tone)
 
 private fun iconOf(s: Sym): ImageVector? = when (s) {
     Sym.Checked, Sym.CheckedToday -> Icons.Outlined.Check
     Sym.Moved -> Icons.Outlined.Update
     Sym.NeedsEye -> Icons.Outlined.PriorityHigh
     Sym.Undated -> Icons.Outlined.RadioButtonUnchecked
-    Sym.OrderKept -> Icons.Filled.Description
-    Sym.OrderAvailable -> Icons.Outlined.Description
+    // As on the order buttons.
+    Sym.OrderKept -> Icons.Outlined.TaskAlt
+    Sym.OrderAvailable -> Icons.Outlined.FileDownload
     Sym.OrderSealed -> Icons.Outlined.Lock
     Sym.Folder -> Icons.Outlined.Folder
-    Sym.Tag, Sym.Watched, Sym.RedEdge -> null
+    Sym.Tag, Sym.EdgeRed, Sym.EdgeInk, Sym.EdgeGreen, Sym.EdgeGrey -> null
 }
 
 /** One symbol, small, in its tone, named for screen readers. */
@@ -161,44 +166,61 @@ private fun iconOf(s: Sym): ImageVector? = when (s) {
 fun SymbolIcon(s: Sym, size: Dp = 16.dp, modifier: Modifier = Modifier) {
     val tint = toneColor(s.tone)
     when (s) {
-        // The legend's colour marks: a tinted chip with its edge.
-        Sym.Watched, Sym.RedEdge -> Row(modifier.semantics { contentDescription = s.label }.size(width = 22.dp, height = 16.dp).clip(RoundedCornerShape(3.dp))
-            .background(if (s == Sym.Watched) watchTint() else Color.Transparent).border(1.dp, Lex.colors.border, RoundedCornerShape(3.dp))) {
-            Box(Modifier.width(3.dp).height(16.dp).background(tint))
+        // The legend's edge swatches: a small tile with its left edge in the status colour.
+        Sym.EdgeRed, Sym.EdgeInk, Sym.EdgeGreen, Sym.EdgeGrey -> Row(modifier.semantics { contentDescription = s.label }.size(width = 22.dp, height = 16.dp)
+            .clip(RoundedCornerShape(3.dp)).background(Lex.colors.background).border(1.dp, Lex.colors.border, RoundedCornerShape(3.dp))) {
+            Box(Modifier.width(4.dp).height(16.dp).background(tint))
         }
         Sym.Tag -> Text("#", modifier.semantics { contentDescription = s.label }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tint)
         else -> Icon(iconOf(s)!!, contentDescription = s.label, tint = tint, modifier = modifier.size(size))
     }
 }
 
-/** A small tappable symbol (an order): long-press names it; an optional index before it (1, 2). */
-@OptIn(ExperimentalMaterial3Api::class)
+/** An order button's caption: "Order" alone, or "Order 1", "Order 2" … when the hearing has several (owner, 23 Nov 2026). */
+internal fun orderCaption(list: List<BoardOrder>, i: Int): String = orderIndex(list, i)?.let { "Order $it" } ?: "Order"
+
+/**
+ * One order as a styled button (owner: "Stylise it. Do not keep it simple."): kept is filled green with a ticked doc; not fetched is an
+ * ink outline with a download glyph; signed is a grey outline with a lock; fetching shows a spinner and is disabled. Radius 6, 36dp
+ * tall. A tap opens a kept order, or fetches then opens one not fetched. Read aloud with the server's full label and what a tap does.
+ */
 @Composable
-fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = true, index: Int? = null) {
+fun OrderButton(caption: String, o: BoardOrder, enabled: Boolean, busy: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
     val shape = RoundedCornerShape(6.dp)
-    TooltipBox(positionProvider = OnScreenTooltip, tooltip = { PlainTooltip { Text(hint) } }, state = rememberTooltipState()) {
-        Row(
-            Modifier.clip(shape).clickable(enabled = enabled, onClick = onClick)
-                .semantics { contentDescription = hint }.padding(horizontal = 6.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            index?.let { Text("$it", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Lex.colors.secondaryForeground); Spacer(Modifier.width(3.dp)) }
-            SymbolIcon(s, 18.dp)
-        }
+    val kept = o.fetched && !o.sealed
+    val (bg, fg, line) = when {
+        kept -> Triple(Lex.colors.success.solid, Color.White, null)
+        o.sealed -> Triple(Color.Transparent, Lex.colors.secondaryForeground, Lex.colors.mutedForeground)
+        else -> Triple(Color.Transparent, Lex.colors.foreground, Lex.colors.foreground)
+    }
+    val icon = when {
+        kept -> Icons.Outlined.TaskAlt
+        o.sealed -> Icons.Outlined.Lock
+        else -> Icons.Outlined.FileDownload
+    }
+    val on = !busy && (enabled || o.fetched)
+    Row(
+        Modifier.height(36.dp).clip(shape).background(bg).let { if (line != null) it.border(1.dp, line, shape) else it }
+            .clickable(enabled = on) { if (o.fetched) onOpen(o) else onGet(o) }
+            .semantics { contentDescription = if (busy) "Getting " + orderLabel(o) else orderHint(o) }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = fg)
+        else Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = fg)
     }
 }
 
-/** One order as a small symbol button: open when kept, get (after the cost confirm) when not. */
+/** A hearing's orders as buttons in a flowing row under its text. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun OrderSymbol(o: BoardOrder, enabled: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, index: Int? = null, busy: Boolean = false) {
-    if (busy) {
-        // This order is being fetched: a small progress ring in its place.
-        androidx.compose.foundation.layout.Box(Modifier.padding(6.dp).size(18.dp).semantics { contentDescription = "Getting " + orderLabel(o) }) {
-            androidx.compose.material3.CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
-        }
-        return
+fun OrderButtons(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
+    if (orders.isEmpty()) return
+    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        orders.forEachIndexed { i, o -> OrderButton(orderCaption(orders, i), o, enabled, o.id == fetchingId, onOpen, onGet) }
     }
-    SymbolAction(orderMark(o), orderHint(o), { if (o.fetched) onOpen(o) else onGet(o) }, enabled = enabled || o.fetched, index = index)
 }
 
 /** A hearing's orders are numbered 1, 2 … on their icons only when it has more than one (in the server's order, as its labels count). */

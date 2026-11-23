@@ -133,7 +133,7 @@ fun BoardRangeScreen(from: String, onOpenCase: (Int) -> Unit, onOpenDay: (String
                             if (d.items.isEmpty()) Text("Nothing listed", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, modifier = Modifier.padding(vertical = 12.dp))
                             else TextButton({ onOpenDay(d.date) }) { Text("Open This Day's List") }
                         }
-                        d.items.forEach { c -> CaseRow(c, today) { onOpenCase(c.id) } }
+                        d.items.forEach { c -> CaseRow(c, today, onClick = { onOpenCase(c.id) }) }
                     }
                 }
             }

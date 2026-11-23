@@ -172,7 +172,7 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 
 /**
  * The case's hearings (owner, 23 Nov 2026): soft tiles newest first, 8dp apart; the date bold, the
- * purpose and next line, the judge muted, and the orders as small borderless symbols at the row's right. Other Orders last.
+ * purpose and next line, the judge muted, and the orders as styled buttons under them. Other Orders last.
  * Empty: the web's reason, with Update From Court Now when a read helps. All Kept Orders As One PDF lives in the case's ⋮ menu.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -193,9 +193,7 @@ internal fun CaseRecordSection(
                     Text(t, style = MaterialTheme.typography.bodySmall,
                         color = if (muted) Lex.colors.mutedForeground else Lex.colors.secondaryForeground)
                 }
-            }
-            if (orders.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(Modifier.padding(start = 8.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                orders.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(orders, i), busy = o.id == fetchingId) }
+                OrderButtons(orders, enabled, fetchingId, onOpen, onGet)
             }
         }
     }

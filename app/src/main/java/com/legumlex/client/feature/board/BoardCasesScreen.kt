@@ -126,6 +126,9 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
         // The pinned head (owner, 23 Nov 2026: fewer buttons): the case and a ⋮ menu; the parties; the watch status as one line;
         // the next date with share and update beside it as plain icons; its filing.
         Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // The case's status as a thin edge beside its number, as on its Cases tile.
+            Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+            c?.let { x -> Box(Modifier.padding(end = 10.dp).width(4.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(edgeColor(rowEdge(x, today)))) }
             PageHeader(eyebrow = "Case", title = c?.heading ?: "Case", actions = c?.let { x -> {
                 OverflowMenu(listOfNotNull(
                     "Details" to { details = true },
@@ -135,6 +138,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                     "What The Symbols Mean" to { legend = true },
                 ))
             } })
+            }
             c?.let { x ->
                 Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
@@ -351,6 +355,9 @@ private fun DateHistoryCard(rows: List<DateHistoryRow>, today: java.time.LocalDa
 /** The Cases status segments (owner, 23 Nov 2026: Listed Today and Tomorrow left the app; the web keeps them). */
 internal val STATUS_SEGMENTS = listOf("ongoing" to "Ongoing", "eye" to "Needs Your Eye", "undated" to "Undated", "disposed" to "Disposed")
 
+/** The short labels the segments show under their counts; the long name stays in each one's content description. */
+internal val SEGMENT_SHORT = mapOf("ongoing" to "Ongoing", "eye" to "Needs Eye", "undated" to "Undated", "disposed" to "Disposed")
+
 /** While there is search text every case is searched (no status segment), so a disposed case is never missed; court, folder and tag still apply. */
 internal fun asked(q: CaseQuery): CaseQuery = if (q.q.isNotBlank()) q.copy(filter = "all") else q
 
@@ -365,7 +372,7 @@ internal val CASES_START = CaseQuery(filter = "ongoing")
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
+fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, String) -> Unit = { _, _, _ -> }, onCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
     // Kept across opening a case and coming back: the search, segment, filters, page, open cards and the scroll.
@@ -381,6 +388,13 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
     var legend by remember { mutableStateOf(false) }
     var filtering by remember { mutableStateOf(false) }
     var listSavedAt by m::listSavedAt
+    var open by m::open
+    val records = m.records
+    val scope = rememberCoroutineScope()
+    fun loadRecord(id: Int) { scope.launch { repo.orders(id).onSuccess { records[id] = it } } }
+    // Orders from an expanded row: fetched on tap, then opened; the row's hearing is read again after.
+    val getter = rememberOrderGetter()
+    val fetchOrder = orderFetcher(getter, onOpened = onOpenOrder, onChanged = { id -> loadRecord(id) })
     if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onOpenCase(it.id) })
     if (managing) FoldersAndTagsDialog(onClose = { managing = false }, onChanged = { tick++ })
     if (legend) LegendSheet { legend = false }
@@ -418,12 +432,10 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
                 })
         }
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp).horizontalScroll(rememberScrollState())) {
-                SegmentedToggle(STATUS_SEGMENTS.map { (k, l) -> k to (l + filters?.counts?.get(k)?.let { " ${creditsText(it)}" }.orEmpty()) },
-                    query.filter.takeIf { f -> STATUS_SEGMENTS.any { it.first == f } } ?: "ongoing", { change(query.copy(filter = it)) })
-            }
+            StatusSegments(filters?.counts.orEmpty(), query.filter.takeIf { f -> STATUS_SEGMENTS.any { it.first == f } } ?: "ongoing") { change(query.copy(filter = it)) }
         }
         if (query.q.isNotBlank()) item { NoteLine(SEARCH_ALL_NOTE) }
+        getter.refusal?.let { r -> item { Column(Modifier.padding(bottom = 8.dp)) { NoteLine(r, danger = true); if (getter.refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits) } } }
         listSavedAt?.let { at -> item { NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") } }
         val p = page
         when {
@@ -431,7 +443,13 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
             p == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
             p.items.isEmpty() -> item { Text(if (query == CASES_START) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
             else -> {
-                items(p.items, key = { it.id }) { c -> CaseRow(c, today) { onOpenCase(c.id) } }
+                items(p.items, key = { it.id }) { c ->
+                    val ex = c.id in open
+                    CaseRow(c, today, { onOpenCase(c.id) }, expanded = ex, record = records[c.id],
+                        onToggle = { open = if (ex) open - c.id else open + c.id; if (!ex && c.id !in records) loadRecord(c.id) },
+                        enabled = listSavedAt == null && !getter.fetching, fetchingId = getter.fetchingId,
+                        onOpen = { o -> onOpenOrder(c.id, o.id, orderLabel(o)) }, onGet = { o -> fetchOrder(c.id, o) })
+                }
                 pagerLine(p)?.let { line ->
                     item {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -453,26 +471,51 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
  * edge; Needs Your Eye or a recent move gives a red edge. A hairline under it; the whole row opens the case.
  */
 @Composable
-internal fun CaseRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit) {
-    val look = rowLook(c, today)
-    val edge = when (look.edge) { Edge.Red -> Lex.colors.danger.solid; Edge.Green -> Lex.colors.success.solid; Edge.None -> androidx.compose.ui.graphics.Color.Transparent }
-    // Owner, 23 Nov 2026: soft tiles (the card's colour, or the green tint when watched), radius 8, no outline, 8dp apart.
+internal fun CaseRow(
+    c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit,
+    expanded: Boolean = false, record: CaseRecord? = null, onToggle: (() -> Unit)? = null,
+    enabled: Boolean = true, fetchingId: Int? = null, onOpen: (BoardOrder) -> Unit = {}, onGet: (BoardOrder) -> Unit = {},
+) {
+    // Owner, 23 Nov 2026: plain card tiles, radius 8, 8dp apart; the status in the 4dp left edge alone (red, black, green, grey).
     Row(
         Modifier.padding(bottom = 8.dp).fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(8.dp))
-            .background(if (look.tint) watchTint() else Lex.colors.card)
-            .clickable(onClick = onClick).semantics { contentDescription = rowSpeech(c, today) },
+            .background(Lex.colors.card),
     ) {
-        Box(Modifier.width(3.dp).fillMaxHeight().background(edge))
-        Column(Modifier.weight(1f).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(c.heading, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 1,
-                    modifier = Modifier.weight(1f))
-                Text(c.nextDate?.let { BoardDates.show(it, today) }?.takeIf { it.isNotBlank() } ?: "No Date", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
-                dateMark(c, today)?.let { Spacer(Modifier.width(4.dp)); SymbolIcon(it, 14.dp) }
+        Box(Modifier.width(4.dp).fillMaxHeight().background(edgeColor(rowEdge(c, today))))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f).clickable(onClick = onClick).semantics { contentDescription = rowSpeech(c, today) }
+                    .padding(start = 12.dp, end = if (onToggle != null) 0.dp else 12.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(c.heading, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 1,
+                            modifier = Modifier.weight(1f))
+                        Text(c.nextDate?.let { BoardDates.show(it, today) }?.takeIf { it.isNotBlank() } ?: "No Date", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
+                        dateMark(c, today)?.let { Spacer(Modifier.width(4.dp)); SymbolIcon(it, 14.dp) }
+                    }
+                    Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                    courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1) }
+                }
+                onToggle?.let { t ->
+                    androidx.compose.material3.IconButton(t, Modifier.semantics { contentDescription = if (expanded) "Show Less" else "Show More" }) {
+                        Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Lex.colors.secondaryForeground)
+                    }
+                }
             }
-            Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-            // On the green tint the muted grey falls under AA contrast: the court line steps up to the secondary ink there.
-            courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (look.tint) Lex.colors.secondaryForeground else Lex.colors.mutedForeground, maxLines = 1) }
+            if (expanded) {
+                Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    androidx.compose.material3.HorizontalDivider(color = Lex.colors.border, modifier = Modifier.padding(bottom = 8.dp))
+                    when {
+                        record == null -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
+                        record.listings.isEmpty() -> Text(recordEmpty("hearings", c.hasCnr, record.loaded), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
+                        else -> {
+                            val h = record.listings.first()
+                            Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground)
+                            hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
+                            OrderButtons(h.orders, enabled, fetchingId, onOpen, onGet)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -580,5 +623,33 @@ class CasesListModel : androidx.lifecycle.ViewModel() {
     var page by mutableStateOf<CasePage?>(null)
     var filters by mutableStateOf<BoardFilters?>(null)
     var listSavedAt by mutableStateOf<Long?>(null)
+    var open by mutableStateOf(setOf<Int>())
+    val records = androidx.compose.runtime.snapshots.SnapshotStateMap<Int, CaseRecord>()
     val listState = androidx.compose.foundation.lazy.LazyListState()
+}
+
+/**
+ * The four status segments, sharing the full width with no scroll (owner, 23 Nov 2026): each its count, bold and larger, over a short
+ * label; the chosen one filled ink with white text. Read aloud with the long name and the count.
+ */
+@Composable
+internal fun StatusSegments(counts: Map<String, Int>, selected: String, onSelect: (String) -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp).height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(shape).border(1.dp, Lex.colors.input, shape)) {
+        STATUS_SEGMENTS.forEachIndexed { i, (key, long) ->
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(Lex.colors.input))
+            val on = key == selected
+            val n = counts[key] ?: 0
+            Column(
+                Modifier.weight(1f).background(if (on) Lex.colors.foreground else Lex.colors.card).clickable { onSelect(key) }
+                    .semantics { contentDescription = "$long, ${creditsText(n)}" + if (on) ", selected" else "" }.padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(creditsText(n), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = if (on) androidx.compose.ui.graphics.Color.White else Lex.colors.foreground)
+                Text(SEGMENT_SHORT[key] ?: long, style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                    color = if (on) androidx.compose.ui.graphics.Color.White else Lex.colors.secondaryForeground)
+            }
+        }
+    }
 }

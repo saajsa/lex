@@ -63,11 +63,25 @@ class BoardSymbolsTest {
         assertEquals("Searching all cases.", SEARCH_ALL_NOTE)
     }
 
-    @Test fun rowColours() {
-        assertEquals(RowLook(tint = true, edge = Edge.Green), rowLook(case(mapOf("morning_check" to true)), today))
-        assertEquals(RowLook(tint = true, edge = Edge.Red), rowLook(case(mapOf("morning_check" to true, "needs_eye" to true)), today))   // red wins the edge
-        assertEquals(RowLook(tint = false, edge = Edge.Red), rowLook(case(mapOf("date_moved_on" to "2026-11-23")), today))
-        assertEquals(RowLook(tint = false, edge = Edge.None), rowLook(case(emptyMap()), today))
+    @Test fun edgeColours() {
+        assertEquals(Edge.Green, rowEdge(case(mapOf("morning_check" to true)), today))
+        assertEquals(Edge.Red, rowEdge(case(mapOf("morning_check" to true, "needs_eye" to true)), today))      // red first
+        assertEquals(Edge.Red, rowEdge(case(mapOf("date_moved_on" to "2026-11-23", "decided_on" to "2026-11-20")), today))
+        assertEquals(Edge.Ink, rowEdge(case(mapOf("morning_check" to true, "decided_on" to "2026-11-20")), today))   // disposed before watched
+        assertEquals(Edge.Ink, rowEdge(case(mapOf("disposal" to "Dismissed")), today))
+        assertEquals(Edge.Grey, rowEdge(case(emptyMap()), today))
+        assertEquals(listOf(Sym.EdgeRed, Sym.EdgeInk, Sym.EdgeGreen, Sym.EdgeGrey), Edge.entries.map { it.sym })
+    }
+
+    @Test fun orderButtonCaptions() {
+        val a = parseCourtOrder(mapOf("id" to 1.0, "state" to "on_file")); val b = parseCourtOrder(mapOf("id" to 2.0, "state" to "available"))
+        assertEquals("Order", orderCaption(listOf(a), 0))
+        assertEquals(listOf("Order 1", "Order 2"), listOf(0, 1).map { orderCaption(listOf(a, b), it) })
+    }
+
+    @Test fun segmentsFitWithShortLabels() {
+        assertEquals(listOf("Ongoing", "Needs Eye", "Undated", "Disposed"), STATUS_SEGMENTS.map { SEGMENT_SHORT[it.first] })
+        assertEquals("Needs Your Eye", STATUS_SEGMENTS[1].second)   // the long name, for screen readers
     }
 
     @Test fun rowAndWatchWords() {
@@ -82,12 +96,15 @@ class BoardSymbolsTest {
         assertEquals(Sym.entries.size, LEGEND.toSet().size)
         LEGEND.forEach { assertTrue(it.label.isNotBlank() && it.line.isNotBlank() && it.line.endsWith(".")) }
         // Colour only for good and needs-you (the app's rule): green for confirmed and kept, red for moved and Needs Your Eye.
-        assertEquals(setOf(Sym.CheckedToday, Sym.OrderKept, Sym.Watched), LEGEND.filter { it.tone == SymTone.Green }.toSet())
-        assertEquals(setOf(Sym.Moved, Sym.NeedsEye, Sym.RedEdge), LEGEND.filter { it.tone == SymTone.Red }.toSet())
+        assertEquals(setOf(Sym.CheckedToday, Sym.OrderKept, Sym.EdgeGreen), LEGEND.filter { it.tone == SymTone.Green }.toSet())
+        assertEquals(setOf(Sym.Moved, Sym.NeedsEye, Sym.EdgeRed), LEGEND.filter { it.tone == SymTone.Red }.toSet())
+        assertEquals(setOf(Sym.EdgeInk), LEGEND.filter { it.tone == SymTone.Ink }.toSet())
         // No "e" badge and no eye: the tint says watched (owner, 23 Nov 2026).
         assertFalse(LEGEND.any { it.label.equals("eCourts", true) || it.label.startsWith("Daily Check") })
-        assertEquals("Watched daily: checked with eCourts every morning.", Sym.Watched.line)
-        assertEquals("Needs your eye, or the date was moved.", Sym.RedEdge.line)
+        assertEquals("Watched daily: checked with eCourts every morning.", Sym.EdgeGreen.line)
+        assertEquals("Needs your eye, or the date was moved.", Sym.EdgeRed.line)
+        assertEquals("Disposed.", Sym.EdgeInk.line); assertEquals("Not watched.", Sym.EdgeGrey.line)
+        assertFalse(LEGEND.any { it.label.contains("Tint") })   // no tint any more: the edge alone
         assertFalse(LEGEND.any { it.line.contains("ertified") })
     }
 

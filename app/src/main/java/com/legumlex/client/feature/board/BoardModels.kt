@@ -75,6 +75,8 @@ data class BoardCase(
     val dateMovedOn: String? = null,
     /** When the case was last read from the court (Update From Court, Add By CNR, a full read); null when never. */
     val readAt: String? = null,
+    /** eCourts gives a decision date or a disposal (the server's DISPOSED rule). */
+    val disposed: Boolean = false,
 ) {
     /** The court line: the court, then the bench the server names (else the room). */
     val courtLine: String get() = listOf(courtShown, judgeShown).filter { it.isNotBlank() }.joinToString(" · ")
@@ -239,6 +241,7 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         record = parseRecord(m),
         dateMovedOn = m["date_moved_on"].strOrNull(),
         readAt = m["read_at"].strOrNull(),
+        disposed = m["decided_on"].strOrNull() != null || m["disposal"].strOrNull() != null,
     )
 }
 
