@@ -211,6 +211,11 @@ fun BoardCreditsScreen() {
                     }
                 }
             }
+            if (d.priceChanges.isNotEmpty()) item {
+                Column(Modifier.padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    d.priceChanges.forEach { Text(priceChangeLine(it), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
+                }
+            }
             item {
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Tile(creditsText(d.spent.today), "Spent Today", Modifier.weight(1f).fillMaxHeight())
@@ -293,6 +298,10 @@ internal const val CREDITS_NOTE = "Board and cause list free. Court reads cost c
 /** The lapse line turns red only when the lot lapses within 30 days (only trial credits lapse now). */
 internal fun lapseIsNear(n: NextLapse?, today: java.time.LocalDate): Boolean =
     BoardDates.parse(n?.expiresAt)?.let { !it.isAfter(today.plusDays(30)) } ?: false
+
+/** "Morning Check: 2 credits from Fri, 1 Jan 2027", the web's line for a pending cost change. */
+internal fun priceChangeLine(c: PriceChange): String =
+    "${c.label}: ${creditsLabel(c.next)} from ${BoardDates.parse(c.from)?.let { BoardDates.long(it) } ?: c.from}"
 
 /** What identifies the first page of the history: its newest row and its length. Equal keys mean the same history was read again. */
 internal fun historyKey(rows: List<LedgerRow>?): Pair<Int?, Int> = rows?.firstOrNull()?.id to (rows?.size ?: 0)

@@ -182,7 +182,11 @@ data class CreditsData(
     val creditMonths: Int,
     val spent: SpentStats = SpentStats(0, 0, 0),
     val checked: CheckedStats = CheckedStats(null, 0, 0, 0),
+    /** Announced cost changes, earliest first, from this counsel's own date (REQ-038 038.11); empty when none is pending. */
+    val priceChanges: List<PriceChange> = emptyList(),
 )
+
+data class PriceChange(val action: String, val label: String, val now: Int, val next: Int, val from: String)
 
 // ---- parsing ------------------------------------------------------------------
 
@@ -302,6 +306,7 @@ internal fun parseCredits(d: Map<String, Any?>): CreditsData {
         creditMonths = d["credit_months"].int(),
         spent = d["spent"].map().let { SpentStats(it["today"].int(), it["month"].int(), it["all"].int()) },
         checked = d["checked"].map().let { CheckedStats(it["at"].strOrNull(), it["cases"].int(), it["credits"].int(), it["on_check"].int()) },
+        priceChanges = d["price_changes"].list().map { PriceChange(it["action"].str(), it["label"].str(), it["now"].int(), it["next"].int(), it["from"].str()) },
     )
 }
 
