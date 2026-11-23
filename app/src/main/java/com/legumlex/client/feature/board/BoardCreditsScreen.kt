@@ -201,7 +201,7 @@ fun BoardCreditsScreen() {
                         val at = BoardDates.checkedLabel(d.checked.at, BoardDates.today())
                         Text(
                             if (at == null) "eCourts not checked yet"
-                            else "eCourts checked $at" + if (d.checked.cases > 0) " · ${d.checked.cases} ${if (d.checked.cases == 1) "case" else "cases"}" else "",
+                            else "eCourts checked $at" + if (d.checked.cases > 0) " · ${creditsText(d.checked.cases)} ${if (d.checked.cases == 1) "case" else "cases"}" else "",
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
                         )
                         Text(

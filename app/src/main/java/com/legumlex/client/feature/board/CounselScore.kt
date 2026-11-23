@@ -110,4 +110,4 @@ internal fun barLine(p: HomeProfile): String = listOf(p.enrolmentNo, p.barCounci
 
 /** "4 courts · Ludhiana · Jalandhar". */
 internal fun courtsLine(p: HomeProfile): String =
-    (listOf("${p.courts} ${if (p.courts == 1) "court" else "courts"}") + p.districts).joinToString(" · ")
+    (listOf("${creditsText(p.courts)} ${if (p.courts == 1) "court" else "courts"}") + p.districts).joinToString(" · ")

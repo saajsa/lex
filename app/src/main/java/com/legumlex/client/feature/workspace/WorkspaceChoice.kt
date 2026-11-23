@@ -238,7 +238,7 @@ fun WorkspacePausedScreen(onSignOut: () -> Unit) {
             Text("Paused,", fontFamily = Cormorant, fontWeight = FontWeight.Medium, fontSize = 36.sp, lineHeight = 40.sp, color = Paper)
             Text("for now.", fontFamily = Cormorant, fontStyle = FontStyle.Italic, fontSize = 36.sp, lineHeight = 40.sp, color = Paper)
             Spacer(Modifier.height(16.dp))
-            Text(PAUSED_TEXT, fontSize = 15.sp, lineHeight = 23.sp, color = Color(0xFFA3A19A))
+            Text(pausedText(com.legumlex.client.feature.board.BoardHub.pausedMessage.collectAsState().value), fontSize = 15.sp, lineHeight = 23.sp, color = Color(0xFFA3A19A))
             Spacer(Modifier.height(36.dp))
             Box(
                 Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(12.dp)).background(Paper).clickable(onClick = onSignOut),
@@ -247,5 +247,8 @@ fun WorkspacePausedScreen(onSignOut: () -> Unit) {
         }
     }
 }
+
+/** The server's words for the pause when it sent them, else the web's sentence. */
+internal fun pausedText(server: String?): String = server?.takeIf { it.isNotBlank() } ?: PAUSED_TEXT
 
 const val PAUSED_TEXT = "Your Counsel workspace is paused while you are engaged with the firm. Your cases and credits are kept."

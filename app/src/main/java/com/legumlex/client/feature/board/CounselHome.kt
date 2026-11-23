@@ -246,7 +246,7 @@ private fun ScoreCard(h: CounselHome, selected: String?, onSelect: (String?) -> 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Specialty Score", style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-            Text("${h.tiles.ongoing} ongoing ${if (h.tiles.ongoing == 1) "case" else "cases"}", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            Text("${creditsText(h.tiles.ongoing)} ongoing ${if (h.tiles.ongoing == 1) "case" else "cases"}", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
         }
         SpecialtyRing(sc, arcs, sel, onSelect)
         Legend(sc, selected, onSelect)

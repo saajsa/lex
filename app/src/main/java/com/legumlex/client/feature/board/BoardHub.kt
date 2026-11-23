@@ -29,7 +29,10 @@ object BoardHub {
     /** The server said the Counsel workspace is paused (403 code `paused`): the paused screen shows. Cleared at sign-out, and by any answer that is not that refusal. */
     private val _paused = MutableStateFlow(false)
     val paused: StateFlow<Boolean> = _paused.asStateFlow()
-    fun markPaused(on: Boolean) { _paused.value = on }
+    /** The server's own words for the pause (they differ for a staff account and an engagement); null shows PAUSED_TEXT. */
+    private val _pausedMessage = MutableStateFlow<String?>(null)
+    val pausedMessage: StateFlow<String?> = _pausedMessage.asStateFlow()
+    fun markPaused(on: Boolean, message: String? = null) { _paused.value = on; _pausedMessage.value = if (on) message else null }
 
     private val _access = MutableStateFlow<BoardAccess>(BoardAccess.Unknown)
     val access: StateFlow<BoardAccess> = _access.asStateFlow()
@@ -77,7 +80,7 @@ object BoardHub {
     /** Whether this run is known to be in the Counsel workspace (the chooser's answer, or the server's counsel-only). */
     private fun expectCounsel() = com.legumlex.client.feature.workspace.WorkspaceSession.mode.value == com.legumlex.client.feature.workspace.Mode.Counsel
 
-    fun clear() { _paused.value = false; _unreachable.value = false; _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; seenToday = null }
+    fun clear() { _paused.value = false; _pausedMessage.value = null; _unreachable.value = false; _access.value = BoardAccess.Unknown; _chip.value = null; _chosen.value = null; seenToday = null }
 
     fun set(summary: BoardSummary) { _unreachable.value = false; _access.value = BoardAccess.Yes(summary) }
 
@@ -95,7 +98,7 @@ object BoardHub {
         val repo = BoardRepository(context)
         val first = repo.summary()
         // 403 `paused` is the server's own word for a paused workspace: nothing is retried or guessed, the paused screen shows.
-        if (isPausedRefusal(first)) { markPaused(true); hide(); return }
+        if (isPausedRefusal(first)) { markPaused(true, pausedMessageOf(first)); hide(); return }
         if (first.isSuccess) markPaused(false)
         var r = first
         val answers = mutableListOf(answerOf(first))
@@ -125,6 +128,8 @@ object BoardHub {
 /** One server answer as the board's access rule reads it: fine, refused (404 or 403), or not answered at all. */
 /** Whether the server refused with 403 `paused` (the Counsel workspace is paused while the person is engaged with the firm). */
 fun isPausedRefusal(r: Result<*>): Boolean = r.exceptionOrNull()?.apiError()?.let { pausedRefusal(it.http, it.code) } == true
+
+fun pausedMessageOf(r: Result<*>): String? = r.exceptionOrNull()?.apiError()?.message
 
 fun pausedRefusal(http: Int?, code: String?): Boolean = http == 403 && code == "paused"
 

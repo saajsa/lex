@@ -100,7 +100,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
     fun load() { scope.launch { repo.case(caseId).onSuccess { c = it; error = null }.onFailure { error = it.boardMessage() } } }
     LaunchedEffect(caseId) {
         load()
-        repo.credits().onSuccess { cost = it.costAdd; checkCost = it.costCheck }
+        repo.credits().onSuccess { cost = shownCost(it.costAdd); checkCost = shownCost(it.costCheck) }
     }
 
     Column(Modifier.fillMaxSize().background(Lex.colors.background).androidScroll().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -273,9 +273,12 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
 /** The CNR row: a hand case has none yet (the web's own words). */
 internal fun cnrLine(c: BoardCase): String = if (c.hasCnr) c.cnr else "Not yet. This case was added by hand."
 
+/** A cost to show: 0 means the server has none set (it refuses with cost_unset), so no figure is shown. */
+internal fun shownCost(cost: Int?): Int? = cost?.takeIf { it > 0 }
+
 /** The daily check line under the switch, as the web case page words it. */
 internal fun dailyCheckLine(on: Boolean, hasCnr: Boolean, cost: Int?): String {
-    val price = cost?.let { " for ${creditsLabel(it)}" }.orEmpty()
+    val price = shownCost(cost)?.let { " for ${creditsLabel(it)}" }.orEmpty()
     return when {
         !hasCnr -> "Checked every morning$price, once the case has a CNR. eCourts has no record of it yet."
         on -> "Checked every morning$price."

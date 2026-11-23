@@ -216,7 +216,7 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
     var code by remember { mutableStateOf<String?>(null) }
     // A plain note (not an error): what Not This Case did.
     var note by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { repo.credits().onSuccess { cost = it.costAdd; checkCost = it.costCheck } }
+    LaunchedEffect(Unit) { repo.credits().onSuccess { cost = shownCost(it.costAdd); checkCost = shownCost(it.costCheck) } }
     // The review step needs the lookup; without it (the screen came back after the process died) the CNR step is shown.
     val found = lookup
     val at = if (step == 1 && found == null) 0 else step
@@ -467,11 +467,11 @@ fun ChambersWizard(onClose: () -> Unit, onSaved: (String) -> Unit) {
 
 /** The line shown after an import is confirmed, in the web's words. */
 fun importDoneLine(d: ImportDone): String {
-    var say = "${d.added} added, ${d.updated} updated. You now have ${d.total} ${if (d.total == 1) "case" else "cases"} in your diary."
+    var say = "${creditsText(d.added)} added, ${creditsText(d.updated)} updated. You now have ${creditsText(d.total)} ${if (d.total == 1) "case" else "cases"} in your diary."
     if (d.check.checked > 0) {
-        say += " ${d.check.checked} checked on eCourts just now" + (if (d.check.unchecked > 0) ", ${d.check.unchecked} not checked (your credits did not cover them)" else "") + "."
+        say += " ${creditsText(d.check.checked)} checked on eCourts just now" + (if (d.check.unchecked > 0) ", ${creditsText(d.check.unchecked)} not checked (your credits did not cover them)" else "") + "."
     } else if (d.check.stopped != null) say += " They are checked on eCourts from tomorrow morning."
-    if (d.mismatches.isNotEmpty()) say += " ${d.mismatches.size} ${if (d.mismatches.size == 1) "date" else "dates"} to settle."
+    if (d.mismatches.isNotEmpty()) say += " ${creditsText(d.mismatches.size)} ${if (d.mismatches.size == 1) "date" else "dates"} to settle."
     return say
 }
 

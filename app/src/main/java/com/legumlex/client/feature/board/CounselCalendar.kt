@@ -89,25 +89,25 @@ internal fun sheetHeading(d: LocalDate, today: LocalDate): String =
 
 private fun plural(n: Int, one: String, many: String) = if (n == 1) one else many
 
-internal fun listedText(n: Int): String = "$n ${plural(n, "case", "cases")} listed"
+internal fun listedText(n: Int): String = "${creditsText(n)} ${plural(n, "case", "cases")} listed"
 
 /** "3 cases · eCourts checked 7:05 AM": the checked time only on today. */
 internal fun daySubline(count: Int, isToday: Boolean, checked: String?): String =
-    "$count ${plural(count, "case", "cases")}" + if (isToday && checked != null) " · eCourts checked $checked" else ""
+    "${creditsText(count)} ${plural(count, "case", "cases")}" + if (isToday && checked != null) " · eCourts checked $checked" else ""
 
 /** "11 cases tracked · 99 days of checks left"; the days part is left out when no case is on the daily check. */
 internal fun checksLine(tracked: Int, daysLeft: Int?): String {
-    val head = "$tracked ${plural(tracked, "case", "cases")} tracked"
+    val head = "${creditsText(tracked)} ${plural(tracked, "case", "cases")} tracked"
     val tail = when {
         daysLeft == null -> null
         daysLeft == 0 -> "less than a day of checks left"
-        else -> "$daysLeft ${plural(daysLeft, "day", "days")} of checks left"
+        else -> "${creditsText(daysLeft)} ${plural(daysLeft, "day", "days")} of checks left"
     }
     return if (tail == null) head else "$head · $tail"
 }
 
 /** The slim line under the day's cases. */
-internal fun eyeText(n: Int): String = if (n == 1) "1 date needs your eye" else "$n dates need your eye"
+internal fun eyeText(n: Int): String = if (n == 1) "1 date needs your eye" else "${creditsText(n)} dates need your eye"
 
 /** board/days: the number listed on each date, zeros included. */
 internal fun parseDays(d: Map<String, Any?>): Map<String, Int> =

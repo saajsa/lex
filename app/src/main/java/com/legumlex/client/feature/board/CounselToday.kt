@@ -119,7 +119,7 @@ class CounselTodayViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun fetch() {
         var r = repo.today()
-        if (isPausedRefusal(r)) { BoardHub.markPaused(true); BoardHub.hide(); return }
+        if (isPausedRefusal(r)) { BoardHub.markPaused(true, pausedMessageOf(r)); BoardHub.hide(); return }
         // The board's own rule: a counsel is not turned away by one refusal. Ask once more; only two refusals in a row hide the board.
         val answers = mutableListOf(answerOfResult(r))
         if (needsRetry(true, answers[0])) { kotlinx.coroutines.delay(1_500); r = repo.today(); answers += answerOfResult(r) }
@@ -478,7 +478,7 @@ internal fun lowCreditsText(c: TodayCredits): String? = when {
 
 /** "N cases tracked · About N days of checks", the web's line under the month. */
 internal fun trackedLine(t: CounselToday): String =
-    "${t.casesTracked} ${plural(t.casesTracked, "case", "cases")} tracked" + (t.credits.daysLabel.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+    "${creditsText(t.casesTracked)} ${plural(t.casesTracked, "case", "cases")} tracked" + (t.credits.daysLabel.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
 
 @Composable
 private fun ShortBanner(s: CheckShort, onCredits: () -> Unit) {
@@ -593,7 +593,7 @@ private fun StepTwo(onSpecimen: () -> Unit) = StepCard(
 ) { IconAction(Icons.Outlined.UploadFile, "Upload a specimen of your cause list", onSpecimen, look = ActionLook.Outline) }
 
 /** Step 3's words: what a check costs, and no promise of credits (a held account has none yet). */
-internal fun stepThreeText(cost: Int) = "Your cause list is ready by 7 AM. Each case checked costs ${creditsLabel(cost)}."
+internal fun stepThreeText(cost: Int) = "Your cause list is ready by 7 AM. Each case checked costs ${shownCost(cost)?.let { creditsLabel(it) } ?: "credits"}."
 
 @Composable
 private fun StepThree(c: TodayCredits) = StepCard(
