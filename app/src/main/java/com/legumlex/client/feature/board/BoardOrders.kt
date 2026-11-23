@@ -231,11 +231,13 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
             if (row.upcoming && dot != null) Box(Modifier.padding(top = 4.dp).size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(dot))
         }
         Spacer(Modifier.width(17.dp))
-        Box(Modifier.weight(1f)) {
-            HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet) {
-                // The eyebrow is the one letter-spaced line, as in the reference.
-                Text(row.eyebrow, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp, maxLines = 1)
-                Text(row.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
+        // The eyebrow and title span the whole content width (the judge is never cut: the eyebrow wraps as it needs, usually two lines at most);
+        // below them the next line shares a row with the order buttons.
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // The eyebrow is the one letter-spaced line, as in the reference.
+            Text(row.eyebrow, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp)
+            Text(row.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
+            if (row.meta != null || row.orders.isNotEmpty()) HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet) {
                 row.meta?.let { m ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(14.dp))
