@@ -41,6 +41,9 @@ import androidx.compose.material3.PlainTooltip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Inventory2
@@ -126,9 +129,11 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
         // The pinned head (owner, 23 Nov 2026: fewer buttons): the case and a ⋮ menu; the parties; the watch status as one line;
         // the next date with share and update beside it as plain icons; its filing.
         Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // The case's status as a thin edge beside its number, as on its Cases tile.
-            Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
-            c?.let { x -> Box(Modifier.padding(end = 10.dp).width(4.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(edgeColor(rowEdge(x, today)))) }
+            // The case's status as a thin edge beside its number, as on its Cases tile. Drawn, not measured: no intrinsic height
+            // (a SubcomposeLayout below would refuse it).
+            val headEdge = c?.let { edgeColor(rowEdge(it, today)) }
+            Box(Modifier.drawBehind { headEdge?.let { col -> drawRoundRect(col, size = Size(4.dp.toPx(), size.height), cornerRadius = CornerRadius(2.dp.toPx())) } }
+                .padding(start = if (headEdge != null) 14.dp else 0.dp)) {
             PageHeader(eyebrow = "Case", title = c?.heading ?: "Case", actions = c?.let { x -> {
                 OverflowMenu(listOfNotNull(
                     "Details" to { details = true },
@@ -477,11 +482,13 @@ internal fun CaseRow(
     enabled: Boolean = true, fetchingId: Int? = null, onOpen: (BoardOrder) -> Unit = {}, onGet: (BoardOrder) -> Unit = {},
 ) {
     // Owner, 23 Nov 2026: plain card tiles, radius 8, 8dp apart; the status in the 4dp left edge alone (red, black, green, grey).
+    // The edge is drawn behind the tile, full height, so the tile needs no intrinsic measurement.
+    val edge = edgeColor(rowEdge(c, today))
     Row(
-        Modifier.padding(bottom = 8.dp).fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(8.dp))
-            .background(Lex.colors.card),
+        Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp))
+            .background(Lex.colors.card).drawBehind { drawRect(edge, size = Size(4.dp.toPx(), size.height)) },
     ) {
-        Box(Modifier.width(4.dp).fillMaxHeight().background(edgeColor(rowEdge(c, today))))
+        Spacer(Modifier.width(4.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f).clickable(onClick = onClick).semantics { contentDescription = rowSpeech(c, today) }
@@ -509,9 +516,10 @@ internal fun CaseRow(
                         record.listings.isEmpty() -> Text(recordEmpty("hearings", c.hasCnr, record.loaded), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
                         else -> {
                             val h = record.listings.first()
-                            Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground)
-                            hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
-                            OrderButtons(h.orders, enabled, fetchingId, onOpen, onGet)
+                            HearingSplit(h.orders, enabled, fetchingId, onOpen, onGet) {
+                                Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground)
+                                hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
+                            }
                         }
                     }
                 }

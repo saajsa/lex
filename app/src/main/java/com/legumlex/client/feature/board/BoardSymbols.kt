@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,6 +39,11 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -179,13 +185,28 @@ fun SymbolIcon(s: Sym, size: Dp = 16.dp, modifier: Modifier = Modifier) {
 /** An order button's caption: "Order" alone, or "Order 1", "Order 2" … when the hearing has several (owner, 23 Nov 2026). */
 internal fun orderCaption(list: List<BoardOrder>, i: Int): String = orderIndex(list, i)?.let { "Order $it" } ?: "Order"
 
+/** How an order button lays itself out in its column (owner, 23 Nov 2026: "responsive to that 20%"). */
+enum class OrderForm { Row, Stacked, NumberOnly }
+
+/** Icon and caption in a row when the column is at least 88dp; else the icon over the caption if it fits whole; else the icon and the number. */
+internal fun orderForm(widthDp: Float, captionDp: Float): OrderForm = when {
+    widthDp >= ORDER_ROW_MIN -> OrderForm.Row
+    captionDp + 8f <= widthDp -> OrderForm.Stacked
+    else -> OrderForm.NumberOnly
+}
+
+internal const val ORDER_ROW_MIN = 88f
+
+/** The shortest form of a caption: "Order 2" gives "2"; a lone "Order" stays the icon alone. */
+internal fun captionNumber(caption: String): String = caption.substringAfter("Order", "").trim()
+
 /**
- * One order as a styled button (owner: "Stylise it. Do not keep it simple."): kept is filled green with a ticked doc; not fetched is an
- * ink outline with a download glyph; signed is a grey outline with a lock; fetching shows a spinner and is disabled. Radius 6, 36dp
- * tall. A tap opens a kept order, or fetches then opens one not fetched. Read aloud with the server's full label and what a tap does.
+ * One order as a styled button filling its column: kept is filled green with a ticked doc; not fetched an ink outline with a download
+ * glyph; signed a grey outline with a lock; fetching shows a spinner and is disabled. Radius 6; the stacked forms are at least 48dp
+ * tall. The caption is measured, never cut mid-word. Read aloud with the server's full label and what a tap does.
  */
 @Composable
-fun OrderButton(caption: String, o: BoardOrder, enabled: Boolean, busy: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
+fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolean, busy: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
     val shape = RoundedCornerShape(6.dp)
     val kept = o.fetched && !o.sealed
     val (bg, fg, line) = when {
@@ -199,27 +220,59 @@ fun OrderButton(caption: String, o: BoardOrder, enabled: Boolean, busy: Boolean,
         else -> Icons.Outlined.FileDownload
     }
     val on = !busy && (enabled || o.fetched)
-    Row(
-        Modifier.height(36.dp).clip(shape).background(bg).let { if (line != null) it.border(1.dp, line, shape) else it }
-            .clickable(enabled = on) { if (o.fetched) onOpen(o) else onGet(o) }
-            .semantics { contentDescription = if (busy) "Getting " + orderLabel(o) else orderHint(o) }
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    val base = Modifier.fillMaxWidth().clip(shape).background(bg).let { if (line != null) it.border(1.dp, line, shape) else it }
+        .clickable(enabled = on) { if (o.fetched) onOpen(o) else onGet(o) }
+        .semantics { contentDescription = if (busy) "Getting " + orderLabel(o) else orderHint(o) }
+    @Composable
+    fun Glyph() {
         if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = fg)
         else Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = fg)
+    }
+    when (form) {
+        OrderForm.Row -> Row(base.height(36.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Glyph(); Spacer(Modifier.width(6.dp))
+            Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
+        }
+        else -> Column(base.heightIn(min = 48.dp).padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Glyph()
+            val text = if (form == OrderForm.Stacked) caption else captionNumber(caption)
+            if (text.isNotEmpty()) Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
+        }
     }
 }
 
-/** A hearing's orders as buttons in a flowing row under its text. */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+/**
+ * A hearing's orders in its right-hand column: stacked, top-aligned, 6dp apart, each as wide as the column. The column decides one form
+ * for all its buttons from its own measured width (onSizeChanged) and its widest caption (a text measurer): no SubcomposeLayout, so a
+ * parent may ask for intrinsic sizes. Until the first measure it shows the stacked form.
+ */
 @Composable
-fun OrderButtons(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
-    if (orders.isEmpty()) return
-    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        orders.forEachIndexed { i, o -> OrderButton(orderCaption(orders, i), o, enabled, o.id == fetchingId, onOpen, onGet) }
+fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, modifier: Modifier = Modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val small = MaterialTheme.typography.labelSmall
+    val captions = orders.indices.map { orderCaption(orders, it) }
+    val widest = remember(captions, small) {
+        with(density) { captions.maxOfOrNull { measurer.measure(it, small, softWrap = false, maxLines = 1).size.width.toDp().value } ?: 0f }
+    }
+    var widthDp by remember { mutableStateOf<Float?>(null) }
+    val form = widthDp?.let { orderForm(it, widest) } ?: OrderForm.Stacked
+    Column(modifier.onSizeChanged { widthDp = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        orders.forEachIndexed { i, o -> OrderButton(captions[i], o, form, enabled, o.id == fetchingId, onOpen, onGet) }
+    }
+}
+
+/**
+ * A hearing laid out 80/20 (owner, 23 Nov 2026): its text on the left, its order buttons in the right fifth. With no orders the text
+ * takes the whole width.
+ */
+@Composable
+fun HearingSplit(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
+                 text: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    if (orders.isEmpty()) { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp), content = text); return }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(Modifier.weight(0.8f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = text)
+        OrderColumn(orders, enabled, fetchingId, onOpen, onGet, Modifier.weight(0.2f))
     }
 }
 

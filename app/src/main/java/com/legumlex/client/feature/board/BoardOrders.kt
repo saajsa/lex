@@ -172,7 +172,7 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 
 /**
  * The case's hearings (owner, 23 Nov 2026): soft tiles newest first, 8dp apart; the date bold, the
- * purpose and next line, the judge muted, and the orders as styled buttons under them. Other Orders last.
+ * purpose and next line, the judge muted, on the left 80%; the order buttons stacked in the right 20%. Other Orders last.
  * Empty: the web's reason, with Update From Court Now when a read helps. All Kept Orders As One PDF lives in the case's ⋮ menu.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -186,14 +186,13 @@ internal fun CaseRecordSection(
     com.legumlex.client.ui.components.Eyebrow("Hearings")
     @Composable
     fun HearingRow(title: String, lines: List<Pair<String, Boolean>>, orders: List<BoardOrder>) {
-        Row(Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Lex.colors.card).padding(12.dp), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box(Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Lex.colors.card).padding(12.dp)) {
+            HearingSplit(orders, enabled, fetchingId, onOpen, onGet) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
                 lines.forEach { (t, muted) ->
                     Text(t, style = MaterialTheme.typography.bodySmall,
                         color = if (muted) Lex.colors.mutedForeground else Lex.colors.secondaryForeground)
                 }
-                OrderButtons(orders, enabled, fetchingId, onOpen, onGet)
             }
         }
     }

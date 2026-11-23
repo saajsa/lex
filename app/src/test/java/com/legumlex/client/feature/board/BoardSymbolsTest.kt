@@ -79,6 +79,33 @@ class BoardSymbolsTest {
         assertEquals(listOf("Order 1", "Order 2"), listOf(0, 1).map { orderCaption(listOf(a, b), it) })
     }
 
+    @Test fun orderButtonsFitTheirFifth() {
+        // About a fifth of a phone's tile: wide enough for icon and caption side by side.
+        assertEquals(OrderForm.Row, orderForm(96f, 40f))
+        assertEquals(OrderForm.Row, orderForm(ORDER_ROW_MIN, 40f))
+        // Narrower: the icon over the caption, when the whole caption fits (with 8dp to spare).
+        assertEquals(OrderForm.Stacked, orderForm(60f, 40f))
+        assertEquals(OrderForm.Stacked, orderForm(48f, 40f))
+        // Narrower still: never cut "Order 1" mid-word; the icon and its number.
+        assertEquals(OrderForm.NumberOnly, orderForm(47f, 40f))
+        assertEquals("1", captionNumber("Order 1")); assertEquals("12", captionNumber("Order 12")); assertEquals("", captionNumber("Order"))
+    }
+
+    /**
+     * 13:20 crash: a BoxWithConstraints (a SubcomposeLayout) inside a tile measured with IntrinsicSize.Min threw "Asking for intrinsic
+     * measurements of SubcomposeLayout layouts is not supported". The order buttons no longer subcompose, and the tiles that hold them
+     * no longer ask for intrinsic height (their status edge is drawn).
+     */
+    @Test fun noSubcomposeUnderIntrinsicTiles() {
+        val root = listOf("src/main/java/com/legumlex/client/feature/board", "app/src/main/java/com/legumlex/client/feature/board").map { java.io.File(it) }.first { it.exists() }
+        listOf("BoardSymbols.kt", "BoardOrders.kt", "BoardCasesScreen.kt").forEach { assertFalse(it, java.io.File(root, it).readText().contains("BoxWithConstraints")) }
+        val screen = java.io.File(root, "BoardCasesScreen.kt").readText()
+        val row = screen.substringAfter("internal fun CaseRow(").substringBefore("\n}\n")
+        assertFalse("CaseRow asks for intrinsic height", row.contains("IntrinsicSize"))
+        val head = screen.substringAfter("// The pinned head").substringBefore("PageHeader(")
+        assertFalse("the case head asks for intrinsic height", head.contains("IntrinsicSize"))
+    }
+
     @Test fun segmentsFitWithShortLabels() {
         assertEquals(listOf("Ongoing", "Needs Eye", "Undated", "Disposed"), STATUS_SEGMENTS.map { SEGMENT_SHORT[it.first] })
         assertEquals("Needs Your Eye", STATUS_SEGMENTS[1].second)   // the long name, for screen readers
