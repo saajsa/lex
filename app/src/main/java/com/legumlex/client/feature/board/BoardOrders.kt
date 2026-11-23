@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
@@ -210,7 +211,7 @@ internal fun CaseRecordSection(
         com.legumlex.client.ui.components.StatusChip("eCourts", Lex.colors.neutral)
     }
     if (r.orders.isNotEmpty()) NoteLine(ORDERS_LINE)
-    if (combinedOffered(r.orders)) TextButton(onCombined, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("All Kept Orders As One PDF") }
+    if (combinedOffered(r.orders)) LegumSecondaryButton("All Kept Orders As One PDF", onCombined, leadingIcon = Icons.Outlined.PictureAsPdf)
     r.listings.forEach { h ->
         LexCard {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -293,7 +294,8 @@ fun OrderViewerScreen(caseId: Int, orderId: Int, title: String, onBack: () -> Un
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1) },
+                // The whole label ("Interim Order of 8 Nov 2026 (1)"): up to two lines, a step smaller.
+                title = { Text(title, style = MaterialTheme.typography.titleSmall, color = Color.White, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Color.White) } },
                 actions = {
                     (state as? OrderView.Ready)?.let { r ->
