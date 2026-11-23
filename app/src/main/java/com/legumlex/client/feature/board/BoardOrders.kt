@@ -177,51 +177,40 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 }
 
 /**
- * The case's hearings (owner, 23 Nov 2026: hearings fill the page, orders as small symbol buttons, fewest taps): a header with the
- * eCourts mark and All Kept Orders As One PDF as an icon, then compact cards newest first, each with its orders in a row at the bottom,
- * and an Other Orders card last for orders under no hearing. Empty: the web's reason, with Update From Court Now when a read helps.
+ * The case's hearings (owner, 23 Nov 2026: minimal and list-like): plain rows newest first, divided by hairlines; the date bold, the
+ * purpose and next line, the judge muted, and the orders as small borderless symbols at the row's right. Other Orders last.
+ * Empty: the web's reason, with Update From Court Now when a read helps. All Kept Orders As One PDF lives in the case's ⋮ menu.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun CaseRecordSection(
     r: CaseRecord, hasCnr: Boolean, readLabel: String, onRead: (() -> Unit)?, enabled: Boolean,
-    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, onCombined: () -> Unit, onLegend: (() -> Unit)? = null,
+    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
 ) {
     val other = otherOrders(r)
     if (r.listings.isEmpty() && other.isEmpty()) { RecordEmptyCard("No Hearings Yet", "hearings", Icons.Outlined.Event, r, hasCnr, readLabel, onRead); return }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        com.legumlex.client.ui.components.Eyebrow("Hearings")
-        SymbolIcon(Sym.Ecourts)
-        Spacer(Modifier.weight(1f))
-        if (combinedOffered(r.orders)) IconAction(Icons.Outlined.PictureAsPdf, "All Kept Orders As One PDF", onCombined, size = 36.dp)
-        onLegend?.let { IconAction(Icons.Outlined.HelpOutline, "What The Symbols Mean", it, size = 36.dp) }
-    }
+    com.legumlex.client.ui.components.Eyebrow("Hearings")
     @Composable
-    fun Orders(list: List<BoardOrder>) {
-        if (list.isEmpty()) return
-        Spacer(Modifier.height(6.dp))
-        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            list.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(list, i)) }
+    fun HearingRow(title: String, lines: List<Pair<String, Boolean>>, orders: List<BoardOrder>) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
+                lines.forEach { (t, muted) ->
+                    Text(t, style = MaterialTheme.typography.bodySmall,
+                        color = if (muted) Lex.colors.mutedForeground else Lex.colors.secondaryForeground)
+                }
+            }
+            if (orders.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(Modifier.padding(start = 8.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                orders.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(orders, i)) }
+            }
         }
+        androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
     }
     r.listings.forEach { h ->
-        LexCard {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-                hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
-                if (h.judge.isNotBlank()) Text(h.judge, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground)
-                Orders(h.orders)
-            }
-        }
+        HearingRow(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date,
+            listOfNotNull(hearingLine(h).takeIf { it.isNotBlank() }?.let { it to false }, h.judge.takeIf { it.isNotBlank() }?.let { it to true }), h.orders)
     }
-    if (other.isNotEmpty()) {
-        LexCard {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                Text("Other Orders", style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-                Orders(other)
-            }
-        }
-    }
+    if (other.isNotEmpty()) HearingRow("Other Orders", emptyList(), other)
 }
 
 /**

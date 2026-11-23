@@ -26,7 +26,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Visibility
@@ -34,7 +34,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
@@ -74,31 +77,6 @@ import com.legumlex.client.ui.components.SegmentedToggle
 import com.legumlex.client.ui.theme.Lex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-/** One case in the list under Today. */
-@Composable
-internal fun CaseListRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    Column(
-        Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape).clickable(onClick = onClick).padding(12.dp),
-    ) {
-        Text(c.heading, style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground, maxLines = 1)
-        Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-        Text(
-            c.courtLine,
-            style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                if (c.nextDate != null) "Next: ${BoardDates.show(c.nextDate, today)}" else "No Next Date",
-                style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground,
-            )
-            c.check?.let { com.legumlex.client.ui.components.StatusChip(it.label, checkPalette(it)) }
-        }
-        if (c.folder != null || c.tags.isNotEmpty()) { Spacer(Modifier.height(6.dp)); LabelBadges(c) }
-    }
-}
 
 /**
  * One case (owner, 23 Nov 2026): the head with its next date and symbols, a row of action icons (ⓘ details, share, update, the daily
@@ -144,35 +122,39 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
     val shownCode = if (refusal != null) refusalCode else getter.refusalCode
 
     Column(Modifier.fillMaxSize().background(Lex.colors.background)) {
-        // The pinned head: the case, its parties, its next date with its symbols, its filing, and the action icons.
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            PageHeader(eyebrow = "Case", title = c?.heading ?: "Case")
+        // The pinned head (owner, 23 Nov 2026: fewer buttons): the case and a ⋮ menu; the parties; the watch status as one line;
+        // the next date with share and update beside it as plain icons; its filing.
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            PageHeader(eyebrow = "Case", title = c?.heading ?: "Case", actions = c?.let { x -> {
+                OverflowMenu(listOfNotNull(
+                    "Details" to { details = true },
+                    "File This Case" to { if (live) filing = true },
+                    if (combinedOffered(x.record.orders)) "All Kept Orders As One PDF" to { onOpenOrder(0, "All Kept Orders") } else null,
+                    "Remove From Your Diary" to { if (live && !busy) confirmRemove = true },
+                    "What The Symbols Mean" to { legend = true },
+                ))
+            } })
             c?.let { x ->
-                Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
-                CaseDateLine(x, today)
-                CaseFilingLine(x)
-                savedAt?.let { at -> NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                    IconAction(Icons.Outlined.Info, "Details", { details = true }, size = 40.dp)
-                    IconAction(Icons.Outlined.Share, "Share Summary", {
-                        if (!busy) { refusal = null; scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } } }
-                    }, size = 40.dp)
-                    if (x.hasCnr) IconAction(Icons.Outlined.Refresh, readLabel, { onRead?.invoke() }, size = 40.dp)
-                    IconAction(if (x.morningCheck) Icons.Filled.Visibility else Icons.Outlined.Visibility,
-                        (if (x.morningCheck) "Daily Check On. " else "Daily Check Off. ") + dailyCheckLine(x.morningCheck, x.hasCnr, checkCost),
-                        {
-                            if (!busy && live) {
-                                busy = true; refusal = null; refusalCode = null
-                                scope.launch {
-                                    // The action's reply has no Date History: the case page is read again so the history stays.
-                                    repo.caseEdit(x.id, mapOf("morning_check" to if (x.morningCheck) "0" else "1")).onSuccess { c = it.copy(history = x.history, record = x.record); load() }
-                                        .onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() }
-                                    busy = false
-                                }
-                            }
-                        }, size = 40.dp, look = if (x.morningCheck) ActionLook.Ink else ActionLook.Outline)
-                    IconAction(Icons.Outlined.Folder, "File This Case", { if (live) filing = true }, size = 40.dp)
-                    IconAction(Icons.Outlined.DeleteOutline, "Remove From Your Diary", { if (live && !busy) confirmRemove = true }, size = 40.dp)
+                Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+                    WatchLine(x.morningCheck, checkCost, enabled = !busy && live) {
+                        busy = true; refusal = null; refusalCode = null
+                        scope.launch {
+                            // The action's reply has no Date History: the case page is read again so the history stays.
+                            repo.caseEdit(x.id, mapOf("morning_check" to if (x.morningCheck) "0" else "1")).onSuccess { c = it.copy(history = x.history, record = x.record); load() }
+                                .onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() }
+                            busy = false
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { CaseDateLine(x, today) }
+                        PlainIcon(Icons.Outlined.Share, "Share Summary") {
+                            if (!busy) { refusal = null; scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } } }
+                        }
+                        if (x.hasCnr) PlainIcon(Icons.Outlined.Refresh, readLabel) { onRead?.invoke() }
+                    }
+                    CaseFilingLine(x)
+                    savedAt?.let { at -> NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") }
                 }
             }
         }
@@ -198,8 +180,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                 }
                 if (getter.fetching) NoteLine("Getting the order from eCourts. This can take a minute…")
                 CaseRecordSection(x.record, x.hasCnr, readLabel, onRead, enabled = live && !getter.fetching,
-                    onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; getter.ask(caseId, o) },
-                    onCombined = { onOpenOrder(0, "All Kept Orders") }, onLegend = { legend = true })
+                    onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; getter.ask(caseId, o) })
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -214,10 +195,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
             containerColor = Lex.colors.background,
         ) {
             Column(Modifier.fillMaxWidth().androidScroll().padding(start = 16.dp, end = 16.dp, bottom = 24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Details", style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                    IconAction(Icons.Outlined.HelpOutline, "What The Symbols Mean", { details = false; legend = true }, size = 36.dp)
-                }
+                Text("Details", style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
                 LexCard {
                     KeyValueRow("CNR", cnrLine(x), mono = x.hasCnr)
                     if (x.caseNo.isNotBlank()) KeyValueRow("Case Number", x.caseNo)
@@ -292,13 +270,52 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
     }
 }
 
-/** "Next: Fri, 28 Nov" with the date's symbol and, for an eCourts case, the "e" mark; or "No Next Date". */
+/** "Next: Fri, 28 Nov" with the date's symbol, or "No Next Date". */
 @Composable
 internal fun CaseDateLine(c: BoardCase, today: java.time.LocalDate) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(nextLine(c, today), style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground)
         dateMark(c, today)?.let { SymbolIcon(it) }
-        if (c.hasCnr) SymbolIcon(Sym.Ecourts)
+    }
+}
+
+/**
+ * The watch status as one tappable line: a green-tinted pill "Watched Daily · 1 Credit" when on, a plain outline "Not Watched. Watch
+ * Daily" when off; a tap turns it over (the daily check), its cost in its words and in its long-press.
+ */
+@Composable
+internal fun WatchLine(on: Boolean, cost: Int?, enabled: Boolean, onToggle: () -> Unit) {
+    val shape = RoundedCornerShape(6.dp)
+    Row(
+        Modifier.clip(shape).then(if (on) Modifier.background(watchTint()) else Modifier.border(1.dp, Lex.colors.input, shape))
+            .clickable(enabled = enabled, onClick = onToggle).semantics { contentDescription = watchText(on, cost) + ". Tap to " + (if (on) "stop watching." else "watch daily.") }
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) { Text(watchText(on, cost), style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground) }
+}
+
+/** "Watched Daily · 1 Credit" / "Not Watched. Watch Daily" (no figure when the cost is unset). */
+internal fun watchText(on: Boolean, cost: Int?): String =
+    if (on) "Watched Daily" + (shownCost(cost)?.let { " · ${creditsTitle(it)}" } ?: "") else "Not Watched. Watch Daily"
+
+/** A plain, borderless icon button with its name on long-press and for screen readers. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun PlainIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, name: String, onClick: () -> Unit) {
+    androidx.compose.material3.TooltipBox(positionProvider = OnScreenTooltip, tooltip = { PlainTooltip { Text(name) } }, state = androidx.compose.material3.rememberTooltipState()) {
+        androidx.compose.material3.IconButton(onClick, Modifier.semantics { contentDescription = name }) { Icon(icon, null, tint = Lex.colors.secondaryForeground) }
+    }
+}
+
+/** A ⋮ menu of named actions. */
+@Composable
+internal fun OverflowMenu(items: List<Pair<String, () -> Unit>>) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        androidx.compose.material3.IconButton({ open = true }, Modifier.semantics { contentDescription = "More" }) { Icon(Icons.Outlined.MoreVert, null, tint = Lex.colors.foreground) }
+        androidx.compose.material3.DropdownMenu(open, { open = false }, containerColor = Lex.colors.card) {
+            items.forEach { (label, act) -> androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, onClick = { open = false; act() }) }
+        }
     }
 }
 
@@ -311,8 +328,8 @@ internal fun nextLine(c: BoardCase, today: java.time.LocalDate): String =
 internal fun CaseFilingLine(c: BoardCase) {
     if (c.folder == null && c.tags.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        c.folder?.let { SymbolIcon(Sym.Folder, 14.dp); Text(it.name, style = MaterialTheme.typography.labelSmall, color = Lex.colors.secondaryForeground) }
-        if (c.tags.isNotEmpty()) Text((if (c.folder != null) "  " else "") + tagsLine(c), style = MaterialTheme.typography.labelSmall, color = Lex.colors.secondaryForeground, maxLines = 1)
+        c.folder?.let { SymbolIcon(Sym.Folder, 14.dp); Text(it.name, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
+        if (c.tags.isNotEmpty()) Text((if (c.folder != null) "  " else "") + tagsLine(c), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, maxLines = 1)
     }
 }
 
@@ -350,7 +367,7 @@ internal val CASES_START = CaseQuery(filter = "ongoing")
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, String) -> Unit = { _, _, _ -> }, onCredits: () -> Unit = {}) {
+fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
     // Kept across opening a case and coming back: the search, segment, filters, page, open cards and the scroll.
@@ -366,10 +383,6 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
     var legend by remember { mutableStateOf(false) }
     var filtering by remember { mutableStateOf(false) }
     var listSavedAt by m::listSavedAt
-    var open by m::open
-    val records = m.records
-    val getter = rememberOrderGetter()
-    val scope = rememberCoroutineScope()
     if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onOpenCase(it.id) })
     if (managing) FoldersAndTagsDialog(onClose = { managing = false }, onChanged = { tick++ })
     if (legend) LegendSheet { legend = false }
@@ -381,23 +394,19 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
     }
     // A new filter or search starts again at the first page.
     val change = { nq: CaseQuery -> query = nq; offset = 0 }
-    fun loadRecord(id: Int) { scope.launch { repo.orders(id).onSuccess { records[id] = it } } }
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize().background(Lex.colors.background), state = m.listState,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // Owner, 23 Nov 2026: one +, and the rest in ⋮.
         item {
             PageHeader(eyebrow = "Your Diary", title = "Cases", actions = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconAction(Icons.Outlined.HelpOutline, "What The Symbols Mean", { legend = true }, size = 40.dp)
-                    IconAction(Icons.Outlined.Folder, "Folders And Tags", { managing = true }, size = 40.dp)
-                    IconAction(Icons.Outlined.Add, "Add By Hand", { byHand = true }, size = 40.dp)
-                }
+                PlainIcon(Icons.Outlined.Add, "Add By Hand") { byHand = true }
+                OverflowMenu(listOf("Folders And Tags" to { managing = true }, "What The Symbols Mean" to { legend = true }))
             })
         }
         item {
-            com.legumlex.client.ui.components.LegumTextField(query.q, { change(query.copy(q = it)) }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search,
+            com.legumlex.client.ui.components.LegumTextField(query.q, { change(query.copy(q = it)) }, "Search Cases", Modifier.fillMaxWidth().padding(top = 10.dp), leadingIcon = Icons.Outlined.Search,
                 trailing = {
                     val n = activeFilters(query)
                     Box {
@@ -411,28 +420,21 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
                 })
         }
         item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp).horizontalScroll(rememberScrollState())) {
                 SegmentedToggle(STATUS_SEGMENTS.map { (k, l) -> k to (l + filters?.counts?.get(k)?.let { " ${creditsText(it)}" }.orEmpty()) },
                     query.filter.takeIf { f -> STATUS_SEGMENTS.any { it.first == f } } ?: "ongoing", { change(query.copy(filter = it)) })
             }
         }
         if (query.q.isNotBlank()) item { NoteLine(SEARCH_ALL_NOTE) }
         listSavedAt?.let { at -> item { NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") } }
-        (getter.refusal)?.let { r -> item { NoteLine(r, danger = true); if (getter.refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits) } }
-        if (getter.fetching) item { NoteLine("Getting the order from eCourts. This can take a minute…") }
         val p = page
         when {
             error != null && p == null -> item { LexCard { LexEmpty("The Cases Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { error = null; tick++ }) }) } }
             p == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
             p.items.isEmpty() -> item { Text(if (query == CASES_START) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
             else -> {
-                items(p.items, key = { it.id }) { c ->
-                    val expanded = c.id in open
-                    CaseCard(c, today, expanded, records[c.id], enabled = listSavedAt == null && !getter.fetching,
-                        onToggle = { open = if (expanded) open - c.id else open + c.id; if (!expanded && c.id !in records) loadRecord(c.id) },
-                        onOpenCase = { onOpenCase(c.id) },
-                        onOpen = { o -> onOpenOrder(c.id, o.id, orderLabel(o)) }, onGet = { o -> getter.ask(c.id, o) })
-                }
+                item { androidx.compose.material3.HorizontalDivider(color = Lex.colors.border) }
+                items(p.items, key = { it.id }) { c -> CaseRow(c, today) { onOpenCase(c.id) } }
                 pagerLine(p)?.let { line ->
                     item {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -445,67 +447,45 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
             }
         }
     }
-    OrderGetterHost(getter, onOpened = onOpenOrder, onChanged = { id -> loadRecord(id) })
     if (filtering) CaseFilterSheet(filters, query, change) { filtering = false }
 }
 
 /**
- * One case on Cases: collapsed, its number with its symbols, the parties, the court, "Next: 4 Dec" with the date's symbol, and its
- * filing; the chevron opens it in place to the latest hearing, that hearing's orders as symbols, and Open Case. The body opens the case.
+ * One case as a list row (owner, 23 Nov 2026: minimal, list-like, colour as the symbol): the number bold with the next date and its mark
+ * on the right; the parties; the court small and muted with the folder and #tags. A watched case is tinted green with a green start
+ * edge; Needs Your Eye or a recent move gives a red edge. A hairline under it; the whole row opens the case.
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun CaseCard(
-    c: BoardCase, today: java.time.LocalDate, expanded: Boolean, record: CaseRecord?, enabled: Boolean,
-    onToggle: () -> Unit, onOpenCase: () -> Unit, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
-) {
-    val shape = RoundedCornerShape(12.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape)) {
-        Row(Modifier.fillMaxWidth().clickable(onClick = onOpenCase).padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(c.heading, style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground, maxLines = 1)
-                    if (c.hasCnr) SymbolIcon(Sym.Ecourts)
-                    SymbolIcon(if (c.morningCheck) Sym.CheckOn else Sym.CheckOff, 14.dp)
-                }
-                Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-                if (c.courtShown.isNotBlank()) Text(c.courtShown, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, maxLines = 1)
-                CaseDateLineSmall(c, today)
-                CaseFilingLine(c)
+internal fun CaseRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit) {
+    val look = rowLook(c, today)
+    val edge = when (look.edge) { Edge.Red -> Lex.colors.danger.solid; Edge.Green -> Lex.colors.success.solid; Edge.None -> androidx.compose.ui.graphics.Color.Transparent }
+    Row(
+        Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)
+            .then(if (look.tint) Modifier.background(watchTint()) else Modifier)
+            .clickable(onClick = onClick).semantics { contentDescription = rowSpeech(c, today) },
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(edge))
+        Column(Modifier.weight(1f).padding(start = 10.dp, end = 4.dp, top = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(c.heading, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 1,
+                    modifier = Modifier.weight(1f))
+                Text(c.nextDate?.let { BoardDates.show(it, today) }?.takeIf { it.isNotBlank() } ?: "No Date", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
+                dateMark(c, today)?.let { Spacer(Modifier.width(4.dp)); SymbolIcon(it, 14.dp) }
             }
-            androidx.compose.material3.IconButton(onToggle, Modifier.semantics { contentDescription = if (expanded) "Show Less" else "Show More" }) {
-                Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Lex.colors.secondaryForeground)
-            }
-        }
-        if (expanded) {
-            Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
-                when {
-                    record == null -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
-                    record.listings.isEmpty() -> Text(recordEmpty("hearings", c.hasCnr, record.loaded), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
-                    else -> {
-                        val h = record.listings.first()
-                        Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground)
-                        hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
-                        if (h.orders.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            h.orders.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(h.orders, i)) }
-                        }
-                    }
-                }
-                LegumSecondaryButton("Open Case", onOpenCase)
-            }
+            Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+            // On the green tint the muted grey falls under AA contrast: the court line steps up to the secondary ink there.
+            courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (look.tint) Lex.colors.secondaryForeground else Lex.colors.mutedForeground, maxLines = 1) }
         }
     }
+    androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
 }
 
-/** The card's date line: "Next: 4 Dec" (or "No Next Date") and the date's symbol. */
-@Composable
-private fun CaseDateLineSmall(c: BoardCase, today: java.time.LocalDate) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(nextLine(c, today), style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
-        dateMark(c, today)?.let { SymbolIcon(it, 14.dp) }
-    }
-}
+/** The row's third line: the court, then the folder and the #tags. */
+internal fun courtLine(c: BoardCase): String = listOf(c.courtShown, c.folder?.name.orEmpty(), tagsLine(c)).filter { it.isNotBlank() }.joinToString(" · ")
+
+/** What a screen reader says for a row: the case, its next date and mark, and whether it is watched. */
+internal fun rowSpeech(c: BoardCase, today: java.time.LocalDate): String =
+    listOfNotNull(c.heading, nextLine(c, today), dateMark(c, today)?.label, if (c.morningCheck) "Watched daily" else null).joinToString(". ")
 
 /** Court, Folder and Tag in a sheet (the filter icon), the server's options with their counts; Clear sets all three back. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -603,7 +583,5 @@ class CasesListModel : androidx.lifecycle.ViewModel() {
     var page by mutableStateOf<CasePage?>(null)
     var filters by mutableStateOf<BoardFilters?>(null)
     var listSavedAt by mutableStateOf<Long?>(null)
-    var open by mutableStateOf(setOf<Int>())
-    val records = androidx.compose.runtime.snapshots.SnapshotStateMap<Int, CaseRecord>()
     val listState = androidx.compose.foundation.lazy.LazyListState()
 }

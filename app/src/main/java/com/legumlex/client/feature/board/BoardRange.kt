@@ -133,7 +133,7 @@ fun BoardRangeScreen(from: String, onOpenCase: (Int) -> Unit, onOpenDay: (String
                             else TextButton({ onOpenDay(d.date) }) { Text("Open This Day's List") }
                         }
                         d.items.forEach { c ->
-                            Box(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) { CaseListRow(c, today) { onOpenCase(c.id) } }
+                            CaseRow(c, today) { onOpenCase(c.id) }
                         }
                     }
                 }

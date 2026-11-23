@@ -114,17 +114,6 @@ internal fun courtOptions(f: BoardFilters) = f.courts.map { PickOption(it.key, i
 internal fun folderOptions(f: BoardFilters) = listOf(PickOption("none", "In No Folder")) + f.folders.map { PickOption(it.id.toString(), it.name, it.cases) }
 internal fun tagOptions(f: BoardFilters) = f.tags.map { PickOption(it.id.toString(), it.name, it.cases) }
 
-/** A row's folder and tag badges. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun LabelBadges(c: BoardCase) {
-    if (c.folder == null && c.tags.isEmpty()) return
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        c.folder?.let { StatusChip(it.name, Lex.colors.neutral, Icons.Outlined.Folder) }
-        c.tags.forEach { StatusChip(it.name, Lex.colors.neutral) }
-    }
-}
-
 /** Folders And Tags: the counsel's own; New and Rename through a two-step wizard, Delete after a confirm. */
 @Composable
 fun FoldersAndTagsDialog(onClose: () -> Unit, onChanged: () -> Unit) {

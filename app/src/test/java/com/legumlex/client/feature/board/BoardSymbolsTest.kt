@@ -52,8 +52,8 @@ class BoardSymbolsTest {
     @Test fun listStateOutlivesTheScreen() {
         val m = CasesListModel()
         assertEquals("ongoing", m.query.filter)   // Cases opens on Ongoing
-        m.query = CaseQuery(filter = "eye", q = "mehta", folder = "2"); m.offset = 100; m.open = setOf(7)
-        assertEquals("eye", m.query.filter); assertEquals("mehta", m.query.q); assertEquals(100, m.offset); assertEquals(setOf(7), m.open)
+        m.query = CaseQuery(filter = "eye", q = "mehta", folder = "2"); m.offset = 100
+        assertEquals("eye", m.query.filter); assertEquals("mehta", m.query.q); assertEquals(100, m.offset)
     }
 
     @Test fun searchLooksAcrossEveryCase() {
@@ -63,12 +63,32 @@ class BoardSymbolsTest {
         assertEquals("Searching all cases.", SEARCH_ALL_NOTE)
     }
 
+    @Test fun rowColours() {
+        assertEquals(RowLook(tint = true, edge = Edge.Green), rowLook(case(mapOf("morning_check" to true)), today))
+        assertEquals(RowLook(tint = true, edge = Edge.Red), rowLook(case(mapOf("morning_check" to true, "needs_eye" to true)), today))   // red wins the edge
+        assertEquals(RowLook(tint = false, edge = Edge.Red), rowLook(case(mapOf("date_moved_on" to "2026-11-23")), today))
+        assertEquals(RowLook(tint = false, edge = Edge.None), rowLook(case(emptyMap()), today))
+    }
+
+    @Test fun rowAndWatchWords() {
+        val c = case(mapOf("court_line" to "Civil Judge at Ludhiana", "folder" to mapOf("id" to 2.0, "name" to "Bank"), "tags" to listOf(mapOf("id" to 1.0, "name" to "Urgent")), "morning_check" to true))
+        assertEquals("Civil Judge at Ludhiana · Bank · #Urgent", courtLine(c))
+        assertTrue(rowSpeech(c, today).endsWith("Watched daily"))
+        assertEquals("Watched Daily · 1 Credit", watchText(true, 1))
+        assertEquals("Watched Daily", watchText(true, 0))   // no cost set: no figure
+        assertEquals("Not Watched. Watch Daily", watchText(false, 1))
+    }
+
     @Test fun legendCoversEverySymbolOnce() {
         assertEquals(Sym.entries.size, LEGEND.toSet().size)
         LEGEND.forEach { assertTrue(it.label.isNotBlank() && it.line.isNotBlank() && it.line.endsWith(".")) }
         // Colour only for good and needs-you (the app's rule): green for confirmed and kept, red for moved and Needs Your Eye.
-        assertEquals(setOf(Sym.CheckedToday, Sym.OrderKept), LEGEND.filter { it.tone == SymTone.Green }.toSet())
-        assertEquals(setOf(Sym.Moved, Sym.NeedsEye), LEGEND.filter { it.tone == SymTone.Red }.toSet())
+        assertEquals(setOf(Sym.CheckedToday, Sym.OrderKept, Sym.Watched), LEGEND.filter { it.tone == SymTone.Green }.toSet())
+        assertEquals(setOf(Sym.Moved, Sym.NeedsEye, Sym.RedEdge), LEGEND.filter { it.tone == SymTone.Red }.toSet())
+        // No "e" badge and no eye: the tint says watched (owner, 23 Nov 2026).
+        assertFalse(LEGEND.any { it.label.equals("eCourts", true) || it.label.startsWith("Daily Check") })
+        assertEquals("Watched daily: checked with eCourts every morning.", Sym.Watched.line)
+        assertEquals("Needs your eye, or the date was moved.", Sym.RedEdge.line)
         assertFalse(LEGEND.any { it.line.contains("ertified") })
     }
 

@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PriorityHigh
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Update
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,14 +63,23 @@ enum class Sym(val label: String, val line: String, val tone: SymTone) {
     Moved("Date Moved", "eCourts moved the next date today or yesterday.", SymTone.Red),
     NeedsEye("Needs Your Eye", "eCourts shows a different date: choose which is right.", SymTone.Red),
     Undated("No Date", "The case has no next date yet.", SymTone.Grey),
-    CheckOn("Daily Check On", "Checked with eCourts every morning.", SymTone.Grey),
-    CheckOff("Daily Check Off", "Not checked; its date stays as it is.", SymTone.Grey),
+    Watched("Green Tint", "Watched daily: checked with eCourts every morning.", SymTone.Green),
+    RedEdge("Red Edge", "Needs your eye, or the date was moved.", SymTone.Red),
     OrderKept("Order Kept", "Kept on the platform: tap to open, free.", SymTone.Green),
     OrderAvailable("Order Not Fetched", "Tap to get it from eCourts; its cost shows first.", SymTone.Grey),
     OrderSealed("Signed Order", "Signed or locked: opens on its own.", SymTone.Grey),
     Folder("Folder", "The folder the case is filed in.", SymTone.Grey),
     Tag("Tag", "#name: a tag on the case.", SymTone.Grey),
-    Ecourts("eCourts", "The case is followed on eCourts (it has a CNR).", SymTone.Grey),
+}
+
+/** A Cases row's colour (owner, 23 Nov 2026, "use colours to symbolise"): a green tint when watched; a start-edge bar, red when it needs you. */
+enum class Edge { None, Green, Red }
+data class RowLook(val tint: Boolean, val edge: Edge)
+
+/** Watched (daily check on) tints the row green with a green edge; Needs Your Eye or a recent move makes the edge red. Red wins on the edge. */
+internal fun rowLook(c: BoardCase, today: LocalDate): RowLook {
+    val alert = c.needsEye || movedToday(c, today)
+    return RowLook(tint = c.morningCheck, edge = if (alert) Edge.Red else if (c.morningCheck) Edge.Green else Edge.None)
 }
 
 /** The legend, in the order it reads: dates, the daily check, orders, filing, source. */
@@ -117,6 +124,13 @@ internal fun orderHint(o: BoardOrder): String = orderLabel(o) + ". " + when (ord
     else -> "Not fetched yet" + (shownCost(o.cost)?.let { ", ${creditsLabel(it)}" } ?: "") + ". Tap to get it."
 }
 
+/** How much green goes into the watched tint: enough to read as pale green, little enough for ink on it to keep AA contrast. */
+const val WATCH_MIX = 0.20f
+
+/** The watched tint: the palette's green mixed into white (the card in dark mode), opaque, so the warm grey under it cannot turn it grey. */
+@Composable
+fun watchTint(): Color = androidx.compose.ui.graphics.lerp(if (Lex.colors.isDark) Lex.colors.card else Color.White, Lex.colors.success.solid, WATCH_MIX)
+
 /** The text form of a case's tags: "#Urgent #Bank". */
 internal fun tagsLine(c: BoardCase): String = c.tags.joinToString(" ") { "#" + it.name }
 
@@ -135,13 +149,11 @@ private fun iconOf(s: Sym): ImageVector? = when (s) {
     Sym.Moved -> Icons.Outlined.Update
     Sym.NeedsEye -> Icons.Outlined.PriorityHigh
     Sym.Undated -> Icons.Outlined.RadioButtonUnchecked
-    Sym.CheckOn -> Icons.Filled.Visibility
-    Sym.CheckOff -> Icons.Outlined.Visibility
     Sym.OrderKept -> Icons.Filled.Description
     Sym.OrderAvailable -> Icons.Outlined.Description
     Sym.OrderSealed -> Icons.Outlined.Lock
     Sym.Folder -> Icons.Outlined.Folder
-    Sym.Tag, Sym.Ecourts -> null
+    Sym.Tag, Sym.Watched, Sym.RedEdge -> null
 }
 
 /** One symbol, small, in its tone, named for screen readers. */
@@ -149,11 +161,11 @@ private fun iconOf(s: Sym): ImageVector? = when (s) {
 fun SymbolIcon(s: Sym, size: Dp = 16.dp, modifier: Modifier = Modifier) {
     val tint = toneColor(s.tone)
     when (s) {
-        Sym.Ecourts -> Box(
-            modifier.semantics { contentDescription = s.label }.clip(RoundedCornerShape(4.dp)).border(1.dp, Lex.colors.input, RoundedCornerShape(4.dp))
-                .padding(horizontal = 4.dp),
-            contentAlignment = Alignment.Center,
-        ) { Text("e", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Lex.colors.secondaryForeground) }
+        // The legend's colour marks: a tinted chip with its edge.
+        Sym.Watched, Sym.RedEdge -> Row(modifier.semantics { contentDescription = s.label }.size(width = 22.dp, height = 16.dp).clip(RoundedCornerShape(3.dp))
+            .background(if (s == Sym.Watched) watchTint() else Color.Transparent).border(1.dp, Lex.colors.border, RoundedCornerShape(3.dp))) {
+            Box(Modifier.width(3.dp).height(16.dp).background(tint))
+        }
         Sym.Tag -> Text("#", modifier.semantics { contentDescription = s.label }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tint)
         else -> Icon(iconOf(s)!!, contentDescription = s.label, tint = tint, modifier = modifier.size(size))
     }
@@ -166,8 +178,8 @@ fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = t
     val shape = RoundedCornerShape(6.dp)
     TooltipBox(positionProvider = OnScreenTooltip, tooltip = { PlainTooltip { Text(hint) } }, state = rememberTooltipState()) {
         Row(
-            Modifier.clip(shape).border(1.dp, Lex.colors.input, shape).clickable(enabled = enabled, onClick = onClick)
-                .semantics { contentDescription = hint }.padding(horizontal = 8.dp, vertical = 6.dp),
+            Modifier.clip(shape).clickable(enabled = enabled, onClick = onClick)
+                .semantics { contentDescription = hint }.padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             index?.let { Text("$it", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Lex.colors.secondaryForeground); Spacer(Modifier.width(3.dp)) }
