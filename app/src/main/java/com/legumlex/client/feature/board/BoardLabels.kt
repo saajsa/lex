@@ -96,9 +96,6 @@ internal fun parseCasePage(d: Map<String, Any?>): CasePage {
     return CasePage(d["total"].intOrNull() ?: items.size, d["offset"].int(), d["limit"].intOrNull() ?: CASES_PAGE, items)
 }
 
-/** The web's chips, in its order and words, each with its count ("Listed Today 3"). */
-internal val FILTER_CHIPS = listOf("all" to "All", "today" to "Listed Today", "tomorrow" to "Listed Tomorrow", "undated" to "Undated", "eye" to "Needs Your Eye", "disposed" to "Disposed")
-
 /** "1 to 100 of 240", the web's pager line; null on a single page. */
 internal fun pagerLine(p: CasePage): String? =
     if (p.total <= CASES_PAGE && p.offset == 0) null
@@ -110,81 +107,12 @@ internal fun deleteAsk(kind: LabelKind, l: BoardLabel): String {
     return if (kind == LabelKind.Folders) "Its $n stay, in no folder." else "It comes off $n. The cases stay."
 }
 
-/** A filter chip: ink when chosen, outlined otherwise (radius 6). */
-@Composable
-private fun FilterPill(label: String, count: Int, on: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(6.dp)
-    Row(
-        Modifier.clip(shape).background(if (on) Lex.colors.foreground else Lex.colors.card)
-            .border(1.dp, if (on) Lex.colors.foreground else Lex.colors.input, shape).clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = if (on) Lex.colors.background else Lex.colors.foreground)
-        Text(creditsText(count), style = MaterialTheme.typography.labelMedium, color = if (on) Lex.colors.background else Lex.colors.secondaryForeground)
-    }
-}
-
 /** One picker option: its value, its name, how many cases. */
 internal data class PickOption(val value: String, val name: String, val cases: Int? = null)
-
-/** What a picker pill says: the chosen option's name, else the picker's own label. */
-internal fun pillText(label: String, options: List<PickOption>, selected: String): String =
-    options.firstOrNull { it.value == selected && selected.isNotEmpty() }?.name ?: label
 
 internal fun courtOptions(f: BoardFilters) = f.courts.map { PickOption(it.key, it.court, it.cases) }
 internal fun folderOptions(f: BoardFilters) = listOf(PickOption("none", "In No Folder")) + f.folders.map { PickOption(it.id.toString(), it.name, it.cases) }
 internal fun tagOptions(f: BoardFilters) = f.tags.map { PickOption(it.id.toString(), it.name, it.cases) }
-
-/** A small pill picker: "Court ▾", or the chosen value in ink with a clear ×; the options (with counts) in a menu. */
-@Composable
-private fun PillPicker(label: String, options: List<PickOption>, selected: String, onSelect: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    val set = selected.isNotEmpty() && options.any { it.value == selected }
-    val shape = RoundedCornerShape(6.dp)
-    val fg = if (set) Lex.colors.background else Lex.colors.foreground
-    Box {
-        Row(
-            Modifier.clip(shape).background(if (set) Lex.colors.foreground else Lex.colors.card)
-                .border(1.dp, if (set) Lex.colors.foreground else Lex.colors.input, shape).clickable { open = true }
-                .padding(start = 12.dp, end = if (set) 4.dp else 8.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(pillText(label, options, selected), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = fg,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
-            if (set) Icon(Icons.Outlined.Close, "Clear $label", tint = fg, modifier = Modifier.padding(start = 2.dp).size(22.dp).clip(RoundedCornerShape(4.dp)).clickable { onSelect("") }.padding(3.dp))
-            else Icon(Icons.Outlined.ExpandMore, null, tint = fg, modifier = Modifier.size(18.dp))
-        }
-        DropdownMenu(open, { open = false }) {
-            if (options.isEmpty()) DropdownMenuItem(text = { Text("None yet") }, onClick = { open = false }, enabled = false)
-            options.forEach { o ->
-                DropdownMenuItem(
-                    text = { Text(o.name + (o.cases?.let { "  ${creditsText(it)}" } ?: ""), fontWeight = if (o.value == selected) FontWeight.SemiBold else FontWeight.Normal) },
-                    onClick = { open = false; onSelect(o.value) },
-                )
-            }
-        }
-    }
-}
-
-/** The chips, then one row of Court, Folder and Tag pills and the Folders And Tags button: compact, so the first case shows. */
-@Composable
-fun CaseFilterBar(f: BoardFilters?, q: CaseQuery, onChange: (CaseQuery) -> Unit, onManage: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FILTER_CHIPS.forEach { (k, label) -> FilterPill(label, f?.counts?.get(k) ?: 0, q.filter == k) { onChange(q.copy(filter = k)) } }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val fs = f ?: BoardFilters(emptyMap(), emptyList(), emptyList(), emptyList())
-                PillPicker("Court", courtOptions(fs), q.court) { onChange(q.copy(court = it)) }
-                PillPicker("Folder", folderOptions(fs), q.folder) { onChange(q.copy(folder = it)) }
-                PillPicker("Tag", tagOptions(fs), if (q.tag > 0) q.tag.toString() else "") { onChange(q.copy(tag = it.toIntOrNull() ?: 0)) }
-            }
-            IconAction(Icons.Outlined.Folder, "Folders And Tags", onManage, size = 36.dp)
-        }
-    }
-}
 
 /** A row's folder and tag badges. */
 @OptIn(ExperimentalLayoutApi::class)

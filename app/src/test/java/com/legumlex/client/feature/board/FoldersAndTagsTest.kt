@@ -35,7 +35,7 @@ class FoldersAndTagsTest {
     }
 
     @Test fun wordsAsTheWeb() {
-        assertEquals(listOf("All", "Listed Today", "Listed Tomorrow", "Undated", "Needs Your Eye", "Disposed"), FILTER_CHIPS.map { it.second })
+        assertEquals(listOf("All", "Needs Your Eye", "Undated", "Disposed"), STATUS_SEGMENTS.map { it.second })   // Listed Today/Tomorrow left the app
         assertEquals("Its 3 cases stay, in no folder.", deleteAsk(LabelKind.Folders, BoardLabel(1, "A", 3)))
         assertEquals("It comes off 1 case. The cases stay.", deleteAsk(LabelKind.Tags, BoardLabel(1, "A", 1)))
     }
@@ -59,17 +59,13 @@ class FoldersAndTagsTest {
     }
 }
 
-/** The compact pickers: a pill says its label until a value is chosen, then that value's name. */
-class PillPickerTest {
+/** The filter sheet's options: Folder starts with In No Folder; each carries its count. */
+class PickerOptionsTest {
     private val f = BoardFilters(emptyMap(), listOf(CourtOption("k1", "CJ Ludhiana", 7)), listOf(BoardLabel(2, "Bank Matters", 5)), listOf(BoardLabel(4, "Urgent", 1)))
 
-    @Test fun pillWords() {
-        assertEquals("Court", pillText("Court", courtOptions(f), ""))
-        assertEquals("CJ Ludhiana", pillText("Court", courtOptions(f), "k1"))
-        assertEquals("Court", pillText("Court", courtOptions(f), "gone"))
-        assertEquals("In No Folder", pillText("Folder", folderOptions(f), "none"))
-        assertEquals("Bank Matters", pillText("Folder", folderOptions(f), "2"))
-        assertEquals("Urgent", pillText("Tag", tagOptions(f), "4"))
+    @Test fun options() {
+        assertEquals(listOf("k1"), courtOptions(f).map { it.value }); assertEquals(7, courtOptions(f)[0].cases)
         assertEquals(listOf("none", "2"), folderOptions(f).map { it.value })
+        assertEquals(listOf("Urgent"), tagOptions(f).map { it.name })
     }
 }

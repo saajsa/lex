@@ -63,7 +63,7 @@ class OfflineAndTabsTest {
     @Test fun tabsAndHead() {
         val today = LocalDate.of(2026, 11, 23)
         val c = parseCase(mapOf("id" to 1.0, "next_date" to "2026-11-28", "court" to "Civil Judge", "court_line" to "Civil Judge at Ludhiana"))
-        assertEquals("Next: ${BoardDates.show("2026-11-28", today)} · Civil Judge at Ludhiana", caseHeadLine(c, today))
-        assertEquals("", caseHeadLine(parseCase(mapOf("id" to 1.0)), today))
+        assertEquals("Next: ${BoardDates.show("2026-11-28", today)}", nextLine(c, today))
+        assertEquals("No Next Date", nextLine(parseCase(mapOf("id" to 1.0)), today))
     }
 }

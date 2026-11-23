@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Share
@@ -73,6 +74,7 @@ import com.legumlex.client.ui.theme.Zinc400
 import com.legumlex.client.ui.theme.Zinc950
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.io.File
 
 // REQ-038 038.2 hearings and 038.3 orders on the counsel case page: copies from eCourts, fetched once at a cost, kept, opened free.
@@ -168,25 +170,6 @@ private fun RecordEmptyCard(title: String, what: String, icon: androidx.compose.
 /** A read is offered on an empty tab only when it would load something: the case has a CNR and its record is not loaded yet. */
 internal fun offerRead(hasCnr: Boolean, loaded: Boolean): Boolean = hasCnr && !loaded
 
-/** One order as a row: its name, its state, and a tap to open (kept) or get (to fetch). */
-@Composable
-internal fun OrderRow(o: BoardOrder, enabled: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(Lex.colors.card).border(1.dp, Lex.colors.border, shape)
-            .clickable(enabled = enabled || o.fetched) { if (o.fetched) onOpen(o) else onGet(o) }.padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(if (o.sealed) Icons.Outlined.Lock else Icons.Outlined.Description, null, tint = Lex.colors.secondaryForeground, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(orderLabel(o), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-            Text(orderState(o), style = MaterialTheme.typography.labelSmall,
-                color = if (o.fetched && !o.sealed) Lex.colors.success.softText else Lex.colors.secondaryForeground)
-        }
-    }
-}
-
 /** The orders not shown under any hearing (no hearing date, or a date with no listing): the rare "Other Orders". */
 internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
     val shown = r.listings.flatMap { l -> l.orders.map { it.id } }.toSet()
@@ -194,41 +177,92 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 }
 
 /**
- * The case's record on one page (owner, 23 Nov 2026: no separate orders screen, fewest taps): the hearings newest first, each with
- * its orders inline (one tap opens a kept copy, or confirms and gets one), All Kept Orders As One PDF at the top when any is kept,
- * and an Other Orders group last for orders under no hearing. Empty: the web's reason, with Update From Court Now when a read helps.
+ * The case's hearings (owner, 23 Nov 2026: hearings fill the page, orders as small symbol buttons, fewest taps): a header with the
+ * eCourts mark and All Kept Orders As One PDF as an icon, then compact cards newest first, each with its orders in a row at the bottom,
+ * and an Other Orders card last for orders under no hearing. Empty: the web's reason, with Update From Court Now when a read helps.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun CaseRecordSection(
     r: CaseRecord, hasCnr: Boolean, readLabel: String, onRead: (() -> Unit)?, enabled: Boolean,
-    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, onCombined: () -> Unit,
+    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, onCombined: () -> Unit, onLegend: (() -> Unit)? = null,
 ) {
     val other = otherOrders(r)
     if (r.listings.isEmpty() && other.isEmpty()) { RecordEmptyCard("No Hearings Yet", "hearings", Icons.Outlined.Event, r, hasCnr, readLabel, onRead); return }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        com.legumlex.client.ui.components.Eyebrow("Hearings", Modifier.weight(1f))
-        // D5: eCourts' own text, marked with a small badge.
-        com.legumlex.client.ui.components.StatusChip("eCourts", Lex.colors.neutral)
+        com.legumlex.client.ui.components.Eyebrow("Hearings")
+        SymbolIcon(Sym.Ecourts)
+        Spacer(Modifier.weight(1f))
+        if (combinedOffered(r.orders)) IconAction(Icons.Outlined.PictureAsPdf, "All Kept Orders As One PDF", onCombined, size = 36.dp)
+        onLegend?.let { IconAction(Icons.Outlined.Info, "What The Symbols Mean", it, size = 36.dp) }
     }
-    if (r.orders.isNotEmpty()) NoteLine(ORDERS_LINE)
-    if (combinedOffered(r.orders)) LegumSecondaryButton("All Kept Orders As One PDF", onCombined, leadingIcon = Icons.Outlined.PictureAsPdf)
+    @Composable
+    fun Orders(list: List<BoardOrder>) {
+        if (list.isEmpty()) return
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            list.forEach { o -> OrderSymbol(o, enabled, onOpen, onGet) }
+        }
+    }
     r.listings.forEach { h ->
         LexCard {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
                 hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
                 if (h.judge.isNotBlank()) Text(h.judge, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground)
-                h.orders.forEach { o -> Spacer(Modifier.height(4.dp)); OrderRow(o, enabled, onOpen, onGet) }
+                Orders(h.orders)
             }
         }
     }
     if (other.isNotEmpty()) {
         LexCard {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                 Text("Other Orders", style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-                other.forEach { o -> OrderRow(o, enabled, onOpen, onGet) }
+                Orders(other)
             }
         }
+    }
+}
+
+/**
+ * Getting an order from anywhere (the case page, a Cases card): the cost confirm, the fetch, the balance, and the server's refusal.
+ * One host per screen ([OrderGetterHost]); [ask] starts it.
+ */
+class OrderGetter {
+    var pending by mutableStateOf<Pair<Int, BoardOrder>?>(null)
+    var fetching by mutableStateOf(false)
+    var refusal by mutableStateOf<String?>(null)
+    var refusalCode by mutableStateOf<String?>(null)
+    var balance by mutableStateOf<Int?>(null)
+    fun ask(caseId: Int, o: BoardOrder) { refusal = null; refusalCode = null; pending = caseId to o }
+}
+
+@Composable
+fun rememberOrderGetter(): OrderGetter = remember { OrderGetter() }
+
+/** The confirm, then the fetch: on success the balance chip moves and [onOpened] opens the copy; a refusal re-reads the balance (refunds). */
+@Composable
+fun OrderGetterHost(g: OrderGetter, onOpened: (caseId: Int, orderId: Int, title: String) -> Unit, onChanged: (caseId: Int) -> Unit) {
+    val context = LocalContext.current
+    val repo = remember { BoardRepository(context) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(Unit) { repo.credits().onSuccess { g.balance = it.balance } }
+    g.pending?.let { (caseId, o) ->
+        FetchConfirm(o, g.balance, onCancel = { g.pending = null }, onGet = {
+            g.pending = null; g.fetching = true
+            scope.launch {
+                repo.orderFetch(caseId, o.id).onSuccess { r ->
+                    g.balance = r.balance; BoardHub.applyBalance(r.balance)
+                    onChanged(caseId)
+                    onOpened(caseId, r.order.id, orderLabel(r.order))
+                }.onFailure {
+                    g.refusal = it.boardMessage(); g.refusalCode = it.boardCode()
+                    repo.credits().onSuccess { c -> g.balance = c.balance; BoardHub.applyBalance(c.balance) }
+                    onChanged(caseId)
+                }
+                g.fetching = false
+            }
+        })
     }
 }
 

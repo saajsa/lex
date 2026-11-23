@@ -457,7 +457,11 @@ fun LegumNavGraph(navController: NavHostController) {
             )
         }
         composable(Route.BoardCases.path) {
-            com.legumlex.client.feature.board.BoardCasesListScreen(onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) })
+            com.legumlex.client.feature.board.BoardCasesListScreen(
+                onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) },
+                onOpenOrder = { caseId, oid, title -> navController.navigate(Route.BoardOrder.build(caseId, oid, title)) },
+                onCredits = { navController.navigate(Route.BoardCredits.path) },
+            )
         }
         composable(Route.Upgrade.path) { com.legumlex.client.feature.board.UpgradeScreen() }
         composable(

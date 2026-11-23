@@ -78,13 +78,6 @@ fun checkPalette(check: MorningCheck): StatusPalette = when (check.result) {
     else -> Lex.colors.neutral
 }
 
-/** The morning check's chip for a case, as the server states it. */
-@Composable
-fun CaseChips(c: BoardCase) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        c.check?.let { StatusChip(it.label, checkPalette(it)) }
-    }
-}
 
 /** A line under a heading: used for refusals and notes inside screens. */
 @Composable
