@@ -64,6 +64,9 @@ data class BoardCase(
     /** The server's "designation at place" (no room) and the judge as the bench rule addresses them ("Ld. Court" when none). */
     val courtDesig: String = "",
     val judgeLine: String = "",
+    /** REQ-038 038.5: the counsel's own folder (one) and tags (many). */
+    val folder: LabelRef? = null,
+    val tags: List<LabelRef> = emptyList(),
 ) {
     /** The court line: the court, then the bench the server names (else the room). */
     val courtLine: String get() = listOf(courtShown, judgeShown).filter { it.isNotBlank() }.joinToString(" · ")
@@ -222,6 +225,8 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         history = m["history"].list().map { DateHistoryRow(it["date"].str(), it["source"].str(), it["label"].str(), it["at"].strOrNull(), it["superseded"] == true) },
         courtDesig = m["court_line"].str(),
         judgeLine = m["judge_line"].str(),
+        folder = m["folder"].map().takeIf { it.isNotEmpty() }?.let(::parseLabelRef),
+        tags = m["tags"].list().map(::parseLabelRef),
     )
 }
 

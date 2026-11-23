@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
@@ -102,7 +103,7 @@ private sealed interface SheetState {
 /** A day's cause list (the counsel's own format): downloaded to the cache, drawn page by page, and shareable. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
+fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit, onDaysAhead: (String) -> Unit = {}) {
     val context = LocalContext.current
     var day by remember { mutableStateOf(date) }
     var picking by remember { mutableStateOf(false) }
@@ -136,6 +137,8 @@ fun BoardSheetScreen(date: String, label: String, onBack: () -> Unit) {
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Color.White) } },
                 actions = {
+                    // REQ-038 038.4: the days from this one, as the web's "The 7 Days From Here".
+                    IconButton(onClick = { onDaysAhead(day) }) { Icon(Icons.Outlined.DateRange, "Days Ahead", tint = Color.White) }
                     (state as? SheetState.Ready)?.let { r ->
                         IconButton(onClick = { printSheet(context, r.file, BoardDates.parse(day)?.let { BoardDates.long(it) } ?: day) }) { Icon(Icons.Outlined.Print, "Print", tint = Color.White) }
                         IconButton(onClick = { shareSheet(context, r.file, label) }) { Icon(Icons.Outlined.Share, "Share Cause List", tint = Color.White) }

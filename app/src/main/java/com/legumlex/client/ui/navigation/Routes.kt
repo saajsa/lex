@@ -70,6 +70,11 @@ sealed class Route(val path: String) {
     data object CounselCalendar : Route("counsel/calendar")
     data object BoardCases : Route("counsel/cases")
     data object Upgrade : Route("counsel/upgrade")
+    /** REQ-038 038.4: the cause list for 7 or 14 days from a date (the web's Days Ahead). */
+    data object BoardRange : Route("counsel/range?from={from}") {
+        const val ARG_FROM = "from"
+        fun build(from: String) = "counsel/range?from=$from"
+    }
     data object BoardSheet    : Route("board/sheet/{date}/{junior}?label={label}") {
         const val ARG_DATE = "date"
         const val ARG_JUNIOR = "junior"
@@ -393,6 +398,6 @@ val leadTabs = listOf(
 /** The Counsel screens that scroll behind the raised Print button's zone (each keeps bottom room of its own). */
 fun counselRunsBehindBar(route: String?): Boolean {
     val b = routeBase(route) ?: return false
-    return listOf(Route.Home, Route.CounselCalendar, Route.BoardCredits, Route.Upgrade, Route.BoardCases, Route.BoardCase)
+    return listOf(Route.Home, Route.CounselCalendar, Route.BoardCredits, Route.Upgrade, Route.BoardCases, Route.BoardCase, Route.BoardRange)
         .any { it.path.substringBefore("?") == b }
 }

@@ -73,6 +73,7 @@ internal fun CaseListRow(c: BoardCase, today: java.time.LocalDate, onClick: () -
             )
             c.check?.let { com.legumlex.client.ui.components.StatusChip(it.label, checkPalette(it)) }
         }
+        if (c.folder != null || c.tags.isNotEmpty()) { Spacer(Modifier.height(6.dp)); LabelBadges(c) }
     }
 }
 
@@ -95,6 +96,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
     var refusalCode by remember { mutableStateOf<String?>(null) }
     var checkCost by remember { mutableStateOf<Int?>(null) }
     var answering by remember { mutableStateOf<Pair<NeedsEye, DateAnswer>?>(null) }
+    var filing by remember { mutableStateOf(false) }
     val today = BoardDates.today()
 
     fun load() { scope.launch { repo.case(caseId).onSuccess { c = it; error = null }.onFailure { error = it.boardMessage() } } }
@@ -142,6 +144,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
                 if (x.note.isNotBlank()) KeyValueRow("Note", x.note)
                 KeyValueRow("Source", sourceLabel(x.source))
             }
+            FolderAndTagsCard(x) { filing = true }
             DateHistoryCard(x.history, today)
             refusal?.let {
                 NoteLine(it, danger = true)
@@ -159,6 +162,8 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
         }
         Spacer(Modifier.height(8.dp))
     }
+
+    c?.let { x -> if (filing) FileCaseWizard(x, onClose = { filing = false }, onSaved = { filing = false; c = it.copy(history = x.history) }) }
 
     answering?.let { (n, a) ->
         DateAnswerDialog(n, a, today, onClose = { answering = null }, onDone = { answering = null; load() })
@@ -237,35 +242,54 @@ private fun DateHistoryCard(rows: List<DateHistoryRow>, today: java.time.LocalDa
 }
 
 
-/** Every case in the diary, with a search (the Home's Diary tile opens it). */
+/** Every case in the diary: the web's chips, Court, Folder and Tag pickers, search, and pages of 100 (REQ-038 038.5). */
 @Composable
 fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
-    var q by rememberSaveable { mutableStateOf("") }
-    var cases by remember { mutableStateOf<List<BoardCase>?>(null) }
+    var query by remember { mutableStateOf(CaseQuery()) }
+    var offset by remember { mutableStateOf(0) }
+    var page by remember { mutableStateOf<CasePage?>(null) }
+    var filters by remember { mutableStateOf<BoardFilters?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var tick by remember { mutableStateOf(0) }
     var byHand by remember { mutableStateOf(false) }
+    var managing by remember { mutableStateOf(false) }
     if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onOpenCase(it.id) })
+    if (managing) FoldersAndTagsDialog(onClose = { managing = false }, onChanged = { tick++ })
     val today = BoardDates.today()
-    LaunchedEffect(q, tick) {
-        if (q.isNotBlank()) kotlinx.coroutines.delay(300)
-        repo.cases(q.trim()).onSuccess { cases = it.second; error = null }.onFailure { error = it.boardMessage() }
+    LaunchedEffect(tick) { repo.filters().onSuccess { filters = it } }
+    LaunchedEffect(query, offset, tick) {
+        if (query.q.isNotBlank()) kotlinx.coroutines.delay(300)
+        repo.casePage(query, offset).onSuccess { page = it; error = null }.onFailure { error = it.boardMessage() }
     }
+    // A new filter or search starts again at the first page.
+    val change = { nq: CaseQuery -> query = nq; offset = 0 }
     androidx.compose.foundation.lazy.LazyColumn(
         Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item { PageHeader(eyebrow = "Your Diary", title = "Cases") }
         item { LegumSecondaryButton("Add By Hand", { byHand = true }) }
-        item { com.legumlex.client.ui.components.LegumTextField(q, { q = it }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search) }
-        val all = cases
+        item { com.legumlex.client.ui.components.LegumTextField(query.q, { change(query.copy(q = it)) }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search) }
+        item { CaseFilterBar(filters, query, change) { managing = true } }
+        val p = page
         when {
-            error != null && all == null -> item { LexCard { LexEmpty("The Cases Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { error = null; tick++ }) }) } }
-            all == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
-            all.isEmpty() -> item { Text(if (q.isBlank()) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
-            else -> items(all, key = { it.id }) { c -> CaseListRow(c, today) { onOpenCase(c.id) } }
+            error != null && p == null -> item { LexCard { LexEmpty("The Cases Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { error = null; tick++ }) }) } }
+            p == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
+            p.items.isEmpty() -> item { Text(if (query == CaseQuery()) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
+            else -> {
+                items(p.items, key = { it.id }) { c -> CaseListRow(c, today) { onOpenCase(c.id) } }
+                pagerLine(p)?.let { line ->
+                    item {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(line, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground, modifier = Modifier.weight(1f))
+                            if (p.offset > 0) TextButton({ offset = maxOf(0, p.offset - CASES_PAGE) }) { Text("Previous") }
+                            if (p.offset + CASES_PAGE < p.total) TextButton({ offset = p.offset + CASES_PAGE }) { Text("Next") }
+                        }
+                    }
+                }
+            }
         }
     }
 }

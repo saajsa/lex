@@ -121,6 +121,27 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
         d["total"].int() to d["items"].list().map(::parseCase)
     }
 
+    /** One page of the Cases list (REQ-038 038.5): the chip's filter, the court, folder and tag pickers, the search. */
+    suspend fun casePage(q: CaseQuery, offset: Int): Result<CasePage> = runCatching {
+        parseCasePage(data(api.boardCases(q = q.q.trim(), limit = CASES_PAGE, offset = offset, filter = q.filter.takeIf { it != "all" },
+            court = q.court.ifBlank { null }, folder = q.folder.ifBlank { null }, tag = q.tag.takeIf { it > 0 })))
+    }
+
+    suspend fun filters(): Result<BoardFilters> = runCatching { parseFilters(data(api.boardFilters())) }
+
+    /** Add ([id] 0) or rename a folder or tag; the saved name comes back. */
+    suspend fun labelSave(kind: LabelKind, id: Int, name: String): Result<String> = runCatching {
+        val r = if (id > 0) api.boardLabelRename(kind.wire, id, name.trim()) else api.boardLabelAdd(kind.wire, name.trim())
+        data(r)["name"].str().ifBlank { name.trim() }
+    }
+
+    suspend fun labelDelete(kind: LabelKind, id: Int): Result<Unit> = runCatching { api.boardLabelDelete(kind.wire, id); Unit }
+
+    /** File a case: its folder (0 for none) and its whole set of tags. */
+    suspend fun caseLabels(id: Int, folderId: Int, tagIds: Collection<Int>): Result<BoardCase> = runCatching {
+        parseCase(data(api.boardCaseLabels(id, folderId, tagIds.joinToString(",")))["case"].map())
+    }
+
     suspend fun case(id: Int): Result<BoardCase> = runCatching { parseCase(data(api.boardCase(id.toString()))) }
 
     /** The Daily Check switch only: the web case page has no other edit, so the app sends nothing else. */
@@ -159,6 +180,19 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     }
 
     // ---- the sheet ----------------------------------------------------------
+
+    /** REQ-038 038.4: the days from..to, each as board/day gives it. */
+    suspend fun range(from: String, to: String): Result<BoardRange> = runCatching { parseRange(data(api.boardRange(from, to))) }
+
+    /** The range's PDF, saved under cache/board/sheets. */
+    suspend fun rangeSheet(from: String, to: String): Result<File> = runCatching {
+        withContext(Dispatchers.IO) {
+            val sheets = File(dir() ?: error("No cache directory"), "sheets").apply { mkdirs() }
+            val file = File(sheets, "cause-list-$from-to-$to.pdf")
+            api.boardRangeSheet(from, to).use { body -> body.byteStream().use { input -> file.outputStream().use { input.copyTo(it) } } }
+            file
+        }
+    }
 
     /** The cause list's PDF for a date in the counsel's own format; saved under cache/board/sheets. */
     suspend fun sheet(date: String): Result<File> = runCatching {

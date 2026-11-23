@@ -474,6 +474,17 @@ fun LegumNavGraph(navController: NavHostController) {
                 date   = entry.arguments?.getString(Route.BoardSheet.ARG_DATE).orEmpty(),
                 label  = entry.arguments?.getString(Route.BoardSheet.ARG_LABEL).orEmpty().ifBlank { "Cause List" },
                 onBack = { navController.popBackStack() },
+                onDaysAhead = { from -> navController.navigate(Route.BoardRange.build(from)) },
+            )
+        }
+        composable(
+            Route.BoardRange.path,
+            arguments = listOf(navArgument(Route.BoardRange.ARG_FROM) { type = NavType.StringType; defaultValue = "" }),
+        ) { entry ->
+            com.legumlex.client.feature.board.BoardRangeScreen(
+                from = entry.arguments?.getString(Route.BoardRange.ARG_FROM).orEmpty(),
+                onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) },
+                onOpenDay = { d -> navController.navigate(Route.BoardSheet.build(d, Route.BoardSheet.OWN, "Cause List")) },
             )
         }
         composable(Route.Profile.path) {

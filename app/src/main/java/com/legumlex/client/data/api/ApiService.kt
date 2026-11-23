@@ -951,6 +951,15 @@ interface ApiService {
     @GET("board/day")
     suspend fun boardDay(@Query("date") date: String): Map<String, Any?>
 
+    /** REQ-038 038.4: each day's list from..to (at most 31 days), {from, to, max_days, days [{date, items, counts}]}; 422 range when backwards. */
+    @GET("board/range")
+    suspend fun boardRange(@Query("from") from: String, @Query("to") to: String): Map<String, Any?>
+
+    /** REQ-038 038.4: one PDF of the range, a page per day that has cases. */
+    @Headers("X-Long-Call: 1")
+    @GET("board/sheet")
+    suspend fun boardRangeSheet(@Query("from") from: String, @Query("to") to: String): ResponseBody
+
     @Multipart
     @Headers("X-Long-Call: 1")
     @POST("board/import")
@@ -967,7 +976,33 @@ interface ApiService {
         @Query("limit") limit: Int = 100,
         @Query("offset") offset: Int = 0,
         @Query("order") order: String = "next",
+        // REQ-038 038.5 (additive): null leaves a filter out.
+        @Query("filter") filter: String? = null,
+        @Query("court") court: String? = null,
+        @Query("folder") folder: String? = null,
+        @Query("tag") tag: Int? = null,
     ): Map<String, Any?>
+
+    /** REQ-038 038.5: {counts, courts, folders, tags} for the Cases filters. */
+    @GET("board/filters")
+    suspend fun boardFilters(): Map<String, Any?>
+
+    /** Add a folder or tag ([kind] folders|tags). */
+    @FormUrlEncoded
+    @POST("board/{kind}")
+    suspend fun boardLabelAdd(@Path("kind") kind: String, @Field("name") name: String): Map<String, Any?>
+
+    @FormUrlEncoded
+    @POST("board/{kind}/{id}")
+    suspend fun boardLabelRename(@Path("kind") kind: String, @Path("id") id: Int, @Field("name") name: String): Map<String, Any?>
+
+    @POST("board/{kind}/{id}/delete")
+    suspend fun boardLabelDelete(@Path("kind") kind: String, @Path("id") id: Int): Map<String, Any?>
+
+    /** File a case: folder_id 0 is no folder; tag_ids comma-separated, "" for none (a repeated field would reach PHP as its last value only). */
+    @FormUrlEncoded
+    @POST("board/cases/{id}/labels")
+    suspend fun boardCaseLabels(@Path("id") id: Int, @Field("folder_id") folderId: Int, @Field("tag_ids") tagIds: String): Map<String, Any?>
 
     @GET("board/cases/{id}")
     suspend fun boardCase(@Path("id") id: String): Map<String, Any?>
