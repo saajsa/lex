@@ -59,10 +59,33 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
         val live = day(date)
         live.getOrNull()?.let { return Result.success(DayLoad(it, null)) }
         val err = live.exceptionOrNull() ?: return Result.failure(IllegalStateException("No answer"))
-        val http = err.apiError().http
-        if (!(err.isOffline() || (http != null && http >= 500))) return Result.failure(err)
+        if (!savedCopyAllowed(err.isOffline(), err.apiError().http)) return Result.failure(err)
         val saved = cachedDay(date) ?: return Result.failure(err)
         return Result.success(DayLoad(saved.day, saved.savedAt))
+    }
+
+    /** 038.7: one case page from the server (kept on the device), else the kept copy and when it was saved, under the same rule as the day. */
+    suspend fun caseOrSaved(id: Int): Result<Pair<BoardCase, Long?>> {
+        val live = runCatching { data(api.boardCase(id.toString())) }
+        live.getOrNull()?.let { raw -> saveJson("case_$id", raw, "case_", 60); return runCatching { parseCase(raw) to null } }
+        val err = live.exceptionOrNull()!!
+        if (!savedCopyAllowed(err.isOffline(), err.apiError().http)) return Result.failure(err)
+        val (raw, at) = readJson("case_$id") ?: return Result.failure(err)
+        return runCatching { parseCase(raw) to at }
+    }
+
+    /** 038.7: a Cases page, kept per query and page, else the kept copy (same rule). */
+    suspend fun casePageOrSaved(q: CaseQuery, offset: Int): Result<Pair<CasePage, Long?>> {
+        val name = "cases_" + casesKey(q, offset)
+        val live = runCatching {
+            data(api.boardCases(q = q.q.trim(), limit = CASES_PAGE, offset = offset, filter = q.filter.takeIf { it != "all" },
+                court = q.court.ifBlank { null }, folder = q.folder.ifBlank { null }, tag = q.tag.takeIf { it > 0 }))
+        }
+        live.getOrNull()?.let { raw -> saveJson(name, raw, "cases_", 20); return runCatching { parseCasePage(raw) to null } }
+        val err = live.exceptionOrNull()!!
+        if (!savedCopyAllowed(err.isOffline(), err.apiError().http)) return Result.failure(err)
+        val (raw, at) = readJson(name) ?: return Result.failure(err)
+        return runCatching { parseCasePage(raw) to at }
     }
 
     /** The counsel's Home. */
@@ -88,6 +111,24 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
             // Keep the last fortnight of boards, no more.
             dir()?.listFiles { x -> x.name.startsWith("day_") }?.sortedByDescending { it.lastModified() }?.drop(14)?.forEach { it.delete() }
         }
+    }
+
+    /** A server answer kept as JSON under cache/board ([prefix] files beyond [keep] are dropped, oldest first). */
+    private suspend fun saveJson(name: String, raw: Map<String, Any?>, prefix: String, keep: Int) = withContext(Dispatchers.IO) {
+        runCatching {
+            val d = dir() ?: return@runCatching
+            File(d, "$name.json").writeText(json.toJson(raw))
+            d.listFiles { x -> x.name.startsWith(prefix) }?.sortedByDescending { it.lastModified() }?.drop(keep)?.forEach { it.delete() }
+        }
+    }
+
+    /** A kept answer and when it was saved; null when none, or unreadable. */
+    private suspend fun readJson(name: String): Pair<Map<String, Any?>, Long>? = withContext(Dispatchers.IO) {
+        runCatching {
+            val f = dir()?.let { File(it, "$name.json") }?.takeIf { it.isFile } ?: return@runCatching null
+            @Suppress("UNCHECKED_CAST")
+            (json.fromJson(f.readText()) as? Map<String, Any?>)?.let { it to f.lastModified() }
+        }.getOrNull()
     }
 
     /** The board last loaded for this date, if any; null when none was kept or it cannot be read. */
@@ -122,9 +163,48 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     }
 
     /** One page of the Cases list (REQ-038 038.5): the chip's filter, the court, folder and tag pickers, the search. */
-    suspend fun casePage(q: CaseQuery, offset: Int): Result<CasePage> = runCatching {
-        parseCasePage(data(api.boardCases(q = q.q.trim(), limit = CASES_PAGE, offset = offset, filter = q.filter.takeIf { it != "all" },
-            court = q.court.ifBlank { null }, folder = q.folder.ifBlank { null }, tag = q.tag.takeIf { it > 0 })))
+    suspend fun casePage(q: CaseQuery, offset: Int): Result<CasePage> = casePageOrSaved(q, offset).map { it.first }
+
+    /** REQ-038 038.2/038.3: the case's hearings and orders. */
+    suspend fun orders(caseId: Int): Result<CaseRecord> = runCatching { parseRecord(data(api.boardOrders(caseId))) }
+
+    /** Fetch one order's copy (charged once by the server; a kept copy is free). */
+    suspend fun orderFetch(caseId: Int, orderId: Int): Result<OrderFetch> = runCatching { parseOrderFetch(data(api.boardOrderFetch(caseId, orderId))) }
+
+    /** A kept order's file: from this device when it is here (free, works offline), else downloaded and kept under cache/board/orders. */
+    suspend fun orderFile(caseId: Int, orderId: Int): Result<File> = runCatching {
+        withContext(Dispatchers.IO) {
+            val f = File(ordersDir() ?: error("No cache directory"), "order_${caseId}_$orderId.pdf")
+            if (!f.isFile || f.length() == 0L) download(f) { api.boardOrderFile(caseId, orderId) }
+            f
+        }
+    }
+
+    /**
+     * The combined PDF, made fresh by the server (free), with the ids it left out (its X-Orders-Left-Out header). The last one is kept for
+     * when the server cannot be reached; that copy's left-out list is not known, so it comes back empty.
+     */
+    suspend fun combined(caseId: Int): Result<Pair<File, List<Int>>> {
+        val f = ordersDir()?.let { File(it, "combined_$caseId.pdf") } ?: return Result.failure(IllegalStateException("No cache directory"))
+        val live = runCatching {
+            withContext(Dispatchers.IO) {
+                val r = api.boardOrdersCombined(caseId)
+                if (!r.isSuccessful) throw retrofit2.HttpException(r)
+                download(f) { r.body() ?: error("No file") }
+                f to leftOutIds(r.headers()["X-Orders-Left-Out"])
+            }
+        }
+        val err = live.exceptionOrNull() ?: return live
+        return if (savedCopyAllowed(err.isOffline(), err.apiError().http) && f.isFile && f.length() > 0) Result.success(f to emptyList()) else Result.failure(err)
+    }
+
+    private fun ordersDir(): File? = dir()?.let { File(it, "orders").apply { mkdirs() } }
+
+    /** Writes a body to a temp file first, so a broken download never leaves half a PDF behind. */
+    private suspend fun download(to: File, call: suspend () -> okhttp3.ResponseBody) {
+        val tmp = File(to.parentFile, to.name + ".part")
+        call().use { body -> body.byteStream().use { input -> tmp.outputStream().use { input.copyTo(it) } } }
+        if (!tmp.renameTo(to)) { tmp.copyTo(to, overwrite = true); tmp.delete() }
     }
 
     /** The summary to share: the case's own share_text, else the server's share answer. */
@@ -237,3 +317,10 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     /** Where an order stands, asked when the app returns from the pay page. */
     suspend fun order(order: String): Result<OrderStatus> = runCatching { parseOrder(data(api.boardCreditsOrder(order))) }
 }
+
+/** 038.7: a kept copy answers only when the server could not be reached or failed (5xx); a refusal (403, 404, 4xx) never falls back. */
+internal fun savedCopyAllowed(offline: Boolean, http: Int?): Boolean = offline || (http != null && http >= 500)
+
+/** The file key of one Cases page: the query and the page, made file-safe. */
+internal fun casesKey(q: CaseQuery, offset: Int): String =
+    listOf(q.filter, q.court, q.folder, q.tag.toString(), q.q.trim().lowercase(), offset.toString()).joinToString("|").hashCode().toUInt().toString(16)

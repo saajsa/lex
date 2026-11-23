@@ -65,6 +65,13 @@ sealed class Route(val path: String) {
         fun build(id: Int) = "board/cases/$id"
     }
     data object BoardCredits  : Route("board/credits")
+    /** REQ-038 038.3: a kept order (orderId), or the case's combined PDF (orderId 0), in the viewer. */
+    data object BoardOrder : Route("counsel/order/{caseId}/{orderId}?title={title}") {
+        const val ARG_CASE = "caseId"
+        const val ARG_ORDER = "orderId"
+        const val ARG_TITLE = "title"
+        fun build(caseId: Int, orderId: Int, title: String) = "counsel/order/$caseId/$orderId?title=" + android.net.Uri.encode(title)
+    }
     /** REQ-038 038.1: the counsel's alerts (the header bell). */
     data object BoardAlerts   : Route("counsel/alerts")
     /** The Counsel workspace's Upgrade (Coming Soon): an invitation to associate with the firm. */
@@ -290,6 +297,7 @@ private val immersiveBases = setOf(
     Route.NoticeDocViewer.path.substringBefore("?"),   // inline doc viewer (own dark chrome)
     Route.CaseDocViewer.path.substringBefore("?"),     // matters/doc/{kind}/{id} (own toolbar)
     Route.BoardSheet.path.substringBefore("?"),         // board/sheet/{date}/{junior} (own dark toolbar, Share)
+    Route.BoardOrder.path.substringBefore("?"),         // counsel/order/{caseId}/{orderId} (own dark toolbar)
     Route.VideoLobby.path,                              // consultations/{id}/video-lobby
     Route.OnboardingAhc.path,                          // onboarding handoff
     // Branded full-bleed advocate profile: dark slate hero with its own

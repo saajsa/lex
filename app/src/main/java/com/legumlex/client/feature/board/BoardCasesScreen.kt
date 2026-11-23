@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
@@ -48,6 +49,7 @@ import com.legumlex.client.ui.components.LegumTextField
 import com.legumlex.client.ui.components.LexCard
 import com.legumlex.client.ui.components.LexEmpty
 import com.legumlex.client.ui.components.PageHeader
+import com.legumlex.client.ui.components.Eyebrow
 import com.legumlex.client.ui.theme.Lex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,7 +81,7 @@ internal fun CaseListRow(c: BoardCase, today: java.time.LocalDate, onClick: () -
 
 /** One case: its details, and what can be done with it. */
 @Composable
-fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
+fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOpenOrder: (Int, String) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
     val scope = rememberCoroutineScope()
@@ -98,77 +100,127 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
     var answering by remember { mutableStateOf<Pair<NeedsEye, DateAnswer>?>(null) }
     var filing by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf<String?>(null) }
+    var getting by remember { mutableStateOf<BoardOrder?>(null) }
+    var fetching by remember { mutableStateOf(false) }
+    var balance by remember { mutableStateOf<Int?>(null) }
     val today = BoardDates.today()
 
-    fun load() { scope.launch { repo.case(caseId).onSuccess { c = it; error = null }.onFailure { error = it.boardMessage() } } }
+    // 038.7: offline (or a server error) shows the copy kept on this device, with when it was saved; a 403 or 404 never does.
+    var savedAt by remember { mutableStateOf<Long?>(null) }
+    fun load() { scope.launch { repo.caseOrSaved(caseId).onSuccess { (k, at) -> c = k; savedAt = at; error = null }.onFailure { error = it.boardMessage() } } }
     LaunchedEffect(caseId) {
         load()
-        repo.credits().onSuccess { cost = shownCost(it.costAdd); checkCost = shownCost(it.costCheck) }
+        repo.credits().onSuccess { cost = shownCost(it.costAdd); checkCost = shownCost(it.costCheck); balance = it.balance }
     }
+    val live = savedAt == null
+    val openOrder = { o: BoardOrder -> onOpenOrder(o.id, orderLabel(o)) }
+    val getOrder = { o: BoardOrder -> refusal = null; refusalCode = null; getting = o }
+    // The empty Hearings and Orders tabs carry the same Update From Court action (and confirm) as Details.
+    val readLabel = if (busy) "Reading The Court Record…" else "Update From Court Now" + (cost?.let { " (${creditsTitle(it)})" } ?: "")
+    val onRead: (() -> Unit)? = if (live && !busy) ({ refusal = null; confirmRead = true }) else null
+    val clearance = com.legumlex.client.ui.navigation.LocalCounselClearance.current
 
-    Column(Modifier.fillMaxSize().background(Lex.colors.background).androidScroll().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        PageHeader(eyebrow = "Case", title = c?.heading ?: "Case")
-        val x = c
-        if (x == null) {
-            if (error != null) LexCard { LexEmpty("This Case Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { load() }) }) }
-            else Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) }
-        } else {
-            Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
-            CaseChips(x)
-            if (x.needsEye && x.ecourtsDate != null) {
-                NeedsEyeCard(
-                    listOf(NeedsEye(x.id, x.cnr, x.caseNo, x.title, x.ecourtsDate, x.nextDate)), today,
-                    onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight },
-                )
+    Column(Modifier.fillMaxSize().background(Lex.colors.background)) {
+        // The pinned head: the case, its parties and next date, its marks, and the tabs.
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PageHeader(eyebrow = "Case", title = c?.heading ?: "Case")
+            c?.let { x ->
+                Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
+                caseHeadLine(x, today).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
+                CaseChips(x)
+                LabelBadges(x)
+                savedAt?.let { at -> NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") }
             }
-            LexCard {
-                KeyValueRow("CNR", cnrLine(x), mono = x.hasCnr)
-                if (x.caseNo.isNotBlank()) KeyValueRow("Case Number", x.caseNo)
-                if (x.caseType.isNotBlank()) KeyValueRow("Case Type", x.caseType)
-                if (x.petitioner.isNotBlank()) KeyValueRow("Petitioner", x.petitioner)
-                if (x.respondent.isNotBlank()) KeyValueRow("Respondent", x.respondent)
-                if (x.courtShown.isNotBlank()) KeyValueRow("Court", x.courtShown)
-                if (x.judgeShown.isNotBlank()) KeyValueRow("Judge", x.judgeShown)
-                if (x.stage.isNotBlank()) KeyValueRow("Stage", x.stage)
-                BoardDates.parse(x.nextDate)?.let { KeyValueRow("Next Date", BoardDates.long(it)) }
-                BoardDates.parse(x.lastDate)?.let { KeyValueRow("Last Date", BoardDates.long(it)) }
-                DailyCheckRow(x.morningCheck, x.hasCnr, checkCost, enabled = !busy) { on ->
-                    busy = true; refusal = null; refusalCode = null
-                    scope.launch {
-                        // The action's reply has no Date History: the case page is read again so the history stays.
-                        repo.caseEdit(x.id, mapOf("morning_check" to if (on) "1" else "0")).onSuccess { c = it.copy(history = x.history); load() }
-                            .onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() }
-                        busy = false
-                    }
-                }
-                x.check?.let { KeyValueRow("Last Check", it.label + (BoardDates.parse(it.forDate)?.let { d -> " for ${BoardDates.short(d, today)}" } ?: "")) }
-                if (x.note.isNotBlank()) KeyValueRow("Note", x.note)
-                KeyValueRow("Source", sourceLabel(x.source))
-            }
-            FolderAndTagsCard(x) { filing = true }
-            LegumSecondaryButton("Share Summary", {
-                refusal = null
-                scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } }
-            }, enabled = !busy)
-            DateHistoryCard(x.history, today)
-            refusal?.let {
-                NoteLine(it, danger = true)
-                if (refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits)
-            }
-            // The web case page has no edit: the app carries the Daily Check switch, Add The CNR and Update From Court only.
-            if (!x.hasCnr) {
-                LegumPrimaryButton("Add The CNR (Free)", { addingCnr = true }, enabled = !busy)
-                // A hand case's date is the counsel's to set: eCourts has no record of it yet (the web's Set Next Date).
-                LegumSecondaryButton("Set Next Date", { settingDate = true }, enabled = !busy)
-            }
-            // A hand case has nothing at eCourts to read, so there is no Update From Court for it (as on the web).
-            if (x.hasCnr) LegumSecondaryButton(if (busy) "Reading The Court Record…" else "Update From Court Now" + (cost?.let { " (${creditsTitle(it)})" } ?: ""), { refusal = null; confirmRead = true }, enabled = !busy)
-            LegumSecondaryButton("Remove From Your Diary", { confirmRemove = true }, enabled = !busy)
         }
-        Spacer(Modifier.height(8.dp))
+        Column(
+            Modifier.weight(1f).fillMaxWidth().androidScroll().padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = clearance),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val x = c
+            if (x == null) {
+                if (error != null) LexCard { LexEmpty("This Case Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { load() }) }) }
+                else Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) }
+            } else {
+                refusal?.let {
+                    NoteLine(it, danger = true)
+                    if (refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits)
+                }
+                // Owner, 23 Nov 2026: one page, fewest taps. Hearings with their orders first; the details at the end.
+                if (fetching) NoteLine("Getting the order from eCourts. This can take a minute…")
+                CaseRecordSection(x.record, x.hasCnr, readLabel, onRead, enabled = live && !fetching, onOpen = openOrder, onGet = getOrder,
+                    onCombined = { onOpenOrder(0, "All Kept Orders") })
+                Eyebrow("Details", Modifier.padding(top = 8.dp))
+                run {
+                        if (x.needsEye && x.ecourtsDate != null && live) {
+                            NeedsEyeCard(
+                                listOf(NeedsEye(x.id, x.cnr, x.caseNo, x.title, x.ecourtsDate, x.nextDate)), today,
+                                onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight },
+                            )
+                        }
+                        LexCard {
+                            KeyValueRow("CNR", cnrLine(x), mono = x.hasCnr)
+                            if (x.caseNo.isNotBlank()) KeyValueRow("Case Number", x.caseNo)
+                            if (x.caseType.isNotBlank()) KeyValueRow("Case Type", x.caseType)
+                            if (x.petitioner.isNotBlank()) KeyValueRow("Petitioner", x.petitioner)
+                            if (x.respondent.isNotBlank()) KeyValueRow("Respondent", x.respondent)
+                            if (x.courtShown.isNotBlank()) KeyValueRow("Court", x.courtShown)
+                            if (x.judgeShown.isNotBlank()) KeyValueRow("Judge", x.judgeShown)
+                            if (x.stage.isNotBlank()) KeyValueRow("Stage", x.stage)
+                            BoardDates.parse(x.nextDate)?.let { KeyValueRow("Next Date", BoardDates.long(it)) }
+                            BoardDates.parse(x.lastDate)?.let { KeyValueRow("Last Date", BoardDates.long(it)) }
+                            DailyCheckRow(x.morningCheck, x.hasCnr, checkCost, enabled = !busy && live) { on ->
+                                busy = true; refusal = null; refusalCode = null
+                                scope.launch {
+                                    // The action's reply has no Date History: the case page is read again so the history stays.
+                                    repo.caseEdit(x.id, mapOf("morning_check" to if (on) "1" else "0")).onSuccess { c = it.copy(history = x.history); load() }
+                                        .onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() }
+                                    busy = false
+                                }
+                            }
+                            x.check?.let { KeyValueRow("Last Check", it.label + (BoardDates.parse(it.forDate)?.let { d -> " for ${BoardDates.short(d, today)}" } ?: "")) }
+                            if (x.note.isNotBlank()) KeyValueRow("Note", x.note)
+                            KeyValueRow("Source", sourceLabel(x.source))
+                        }
+                        FolderAndTagsCard(x) { if (live) filing = true }
+                        LegumSecondaryButton("Share Summary", {
+                            refusal = null
+                            scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } }
+                        }, enabled = !busy)
+                        // The web case page has no edit: the app carries the Daily Check switch, Add The CNR and Update From Court only.
+                        if (!x.hasCnr) {
+                            LegumPrimaryButton("Add The CNR (Free)", { addingCnr = true }, enabled = !busy && live)
+                            // A hand case's date is the counsel's to set: eCourts has no record of it yet (the web's Set Next Date).
+                            LegumSecondaryButton("Set Next Date", { settingDate = true }, enabled = !busy && live)
+                        }
+                        // A hand case has nothing at eCourts to read, so there is no Update From Court for it (as on the web).
+                        if (x.hasCnr) LegumSecondaryButton(if (busy) "Reading The Court Record…" else "Update From Court Now" + (cost?.let { " (${creditsTitle(it)})" } ?: ""), { refusal = null; confirmRead = true }, enabled = !busy && live)
+                        LegumSecondaryButton("Remove From Your Diary", { confirmRemove = true }, enabled = !busy && live)
+                        DateHistoryCard(x.history, today)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
     }
 
     sharing?.let { text -> ShareSummaryDialog(text) { sharing = null } }
+    getting?.let { o ->
+        FetchConfirm(o, balance, onCancel = { getting = null }, onGet = {
+            getting = null; fetching = true
+            scope.launch {
+                repo.orderFetch(caseId, o.id).onSuccess { r ->
+                    balance = r.balance; BoardHub.applyBalance(r.balance)
+                    load()
+                    onOpenOrder(r.order.id, orderLabel(r.order))
+                }.onFailure {
+                    refusal = it.boardMessage(); refusalCode = it.boardCode()
+                    // A refused fetch may have been refunded (order_unavailable, ecourts_failed): show the balance as it now stands.
+                    repo.credits().onSuccess { c -> balance = c.balance; BoardHub.applyBalance(c.balance) }
+                    load()
+                }
+                fetching = false
+            }
+        })
+    }
     c?.let { x -> if (filing) FileCaseWizard(x, onClose = { filing = false }, onSaved = { filing = false; c = it.copy(history = x.history) }) }
 
     answering?.let { (n, a) ->
@@ -261,13 +313,14 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
     var tick by remember { mutableStateOf(0) }
     var byHand by remember { mutableStateOf(false) }
     var managing by remember { mutableStateOf(false) }
+    var listSavedAt by remember { mutableStateOf<Long?>(null) }
     if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onOpenCase(it.id) })
     if (managing) FoldersAndTagsDialog(onClose = { managing = false }, onChanged = { tick++ })
     val today = BoardDates.today()
     LaunchedEffect(tick) { repo.filters().onSuccess { filters = it } }
     LaunchedEffect(query, offset, tick) {
         if (query.q.isNotBlank()) kotlinx.coroutines.delay(300)
-        repo.casePage(query, offset).onSuccess { page = it; error = null }.onFailure { error = it.boardMessage() }
+        repo.casePageOrSaved(query, offset).onSuccess { (pg, at) -> page = pg; listSavedAt = at; error = null }.onFailure { error = it.boardMessage() }
     }
     // A new filter or search starts again at the first page.
     val change = { nq: CaseQuery -> query = nq; offset = 0 }
@@ -279,6 +332,7 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
         item { LegumSecondaryButton("Add By Hand", { byHand = true }) }
         item { com.legumlex.client.ui.components.LegumTextField(query.q, { change(query.copy(q = it)) }, "Search Cases", Modifier.fillMaxWidth(), leadingIcon = Icons.Outlined.Search) }
         item { CaseFilterBar(filters, query, change) { managing = true } }
+        listSavedAt?.let { at -> item { NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") } }
         val p = page
         when {
             error != null && p == null -> item { LexCard { LexEmpty("The Cases Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { error = null; tick++ }) }) } }
@@ -365,3 +419,9 @@ private fun ShareSummaryDialog(text: String, onClose: () -> Unit) {
 
 /** The web's line under the preview. */
 internal const val SHARE_NOTE = "No link and no note of yours goes with it."
+
+
+/** The head's second line: "Next: Fri, 28 Nov · Civil Judge at Ludhiana", or the court alone, or nothing. */
+internal fun caseHeadLine(c: BoardCase, today: java.time.LocalDate): String =
+    listOfNotNull(c.nextDate?.let { BoardDates.show(it, today).takeIf { s -> s.isNotBlank() }?.let { s -> "Next: $s" } }, c.courtShown.takeIf { it.isNotBlank() }).joinToString(" · ")
+

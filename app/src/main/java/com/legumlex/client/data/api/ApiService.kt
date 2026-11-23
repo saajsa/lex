@@ -983,6 +983,24 @@ interface ApiService {
         @Query("tag") tag: Int? = null,
     ): Map<String, Any?>
 
+    /** REQ-038 038.2/038.3: {record_loaded, hearings (each with its orders), orders}. */
+    @GET("board/cases/{id}/orders")
+    suspend fun boardOrders(@Path("id") id: Int): Map<String, Any?>
+
+    /** One order's copy from eCourts, charged once ({charged, balance, order}); synchronous, up to a minute. */
+    @Headers("X-Long-Call: 1")
+    @POST("board/cases/{id}/orders/{oid}/fetch")
+    suspend fun boardOrderFetch(@Path("id") id: Int, @Path("oid") oid: Int): Map<String, Any?>
+
+    /** The kept copy (a PDF); 404 until fetched. */
+    @GET("board/cases/{id}/orders/{oid}/file")
+    suspend fun boardOrderFile(@Path("id") id: Int, @Path("oid") oid: Int): ResponseBody
+
+    /** Every kept, unsealed copy as one PDF; free. The ids left out are in the X-Orders-Left-Out header. */
+    @Headers("X-Long-Call: 1")
+    @GET("board/cases/{id}/orders/combined")
+    suspend fun boardOrdersCombined(@Path("id") id: Int): retrofit2.Response<ResponseBody>
+
     /** REQ-038 038.6: {text}, the case summary to share (no link, no note). */
     @GET("board/cases/{id}/share")
     suspend fun boardCaseShare(@Path("id") id: Int): Map<String, Any?>

@@ -235,10 +235,10 @@ private fun DayBar(day: String, onDay: (String) -> Unit, onPick: () -> Unit, sho
 }
 
 /** Android's own print dialog for the day's PDF (any printer, or Save As PDF). */
-fun printSheet(context: Context, file: File, label: String) {
+fun printSheet(context: Context, file: File, label: String, jobName: String = "Cause List $label") {
     val pm = context.getSystemService(Context.PRINT_SERVICE) as? android.print.PrintManager ?: return
     val attrs = sheetPrintAttributes(file)
-    pm.print("Cause List $label", object : android.print.PrintDocumentAdapter() {
+    pm.print(jobName, object : android.print.PrintDocumentAdapter() {
         override fun onLayout(old: android.print.PrintAttributes?, new: android.print.PrintAttributes?, cancel: android.os.CancellationSignal?, cb: LayoutResultCallback, extras: android.os.Bundle?) {
             if (cancel?.isCanceled == true) { cb.onLayoutCancelled(); return }
             cb.onLayoutFinished(
@@ -281,14 +281,14 @@ internal fun paperFor(widthPt: Int, heightPt: Int): android.print.PrintAttribute
 private val pdfLock = Any()
 
 /** The size of every page (points), read without drawing any of them. */
-private fun pdfPageSizes(file: File): List<Pair<Int, Int>> = synchronized(pdfLock) {
+internal fun pdfPageSizes(file: File): List<Pair<Int, Int>> = synchronized(pdfLock) {
     ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
         PdfRenderer(pfd).use { r -> (0 until r.pageCount).map { i -> r.openPage(i).use { it.width to it.height } } }
     }
 }
 
 /** One page of the platform PdfRenderer to a white bitmap, drawn when the page is shown (not every page up front). */
-private fun renderPdfPage(context: Context, file: File, index: Int): Bitmap = synchronized(pdfLock) {
+internal fun renderPdfPage(context: Context, file: File, index: Int): Bitmap = synchronized(pdfLock) {
     ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
         PdfRenderer(pfd).use { renderer ->
             val target = (context.resources.displayMetrics.widthPixels * 2).coerceAtMost(3000)

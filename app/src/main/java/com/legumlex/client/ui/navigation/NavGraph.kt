@@ -465,10 +465,27 @@ fun LegumNavGraph(navController: NavHostController) {
             arguments = listOf(navArgument(Route.BoardCase.ARG) { type = NavType.IntType }),
             deepLinks = listOf(navDeepLink { uriPattern = "legumlex://counsel/case/{${Route.BoardCase.ARG}}" }),
         ) { entry ->
+            val caseId = entry.arguments?.getInt(Route.BoardCase.ARG) ?: 0
             com.legumlex.client.feature.board.BoardCaseScreen(
-                caseId    = entry.arguments?.getInt(Route.BoardCase.ARG) ?: 0,
+                caseId    = caseId,
                 onBack    = { navController.popBackStack() },
                 onCredits = { navController.navigate(Route.BoardCredits.path) },
+                onOpenOrder = { oid, title -> navController.navigate(Route.BoardOrder.build(caseId, oid, title)) },
+            )
+        }
+        composable(
+            Route.BoardOrder.path,
+            arguments = listOf(
+                navArgument(Route.BoardOrder.ARG_CASE) { type = NavType.IntType },
+                navArgument(Route.BoardOrder.ARG_ORDER) { type = NavType.IntType },
+                navArgument(Route.BoardOrder.ARG_TITLE) { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { entry ->
+            com.legumlex.client.feature.board.OrderViewerScreen(
+                caseId = entry.arguments?.getInt(Route.BoardOrder.ARG_CASE) ?: 0,
+                orderId = entry.arguments?.getInt(Route.BoardOrder.ARG_ORDER) ?: 0,
+                title = entry.arguments?.getString(Route.BoardOrder.ARG_TITLE).orEmpty().ifBlank { "Order" },
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Route.BoardCredits.path) { com.legumlex.client.feature.board.BoardCreditsScreen() }
