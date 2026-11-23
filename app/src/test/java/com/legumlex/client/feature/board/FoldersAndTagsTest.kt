@@ -35,7 +35,7 @@ class FoldersAndTagsTest {
     }
 
     @Test fun wordsAsTheWeb() {
-        assertEquals(listOf("All", "Needs Your Eye", "Undated", "Disposed"), STATUS_SEGMENTS.map { it.second })   // Listed Today/Tomorrow left the app
+        assertEquals(listOf("Ongoing", "Needs Your Eye", "Undated", "Disposed"), STATUS_SEGMENTS.map { it.second })   // Listed Today/Tomorrow left the app
         assertEquals("Its 3 cases stay, in no folder.", deleteAsk(LabelKind.Folders, BoardLabel(1, "A", 3)))
         assertEquals("It comes off 1 case. The cases stay.", deleteAsk(LabelKind.Tags, BoardLabel(1, "A", 1)))
     }

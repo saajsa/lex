@@ -17,11 +17,19 @@ class BoardSymbolsTest {
         assertEquals(Sym.NeedsEye, dateMark(case(mapOf("needs_eye" to true, "check" to mapOf("result" to "not_listed", "for" to "2026-11-23"))), today))
         assertEquals(Sym.CheckedToday, dateMark(case(mapOf("check" to mapOf("result" to "not_listed", "for" to "2026-11-23", "at" to "2026-11-23 07:05:00"))), today))
         assertEquals(Sym.Checked, dateMark(case(mapOf("check" to mapOf("result" to "not_listed", "for" to "2026-11-20"))), today))
-        assertNull(dateMark(case(emptyMap()), today))   // never checked: no mark
+        assertNull(dateMark(case(emptyMap()), today))   // never checked or read: no mark
+        assertEquals(Sym.Checked, dateMark(case(mapOf("read_at" to "2026-11-23 10:15:00")), today))   // Update From Court read it
+        assertEquals(Sym.CheckedToday, dateMark(case(mapOf("read_at" to "2026-11-23 10:15:00", "check" to mapOf("result" to "not_listed", "for" to "2026-11-23"))), today))
+        assertNull(dateMark(case(mapOf("read_at" to null)), today))
         val moved = case(mapOf("check" to mapOf("result" to "not_listed", "for" to "2026-11-23"),
             "history" to listOf(mapOf("date" to "2026-12-04", "source" to "ecourts_check", "at" to "2026-11-23 07:05:00", "superseded" to false))))
         assertEquals(Sym.Moved, dateMark(moved, today))
-        assertFalse(movedToday(moved, today.plusDays(1)))
+        assertTrue(movedToday(moved, today.plusDays(1)))    // yesterday's move still shows
+        assertFalse(movedToday(moved, today.plusDays(2)))
+        // A list item carries date_moved_on instead of the history.
+        assertEquals(Sym.Moved, dateMark(case(mapOf("date_moved_on" to "2026-11-22")), today))
+        assertNull(dateMark(case(mapOf("date_moved_on" to "2026-11-21")), today))
+        assertNull(dateMark(case(mapOf("date_moved_on" to null)), today))
     }
 
     @Test fun orderMarksAndHints() {
@@ -32,6 +40,27 @@ class BoardSymbolsTest {
         assertEquals("Order of 12 Nov 2026. Kept, tap to open.", orderHint(kept))
         assertEquals("Order of 30 Oct 2026. Not fetched yet, 9 credits. Tap to get it.", orderHint(avail))
         assertEquals("Order of 1 Oct 2026. Signed, opens on its own.", orderHint(signed))
+    }
+
+    @Test fun sameDayOrdersAreNumbered() {
+        val a = parseCourtOrder(mapOf("id" to 233.0, "label" to "Interim Order of 8 Nov 2026", "state" to "available", "cost" to 9.0))
+        val b = parseCourtOrder(mapOf("id" to 234.0, "label" to "Interim Order of 8 Nov 2026 (2)", "state" to "available", "cost" to 9.0))
+        assertEquals(listOf(1, 2), listOf(a, b).indices.map { orderIndex(listOf(a, b), it) })
+        assertNull(orderIndex(listOf(a), 0))   // one order: no number
+    }
+
+    @Test fun listStateOutlivesTheScreen() {
+        val m = CasesListModel()
+        assertEquals("ongoing", m.query.filter)   // Cases opens on Ongoing
+        m.query = CaseQuery(filter = "eye", q = "mehta", folder = "2"); m.offset = 100; m.open = setOf(7)
+        assertEquals("eye", m.query.filter); assertEquals("mehta", m.query.q); assertEquals(100, m.offset); assertEquals(setOf(7), m.open)
+    }
+
+    @Test fun searchLooksAcrossEveryCase() {
+        assertEquals("all", asked(CaseQuery(filter = "ongoing", q = "mehta", folder = "2")).filter)
+        assertEquals("2", asked(CaseQuery(filter = "ongoing", q = "mehta", folder = "2")).folder)   // court, folder and tag still apply
+        assertEquals("disposed", asked(CaseQuery(filter = "disposed", q = " ")).filter)          // no text: the chosen segment
+        assertEquals("Searching all cases.", SEARCH_ALL_NOTE)
     }
 
     @Test fun legendCoversEverySymbolOnce() {

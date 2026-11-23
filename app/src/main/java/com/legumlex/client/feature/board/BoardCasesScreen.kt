@@ -334,7 +334,15 @@ private fun DateHistoryCard(rows: List<DateHistoryRow>, today: java.time.LocalDa
 
 
 /** The Cases status segments (owner, 23 Nov 2026: Listed Today and Tomorrow left the app; the web keeps them). */
-internal val STATUS_SEGMENTS = listOf("all" to "All", "eye" to "Needs Your Eye", "undated" to "Undated", "disposed" to "Disposed")
+internal val STATUS_SEGMENTS = listOf("ongoing" to "Ongoing", "eye" to "Needs Your Eye", "undated" to "Undated", "disposed" to "Disposed")
+
+/** While there is search text every case is searched (no status segment), so a disposed case is never missed; court, folder and tag still apply. */
+internal fun asked(q: CaseQuery): CaseQuery = if (q.q.isNotBlank()) q.copy(filter = "all") else q
+
+internal const val SEARCH_ALL_NOTE = "Searching all cases."
+
+/** Cases opens on Ongoing (every case not disposed); there is no "All" segment: a disposed case is under Disposed. */
+internal val CASES_START = CaseQuery(filter = "ongoing")
 
 /**
  * Every case in the diary (owner, 23 Nov 2026): the header with ⓘ (symbols), the folder manager and + (Add By Hand); search with a
@@ -345,19 +353,21 @@ internal val STATUS_SEGMENTS = listOf("all" to "All", "eye" to "Needs Your Eye",
 fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, String) -> Unit = { _, _, _ -> }, onCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
-    var query by remember { mutableStateOf(CaseQuery()) }
-    var offset by remember { mutableStateOf(0) }
-    var page by remember { mutableStateOf<CasePage?>(null) }
-    var filters by remember { mutableStateOf<BoardFilters?>(null) }
+    // Kept across opening a case and coming back: the search, segment, filters, page, open cards and the scroll.
+    val m: CasesListModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    var query by m::query
+    var offset by m::offset
+    var page by m::page
+    var filters by m::filters
     var error by remember { mutableStateOf<String?>(null) }
     var tick by remember { mutableStateOf(0) }
     var byHand by remember { mutableStateOf(false) }
     var managing by remember { mutableStateOf(false) }
     var legend by remember { mutableStateOf(false) }
     var filtering by remember { mutableStateOf(false) }
-    var listSavedAt by remember { mutableStateOf<Long?>(null) }
-    var open by remember { mutableStateOf(setOf<Int>()) }
-    val records = remember { androidx.compose.runtime.mutableStateMapOf<Int, CaseRecord>() }
+    var listSavedAt by m::listSavedAt
+    var open by m::open
+    val records = m.records
     val getter = rememberOrderGetter()
     val scope = rememberCoroutineScope()
     if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onOpenCase(it.id) })
@@ -367,19 +377,20 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
     LaunchedEffect(tick) { repo.filters().onSuccess { filters = it } }
     LaunchedEffect(query, offset, tick) {
         if (query.q.isNotBlank()) kotlinx.coroutines.delay(300)
-        repo.casePageOrSaved(query, offset).onSuccess { (pg, at) -> page = pg; listSavedAt = at; error = null }.onFailure { error = it.boardMessage() }
+        repo.casePageOrSaved(asked(query), offset).onSuccess { (pg, at) -> page = pg; listSavedAt = at; error = null }.onFailure { error = it.boardMessage() }
     }
     // A new filter or search starts again at the first page.
     val change = { nq: CaseQuery -> query = nq; offset = 0 }
     fun loadRecord(id: Int) { scope.launch { repo.orders(id).onSuccess { records[id] = it } } }
     androidx.compose.foundation.lazy.LazyColumn(
-        Modifier.fillMaxSize().background(Lex.colors.background), contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current),
+        Modifier.fillMaxSize().background(Lex.colors.background), state = m.listState,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = com.legumlex.client.ui.navigation.LocalCounselClearance.current),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
             PageHeader(eyebrow = "Your Diary", title = "Cases", actions = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconAction(Icons.Outlined.Info, "What The Symbols Mean", { legend = true }, size = 40.dp)
+                    IconAction(Icons.Outlined.HelpOutline, "What The Symbols Mean", { legend = true }, size = 40.dp)
                     IconAction(Icons.Outlined.Folder, "Folders And Tags", { managing = true }, size = 40.dp)
                     IconAction(Icons.Outlined.Add, "Add By Hand", { byHand = true }, size = 40.dp)
                 }
@@ -402,9 +413,10 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
         item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 SegmentedToggle(STATUS_SEGMENTS.map { (k, l) -> k to (l + filters?.counts?.get(k)?.let { " ${creditsText(it)}" }.orEmpty()) },
-                    query.filter.takeIf { f -> STATUS_SEGMENTS.any { it.first == f } } ?: "all", { change(query.copy(filter = it)) })
+                    query.filter.takeIf { f -> STATUS_SEGMENTS.any { it.first == f } } ?: "ongoing", { change(query.copy(filter = it)) })
             }
         }
+        if (query.q.isNotBlank()) item { NoteLine(SEARCH_ALL_NOTE) }
         listSavedAt?.let { at -> item { NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") } }
         (getter.refusal)?.let { r -> item { NoteLine(r, danger = true); if (getter.refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits) } }
         if (getter.fetching) item { NoteLine("Getting the order from eCourts. This can take a minute…") }
@@ -412,7 +424,7 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
         when {
             error != null && p == null -> item { LexCard { LexEmpty("The Cases Could Not Be Opened", error.orEmpty(), icon = Icons.Outlined.ErrorOutline, action = { LegumSecondaryButton("Try Again", { error = null; tick++ }) }) } }
             p == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
-            p.items.isEmpty() -> item { Text(if (query == CaseQuery()) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
+            p.items.isEmpty() -> item { Text(if (query == CASES_START) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
             else -> {
                 items(p.items, key = { it.id }) { c ->
                     val expanded = c.id in open
@@ -476,11 +488,11 @@ internal fun CaseCard(
                         Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground)
                         hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
                         if (h.orders.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            h.orders.forEach { o -> OrderSymbol(o, enabled, onOpen, onGet) }
+                            h.orders.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(h.orders, i)) }
                         }
                     }
                 }
-                LegumPrimaryButton("Open Case", onOpenCase)
+                LegumSecondaryButton("Open Case", onOpenCase)
             }
         }
     }
@@ -583,3 +595,15 @@ internal const val SHARE_NOTE = "No link and no note of yours goes with it."
 
 
 
+
+/** The Cases list's state, held by the screen's back-stack entry so it survives opening a case and coming back. */
+class CasesListModel : androidx.lifecycle.ViewModel() {
+    var query by mutableStateOf(CASES_START)
+    var offset by mutableStateOf(0)
+    var page by mutableStateOf<CasePage?>(null)
+    var filters by mutableStateOf<BoardFilters?>(null)
+    var listSavedAt by mutableStateOf<Long?>(null)
+    var open by mutableStateOf(setOf<Int>())
+    val records = androidx.compose.runtime.snapshots.SnapshotStateMap<Int, CaseRecord>()
+    val listState = androidx.compose.foundation.lazy.LazyListState()
+}

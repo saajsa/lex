@@ -32,7 +32,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Share
@@ -194,14 +194,14 @@ internal fun CaseRecordSection(
         SymbolIcon(Sym.Ecourts)
         Spacer(Modifier.weight(1f))
         if (combinedOffered(r.orders)) IconAction(Icons.Outlined.PictureAsPdf, "All Kept Orders As One PDF", onCombined, size = 36.dp)
-        onLegend?.let { IconAction(Icons.Outlined.Info, "What The Symbols Mean", it, size = 36.dp) }
+        onLegend?.let { IconAction(Icons.Outlined.HelpOutline, "What The Symbols Mean", it, size = 36.dp) }
     }
     @Composable
     fun Orders(list: List<BoardOrder>) {
         if (list.isEmpty()) return
         Spacer(Modifier.height(6.dp))
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            list.forEach { o -> OrderSymbol(o, enabled, onOpen, onGet) }
+            list.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(list, i)) }
         }
     }
     r.listings.forEach { h ->

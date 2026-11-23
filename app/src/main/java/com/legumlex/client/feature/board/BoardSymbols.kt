@@ -60,9 +60,9 @@ enum class SymTone { Grey, Green, Red }
 
 /** Every symbol the counsel workspace shows. [name] is what a screen reader says and the legend's line explains it. */
 enum class Sym(val label: String, val line: String, val tone: SymTone) {
-    Checked("Checked", "The next date was checked with eCourts.", SymTone.Grey),
+    Checked("Checked", "The next date was checked with eCourts, by a check or a read.", SymTone.Grey),
     CheckedToday("Confirmed Today", "This morning's eCourts check confirmed the date.", SymTone.Green),
-    Moved("Date Moved", "eCourts moved the next date.", SymTone.Red),
+    Moved("Date Moved", "eCourts moved the next date today or yesterday.", SymTone.Red),
     NeedsEye("Needs Your Eye", "eCourts shows a different date: choose which is right.", SymTone.Red),
     Undated("No Date", "The case has no next date yet.", SymTone.Grey),
     CheckOn("Daily Check On", "Checked with eCourts every morning.", SymTone.Grey),
@@ -84,13 +84,24 @@ internal fun dateMark(c: BoardCase, today: LocalDate): Sym? = when {
     c.needsEye -> Sym.NeedsEye
     movedToday(c, today) -> Sym.Moved
     c.check != null && BoardDates.parse(c.check.forDate) == today -> Sym.CheckedToday
-    c.check != null -> Sym.Checked
+    // A morning check or a read from the court (read_at): the date was checked with eCourts.
+    c.check != null || c.readAt != null -> Sym.Checked
     else -> null
 }
 
-/** eCourts' check gave a new date today (the newest Date History row; only the case page carries the history). */
-internal fun movedToday(c: BoardCase, today: LocalDate): Boolean =
-    c.history.firstOrNull()?.let { it.source == "ecourts_check" && !it.superseded && BoardDates.parse(it.at) == today } == true
+/**
+ * eCourts' check moved the next date recently: today or yesterday (a move found by yesterday's check still matters to a counsel
+ * who did not open the app). From the server's date_moved_on (list items); on the case page, from the newest Date History row.
+ */
+internal fun movedToday(c: BoardCase, today: LocalDate): Boolean {
+    val on = BoardDates.parse(c.dateMovedOn)
+        ?: c.history.firstOrNull()?.takeIf { it.source == "ecourts_check" && !it.superseded }?.let { BoardDates.parse(it.at) }
+        ?: return false
+    return !on.isAfter(today) && !on.isBefore(today.minusDays(MOVED_DAYS - 1L))
+}
+
+/** How many days the red ↻ stays: today and yesterday. */
+internal const val MOVED_DAYS = 2
 
 /** An order's mark. */
 internal fun orderMark(o: BoardOrder): Sym = when {
@@ -151,7 +162,7 @@ fun SymbolIcon(s: Sym, size: Dp = 16.dp, modifier: Modifier = Modifier) {
 /** A small tappable symbol (an order, the eye): long-press names it; an optional caption beside it ("9"). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = true, caption: String? = null) {
+fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = true, caption: String? = null, index: Int? = null) {
     val shape = RoundedCornerShape(6.dp)
     TooltipBox(positionProvider = OnScreenTooltip, tooltip = { PlainTooltip { Text(hint) } }, state = rememberTooltipState()) {
         Row(
@@ -159,6 +170,7 @@ fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = t
                 .semantics { contentDescription = hint }.padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            index?.let { Text("$it", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Lex.colors.secondaryForeground); Spacer(Modifier.width(3.dp)) }
             SymbolIcon(s, 18.dp)
             caption?.let { Spacer(Modifier.width(3.dp)); Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground) }
         }
@@ -167,10 +179,13 @@ fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = t
 
 /** One order as a small symbol button: open when kept, get (after the cost confirm) when not. */
 @Composable
-fun OrderSymbol(o: BoardOrder, enabled: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
+fun OrderSymbol(o: BoardOrder, enabled: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, index: Int? = null) {
     SymbolAction(orderMark(o), orderHint(o), { if (o.fetched) onOpen(o) else onGet(o) }, enabled = enabled || o.fetched,
-        caption = if (o.fetched) null else shownCost(o.cost)?.toString())
+        caption = if (o.fetched) null else shownCost(o.cost)?.toString(), index = index)
 }
+
+/** A hearing's orders are numbered 1, 2 … on their icons only when it has more than one (in the server's order, as its labels count). */
+internal fun orderIndex(list: List<BoardOrder>, i: Int): Int? = if (list.size > 1) i + 1 else null
 
 /** The legend: every symbol with one line, in a bottom sheet. */
 @OptIn(ExperimentalMaterial3Api::class)
