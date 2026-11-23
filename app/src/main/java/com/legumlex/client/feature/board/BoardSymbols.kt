@@ -197,6 +197,12 @@ internal fun orderForm(widthDp: Float, captionDp: Float): OrderForm = when {
 
 internal const val ORDER_ROW_MIN = 88f
 
+/**
+ * The order column's fixed width (owner, 23 Nov 2026: "⤓ Order 1" in one row). Chosen over a 70/30 split: a timeline row's content on a
+ * 360dp phone is about 231dp, and 30% of it (69dp) is under [ORDER_ROW_MIN]; a fixed 108dp reaches the row form on any phone.
+ */
+internal const val ORDER_COLUMN = 108
+
 /** The shortest form of a caption: "Order 2" gives "2"; a lone "Order" stays the icon alone. */
 internal fun captionNumber(caption: String): String = caption.substringAfter("Order", "").trim()
 
@@ -229,7 +235,7 @@ fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolea
         else Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
     }
     when (form) {
-        OrderForm.Row -> Row(base.height(36.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        OrderForm.Row -> Row(base.height(40.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             Glyph(); Spacer(Modifier.width(6.dp))
             Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
         }
@@ -263,16 +269,16 @@ fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, on
 }
 
 /**
- * A hearing laid out 80/20 (owner, 23 Nov 2026): its text on the left, its order buttons in the right fifth. With no orders the text
- * takes the whole width.
+ * A hearing laid out with its text on the left and its order buttons in a fixed 108dp column on the right (owner, 23 Nov 2026). With
+ * no orders the text takes the whole width.
  */
 @Composable
 fun HearingSplit(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
                  text: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     if (orders.isEmpty()) { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp), content = text); return }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Column(Modifier.weight(0.8f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = text)
-        OrderColumn(orders, enabled, fetchingId, onOpen, onGet, Modifier.weight(0.2f))
+        Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = text)
+        OrderColumn(orders, enabled, fetchingId, onOpen, onGet, Modifier.width(ORDER_COLUMN.dp))
     }
 }
 

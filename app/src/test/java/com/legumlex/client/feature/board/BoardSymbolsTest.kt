@@ -88,6 +88,9 @@ class BoardSymbolsTest {
         assertEquals(OrderForm.Stacked, orderForm(48f, 40f))
         // Narrower still: never cut "Order 1" mid-word; the icon and its number.
         assertEquals(OrderForm.NumberOnly, orderForm(47f, 40f))
+        // The fixed column always reaches the row form ("⤓ Order 1"); 30% of a 360dp phone's timeline content (~231dp) would not.
+        assertEquals(OrderForm.Row, orderForm(ORDER_COLUMN.toFloat(), 48f))
+        assertTrue(231f * 0.3f < ORDER_ROW_MIN)
         assertEquals("1", captionNumber("Order 1")); assertEquals("12", captionNumber("Order 12")); assertEquals("", captionNumber("Order"))
     }
 
