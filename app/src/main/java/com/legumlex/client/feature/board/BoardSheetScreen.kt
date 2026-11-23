@@ -287,6 +287,21 @@ internal fun pdfPageSizes(file: File): List<Pair<Int, Int>> = synchronized(pdfLo
     }
 }
 
+/** One page rendered [widthPx] wide on white (the order viewer's zoom levels and thumbnails). */
+internal fun renderPdfPageAt(file: File, index: Int, widthPx: Int): Bitmap = synchronized(pdfLock) {
+    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+        PdfRenderer(pfd).use { renderer ->
+            renderer.openPage(index).use { page ->
+                val w = widthPx.coerceAtLeast(1)
+                val h = (w * page.height.toFloat() / page.width.toFloat()).toInt().coerceAtLeast(1)
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.WHITE) }
+                page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                bmp
+            }
+        }
+    }
+}
+
 /** One page of the platform PdfRenderer to a white bitmap, drawn when the page is shown (not every page up front). */
 internal fun renderPdfPage(context: Context, file: File, index: Int): Bitmap = synchronized(pdfLock) {
     ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
