@@ -66,7 +66,7 @@ enum class Sym(val label: String, val line: String, val tone: SymTone) {
     Watched("Green Tint", "Watched daily: checked with eCourts every morning.", SymTone.Green),
     RedEdge("Red Edge", "Needs your eye, or the date was moved.", SymTone.Red),
     OrderKept("Order Kept", "Kept on the platform: tap to open, free.", SymTone.Green),
-    OrderAvailable("Order Not Fetched", "Tap to get it from eCourts; its cost shows first.", SymTone.Grey),
+    OrderAvailable("Order Not Fetched", "Tap to get it.", SymTone.Grey),
     OrderSealed("Signed Order", "Signed or locked: opens on its own.", SymTone.Grey),
     Folder("Folder", "The folder the case is filed in.", SymTone.Grey),
     Tag("Tag", "#name: a tag on the case.", SymTone.Grey),
@@ -121,7 +121,7 @@ internal fun orderMark(o: BoardOrder): Sym = when {
 internal fun orderHint(o: BoardOrder): String = orderLabel(o) + ". " + when (orderMark(o)) {
     Sym.OrderKept -> "Kept, tap to open."
     Sym.OrderSealed -> "Signed, opens on its own."
-    else -> "Not fetched yet" + (shownCost(o.cost)?.let { ", ${creditsLabel(it)}" } ?: "") + ". Tap to get it."
+    else -> "Not fetched yet. Tap to get it."
 }
 
 /** How much green goes into the watched tint: enough to read as pale green, little enough for ink on it to keep AA contrast. */
@@ -171,10 +171,10 @@ fun SymbolIcon(s: Sym, size: Dp = 16.dp, modifier: Modifier = Modifier) {
     }
 }
 
-/** A small tappable symbol (an order, the eye): long-press names it; an optional caption beside it ("9"). */
+/** A small tappable symbol (an order): long-press names it; an optional index before it (1, 2). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = true, caption: String? = null, index: Int? = null) {
+fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = true, index: Int? = null) {
     val shape = RoundedCornerShape(6.dp)
     TooltipBox(positionProvider = OnScreenTooltip, tooltip = { PlainTooltip { Text(hint) } }, state = rememberTooltipState()) {
         Row(
@@ -184,16 +184,21 @@ fun SymbolAction(s: Sym, hint: String, onClick: () -> Unit, enabled: Boolean = t
         ) {
             index?.let { Text("$it", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Lex.colors.secondaryForeground); Spacer(Modifier.width(3.dp)) }
             SymbolIcon(s, 18.dp)
-            caption?.let { Spacer(Modifier.width(3.dp)); Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground) }
         }
     }
 }
 
 /** One order as a small symbol button: open when kept, get (after the cost confirm) when not. */
 @Composable
-fun OrderSymbol(o: BoardOrder, enabled: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, index: Int? = null) {
-    SymbolAction(orderMark(o), orderHint(o), { if (o.fetched) onOpen(o) else onGet(o) }, enabled = enabled || o.fetched,
-        caption = if (o.fetched) null else shownCost(o.cost)?.toString(), index = index)
+fun OrderSymbol(o: BoardOrder, enabled: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, index: Int? = null, busy: Boolean = false) {
+    if (busy) {
+        // This order is being fetched: a small progress ring in its place.
+        androidx.compose.foundation.layout.Box(Modifier.padding(6.dp).size(18.dp).semantics { contentDescription = "Getting " + orderLabel(o) }) {
+            androidx.compose.material3.CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
+        }
+        return
+    }
+    SymbolAction(orderMark(o), orderHint(o), { if (o.fetched) onOpen(o) else onGet(o) }, enabled = enabled || o.fetched, index = index)
 }
 
 /** A hearing's orders are numbered 1, 2 … on their icons only when it has more than one (in the server's order, as its labels count). */

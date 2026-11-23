@@ -110,6 +110,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
     // 038.7: offline (or a server error) shows the copy kept on this device, with when it was saved; a 403 or 404 never does.
     var savedAt by remember { mutableStateOf<Long?>(null) }
     fun load() { scope.launch { repo.caseOrSaved(caseId).onSuccess { (k, at) -> c = k; savedAt = at; error = null }.onFailure { error = it.boardMessage() } } }
+    val fetchOrder = orderFetcher(getter, onOpened = { _, oid, title -> onOpenOrder(oid, title) }, onChanged = { load() })
     LaunchedEffect(caseId) {
         load()
         repo.credits().onSuccess { cost = shownCost(it.costAdd); checkCost = shownCost(it.costCheck) }
@@ -137,7 +138,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
             c?.let { x ->
                 Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
-                    WatchLine(x.morningCheck, checkCost, enabled = !busy && live) {
+                    WatchRow(x.morningCheck, enabled = !busy && live) {
                         busy = true; refusal = null; refusalCode = null
                         scope.launch {
                             // The action's reply has no Date History: the case page is read again so the history stays.
@@ -178,15 +179,13 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                         onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight },
                     )
                 }
-                if (getter.fetching) NoteLine("Getting the order from eCourts. This can take a minute…")
                 CaseRecordSection(x.record, x.hasCnr, readLabel, onRead, enabled = live && !getter.fetching,
-                    onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; getter.ask(caseId, o) })
+                    onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; fetchOrder(caseId, o) }, fetchingId = getter.fetchingId)
             }
             Spacer(Modifier.height(8.dp))
         }
     }
 
-    OrderGetterHost(getter, onOpened = { _, oid, title -> onOpenOrder(oid, title) }, onChanged = { load() })
     if (legend) LegendSheet { legend = false }
     c?.let { x ->
         if (details) androidx.compose.material3.ModalBottomSheet(
@@ -279,24 +278,23 @@ internal fun CaseDateLine(c: BoardCase, today: java.time.LocalDate) {
     }
 }
 
-/**
- * The watch status as one tappable line: a green-tinted pill "Watched Daily · 1 Credit" when on, a plain outline "Not Watched. Watch
- * Daily" when off; a tap turns it over (the daily check), its cost in its words and in its long-press.
- */
+/** Watch Daily (owner, 23 Nov 2026: "I was in favour of the toggle"): a real switch, green when on, its line muted; no cost shown. */
 @Composable
-internal fun WatchLine(on: Boolean, cost: Int?, enabled: Boolean, onToggle: () -> Unit) {
-    val shape = RoundedCornerShape(6.dp)
-    Row(
-        Modifier.clip(shape).then(if (on) Modifier.background(watchTint()) else Modifier.border(1.dp, Lex.colors.input, shape))
-            .clickable(enabled = enabled, onClick = onToggle).semantics { contentDescription = watchText(on, cost) + ". Tap to " + (if (on) "stop watching." else "watch daily.") }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) { Text(watchText(on, cost), style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground) }
+internal fun WatchRow(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(WATCH_TITLE, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+            Text(WATCH_LINE, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+        }
+        androidx.compose.material3.Switch(
+            checked = on, onCheckedChange = { onToggle() }, enabled = enabled,
+            colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Lex.colors.success.solid, checkedThumbColor = androidx.compose.ui.graphics.Color.White),
+        )
+    }
 }
 
-/** "Watched Daily · 1 Credit" / "Not Watched. Watch Daily" (no figure when the cost is unset). */
-internal fun watchText(on: Boolean, cost: Int?): String =
-    if (on) "Watched Daily" + (shownCost(cost)?.let { " · ${creditsTitle(it)}" } ?: "") else "Not Watched. Watch Daily"
+internal const val WATCH_TITLE = "Watch Daily"
+internal const val WATCH_LINE = "Checked with eCourts every morning"
 
 /** A plain, borderless icon button with its name on long-press and for screen readers. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -433,7 +431,6 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
             p == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
             p.items.isEmpty() -> item { Text(if (query == CASES_START) "No cases yet." else "No case matches.", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground) }
             else -> {
-                item { androidx.compose.material3.HorizontalDivider(color = Lex.colors.border) }
                 items(p.items, key = { it.id }) { c -> CaseRow(c, today) { onOpenCase(c.id) } }
                 pagerLine(p)?.let { line ->
                     item {
@@ -459,13 +456,14 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
 internal fun CaseRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit) {
     val look = rowLook(c, today)
     val edge = when (look.edge) { Edge.Red -> Lex.colors.danger.solid; Edge.Green -> Lex.colors.success.solid; Edge.None -> androidx.compose.ui.graphics.Color.Transparent }
+    // Owner, 23 Nov 2026: soft tiles (the card's colour, or the green tint when watched), radius 8, no outline, 8dp apart.
     Row(
-        Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)
-            .then(if (look.tint) Modifier.background(watchTint()) else Modifier)
+        Modifier.padding(bottom = 8.dp).fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).clip(RoundedCornerShape(8.dp))
+            .background(if (look.tint) watchTint() else Lex.colors.card)
             .clickable(onClick = onClick).semantics { contentDescription = rowSpeech(c, today) },
     ) {
         Box(Modifier.width(3.dp).fillMaxHeight().background(edge))
-        Column(Modifier.weight(1f).padding(start = 10.dp, end = 4.dp, top = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(c.heading, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 1,
                     modifier = Modifier.weight(1f))
@@ -477,7 +475,6 @@ internal fun CaseRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Un
             courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (look.tint) Lex.colors.secondaryForeground else Lex.colors.mutedForeground, maxLines = 1) }
         }
     }
-    androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
 }
 
 /** The row's third line: the court, then the folder and the #tags. */

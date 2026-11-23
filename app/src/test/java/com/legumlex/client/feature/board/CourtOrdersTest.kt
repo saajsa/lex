@@ -41,9 +41,7 @@ class CourtOrdersTest {
         assertEquals("Interim Order of 30 Oct 2026", orderLabel(a))   // no label: kind and date, as the server builds it
         assertEquals("Kept, 3 pages", orderState(k))
         assertEquals("Kept, 1 page, signed: opens on its own", orderState(s))
-        assertEquals("Not fetched yet, 9 credits", orderState(a))
-        assertEquals("Not fetched yet", orderState(a.copy(cost = 0)))   // no cost set: no figure
-        assertEquals("This costs 9 credits. Your balance is 120 credits. You are charged only if eCourts has it. Opening it again is free.", fetchAsk(a, 120))
+        assertEquals("Not fetched yet", orderState(a))   // no cost shown on orders (owner, 23 Nov 2026)
         assertEquals("Copies from eCourts. A fetched copy is kept: opening it again is free.", ORDERS_LINE)
         assertEquals("Hearings come from eCourts once the case has a CNR.", recordEmpty("hearings", hasCnr = false, loaded = false))
         assertEquals("Update From Court to load orders.", recordEmpty("orders", hasCnr = true, loaded = false))

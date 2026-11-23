@@ -38,7 +38,7 @@ class BoardSymbolsTest {
         val signed = parseCourtOrder(mapOf("id" to 9.0, "label" to "Order of 1 Oct 2026", "state" to "signed"))
         assertEquals(Sym.OrderKept, orderMark(kept)); assertEquals(Sym.OrderAvailable, orderMark(avail)); assertEquals(Sym.OrderSealed, orderMark(signed))
         assertEquals("Order of 12 Nov 2026. Kept, tap to open.", orderHint(kept))
-        assertEquals("Order of 30 Oct 2026. Not fetched yet, 9 credits. Tap to get it.", orderHint(avail))
+        assertEquals("Order of 30 Oct 2026. Not fetched yet. Tap to get it.", orderHint(avail))   // no cost on orders
         assertEquals("Order of 1 Oct 2026. Signed, opens on its own.", orderHint(signed))
     }
 
@@ -74,9 +74,8 @@ class BoardSymbolsTest {
         val c = case(mapOf("court_line" to "Civil Judge at Ludhiana", "folder" to mapOf("id" to 2.0, "name" to "Bank"), "tags" to listOf(mapOf("id" to 1.0, "name" to "Urgent")), "morning_check" to true))
         assertEquals("Civil Judge at Ludhiana · Bank · #Urgent", courtLine(c))
         assertTrue(rowSpeech(c, today).endsWith("Watched daily"))
-        assertEquals("Watched Daily · 1 Credit", watchText(true, 1))
-        assertEquals("Watched Daily", watchText(true, 0))   // no cost set: no figure
-        assertEquals("Not Watched. Watch Daily", watchText(false, 1))
+        assertEquals("Watch Daily", WATCH_TITLE); assertEquals("Checked with eCourts every morning", WATCH_LINE)   // the switch row, no cost
+        assertFalse(LEGEND.any { it.line.contains("credit", true) || it.line.contains("cost", true) })
     }
 
     @Test fun legendCoversEverySymbolOnce() {

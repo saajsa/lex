@@ -120,17 +120,11 @@ internal fun orderLabel(o: BoardOrder): String = o.label.ifBlank {
     o.kind + (BoardDates.parse(o.date)?.let { " of " + it.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)) } ?: "")
 }
 
-/** Its state, in the web's words: "Kept, 3 pages", "Kept, 1 page, signed: opens on its own", or "Not fetched yet, 9 credits". */
+/** Its state: "Kept, 3 pages", "Kept, 1 page, signed: opens on its own", or "Not fetched yet" (no cost shown: owner, 23 Nov 2026). */
 internal fun orderState(o: BoardOrder): String = when {
     o.fetched -> "Kept" + (o.pages?.let { ", ${creditsText(it)} ${if (it == 1) "page" else "pages"}" } ?: "") + (if (o.sealed) ", ${o.state}: opens on its own" else "")
-    else -> "Not fetched yet" + (shownCost(o.cost)?.let { ", ${creditsLabel(it)}" } ?: "")
+    else -> "Not fetched yet"
 }
-
-/** The cost confirm's sentence: what it costs and what is left, then the rule. */
-internal fun fetchAsk(o: BoardOrder, balance: Int?): String =
-    (shownCost(o.cost)?.let { "This costs ${creditsLabel(it)}." } ?: "") +
-        (balance?.let { " Your balance is ${creditsLabel(it)}." } ?: "") +
-        " You are charged only if eCourts has it. Opening it again is free."
 
 /** The web offers the combined PDF once any order is on file (signed and encrypted copies never join it). */
 internal fun combinedOffered(orders: List<BoardOrder>): Boolean = orders.any { it.state == "on_file" }
@@ -177,7 +171,7 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 }
 
 /**
- * The case's hearings (owner, 23 Nov 2026: minimal and list-like): plain rows newest first, divided by hairlines; the date bold, the
+ * The case's hearings (owner, 23 Nov 2026): soft tiles newest first, 8dp apart; the date bold, the
  * purpose and next line, the judge muted, and the orders as small borderless symbols at the row's right. Other Orders last.
  * Empty: the web's reason, with Update From Court Now when a read helps. All Kept Orders As One PDF lives in the case's ⋮ menu.
  */
@@ -185,14 +179,14 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 @Composable
 internal fun CaseRecordSection(
     r: CaseRecord, hasCnr: Boolean, readLabel: String, onRead: (() -> Unit)?, enabled: Boolean,
-    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
+    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, fetchingId: Int? = null,
 ) {
     val other = otherOrders(r)
     if (r.listings.isEmpty() && other.isEmpty()) { RecordEmptyCard("No Hearings Yet", "hearings", Icons.Outlined.Event, r, hasCnr, readLabel, onRead); return }
     com.legumlex.client.ui.components.Eyebrow("Hearings")
     @Composable
     fun HearingRow(title: String, lines: List<Pair<String, Boolean>>, orders: List<BoardOrder>) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.Top) {
+        Row(Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Lex.colors.card).padding(12.dp), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
                 lines.forEach { (t, muted) ->
@@ -201,10 +195,9 @@ internal fun CaseRecordSection(
                 }
             }
             if (orders.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(Modifier.padding(start = 8.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                orders.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(orders, i)) }
+                orders.forEachIndexed { i, o -> OrderSymbol(o, enabled, onOpen, onGet, index = orderIndex(orders, i), busy = o.id == fetchingId) }
             }
         }
-        androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
     }
     r.listings.forEach { h ->
         HearingRow(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date,
@@ -214,62 +207,43 @@ internal fun CaseRecordSection(
 }
 
 /**
- * Getting an order from anywhere (the case page, a Cases card): the cost confirm, the fetch, the balance, and the server's refusal.
- * One host per screen ([OrderGetterHost]); [ask] starts it.
+ * Getting an order (owner, 23 Nov 2026: no cost on orders, no confirm): a tap fetches it at once; its icon shows progress, then the
+ * viewer opens. The server charges as before and refunds a failure; a refusal (402 with Buy Credits, and the rest) shows its words.
  */
 class OrderGetter {
-    var pending by mutableStateOf<Pair<Int, BoardOrder>?>(null)
-    var fetching by mutableStateOf(false)
+    /** The order being fetched now, or null. */
+    var fetchingId by mutableStateOf<Int?>(null)
     var refusal by mutableStateOf<String?>(null)
     var refusalCode by mutableStateOf<String?>(null)
-    var balance by mutableStateOf<Int?>(null)
-    fun ask(caseId: Int, o: BoardOrder) { refusal = null; refusalCode = null; pending = caseId to o }
+    val fetching: Boolean get() = fetchingId != null
 }
 
 @Composable
 fun rememberOrderGetter(): OrderGetter = remember { OrderGetter() }
 
-/** The confirm, then the fetch: on success the balance chip moves and [onOpened] opens the copy; a refusal re-reads the balance (refunds). */
+/** Returns the tap handler: fetch [o] of case [caseId]; on success the balance chip moves and [onOpened] opens it; a refusal re-reads the balance (refunds). */
 @Composable
-fun OrderGetterHost(g: OrderGetter, onOpened: (caseId: Int, orderId: Int, title: String) -> Unit, onChanged: (caseId: Int) -> Unit) {
+fun orderFetcher(g: OrderGetter, onOpened: (caseId: Int, orderId: Int, title: String) -> Unit, onChanged: (caseId: Int) -> Unit): (Int, BoardOrder) -> Unit {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(Unit) { repo.credits().onSuccess { g.balance = it.balance } }
-    g.pending?.let { (caseId, o) ->
-        FetchConfirm(o, g.balance, onCancel = { g.pending = null }, onGet = {
-            g.pending = null; g.fetching = true
+    return { caseId, o ->
+        if (!g.fetching) {
+            g.refusal = null; g.refusalCode = null; g.fetchingId = o.id
             scope.launch {
                 repo.orderFetch(caseId, o.id).onSuccess { r ->
-                    g.balance = r.balance; BoardHub.applyBalance(r.balance)
+                    BoardHub.applyBalance(r.balance)
                     onChanged(caseId)
                     onOpened(caseId, r.order.id, orderLabel(r.order))
                 }.onFailure {
                     g.refusal = it.boardMessage(); g.refusalCode = it.boardCode()
-                    repo.credits().onSuccess { c -> g.balance = c.balance; BoardHub.applyBalance(c.balance) }
+                    repo.credits().onSuccess { c -> BoardHub.applyBalance(c.balance) }
                     onChanged(caseId)
                 }
-                g.fetching = false
+                g.fetchingId = null
             }
-        })
+        }
     }
-}
-
-/** Before any charge: the order, its cost and the balance, and the rule. */
-@Composable
-internal fun FetchConfirm(o: BoardOrder, balance: Int?, onCancel: () -> Unit, onGet: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text("Get This Order?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(orderLabel(o), style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
-                Text(fetchAsk(o, balance).trim(), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.secondaryForeground)
-            }
-        },
-        confirmButton = { TextButton(onGet) { Text("Get Order") } },
-        dismissButton = { TextButton(onCancel) { Text("Cancel") } },
-    )
 }
 
 /** Saves a PDF to Downloads (Android 10 and later); false where the system has no such store, and the share sheet is used instead. */

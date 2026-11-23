@@ -125,16 +125,15 @@ fun BoardRangeScreen(from: String, onOpenCase: (Int) -> Unit, onOpenDay: (String
             r == null -> item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(strokeWidth = 2.dp, color = Lex.colors.mutedForeground) } }
             else -> {
                 item { NoteLine(rangeSummary(r)) }
+                // Each day's heading, then its cases as the same soft tiles as Cases.
                 items(r.days, key = { it.date }) { d ->
-                    LexCard {
-                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Column {
+                        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(rangeDayTitle(d.date, today), style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                            if (d.items.isEmpty()) Text("Nothing listed", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, modifier = Modifier.padding(end = 12.dp, top = 12.dp, bottom = 12.dp))
+                            if (d.items.isEmpty()) Text("Nothing listed", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, modifier = Modifier.padding(vertical = 12.dp))
                             else TextButton({ onOpenDay(d.date) }) { Text("Open This Day's List") }
                         }
-                        d.items.forEach { c ->
-                            CaseRow(c, today) { onOpenCase(c.id) }
-                        }
+                        d.items.forEach { c -> CaseRow(c, today) { onOpenCase(c.id) } }
                     }
                 }
             }
