@@ -259,7 +259,9 @@ private fun AppShell(deepLinkIntent: Intent?) {
 
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
-    val darkRoute = currentRoute?.substringBefore("?") == Route.BoardSheet.path.substringBefore("?")
+    // The order viewer draws edge to edge (its own bar sits under the status bar), so the shell adds no top padding there.
+    val orderViewer = currentRoute?.substringBefore("?") == Route.BoardOrder.path.substringBefore("?")
+    val darkRoute = currentRoute?.substringBefore("?") == Route.BoardSheet.path.substringBefore("?") || orderViewer
     Scaffold(
         containerColor = if (darkRoute) com.legumlex.client.ui.theme.Zinc950 else com.legumlex.client.ui.theme.Lex.colors.background,
         topBar = {
@@ -306,7 +308,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
         // sign-in draw edge to edge, under the status bar, and grain their
         // own paper (the splash has none).
         val door = currentRoute == Route.CounselRegister.path
-        val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path || currentRoute == Route.Choose.path || door
+        val edge = currentRoute == Route.Splash.path || currentRoute == Route.Login.path || currentRoute == Route.Choose.path || door || orderViewer
         // Fixed colours under the bars in either theme: the splash is black
         // (light icons); sign-in is white at the top (dark status icons) and
         // black at the foot (light navigation icons). The theme's own

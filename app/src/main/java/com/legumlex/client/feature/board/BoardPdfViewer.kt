@@ -222,6 +222,7 @@ fun OrderViewerScreen(caseId: Int, orderId: Int, title: String, onBack: () -> Un
     var invert by remember { mutableStateOf(false) }
     var thumbs by remember { mutableStateOf(false) }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
+    var barHeight by remember { mutableStateOf(0) }
     val list = rememberLazyListState()
     val hScroll = rememberScrollState()
     val density = LocalDensity.current
@@ -288,8 +289,20 @@ fun OrderViewerScreen(caseId: Int, orderId: Int, title: String, onBack: () -> Un
                     if (vw > 0) Box(Modifier.fillMaxSize().horizontalScroll(hScroll)) {
                         LazyColumn(
                             Modifier.requiredWidth(with(density) { containerW.toDp() }).fillMaxHeight(), state = list,
-                            verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = 72.dp, bottom = 96.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = with(density) { barHeight.toDp() } + 8.dp, bottom = 120.dp),
                         ) {
+                            // The combined PDF's note: what it left out, above page 1, dismissible.
+                            if (bannerOpen) leftOutNote(leftOut)?.let { note ->
+                                item(key = "note") {
+                                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Row(Modifier.width(with(density) { vw.toDp() } - 32.dp).clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF2A2A2A)).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(note, color = Zinc300, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                            IconButton({ bannerOpen = false }) { Icon(Icons.Outlined.Close, "Dismiss", tint = Zinc400) }
+                                        }
+                                    }
+                                }
+                            }
                             items(s.sizes.size, key = { it }) { i ->
                                 val (pw, ph) = s.sizes[i]
                                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -300,25 +313,26 @@ fun OrderViewerScreen(caseId: Int, orderId: Int, title: String, onBack: () -> Un
                     }
                 }
                 // The page indicator: shown while scrolling (and with the bars); a tap opens the thumbnails.
+                val noteItems = if (bannerOpen && leftOutNote(leftOut) != null) 1 else 0
                 val scrolling = list.isScrollInProgress
                 val shownIndicator by animateFloatAsState(if (scrolling || bars) 1f else 0f, label = "indicator")
                 if (shownIndicator > 0f) Box(
-                    Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp).clip(RoundedCornerShape(12.dp))
+                    Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp).clip(RoundedCornerShape(12.dp))
                         .background(Color.Black.copy(alpha = 0.6f * shownIndicator)).clickable { thumbs = true }
-                        .semantics { contentDescription = "Page ${PdfMaths.pageLabel(list.firstVisibleItemIndex, s.sizes.size)}. Show all pages." }
+                        .semantics { contentDescription = "Page ${PdfMaths.pageLabel(list.firstVisibleItemIndex - noteItems, s.sizes.size)}. Show all pages." }
                         .padding(horizontal = 12.dp, vertical = 4.dp),
-                ) { Text(PdfMaths.pageLabel(list.firstVisibleItemIndex, s.sizes.size), color = Color.White.copy(alpha = shownIndicator), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                ) { Text(PdfMaths.pageLabel(list.firstVisibleItemIndex - noteItems, s.sizes.size), color = Color.White.copy(alpha = shownIndicator), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 
                 if (thumbs) ThumbnailSheet(s.file, s.sizes, onClose = { thumbs = false }) { page ->
                     thumbs = false
-                    scope.launch { list.scrollToItem(PdfMaths.jumpTarget(page, s.sizes.size)) }
+                    scope.launch { list.scrollToItem(PdfMaths.jumpTarget(page, s.sizes.size) + noteItems) }
                 }
             }
         }
 
         // The top bar: back, the title on two lines, the case number.
         AnimatedVisibility(bars || state !is ViewerState.Ready, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter)) {
-            Row(Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.72f)).statusBarsPadding().padding(end = 12.dp, top = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().onSizeChanged { barHeight = it.height }.background(Color.Black.copy(alpha = 0.72f)).statusBarsPadding().padding(end = 12.dp, top = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Color.White) }
                 Column(Modifier.weight(1f)) {
                     Text(title, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -326,15 +340,7 @@ fun OrderViewerScreen(caseId: Int, orderId: Int, title: String, onBack: () -> Un
                 }
             }
         }
-        // The combined PDF's note: what it left out, dismissible.
         val s = state
-        if (s is ViewerState.Ready && bannerOpen) leftOutNote(leftOut)?.let { note ->
-            Row(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 96.dp, start = 16.dp, end = 16.dp).clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF2A2A2A)).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(note, color = Zinc300, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                IconButton({ bannerOpen = false }) { Icon(Icons.Outlined.Close, "Dismiss", tint = Zinc400) }
-            }
-        }
         // The floating toolbar.
         if (s is ViewerState.Ready) AnimatedVisibility(bars, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
             Row(
