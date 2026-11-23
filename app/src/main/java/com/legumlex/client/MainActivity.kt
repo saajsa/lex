@@ -269,15 +269,16 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     // The system back: a wizard steps back a page before it
                     // leaves, as it does for the back gesture.
                     onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
-                    onNotifications = { navController.navigate(Route.Notifications.path) },
+                    // The counsel's bell is their alerts (REQ-038 038.1); the client's is the Notifications list.
+                    onNotifications = { navController.navigate(if (counsel) Route.BoardAlerts.path else Route.Notifications.path) { launchSingleTop = true } },
                     onOffice = if (lead || counsel) null else ({ navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } }),
-                    unreadCount = unreadCount,
+                    unreadCount = if (counsel) 0 else unreadCount,
                     initials = if (lead) null else profile?.initials,
                     avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                     onSignOut = if (counsel) ({ confirmSignOut = true }) else null,
                     onSwitchWorkspace = if (counsel && wsChoose) ({ navController.navigate(Route.Choose.path) { popUpTo(0) { inclusive = true } } }) else null,
-                    showBell = !lead && !counsel,
+                    showBell = !lead,
                     subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else if (waiting) "" else "Client Portal",
                     spacedSubtitle = counsel,
                     trailingChip = if (counsel) ({

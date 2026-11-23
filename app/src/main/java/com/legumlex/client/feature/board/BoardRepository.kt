@@ -127,6 +127,12 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
             court = q.court.ifBlank { null }, folder = q.folder.ifBlank { null }, tag = q.tag.takeIf { it > 0 })))
     }
 
+    /** The summary to share: the case's own share_text, else the server's share answer. */
+    suspend fun shareText(c: BoardCase): Result<String> =
+        if (c.shareText.isNotBlank()) Result.success(c.shareText) else runCatching { data(api.boardCaseShare(c.id))["text"].str() }
+
+    suspend fun alerts(): Result<List<BoardAlert>> = runCatching { parseAlerts(data(api.boardAlerts(50))) }
+
     suspend fun filters(): Result<BoardFilters> = runCatching { parseFilters(data(api.boardFilters())) }
 
     /** Add ([id] 0) or rename a folder or tag; the saved name comes back. */

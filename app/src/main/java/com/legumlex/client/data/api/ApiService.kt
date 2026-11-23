@@ -983,6 +983,14 @@ interface ApiService {
         @Query("tag") tag: Int? = null,
     ): Map<String, Any?>
 
+    /** REQ-038 038.6: {text}, the case summary to share (no link, no note). */
+    @GET("board/cases/{id}/share")
+    suspend fun boardCaseShare(@Path("id") id: Int): Map<String, Any?>
+
+    /** REQ-038 038.1: the counsel's alerts, newest first: {items [{id, kind, ref, title, body, data, at}]}. */
+    @GET("board/alerts")
+    suspend fun boardAlerts(@Query("limit") limit: Int = 50): Map<String, Any?>
+
     /** REQ-038 038.5: {counts, courts, folders, tags} for the Cases filters. */
     @GET("board/filters")
     suspend fun boardFilters(): Map<String, Any?>

@@ -85,6 +85,16 @@ class ClientFcmService : MessagingService() {
         }
 
         val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // A counsel alert (REQ-038 038.1) is posted under its stable alert_id, so the same alert never shows twice, and grouped.
+        if (com.legumlex.client.feature.board.isCounselAlert(data)) {
+            builder.setGroup(COUNSEL_GROUP)
+            nm.notify(data["alert_id"], ALERT_ID, builder.build())
+            val summary = NotificationCompat.Builder(applicationContext, PushSetup.DEFAULT_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_notification).setContentTitle("Counsel Alerts")
+                .setGroup(COUNSEL_GROUP).setGroupSummary(true).setAutoCancel(true).setContentIntent(pi).build()
+            nm.notify(COUNSEL_GROUP, ALERT_ID, summary)
+            return
+        }
         nm.notify(notificationId(remoteMessage), builder.build())
     }
 
@@ -94,6 +104,8 @@ class ClientFcmService : MessagingService() {
      * the existing navDeepLink registrations.
      */
     private fun buildDeepLinkUri(data: Map<String, String>): Uri? {
+        // A counsel push carries a board route ("board" or "board/cases/{id}").
+        if (data["workspace"] == "counsel") return Uri.parse(com.legumlex.client.feature.board.counselDeepLink(data["route"]))
         return when (data["route"]) {
             "consultation" -> data["consultation_id"]
                 ?.takeIf { it.isNotBlank() }
@@ -128,5 +140,9 @@ class ClientFcmService : MessagingService() {
         return key.hashCode()
     }
 
-    private companion object { const val TAG = "ClientFcm" }
+    private companion object {
+        const val TAG = "ClientFcm"
+        const val COUNSEL_GROUP = "counsel_alerts"
+        const val ALERT_ID = 38_1
+    }
 }

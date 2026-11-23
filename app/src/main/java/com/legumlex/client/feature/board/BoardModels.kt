@@ -67,6 +67,8 @@ data class BoardCase(
     /** REQ-038 038.5: the counsel's own folder (one) and tags (many). */
     val folder: LabelRef? = null,
     val tags: List<LabelRef> = emptyList(),
+    /** REQ-038 038.6: the summary the server builds to share (no link, never the note). */
+    val shareText: String = "",
 ) {
     /** The court line: the court, then the bench the server names (else the room). */
     val courtLine: String get() = listOf(courtShown, judgeShown).filter { it.isNotBlank() }.joinToString(" · ")
@@ -227,6 +229,7 @@ internal fun parseCase(m: Map<String, Any?>): BoardCase {
         judgeLine = m["judge_line"].str(),
         folder = m["folder"].map().takeIf { it.isNotEmpty() }?.let(::parseLabelRef),
         tags = m["tags"].list().map(::parseLabelRef),
+        shareText = m["share_text"].str(),
     )
 }
 

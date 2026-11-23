@@ -441,7 +441,16 @@ fun LegumNavGraph(navController: NavHostController) {
             com.legumlex.client.feature.registry.RegistryAgreementScreen()
         }
         // --- The advocate's Counsel workspace (Today is Home; Credits; the case and the sheet) ---
-        composable(Route.CounselCalendar.path) {
+        composable(Route.BoardAlerts.path) {
+            com.legumlex.client.feature.board.BoardAlertsScreen(onOpen = { t ->
+                when (t) {
+                    com.legumlex.client.feature.board.AlertTarget.Today -> navController.navigateTab(Route.CounselCalendar.path)
+                    is com.legumlex.client.feature.board.AlertTarget.Case -> navController.navigate(Route.BoardCase.build(t.id))
+                }
+            })
+        }
+        // A counsel alert's tap (REQ-038 038.1): legumlex://counsel/today or legumlex://counsel/case/{id}.
+        composable(Route.CounselCalendar.path, deepLinks = listOf(navDeepLink { uriPattern = "legumlex://counsel/today" })) {
             com.legumlex.client.feature.board.CounselCalendarScreen(
                 onCredits = { navController.navigateTab(Route.BoardCredits.path) },
                 onOpenCase = { id -> navController.navigate(Route.BoardCase.build(id)) },
@@ -454,6 +463,7 @@ fun LegumNavGraph(navController: NavHostController) {
         composable(
             Route.BoardCase.path,
             arguments = listOf(navArgument(Route.BoardCase.ARG) { type = NavType.IntType }),
+            deepLinks = listOf(navDeepLink { uriPattern = "legumlex://counsel/case/{${Route.BoardCase.ARG}}" }),
         ) { entry ->
             com.legumlex.client.feature.board.BoardCaseScreen(
                 caseId    = entry.arguments?.getInt(Route.BoardCase.ARG) ?: 0,

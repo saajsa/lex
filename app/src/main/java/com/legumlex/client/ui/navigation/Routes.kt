@@ -65,6 +65,8 @@ sealed class Route(val path: String) {
         fun build(id: Int) = "board/cases/$id"
     }
     data object BoardCredits  : Route("board/credits")
+    /** REQ-038 038.1: the counsel's alerts (the header bell). */
+    data object BoardAlerts   : Route("counsel/alerts")
     /** The Counsel workspace's Upgrade (Coming Soon): an invitation to associate with the firm. */
     /** The Counsel workspace's Calendar (it was Today), and the diary's list of cases (the Home's Diary tile). */
     data object CounselCalendar : Route("counsel/calendar")
@@ -398,6 +400,6 @@ val leadTabs = listOf(
 /** The Counsel screens that scroll behind the raised Print button's zone (each keeps bottom room of its own). */
 fun counselRunsBehindBar(route: String?): Boolean {
     val b = routeBase(route) ?: return false
-    return listOf(Route.Home, Route.CounselCalendar, Route.BoardCredits, Route.Upgrade, Route.BoardCases, Route.BoardCase, Route.BoardRange)
+    return listOf(Route.Home, Route.CounselCalendar, Route.BoardCredits, Route.Upgrade, Route.BoardCases, Route.BoardCase, Route.BoardRange, Route.BoardAlerts)
         .any { it.path.substringBefore("?") == b }
 }

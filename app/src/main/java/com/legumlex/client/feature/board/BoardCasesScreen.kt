@@ -97,6 +97,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
     var checkCost by remember { mutableStateOf<Int?>(null) }
     var answering by remember { mutableStateOf<Pair<NeedsEye, DateAnswer>?>(null) }
     var filing by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf<String?>(null) }
     val today = BoardDates.today()
 
     fun load() { scope.launch { repo.case(caseId).onSuccess { c = it; error = null }.onFailure { error = it.boardMessage() } } }
@@ -145,6 +146,10 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
                 KeyValueRow("Source", sourceLabel(x.source))
             }
             FolderAndTagsCard(x) { filing = true }
+            LegumSecondaryButton("Share Summary", {
+                refusal = null
+                scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } }
+            }, enabled = !busy)
             DateHistoryCard(x.history, today)
             refusal?.let {
                 NoteLine(it, danger = true)
@@ -163,6 +168,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit) {
         Spacer(Modifier.height(8.dp))
     }
 
+    sharing?.let { text -> ShareSummaryDialog(text) { sharing = null } }
     c?.let { x -> if (filing) FileCaseWizard(x, onClose = { filing = false }, onSaved = { filing = false; c = it.copy(history = x.history) }) }
 
     answering?.let { (n, a) ->
@@ -320,3 +326,42 @@ internal fun creditsTitle(n: Int): String = creditsLabel(n).replaceFirstChar { i
 /** A Date History row's label as the server words it; a date that was replaced, rejected or never adopted is marked "Replaced", as on the web. */
 internal fun historyLabel(r: DateHistoryRow): String =
     r.label.ifBlank { r.source.replaceFirstChar { it.uppercase() } } + if (r.superseded) " · Replaced" else ""
+
+/** Share Summary (REQ-038 038.6): the server's text to read first, then Copy or the share sheet. No link, no note. */
+@Composable
+private fun ShareSummaryDialog(text: String, onClose: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Share Summary") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("What You Will Share", style = MaterialTheme.typography.labelMedium, color = Lex.colors.mutedForeground)
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(text, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground,
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(Lex.colors.muted).padding(12.dp))
+                }
+                Text(SHARE_NOTE, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
+            }
+        },
+        confirmButton = {
+            TextButton({
+                val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("Case Summary", text))
+                Toast.makeText(context, "Copied.", Toast.LENGTH_SHORT).show()
+            }) { Text("Copy The Text") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClose) { Text("Close") }
+                TextButton({
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, text) }
+                    context.startActivity(android.content.Intent.createChooser(send, "Share Summary"))
+                }) { Text("Share") }
+            }
+        },
+    )
+}
+
+/** The web's line under the preview. */
+internal const val SHARE_NOTE = "No link and no note of yours goes with it."
