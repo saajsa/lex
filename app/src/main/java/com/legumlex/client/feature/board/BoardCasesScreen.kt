@@ -189,6 +189,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                     )
                 }
                 CaseRecordSection(x.record, x.hasCnr, readLabel, onRead, enabled = live && !getter.fetching,
+                    nextDate = x.nextDate, dot = rowEdge(x, today).takeIf { it == Edge.Red || it == Edge.Green }?.let { edgeColor(it) },
                     onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; fetchOrder(caseId, o) }, fetchingId = getter.fetchingId)
             }
             Spacer(Modifier.height(8.dp))
@@ -515,11 +516,8 @@ internal fun CaseRow(
                         record == null -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
                         record.listings.isEmpty() -> Text(recordEmpty("hearings", c.hasCnr, record.loaded), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
                         else -> {
-                            val h = record.listings.first()
-                            HearingSplit(h.orders, enabled, fetchingId, onOpen, onGet) {
-                                Text(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground)
-                                hearingLine(h).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
-                            }
+                            // The latest hearing, in the case page's timeline row style.
+                            timelineRows(record, null, today).firstOrNull()?.let { row -> TimelineRowView(row, today, null, enabled, fetchingId, onOpen, onGet) }
                         }
                     }
                 }

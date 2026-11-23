@@ -65,6 +65,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawBehind
 import com.legumlex.client.ui.components.LegumSecondaryButton
 import com.legumlex.client.ui.components.LexCard
 import com.legumlex.client.ui.components.LexEmpty
@@ -170,37 +173,106 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
     return r.orders.filter { it.id !in shown }
 }
 
+/** One row of the hearings timeline (owner's reference, 23 Nov 2026): a date block, an eyebrow, a title, a meta line and its orders. */
+data class TimelineRow(
+    val date: java.time.LocalDate?, val eyebrow: String, val title: String, val meta: String?, val orders: List<BoardOrder>, val upcoming: Boolean = false,
+)
+
 /**
- * The case's hearings (owner, 23 Nov 2026): soft tiles newest first, 8dp apart; the date bold, the
- * purpose and next line, the judge muted, on the left 80%; the order buttons stacked in the right 20%. Other Orders last.
- * Empty: the web's reason, with Update From Court Now when a read helps. All Kept Orders As One PDF lives in the case's ⋮ menu.
+ * The case's hearings as timeline rows, newest first: the next date first as UPCOMING when it is after the last hearing; then each
+ * hearing ("HEARD · judge", or "LISTED" for a date not yet passed; its purpose, else "Hearing"; "Next: 4 Dec 2026 · Arguments");
+ * then OTHER ORDERS for orders under no hearing.
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.LocalDate): List<TimelineRow> {
+    val out = mutableListOf<TimelineRow>()
+    val next = BoardDates.parse(nextDate)
+    val latest = r.listings.mapNotNull { BoardDates.parse(it.date) }.maxOrNull()
+    if (next != null && (latest == null || next.isAfter(latest))) {
+        // What it is listed for: the last hearing's next purpose when it named this date.
+        val purpose = r.listings.firstOrNull { BoardDates.parse(it.nextDate) == next }?.nextPurpose?.takeIf { it.isNotBlank() } ?: "Hearing"
+        out += TimelineRow(next, "UPCOMING", purpose, null, emptyList(), upcoming = true)
+    }
+    r.listings.forEach { h ->
+        val d = BoardDates.parse(h.date)
+        val heard = d != null && d.isBefore(today)
+        out += TimelineRow(
+            d, listOfNotNull(if (heard) "Heard" else "Listed", h.judge.takeIf { it.isNotBlank() }).joinToString(" · ").uppercase(),
+            h.purpose.ifBlank { "Hearing" },
+            BoardDates.parse(h.nextDate)?.let { nd -> "Next: " + longNoDay(nd) + (h.nextPurpose.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") },
+            h.orders,
+        )
+    }
+    otherOrders(r).takeIf { it.isNotEmpty() }?.let { out += TimelineRow(null, "OTHER ORDERS", "Orders", null, it) }
+    return out
+}
+
+/** "4 Dec 2026". */
+internal fun longNoDay(d: java.time.LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
+
+/**
+ * One timeline row: the date block (the day big, the month in capitals, the year only when not this one, and for UPCOMING a dot in the
+ * status colour), a 1dp divider drawn behind (no intrinsic measurement), then the content 80/20 with the order buttons.
+ */
 @Composable
-internal fun CaseRecordSection(
-    r: CaseRecord, hasCnr: Boolean, readLabel: String, onRead: (() -> Unit)?, enabled: Boolean,
-    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, fetchingId: Int? = null,
-) {
-    val other = otherOrders(r)
-    if (r.listings.isEmpty() && other.isEmpty()) { RecordEmptyCard("No Hearings Yet", "hearings", Icons.Outlined.Event, r, hasCnr, readLabel, onRead); return }
-    com.legumlex.client.ui.components.Eyebrow("Hearings")
-    @Composable
-    fun HearingRow(title: String, lines: List<Pair<String, Boolean>>, orders: List<BoardOrder>) {
-        Box(Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Lex.colors.card).padding(12.dp)) {
-            HearingSplit(orders, enabled, fetchingId, onOpen, onGet) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
-                lines.forEach { (t, muted) ->
-                    Text(t, style = MaterialTheme.typography.bodySmall,
-                        color = if (muted) Lex.colors.mutedForeground else Lex.colors.secondaryForeground)
+internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: Color?, enabled: Boolean, fetchingId: Int?,
+                             onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
+    val line = Lex.colors.border
+    Row(
+        Modifier.fillMaxWidth().drawBehind { val x = 64.dp.toPx(); drawLine(line, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1.dp.toPx()) }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            val d = row.date
+            Text(d?.dayOfMonth?.toString()?.padStart(2, '0') ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
+            if (d != null) Text(d.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH).uppercase(), style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground)
+            if (d != null && d.year != today.year) Text("${d.year}", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+            if (row.upcoming && dot != null) Box(Modifier.padding(top = 4.dp).size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(dot))
+        }
+        Spacer(Modifier.width(17.dp))
+        Box(Modifier.weight(1f)) {
+            HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet) {
+                // The eyebrow is the one letter-spaced line, as in the reference.
+                Text(row.eyebrow, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp, maxLines = 1)
+                Text(row.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
+                row.meta?.let { m ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(m, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
+                    }
                 }
             }
         }
     }
-    r.listings.forEach { h ->
-        HearingRow(BoardDates.parse(h.date)?.let { BoardDates.long(it) } ?: h.date,
-            listOfNotNull(hearingLine(h).takeIf { it.isNotBlank() }?.let { it to false }, h.judge.takeIf { it.isNotBlank() }?.let { it to true }), h.orders)
+}
+
+/**
+ * The case's hearings (owner's reference, 23 Nov 2026): one card, rows divided by hairlines, each a date block, a divider and its
+ * content with the order buttons in the right fifth. The next date leads as UPCOMING. Empty: the web's reason with Update From Court
+ * Now when a read helps (under the UPCOMING row, when there is one).
+ */
+@Composable
+internal fun CaseRecordSection(
+    r: CaseRecord, hasCnr: Boolean, readLabel: String, onRead: (() -> Unit)?, enabled: Boolean,
+    onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, fetchingId: Int? = null,
+    nextDate: String? = null, dot: Color? = null,
+) {
+    val today = BoardDates.today()
+    val rows = timelineRows(r, nextDate, today)
+    if (rows.isNotEmpty()) {
+        com.legumlex.client.ui.components.Eyebrow("Hearings")
+        LexCard {
+            Column(Modifier.padding(horizontal = 12.dp)) {
+                rows.forEachIndexed { i, row ->
+                    if (i > 0) androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
+                    TimelineRowView(row, today, dot, enabled, fetchingId, onOpen, onGet)
+                }
+            }
+        }
     }
-    if (other.isNotEmpty()) HearingRow("Other Orders", emptyList(), other)
+    if (r.listings.isEmpty() && otherOrders(r).isEmpty()) RecordEmptyCard("No Hearings Yet", "hearings", Icons.Outlined.Event, r, hasCnr, readLabel, onRead)
 }
 
 /**

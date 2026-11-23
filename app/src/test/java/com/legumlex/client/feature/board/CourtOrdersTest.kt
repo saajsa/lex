@@ -98,3 +98,31 @@ class CourtOrdersTest {
         assertEquals("boardOrderFetch[5, 8]", calls.last())
     }
 }
+
+/** The owner's reference (23 Nov 2026): hearings as a date-led timeline, the next date leading as UPCOMING. */
+class TimelineTest {
+    private val today = java.time.LocalDate.of(2026, 11, 23)
+    private val rec = parseRecord(mapOf("record_loaded" to true,
+        "listings" to listOf(
+            mapOf("date" to "2026-11-08", "purpose" to "Evidence", "judge" to "Ms. Anita Sharma", "next_date" to "2026-12-04", "next_purpose" to "Arguments", "orders" to emptyList<Any>()),
+            mapOf("date" to "2026-10-24", "purpose" to "", "judge" to "", "next_date" to null, "next_purpose" to "", "orders" to emptyList<Any>()),
+        ),
+        "orders" to listOf(mapOf("id" to 9.0, "date" to null, "state" to "available"))))
+
+    @Test fun rows() {
+        val rows = timelineRows(rec, "2026-12-04", today)
+        assertEquals(listOf("UPCOMING", "HEARD · MS. ANITA SHARMA", "HEARD", "OTHER ORDERS"), rows.map { it.eyebrow })
+        assertEquals("Arguments", rows[0].title); assertTrue(rows[0].upcoming); assertTrue(rows[0].orders.isEmpty())
+        assertEquals("Evidence", rows[1].title); assertEquals("Next: 4 Dec 2026 · Arguments", rows[1].meta)
+        assertEquals("Hearing", rows[2].title); assertNull(rows[2].meta)                // no purpose: "Hearing"
+        assertEquals(listOf(9), rows[3].orders.map { it.id })
+    }
+
+    @Test fun upcomingOnlyAfterTheLastHearing() {
+        assertEquals("HEARD · MS. ANITA SHARMA", timelineRows(rec, "2026-11-08", today).first().eyebrow)   // the same date: no extra row
+        assertEquals("HEARD · MS. ANITA SHARMA", timelineRows(rec, null, today).first().eyebrow)
+        val only = timelineRows(parseRecord(emptyMap()), "2026-12-04", today)
+        assertEquals(1, only.size); assertEquals("Hearing", only[0].title)                     // no hearings yet: the next date alone
+        assertEquals("LISTED", timelineRows(parseRecord(mapOf("listings" to listOf(mapOf("date" to "2026-11-23")))), null, today)[0].eyebrow)
+    }
+}
