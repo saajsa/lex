@@ -24,7 +24,7 @@ class DeskGatherTest {
         val s = src("feature/desk/DeskViewModel.kt") ?: return
         // The count sent to the desk and tested is the reading's own (1 if it was answered) plus Lex's own.
         assertTrue(s.contains("private val readingAsked get() = if (!more.isNullOrEmpty()) 1 else 0"))
-        assertTrue(s.contains("val askedSoFar = readingAsked + gatherAsked") && s.contains("repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty()))"))
+        assertTrue(s.contains("val askedSoFar = readingAsked + gatherAsked") && s.contains("repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty()), chequeDates = chequeDates)"))
     }
 
     @Test fun aSkippedFollowUpMeansNoMoreQuestions() {
@@ -62,13 +62,13 @@ class DeskGatherTest {
 
     @Test fun leadsAskLeadDeskGatherAndTheWaitIsTwentySeconds() {
         val data = src("feature/desk/DeskData.kt") ?: return
-        assertTrue(data.contains("(if (lead) api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics) else api.deskGather(text, asked, lang, docs, conversation, \"focus\", topics))"))
-        assertTrue(data.contains("suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null, topics: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
+        assertTrue(data.contains("(if (lead) api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics, chequeField(chequeDates)) else api.deskGather(text, asked, lang, docs, conversation, \"focus\", topics, chequeField(chequeDates)))"))
+        assertTrue(data.contains("suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null, topics: String? = null, chequeDates: Boolean = false): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS)"))
         val api = src("data/api/ApiService.kt")!!
         assertTrue(api.contains("@POST(\"desk/gather\")") && api.contains("@POST(\"lead/desk/gather\")") && api.contains("@Field(\"asked\") asked: Int"))
         assertTrue(Regex("@Headers\\(\"X-Read-Timeout: 22\"\\)\\s+@POST\\(\"desk/gather\"\\)").containsMatchIn(api))
         // "One moment…" after about 3 s.
-        assertTrue(src("feature/desk/DeskViewModel.kt")!!.contains("withSlowNote(lbl(\"wait_moment\", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }"))
+        assertTrue(src("feature/desk/DeskViewModel.kt")!!.contains("withSlowNote(lbl(\"wait_moment\", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty()), chequeDates = chequeDates) }"))
     }
 
     @Test fun theQuestionsComeAfterTheReadingsOwnFollowUpAndBeforeThePapers() {

@@ -343,7 +343,7 @@ class DeskFocusTest {
 
     @Test fun focusIsRequestedAndTheRereadFollowsTheServer() {
         val data = src("DeskData.kt")
-        assertTrue(data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics) else api.deskGather(text, asked, lang, docs, conversation, \"focus\", topics)"))
+        assertTrue(data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics, chequeField(chequeDates)) else api.deskGather(text, asked, lang, docs, conversation, \"focus\", topics, chequeField(chequeDates))"))
         val vm = src("DeskViewModel.kt")
         assertTrue(vm.contains("if (gatherLog.isNotEmpty() && lastReread) {") && vm.contains("if (r != null) lastReread = r.reread"))
         assertTrue(vm.contains("val reflect = if (r != null && r.reflect.isNotBlank() && !reflected) { reflected = true; r.reflect } else \"\""))

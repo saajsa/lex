@@ -103,7 +103,7 @@ class DeskDirectTest {
         assertNull(docsField(emptyList())); assertNull(docsField(listOf(" ", "")))
         assertEquals("Rent agreement|Bank statement", docsField(listOf(" Rent agreement ", "", "Bank statement")))
         val vm = src("feature/desk/DeskViewModel.kt") ?: return
-        assertTrue(vm.contains("repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty()))"))
+        assertTrue(vm.contains("repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty()), chequeDates = chequeDates)"))
         assertEquals(4, Regex("repo\\.check\\(.*?langField\\(convLang\\)[,)]").findAll(vm).count())     // the first read, both re-reads, and the read under the cards
         assertTrue(vm.contains("convLang = lang"))
         val api = src("data/api/ApiService.kt")!!
@@ -111,6 +111,6 @@ class DeskDirectTest {
         assertTrue(api.contains("suspend fun leadDeskGather(@Field(\"text\") text: String, @Field(\"asked\") asked: Int, @Field(\"lang\") lang: String? = null, @Field(\"docs\") docs: String? = null, @Field(\"conversation\") conversation: String? = null,"))
         assertTrue(api.contains("@Field(\"lang\") lang: String? = null): Map<String, Any?>"))
         val data = src("feature/desk/DeskData.kt")!!
-        assertTrue(data.contains("api.leadDeskCheck(text, conversation, lang, 2, ins, cw, routeCtx, routeLast)") && data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics)"))
+        assertTrue(data.contains("api.leadDeskCheck(text, conversation, lang, 2, ins, cw, routeCtx, routeLast)") && data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics, chequeField(chequeDates))"))
     }
 }

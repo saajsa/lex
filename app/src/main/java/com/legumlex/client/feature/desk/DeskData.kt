@@ -456,10 +456,10 @@ class DeskRepository(private val context: Context) {
 
     /** Lex's next question for the enquiry so far (desk/gather; a lead's desk asks lead/desk/gather), 20 seconds. Null when it could not be asked. */
     @Suppress("UNCHECKED_CAST")
-    suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null, topics: String? = null): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
+    suspend fun gather(text: String, asked: Int, lang: String? = null, docs: String? = null, topics: String? = null, chequeDates: Boolean = false): GatherResult? = withTimeoutOrNull(DESK_READ_WAIT_MS) {
         runCatching {
             // mode=focus: the web's questions (reflect, one question, options while the goal is unclear, the emergency pause, reread).
-            parseGather((if (lead) api.leadDeskGather(text, asked, lang, docs, conversation, "focus", topics) else api.deskGather(text, asked, lang, docs, conversation, "focus", topics))["data"] as? Map<String, Any?>)
+            parseGather((if (lead) api.leadDeskGather(text, asked, lang, docs, conversation, "focus", topics, chequeField(chequeDates)) else api.deskGather(text, asked, lang, docs, conversation, "focus", topics, chequeField(chequeDates)))["data"] as? Map<String, Any?>)
         }.getOrNull()
     }
 

@@ -215,6 +215,9 @@ data class KeyDates(
     val how: String = "", val recv: LocalDate? = null,
 )
 
+/** REQ-046: cheque_dates=1 on desk/gather while the reading says a bounced cheque (the server then asks no date: the key dates step does); otherwise not sent. */
+fun chequeField(on: Boolean): String? = if (on) "1" else null
+
 /** The days a key date can be: three years back to today. */
 fun kdBounds(today: LocalDate): ClosedRange<LocalDate> = today.minusYears(3)..today
 

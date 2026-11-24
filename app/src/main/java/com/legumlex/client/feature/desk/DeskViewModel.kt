@@ -952,7 +952,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val askedSoFar = readingAsked + gatherAsked
         if (!mayAskMore(readingAsked > 0, readingSkipped, askedSoFar)) return finishGather()
         dock(Dock.Waiting("…"))
-        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty())) }
+        val r = withSlowNote(lbl("wait_moment", ONE_MOMENT)) { repo.gather(fullText(), askedSoFar, langField(convLang), docsField(read?.documents.orEmpty()), chequeDates = chequeDates) }
         if (r?.ran == true) gatherRan = true
         r?.let { adopt(it.tongue.lang) }
         if (r != null) lastReread = r.reread

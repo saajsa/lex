@@ -647,13 +647,13 @@ interface ApiService {
     @Headers("X-Read-Timeout: 22")
     @POST("desk/gather")
     suspend fun deskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null,
-                           @Field("mode") mode: String? = null, @Field("topics") topics: String? = null): Map<String, Any?>
+                           @Field("mode") mode: String? = null, @Field("topics") topics: String? = null, @Field("cheque_dates") chequeDates: String? = null): Map<String, Any?>
 
     @FormUrlEncoded
     @Headers("X-Read-Timeout: 22")
     @POST("lead/desk/gather")
     suspend fun leadDeskGather(@Field("text") text: String, @Field("asked") asked: Int, @Field("lang") lang: String? = null, @Field("docs") docs: String? = null, @Field("conversation") conversation: String? = null,
-                               @Field("mode") mode: String? = null, @Field("topics") topics: String? = null): Map<String, Any?>
+                               @Field("mode") mode: String? = null, @Field("topics") topics: String? = null, @Field("cheque_dates") chequeDates: String? = null): Map<String, Any?>
 
     /** enquiry_text, entity_type, phone, country, country_other, desk_reading, session_hash, submission_key, deadline_flag, deadline_date, attachments[] */
     @Multipart

@@ -122,7 +122,7 @@ class DeskBookedTest {
         for (fn in listOf("deskCheck", "leadDeskCheck", "deskGather", "leadDeskGather", "deskDirect", "leadDeskDirect"))
             assertTrue(fn, Regex("suspend fun $fn\\(.*@Field\\(\"conversation\"\\) conversation: String\\? = null").containsMatchIn(api))
         val data = src("feature/desk/DeskData.kt")!!
-        assertTrue(data.contains("api.leadDeskCheck(text, conversation, lang, 2, ins, cw, routeCtx, routeLast)") && data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics)"))
+        assertTrue(data.contains("api.leadDeskCheck(text, conversation, lang, 2, ins, cw, routeCtx, routeLast)") && data.contains("api.leadDeskGather(text, asked, lang, docs, conversation, \"focus\", topics, chequeField(chequeDates))"))
         assertTrue(data.contains("deadlineDate, lang, direct, conversation)"))                      // the enquiry submit (direct=1 or not)
         assertEquals("abc", enquiryFields("t", "individual", "9", null, "", "", null, "k", "", "", "", true, "abc").toMap()["conversation"])
         assertFalse(enquiryFields("t", "individual", "9", null, "", "", null, "k", "", "").any { it.first == "conversation" })

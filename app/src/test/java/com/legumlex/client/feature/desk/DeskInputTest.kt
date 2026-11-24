@@ -146,3 +146,20 @@ class DeskKeyDatesTest {
         assertEquals(LocalDate.of(2023, 11, 24)..today, kdBounds(today))
     }
 }
+
+/** REQ-046: cheque_dates=1 goes on every desk/gather while the reading says a bounced cheque, and only then. */
+class DeskChequeGatherTest {
+    @Test fun theFieldIsSentOnlyWhileTheReadingSaysSo() {
+        assertEquals("1", chequeField(true))
+        assertNull(chequeField(false))   // a null @Field is left out of the form
+    }
+
+    @Test fun bothGatherCallsCarryIt() {
+        val root = listOf("src/main/java/com/legumlex/client", "app/src/main/java/com/legumlex/client").map { java.io.File(it) }.firstOrNull { it.isDirectory } ?: return
+        val api = java.io.File(root, "data/api/ApiService.kt").readText()
+        assertEquals(2, Regex("""@Field\("topics"\) topics: String\? = null, @Field\("cheque_dates"\) chequeDates: String\? = null\)""").findAll(api).count())
+        val data = java.io.File(root, "feature/desk/DeskData.kt").readText()
+        assertEquals(2, Regex("""\"focus\", topics, chequeField\(chequeDates\)\)""").findAll(data).count())
+        assertTrue(java.io.File(root, "feature/desk/DeskViewModel.kt").readText().contains("docsField(read?.documents.orEmpty()), chequeDates = chequeDates)"))
+    }
+}
