@@ -1011,6 +1011,13 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (d.clarify) clarified(text) else recordGatherAnswer(d.question, text)
     }
 
+    /** "I Missed It" answered: the words go to counsel as the deadline line, with no deadline date (the server marks it urgent), and that step is not asked. */
+    fun pickMissed(text: String) = go {
+        val d = _ui.value.dock as? Dock.Input ?: return@go
+        deadline = cleanDeadlineText(text).take(DEADLINE_MAX) to ""; deadlineFromGather = true
+        if (d.clarify) clarified(text) else recordGatherAnswer(d.question, text)
+    }
+
     fun typeInstead() { val d = _ui.value.dock as? Dock.Input ?: return; dock(d.copy(writing = true)) }
     fun backToInput() { val d = _ui.value.dock as? Dock.Input ?: return; dock(d.copy(writing = false)) }
     fun backToChoices() { val d = _ui.value.dock as? Dock.Options ?: return; dock(d.copy(writing = false)) }

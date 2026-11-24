@@ -88,3 +88,30 @@ class DeskClarifyInputTest {
         assertNull(parseReading(mapOf("success" to true, "follow_up" to "Q?"))!!.input)
     }
 }
+
+/** REQ-045 (owner, 24 Nov): a hearing to come may have been missed: the server's I Missed It, a past calendar, and the words that go to counsel. */
+class DeskMissedTest {
+    private val today = LocalDate.of(2026, 11, 24)
+    private fun date(missed: Any?) = parseGatherInput(mapOf("kind" to "date", "when" to "future", "min" to "2026-11-24", "max" to "2028-11-24", "missed" to missed))!!
+
+    @Test fun theMissedWayIsReadFromTheServer() {
+        val m = date(mapOf("label" to "I Missed It", "ask" to "When was it?", "answer" to "Missed the hearing on {date}", "min" to "2025-11-24", "max" to "2026-11-24")).missed!!
+        assertEquals("I Missed It", m.label)
+        assertEquals("When was it?", m.ask)
+        assertEquals(LocalDate.of(2025, 11, 24)..today, missedBounds(m, today))
+        assertEquals("Missed the hearing on Sunday, 22 November 2026", missedAnswer(m, LocalDate.of(2026, 11, 22)))
+    }
+
+    @Test fun absentOrLabelLessMeansNone() {
+        assertNull(date(null).missed)
+        assertNull(date(mapOf("ask" to "When was it?")).missed)
+        assertNull(date("I Missed It").missed)
+    }
+
+    @Test fun missingPartsFallBack() {
+        val m = date(mapOf("label" to "I Missed It")).missed!!
+        assertEquals(today.minusYears(1)..today, missedBounds(m, today))
+        assertEquals("Missed the hearing on Friday, 20 November 2026", missedAnswer(m, LocalDate.of(2026, 11, 20)))
+        assertEquals(today.minusYears(1)..today, missedBounds(MissedInput("I Missed It", "", MISSED_ANSWER_EN, LocalDate.of(2027, 1, 1), LocalDate.of(2026, 1, 1)), today))
+    }
+}

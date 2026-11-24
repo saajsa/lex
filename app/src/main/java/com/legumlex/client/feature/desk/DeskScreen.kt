@@ -86,6 +86,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -1079,7 +1080,7 @@ internal fun DeskCalendar(bounds: ClosedRange<java.time.LocalDate>?, onDay: (jav
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDate: String) -> Unit, onType: () -> Unit, onBack: () -> Unit, onText: (String) -> Unit, onSkip: () -> Unit) {
+private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDate: String) -> Unit, onMissed: (String) -> Unit, onType: () -> Unit, onBack: () -> Unit, onText: (String) -> Unit, onSkip: () -> Unit) {
     // Lex's clarify question keeps its own way out, Send it as it is; the follow-up questions keep Skip The Questions.
     val skip = if (d.clarify) dt("ui_send_as_is", "Send it as it is") else dt("ui_skip_questions", GATHER_SEND_NOW)
     val ph = if (d.clarify) dt("ph_more", "A little more about it…") else dt("ph_answer", "Your answer…")
@@ -1099,9 +1100,19 @@ private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDa
     Column {
         when (d.input.kind) {
             INPUT_DATE -> {
-                val bounds = remember(d.input) { inputBounds(d.input, java.time.LocalDate.now()) }
-                // One tap on a day answers.
-                DeskCalendar(bounds, { day -> if (day != null) onPick(dateAnswer(day), day.toString()) })
+                val mi = d.input.missed
+                var missing by remember(d.input) { mutableStateOf(false) }
+                if (mi != null && missing) {
+                    // I Missed It: a past calendar headed by the server's ask; a day answers in the server's words.
+                    Text(mi.ask, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
+                    val past = remember(mi) { missedBounds(mi, java.time.LocalDate.now()) }
+                    key(mi) { DeskCalendar(past, { day -> if (day != null) onMissed(missedAnswer(mi, day)) }) }
+                } else {
+                    val bounds = remember(d.input) { inputBounds(d.input, java.time.LocalDate.now()) }
+                    // One tap on a day answers.
+                    DeskCalendar(bounds, { day -> if (day != null) onPick(dateAnswer(day), day.toString()) })
+                    if (mi != null) ChipGroup(listOf(ChipSpec(mi.label, false) { missing = true }), topGap = 4.dp)
+                }
                 ChipGroup(listOf(ChipSpec(other, false, go = onType)), topGap = 4.dp)
             }
             else -> {
@@ -1595,8 +1606,8 @@ internal fun DeskThread(
                 Dock.Question -> QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
                 Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
                 Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)
-                is Dock.Input -> if (d.clarify) InputDock(d, ui.error, vm::pickInput, vm::typeInstead, vm::backToInput, vm::submitClarify, vm::sendAsItIs)
-                    else InputDock(d, ui.error, vm::pickInput, vm::typeInstead, vm::backToInput, vm::submitGather, vm::sendNow)
+                is Dock.Input -> if (d.clarify) InputDock(d, ui.error, vm::pickInput, vm::pickMissed, vm::typeInstead, vm::backToInput, vm::submitClarify, vm::sendAsItIs)
+                    else InputDock(d, ui.error, vm::pickInput, vm::pickMissed, vm::typeInstead, vm::backToInput, vm::submitGather, vm::sendNow)
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
                 is Dock.Advocate -> AdvocateWaiting(d.state, { vm.act("advocate_open") })
                 is Dock.Actions -> Column { ChipGroup(d.list.map { a -> ChipSpec(a.label, a.main, a.sub) { vm.act(a.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }

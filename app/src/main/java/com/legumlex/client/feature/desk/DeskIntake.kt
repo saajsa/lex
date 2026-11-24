@@ -182,7 +182,33 @@ fun parseGather(d: Map<String, Any?>?): GatherResult? {
 data class GatherInput(
     val kind: String, val options: List<String> = emptyList(), val whenDate: String = "", val min: LocalDate? = null, val max: LocalDate? = null,
     val other: String = "", val fillsDeadline: Boolean = false,
+    /** A hearing to come that may already have been missed: the server's "I Missed It" and its past calendar. */
+    val missed: MissedInput? = null,
 )
+
+/** The missed-hearing way (date input only): [label] the chip, [ask] the calendar's heading, [answer] with {date}, and the days [min]..[max]. */
+data class MissedInput(val label: String, val ask: String, val answer: String, val min: LocalDate? = null, val max: LocalDate? = null)
+
+/** The server's missed way, or null when it is absent or has no label. */
+fun parseMissed(raw: Any?): MissedInput? {
+    val m = raw as? Map<*, *> ?: return null
+    fun str(k: String) = (m[k] as? String).orEmpty().trim()
+    fun day(k: String) = (m[k] as? String)?.let { runCatching { LocalDate.parse(it.trim()) }.getOrNull() }
+    val label = str("label").ifEmpty { return null }
+    return MissedInput(label, str("ask").ifEmpty { "When was it?" }, str("answer").ifEmpty { MISSED_ANSWER_EN }, day("min"), day("max"))
+}
+
+const val MISSED_ANSWER_EN = "Missed the hearing on {date}"
+
+/** The missed calendar's days: the server's, else a year back to today. */
+fun missedBounds(m: MissedInput, today: LocalDate): ClosedRange<LocalDate> {
+    val lo = m.min ?: today.minusYears(1)
+    val hi = m.max ?: today
+    return if (lo <= hi) lo..hi else today.minusYears(1)..today
+}
+
+/** The missed answer, the date in full: "Missed the hearing on Friday, 22 November 2026". It is also the deadline line counsel sees (no deadline date). */
+fun missedAnswer(m: MissedInput, d: LocalDate): String = m.answer.replace("{date}", dateAnswer(d))
 
 const val INPUT_YES_NO = "yes_no"
 const val INPUT_CHOICE = "choice"
@@ -199,7 +225,7 @@ fun parseGatherInput(raw: Any?): GatherInput? {
         INPUT_YES_NO -> GatherInput(kind, opts.takeIf { it.size == 3 }.orEmpty(), other = other)
         INPUT_CHOICE -> if (opts.size in 2..5) GatherInput(kind, opts, other = other) else null
         INPUT_DATE -> (m["when"] as? String)?.trim()?.takeIf { it == "past" || it == "future" }?.let {
-            GatherInput(kind, whenDate = it, min = day("min"), max = day("max"), other = other, fillsDeadline = m["fills_deadline"] == true)
+            GatherInput(kind, whenDate = it, min = day("min"), max = day("max"), other = other, fillsDeadline = m["fills_deadline"] == true, missed = parseMissed(m["missed"]))
         }
         else -> null
     }
