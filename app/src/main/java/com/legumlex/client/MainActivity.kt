@@ -280,7 +280,6 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
                     onSignOut = if (!lead) ({ confirmSignOut = true }) else null,
-                    signOutBesideBell = !lead && !counsel,
                     onSwitchWorkspace = if (counsel && wsChoose) ({ navController.navigate(Route.Choose.path) { popUpTo(0) { inclusive = true } } }) else null,
                     showBell = !lead,
                     subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else if (waiting) "" else "Client Portal",

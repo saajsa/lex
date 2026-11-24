@@ -39,10 +39,14 @@ class OfficePresenceTest {
         assertTrue(src.contains("look.green -> androidx.compose.ui.graphics.Color.White") && src.contains("if (look.green) Modifier.background(green)"))
     }
 
-    @Test fun theHeaderCarriesSignOutWhereTheOfficeWas() {
+    @Test fun signOutIsLastInTheHeader() {
         val main = listOf("src/main/java/com/legumlex/client/MainActivity.kt").map { java.io.File(it) }.firstOrNull { it.isFile }?.readText() ?: return
-        assertTrue(main.contains("onOffice = null,") && main.contains("onSignOut = if (!lead) ({ confirmSignOut = true }) else null,") && main.contains("signOutBesideBell = !lead && !counsel,"))
+        assertTrue(main.contains("onOffice = null,") && main.contains("onSignOut = if (!lead) ({ confirmSignOut = true }) else null,") && !main.contains("signOutBesideBell"))
         val header = java.io.File("src/main/java/com/legumlex/client/ui/navigation/AppHeader.kt").readText()
-        assertTrue(header.contains("if (onSignOut != null && signOutBesideBell) SignOutButton(onSignOut)") && header.contains("if (onSignOut != null && !signOutBesideBell) SignOutButton(onSignOut)"))
+        // Owner, 24 Nov: Sign Out last, after the bell and the profile circle (client and counsel alike), and only once.
+        val bell = header.indexOf("if (showBell) Box {"); val profile = header.indexOf("if (initials != null) {"); val out = header.indexOf("if (onSignOut != null) SignOutButton(onSignOut)")
+        assertTrue(bell in 0 until profile && profile < out)
+        assertEquals(1, Regex("SignOutButton\\(onSignOut\\)").findAll(header).count())
+        assertFalse(header.contains("signOutBesideBell"))
     }
 }
