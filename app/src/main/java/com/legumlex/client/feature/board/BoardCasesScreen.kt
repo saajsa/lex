@@ -159,12 +159,6 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                             busy = false
                         }
                     }
-                    NextDateElement(x, today) {
-                        PlainIcon(Icons.Outlined.Share, "Share Summary") {
-                            if (!busy) { refusal = null; scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } } }
-                        }
-                        if (x.hasCnr) PlainIcon(Icons.Outlined.Refresh, readLabel) { onRead?.invoke() }
-                    }
                     CaseFilingLine(x)
                     savedAt?.let { at -> NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") }
                 }
@@ -190,8 +184,17 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                         onKeep = { answering = it to DateAnswer.KeepMine }, onAccept = { answering = it to DateAnswer.EcourtsRight },
                     )
                 }
+                // Owner, 24 Nov 2026: the next date element is gone (the hearings list carries it): its share and refresh sit on the
+                // Hearings header, its eCourts mark and red rules on the top hearing row.
                 CaseRecordSection(x.record, x.hasCnr, readLabel, onRead, enabled = live && !getter.fetching,
                     nextDate = x.nextDate, dot = rowEdge(x, today).takeIf { it == Edge.Red || it == Edge.Green }?.let { edgeColor(it) },
+                    mark = dateMark(x, today)?.takeIf { it != Sym.Undated }, moved = movedToday(x, today),
+                    actions = {
+                        PlainIcon(Icons.Outlined.Share, "Share Summary") {
+                            if (!busy) { refusal = null; scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } } }
+                        }
+                        if (x.hasCnr) PlainIcon(Icons.Outlined.Refresh, readLabel) { onRead?.invoke() }
+                    },
                     onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; fetchOrder(caseId, o) }, fetchingId = getter.fetchingId)
             }
             Spacer(Modifier.height(8.dp))

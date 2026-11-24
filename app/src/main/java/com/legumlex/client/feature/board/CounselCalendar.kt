@@ -95,17 +95,6 @@ internal fun listedText(n: Int): String = "${creditsText(n)} ${plural(n, "case",
 internal fun daySubline(count: Int, isToday: Boolean, checked: String?): String =
     "${creditsText(count)} ${plural(count, "case", "cases")}" + if (isToday && checked != null) " · eCourts checked $checked" else ""
 
-/** "11 cases tracked · 99 days of checks left"; the days part is left out when no case is on the daily check. */
-internal fun checksLine(tracked: Int, daysLeft: Int?): String {
-    val head = "${creditsText(tracked)} ${plural(tracked, "case", "cases")} tracked"
-    val tail = when {
-        daysLeft == null -> null
-        daysLeft == 0 -> "less than a day of checks left"
-        else -> "${creditsText(daysLeft)} ${plural(daysLeft, "day", "days")} of checks left"
-    }
-    return if (tail == null) head else "$head · $tail"
-}
-
 /** The slim line under the day's cases. */
 internal fun eyeText(n: Int): String = if (n == 1) "1 date needs your eye" else "${creditsText(n)} dates need your eye"
 

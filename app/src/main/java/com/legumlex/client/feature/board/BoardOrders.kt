@@ -175,8 +175,10 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 /** One row of the hearings timeline (owner's reference, 23 Nov 2026): a date block, an eyebrow, a title, a meta line and its orders. */
 data class TimelineRow(
     val date: java.time.LocalDate?, val eyebrow: String, val title: String, val meta: String?, val orders: List<BoardOrder>, val upcoming: Boolean = false,
-    /** The meta's quiet caps label ("NEXT"); empty for a line that is a state of its own ("No new date yet"). */
+    /** The meta's quiet caps label ("NEXT"); empty for a line that is a state of its own ("No new date yet", "In 9 days"). */
     val metaLabel: String = "",
+    /** The row of the case's next date (the UPCOMING or LISTED one): it carries the eCourts mark, and [red] when passed, moved or within 2 days. */
+    val next: Boolean = false, val red: Boolean = false,
 )
 
 /**
@@ -184,7 +186,7 @@ data class TimelineRow(
  * hearing ("HEARD · judge", or "LISTED" for a date not yet passed; its purpose, else "Hearing"; "Next: 4 Dec 2026 · Arguments");
  * then OTHER ORDERS for orders under no hearing.
  */
-internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.LocalDate): List<TimelineRow> {
+internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.LocalDate, moved: Boolean = false): List<TimelineRow> {
     val out = mutableListOf<TimelineRow>()
     val next = BoardDates.parse(nextDate)
     val latest = r.listings.mapNotNull { BoardDates.parse(it.date) }.maxOrNull()
@@ -206,6 +208,15 @@ internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.Loc
         )
     }
     otherOrders(r).takeIf { it.isNotEmpty() }?.let { out += TimelineRow(null, "OTHER ORDERS", "Orders", null, it) }
+    // The next date's row (owner, 24 Nov 2026: in place of the next date element): its state as the meta when it has none, and red when
+    // the date has passed, was just moved, or is within 2 days.
+    if (next != null) out.indexOfFirst { it.date == next }.takeIf { it >= 0 }?.let { i ->
+        val row = out[i]
+        val passed = next.isBefore(today)
+        val state = if (passed) NO_NEW_DATE.replaceFirstChar { it.uppercase() } else daysToGo(next, today).replaceFirstChar { it.uppercase() }
+        out[i] = row.copy(meta = row.meta ?: state, metaLabel = if (row.meta == null) "" else row.metaLabel, next = true,
+            red = passed || moved || java.time.temporal.ChronoUnit.DAYS.between(today, next) <= 2)
+    }
     return out
 }
 
@@ -232,7 +243,8 @@ internal const val TL_TEXT_GAP = 17
  */
 @Composable
 internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: Color?, enabled: Boolean, fetchingId: Int?,
-                             onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
+                             onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, mark: Sym? = null) {
+    val ink = if (row.red) Lex.colors.danger.solid else Lex.colors.foreground
     val line = Lex.colors.border
     Row(
         Modifier.fillMaxWidth().drawBehind { val x = TL_RULE_X.dp.toPx(); drawLine(line, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1.dp.toPx()) }
@@ -241,9 +253,9 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
     ) {
         Column(Modifier.width(TL_DATE_COL.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val d = row.date
-            Text(d?.dayOfMonth?.toString()?.padStart(2, '0') ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
+            Text(d?.dayOfMonth?.toString()?.padStart(2, '0') ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = ink)
             if (d != null) Text(d.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH).uppercase(), style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground)
+                fontWeight = FontWeight.SemiBold, color = if (row.red) ink else Lex.colors.secondaryForeground)
             if (d != null && d.year != today.year) Text("${d.year}", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
             if (row.upcoming && dot != null) Box(Modifier.padding(top = 4.dp).size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(dot))
         }
@@ -253,10 +265,22 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
         // Owner, 24 Nov 2026: one left edge and a steady rhythm for the eyebrow, title and meta; no arrow.
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             // The eyebrow is the one letter-spaced line, as in the reference.
-            Text(row.eyebrow, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(row.eyebrow, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp, modifier = Modifier.weight(1f, fill = false))
+                // The eCourts mark (Checked, Confirmed Today, Moved), as a small badge beside the next date's eyebrow.
+                if (row.next) mark?.let { m ->
+                    Spacer(Modifier.width(6.dp))
+                    Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)).background(Lex.colors.muted).padding(horizontal = 5.dp, vertical = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        SymbolIcon(m, 12.dp); Spacer(Modifier.width(3.dp))
+                        Text(m.label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground, maxLines = 1)
+                    }
+                }
+            }
             Text(row.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
             if (row.meta != null || row.orders.isNotEmpty()) HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet) {
-                row.meta?.let { m -> Text(metaText(row.metaLabel, m, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
+                row.meta?.let { m -> Text(metaText(row.metaLabel, m, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (row.next && row.red) FontWeight.SemiBold else null, color = if (row.next && row.red) ink else Lex.colors.secondaryForeground) }
             }
         }
     }
@@ -271,17 +295,22 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
 internal fun CaseRecordSection(
     r: CaseRecord, hasCnr: Boolean, readLabel: String, onRead: (() -> Unit)?, enabled: Boolean,
     onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, fetchingId: Int? = null,
-    nextDate: String? = null, dot: Color? = null,
+    nextDate: String? = null, dot: Color? = null, mark: Sym? = null, moved: Boolean = false,
+    actions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
 ) {
     val today = BoardDates.today()
-    val rows = timelineRows(r, nextDate, today)
+    val rows = timelineRows(r, nextDate, today, moved)
+    // The section's header: "Hearings", with the case's share and refresh right-aligned on it (owner, 24 Nov 2026).
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        com.legumlex.client.ui.components.Eyebrow("Hearings", Modifier.weight(1f))
+        actions?.invoke(this)
+    }
     if (rows.isNotEmpty()) {
-        com.legumlex.client.ui.components.Eyebrow("Hearings")
         LexCard {
             Column(Modifier.padding(horizontal = 12.dp)) {
                 rows.forEachIndexed { i, row ->
                     if (i > 0) androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
-                    TimelineRowView(row, today, dot, enabled, fetchingId, onOpen, onGet)
+                    TimelineRowView(row, today, dot, enabled, fetchingId, onOpen, onGet, mark)
                 }
             }
         }

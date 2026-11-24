@@ -60,11 +60,14 @@ class BoardAuditTest {
         assertTrue(shortInfo(CheckShort(1, 7, 1, 6)).startsWith("You had 1 credit, so we checked the 1 case listed soonest."))
     }
 
-    @Test fun trackedLineUsesTheServersDaysLabel() {
+    @Test fun noTrackedLineAboveTheCalendar() {
+        // Owner, 24 Nov 2026: the "N cases tracked · About N days of checks" line is gone; the days label is still read for Credits and the banners.
         val t = parseToday(mapOf("cases_tracked" to 7.0, "credits" to mapOf("balance" to 100.0, "days_label" to "About 14 days of checks")))
-        assertEquals("7 cases tracked · About 14 days of checks", trackedLine(t))
-        val one = parseToday(mapOf("cases_tracked" to 1.0, "credits" to mapOf("balance" to 0.0, "days_label" to "")))
-        assertEquals("1 case tracked", trackedLine(one))
+        assertEquals("About 14 days of checks", t.credits.daysLabel)
+        val src = java.io.File("src/main/java/com/legumlex/client/feature/board/CounselToday.kt").takeIf { it.isFile }?.readText() ?: return
+        assertFalse(src.contains("trackedLine") || src.contains("tracked\" + "))
+        val cal = java.io.File("src/main/java/com/legumlex/client/feature/board/CounselCalendar.kt").readText()
+        assertFalse(cal.contains("fun checksLine"))   // the older helper of the same line, unused, is gone too
     }
 
     // ---- A10

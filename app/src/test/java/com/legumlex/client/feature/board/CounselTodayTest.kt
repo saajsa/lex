@@ -174,10 +174,6 @@ class CounselTodayTest {
     }
 
     @Test fun theLinesAreWordedFromTheCounts() {
-        assertEquals("11 cases tracked · 99 days of checks left", checksLine(11, 99))
-        assertEquals("1 case tracked · 1 day of checks left", checksLine(1, 1))
-        assertEquals("3 cases tracked · less than a day of checks left", checksLine(3, 0))
-        assertEquals("3 cases tracked", checksLine(3, null))
         assertEquals("1 case listed", listedText(1))
         assertEquals("0 cases listed", listedText(0))
         assertEquals("1 date needs your eye", eyeText(1))

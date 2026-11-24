@@ -6,19 +6,12 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -63,55 +56,6 @@ internal fun CaseHeading(c: BoardCase) {
         )
     }
 }
-
-/** The next date element's words: its label, the state line, and whether it is red. */
-internal data class NextElement(val label: String, val state: String, val red: Boolean)
-
-internal fun nextElement(c: BoardCase, today: java.time.LocalDate): NextElement {
-    val d = BoardDates.parse(c.nextDate) ?: return NextElement("No Next Date", "", false)
-    return if (d.isBefore(today)) NextElement("Last Listed", NO_NEW_DATE.replaceFirstChar { it.uppercase() }, true)
-    else NextElement("Next Hearing", daysToGo(d, today).replaceFirstChar { it.uppercase() }, nextIsUrgent(c, d, today))
-}
-
-/**
- * The next date as an element (owner, 24 Nov 2026: "The next date needs to be stylized"): a small date block in the hearing style ("08 / NOV"),
- * beside its label, the purpose and the state, with the eCourts mark as a small badge; [trailing] (share, refresh) sits to the right, centred on it.
- */
-@Composable
-internal fun NextDateElement(c: BoardCase, today: java.time.LocalDate, trailing: @Composable () -> Unit) {
-    val e = nextElement(c, today)
-    val d = BoardDates.parse(c.nextDate)
-    val ink = if (e.red) Lex.colors.danger.solid else Lex.colors.foreground
-    Row(Modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.width(NEXT_BLOCK_DP.dp).clip(RoundedCornerShape(8.dp)).background(Lex.colors.muted).padding(vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            if (d == null) Text("—", style = MaterialTheme.typography.titleMedium, color = Lex.colors.mutedForeground)
-            else {
-                Text(d.dayOfMonth.toString().padStart(2, '0'), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ink)
-                Text(d.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH).uppercase() + (if (d.year != today.year) " ${d.year % 100}" else ""),
-                    fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = if (e.red) ink else Lex.colors.secondaryForeground)
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(e.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp)
-            c.stage.takeIf { it.isNotBlank() && d != null }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (e.state.isNotEmpty()) Text(e.state, style = MaterialTheme.typography.bodySmall, fontWeight = if (e.red) FontWeight.SemiBold else null, color = if (e.red) ink else Lex.colors.secondaryForeground)
-                dateMark(c, today)?.takeIf { it != Sym.Undated }?.let { m ->
-                    Row(Modifier.clip(RoundedCornerShape(4.dp)).background(Lex.colors.muted).padding(horizontal = 5.dp, vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                        SymbolIcon(m, 12.dp); Spacer(Modifier.width(3.dp))
-                        Text(m.label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground, maxLines = 1)
-                    }
-                }
-            }
-        }
-        trailing()
-    }
-}
-
-/** The next date block's width: a small "08 / NOV". */
-internal const val NEXT_BLOCK_DP = 40
 
 /** The board's switch: 40×24, the thumb slides on a spring and the track's colour crossfades; 48dp to touch, read as a switch; no spring under reduced motion. */
 internal const val TOGGLE_W = 40

@@ -270,10 +270,7 @@ private fun CalendarPage(t: CounselToday, onRefresh: () -> Unit, onCredits: () -
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             t.short?.let { sh -> ShortBanner(sh, onCredits) }
             if (t.short == null) lowCreditsText(t.credits)?.let { LowBanner(it, onCredits) }
-            Text(
-                trackedLine(t), style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
+            // Owner, 24 Nov 2026: no tracked-cases and days-of-checks line above the calendar (days left stay on Credits and in the banners).
             MonthsRow(selected) { picking = true }
             WeekRow(
                 selected, today, counts,
@@ -475,10 +472,6 @@ internal fun lowCreditsText(c: TodayCredits): String? = when {
     (c.daysLeft ?: 0) < 1 -> "Less than a day of checks is left"
     else -> "About ${c.daysLeft} ${plural(c.daysLeft ?: 0, "day", "days")} of checks ${if (c.daysLeft == 1) "is" else "are"} left"
 }
-
-/** "N cases tracked · About N days of checks", the web's line under the month. */
-internal fun trackedLine(t: CounselToday): String =
-    "${creditsText(t.casesTracked)} ${plural(t.casesTracked, "case", "cases")} tracked" + (t.credits.daysLabel.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
 
 @Composable
 private fun ShortBanner(s: CheckShort, onCredits: () -> Unit) {

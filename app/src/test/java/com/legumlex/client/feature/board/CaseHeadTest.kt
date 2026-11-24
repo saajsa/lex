@@ -21,13 +21,23 @@ class CaseHeadTest {
         assertEquals(TITLE_STEPS.lastIndex, nextTitleStep(TITLE_STEPS.lastIndex, overflowed = true))   // stays at the smallest
     }
 
-    @Test fun theNextDateElement() {
-        assertEquals(NextElement("Next Hearing", "In 9 days", false), nextElement(case("2026-12-04", "Arguments"), today))
-        assertEquals(NextElement("Next Hearing", "Tomorrow", true), nextElement(case("2026-11-26"), today))      // within 2 days: red
-        assertEquals(NextElement("Next Hearing", "In 51 days", true), nextElement(case("2027-01-15", moved = "2026-11-25"), today))   // just moved: red
-        assertEquals(NextElement("Last Listed", "No new date yet", true), nextElement(case("2026-11-08", "Appearance"), today))
-        assertEquals(NextElement("No Next Date", "", false), nextElement(case(null), today))
-        assertEquals(40, NEXT_BLOCK_DP)
+    @Test fun theTopHearingRowCarriesTheNextDatesState() {
+        val none = parseRecord(mapOf("listings" to emptyList<Any>(), "orders" to emptyList<Any>()))
+        // A date to come: UPCOMING, its days to go as the meta; red within 2 days or when just moved.
+        val far = timelineRows(none, "2026-12-04", today).first()
+        assertTrue(far.next); assertEquals("UPCOMING", far.eyebrow); assertEquals("In 9 days", far.meta); assertEquals("", far.metaLabel); assertFalse(far.red)
+        assertTrue(timelineRows(none, "2026-11-26", today).first().let { it.red && it.meta == "Tomorrow" })
+        assertTrue(timelineRows(none, "2026-11-25", today).first().let { it.red && it.meta == "Today" })
+        assertTrue(timelineRows(none, "2027-01-15", today, moved = true).first().red)
+        // Passed: LISTED, no new date yet, red.
+        val past = timelineRows(none, "2026-11-08", today).first()
+        assertTrue(past.next && past.red); assertEquals("LISTED", past.eyebrow); assertEquals("No new date yet", past.meta)
+        // A recorded listing on the next date is itself the next row; its own meta is kept.
+        val listed = parseRecord(mapOf("listings" to listOf(mapOf("date" to "2026-12-04", "purpose" to "Arguments"))))
+        val rows = timelineRows(listed, "2026-12-04", today)
+        assertEquals(1, rows.count { it.next }); assertEquals("In 9 days", rows.first { it.next }.meta)
+        // No next date: no row is marked.
+        assertTrue(timelineRows(listed, null, today).none { it.next })
     }
 
     @Test fun hearingMetaIsALabelledLineWithNoArrow() {
@@ -46,7 +56,12 @@ class CaseHeadTest {
         val screen = src("BoardCasesScreen.kt")!!
         assertTrue(screen.contains("LexToggle(on, enabled, WATCH_TITLE, onToggle)") && !screen.contains("material3.Switch("))
         assertFalse(screen.contains("PageHeader(eyebrow = \"Case\""))       // no "Case" eyebrow
-        assertTrue(screen.contains("CaseHeading(it)") && screen.contains("NextDateElement(x, today)"))
+        assertTrue(screen.contains("CaseHeading(it)"))
+        // The next date element is gone; its share and refresh are on the Hearings header, its mark on the top row.
+        assertFalse(screen.contains("NextDateElement") || head.contains("NextDateElement") || head.contains("fun nextElement"))
+        assertTrue(screen.contains("mark = dateMark(x, today)?.takeIf { it != Sym.Undated }, moved = movedToday(x, today),") && screen.contains("actions = {"))
+        val section = src("BoardOrders.kt")!!.substringAfter("internal fun CaseRecordSection(").substringBefore("\n}\n")
+        assertTrue(section.contains("Eyebrow(\"Hearings\", Modifier.weight(1f))") && section.contains("actions?.invoke(this)"))
         val heading = head.substringAfter("internal fun CaseHeading(").substringBefore("\n}\n")
         assertTrue(heading.indexOf("c.heading.uppercase()") < heading.indexOf("partiesText(c"))   // the number, then the title
     }
