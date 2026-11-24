@@ -73,12 +73,16 @@ import com.legumlex.client.ui.theme.Lex
  * date and the greeting — "TUESDAY" over "20 October 2026 · Hello, Saaj".
  */
 @Composable
-internal fun HomeHeader(dateLabel: String, greeting: String) {
+internal fun HomeHeader(dateLabel: String, greeting: String, trailing: (@Composable () -> Unit)? = null) {
     val today = java.time.LocalDate.now()
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(today.format(java.time.format.DateTimeFormatter.ofPattern("EEEE")).uppercase(),
-            fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            fontSize = 34.sp, lineHeight = 36.sp, letterSpacing = 0.3.sp, color = Lex.colors.foreground)
+        // REQ-048: the Digital Office button on the day's row, top right.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(today.format(java.time.format.DateTimeFormatter.ofPattern("EEEE")).uppercase(),
+                fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                fontSize = 34.sp, lineHeight = 36.sp, letterSpacing = 0.3.sp, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
+            trailing?.invoke()
+        }
         Text("${today.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy"))} · $greeting",
             style = MaterialTheme.typography.bodyMedium, color = Lex.colors.mutedForeground,
             maxLines = 1, overflow = TextOverflow.Ellipsis)

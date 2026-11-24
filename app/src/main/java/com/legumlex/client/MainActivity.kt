@@ -273,12 +273,14 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     onBack = { backDispatcher?.onBackPressed() ?: navController.popBackStack() },
                     // The counsel's bell is their alerts (REQ-038 038.1); the client's is the Notifications list.
                     onNotifications = { navController.navigate(if (counsel) Route.BoardAlerts.path else Route.Notifications.path) { launchSingleTop = true } },
-                    onOffice = if (lead || counsel) null else ({ navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } }),
+                    // REQ-048: the Digital Office moved to the Home's day row; the client's header has Sign Out in its place.
+                    onOffice = null,
                     unreadCount = if (counsel) 0 else unreadCount,
                     initials = if (lead) null else profile?.initials,
                     avatarUrl = if (lead) null else profile?.avatarUrl,
                     onProfile = { navController.navigate(Route.Profile.path) { launchSingleTop = true } },
-                    onSignOut = if (counsel) ({ confirmSignOut = true }) else null,
+                    onSignOut = if (!lead) ({ confirmSignOut = true }) else null,
+                    signOutBesideBell = !lead && !counsel,
                     onSwitchWorkspace = if (counsel && wsChoose) ({ navController.navigate(Route.Choose.path) { popUpTo(0) { inclusive = true } } }) else null,
                     showBell = !lead,
                     subtitle = if (lead) "Enquiries" else if (counsel) "COUNSEL" else if (waiting) "" else "Client Portal",

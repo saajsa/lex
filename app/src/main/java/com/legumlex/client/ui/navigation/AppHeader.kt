@@ -70,6 +70,8 @@ fun AppHeader(
     onSignOut: (() -> Unit)? = null,
     /** Switch Workspace beside Sign Out, for a person who holds both workspaces. */
     onSwitchWorkspace: (() -> Unit)? = null,
+    /** REQ-048: the client's Sign Out sits where the Digital Office icon was, before the bell. */
+    signOutBesideBell: Boolean = false,
     /** The account switch, beside the bell (shown only to a person with more than one account). */
     accountSwitch: (@Composable () -> Unit)? = null,
 ) {
@@ -105,6 +107,7 @@ fun AppHeader(
                 if (onOffice != null) IconButton(onClick = onOffice) {
                     Icon(Icons.Outlined.Videocam, contentDescription = "Digital Office", tint = Lex.colors.secondaryForeground)
                 }
+                if (onSignOut != null && signOutBesideBell) SignOutButton(onSignOut)
                 accountSwitch?.invoke()
                 trailingChip?.invoke()
                 if (showBell) Box {
@@ -133,7 +136,7 @@ fun AppHeader(
                     }
                 }
                 if (onSwitchWorkspace != null) SwitchButton(onSwitchWorkspace)
-                if (onSignOut != null) SignOutButton(onSignOut)
+                if (onSignOut != null && !signOutBesideBell) SignOutButton(onSignOut)
                 if (initials != null) {
                     Spacer(Modifier.width(4.dp))
                     Box(

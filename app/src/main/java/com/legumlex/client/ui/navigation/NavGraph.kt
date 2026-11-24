@@ -282,6 +282,7 @@ fun LegumNavGraph(navController: NavHostController) {
                 onOpenProject      = { id -> navController.navigate(Route.ProjectDetail.build(id)) },
                 onAskNew           = { navController.navigate(Route.NewConsultation.build()) },
                 onWalkInDigitalOffice = { navController.navigate(Route.DoIntake.build()) },
+                onOpenDigitalOffice = { navController.navigate(Route.DigitalOffice.path) { launchSingleTop = true } },
                 onOpenChamberLanding  = { id -> navController.navigate(Route.DoLanding.build(id)) },
                 onStartDoSessionWith  = { advocateId ->
                     navController.navigate(Route.DoIntake.build(advocateId))

@@ -143,6 +143,8 @@ fun HomeScreen(
     onOpenAgreement: (String) -> Unit = {},
     onAskNew: () -> Unit = {},
     onWalkInDigitalOffice: () -> Unit = {},
+    /** REQ-048: the Digital Office, from the button on the day row (it left the header). */
+    onOpenDigitalOffice: () -> Unit = {},
     /**
      * Called when the client taps the chamber hero portrait or eyebrow row —
      * opens the Digital Office landing/profile screen for that advocate.
@@ -261,6 +263,7 @@ fun HomeScreen(
                 onOpenAgreement = onOpenAgreement,
                 onAskNew            = onAskNew,
                 onWalkInDigitalOffice = onWalkInDigitalOffice,
+                onOpenDigitalOffice = onOpenDigitalOffice,
                 onOpenChamberLanding  = onOpenChamberLanding,
                 onStartAgreementHealthCheckup = onStartAgreementHealthCheckup,
                 onOpenNotifications = onOpenNotifications,
@@ -311,6 +314,7 @@ private fun HomeContent(
     onOpenAgreement: (String) -> Unit,
     onAskNew: () -> Unit,
     onWalkInDigitalOffice: () -> Unit,
+    onOpenDigitalOffice: () -> Unit,
     onOpenChamberLanding: (Int?) -> Unit,
     onStartAgreementHealthCheckup: () -> Unit,
     onOpenNotifications: () -> Unit,
@@ -354,6 +358,7 @@ private fun HomeContent(
             HomeHeader(
                 dateLabel        = todayDateLabel(),
                 greeting         = "${greetingForNow()}, ${data.firstName.ifBlank { "there" }}",
+                trailing         = { OfficeButton(officePresence(data.chamber), onOpenDigitalOffice) },
             )
 
             Column(
