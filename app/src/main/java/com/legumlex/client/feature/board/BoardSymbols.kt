@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PlainTooltip
@@ -188,20 +189,23 @@ internal fun orderCaption(list: List<BoardOrder>, i: Int): String = orderIndex(l
 /** How an order button lays itself out in its column (owner, 23 Nov 2026: "responsive to that 20%"). */
 enum class OrderForm { Row, Stacked, NumberOnly }
 
-/** Icon and caption in a row when the column is at least 88dp; else the icon over the caption if it fits whole; else the icon and the number. */
+/** Icon and caption in a row when the column is at least [ORDER_ROW_MIN]; else the icon over the caption if it fits whole; else the icon and the number. */
 internal fun orderForm(widthDp: Float, captionDp: Float): OrderForm = when {
     widthDp >= ORDER_ROW_MIN -> OrderForm.Row
     captionDp + 8f <= widthDp -> OrderForm.Stacked
     else -> OrderForm.NumberOnly
 }
 
-internal const val ORDER_ROW_MIN = 88f
+internal const val ORDER_ROW_MIN = 76f
 
 /**
- * The order column's fixed width (owner, 23 Nov 2026: "⤓ Order 1" in one row). Chosen over a 70/30 split: a timeline row's content on a
- * 360dp phone is about 231dp, and 30% of it (69dp) is under [ORDER_ROW_MIN]; a fixed 108dp reaches the row form on any phone.
+ * The order column's fixed width (owner, 23 Nov 2026: "⤓ Order 1" in one row; 24 Nov: "the order buttons need to be smaller"). A compact
+ * 12sp pill ("⤓ Order 12" is about 70dp) fits 84dp, so the middle text gets 24dp more than before; 30% of a 360dp phone's row (69dp) would not.
  */
-internal const val ORDER_COLUMN = 108
+internal const val ORDER_COLUMN = 84
+
+/** The compact order pill's height (owner, 24 Nov 2026); its touch target stays 48dp. */
+internal const val ORDER_PILL_DP = 30
 
 /** The shortest form of a caption: "Order 2" gives "2"; a lone "Order" stays the icon alone. */
 internal fun captionNumber(caption: String): String = caption.substringAfter("Order", "").trim()
@@ -227,22 +231,27 @@ fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolea
     }
     val on = !busy && (enabled || o.fetched)
     val base = Modifier.fillMaxWidth().clip(shape).background(bg).let { if (line != null) it.border(1.dp, line, shape) else it }
-        .clickable(enabled = on) { if (o.fetched) onOpen(o) else onGet(o) }
-        .semantics { contentDescription = if (busy) "Getting " + orderLabel(o) else orderHint(o) }
     @Composable
     fun Glyph() {
-        if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = fg)
-        else Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
+        if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = fg)
+        else Icon(icon, null, tint = fg, modifier = Modifier.size(14.dp))
     }
-    when (form) {
-        OrderForm.Row -> Row(base.height(40.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            Glyph(); Spacer(Modifier.width(6.dp))
-            Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
-        }
-        else -> Column(base.heightIn(min = 48.dp).padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Glyph()
-            val text = if (form == OrderForm.Stacked) caption else captionNumber(caption)
-            if (text.isNotEmpty()) Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
+    // Owner, 24 Nov 2026: a compact pill; the tap target around it stays 48dp tall.
+    Box(
+        Modifier.fillMaxWidth().minimumInteractiveComponentSize().clickable(enabled = on, role = androidx.compose.ui.semantics.Role.Button) { if (o.fetched) onOpen(o) else onGet(o) }
+            .semantics { contentDescription = if (busy) "Getting " + orderLabel(o) else orderHint(o) },
+        contentAlignment = Alignment.Center,
+    ) {
+        when (form) {
+            OrderForm.Row -> Row(base.height(ORDER_PILL_DP.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Glyph(); Spacer(Modifier.width(4.dp))
+                Text(caption, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
+            }
+            else -> Column(base.heightIn(min = 40.dp).padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Glyph()
+                val text = if (form == OrderForm.Stacked) caption else captionNumber(caption)
+                if (text.isNotEmpty()) Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 1, softWrap = false)
+            }
         }
     }
 }
@@ -263,13 +272,14 @@ fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, on
     }
     var widthDp by remember { mutableStateOf<Float?>(null) }
     val form = widthDp?.let { orderForm(it, widest) } ?: OrderForm.Stacked
-    Column(modifier.onSizeChanged { widthDp = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // The 48dp touch targets already part the 30dp pills by 18dp.
+    Column(modifier.onSizeChanged { widthDp = with(density) { it.width.toDp().value } }) {
         orders.forEachIndexed { i, o -> OrderButton(captions[i], o, form, enabled, o.id == fetchingId, onOpen, onGet) }
     }
 }
 
 /**
- * A hearing laid out with its text on the left and its order buttons in a fixed 108dp column on the right (owner, 23 Nov 2026). With
+ * A hearing laid out with its text on the left and its order buttons in a fixed [ORDER_COLUMN] column on the right (owner, 23 Nov 2026). With
  * no orders the text takes the whole width.
  */
 @Composable

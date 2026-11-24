@@ -91,6 +91,10 @@ class BoardSymbolsTest {
         // The fixed column always reaches the row form ("⤓ Order 1"); 30% of a 360dp phone's timeline content (~231dp) would not.
         assertEquals(OrderForm.Row, orderForm(ORDER_COLUMN.toFloat(), 48f))
         assertTrue(231f * 0.3f < ORDER_ROW_MIN)
+        // Owner, 24 Nov 2026: smaller pills in a narrower column, so the middle text gets more room.
+        assertEquals(84, ORDER_COLUMN)
+        assertTrue(ORDER_PILL_DP in 28..32)
+        assertTrue(ORDER_COLUMN < 108)
         assertEquals("1", captionNumber("Order 1")); assertEquals("12", captionNumber("Order 12")); assertEquals("", captionNumber("Order"))
     }
 

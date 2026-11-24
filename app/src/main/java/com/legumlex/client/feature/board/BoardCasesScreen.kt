@@ -39,6 +39,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawBehind
@@ -378,7 +380,7 @@ internal val CASES_START = CaseQuery(filter = "ongoing")
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, String) -> Unit = { _, _, _ -> }, onCredits: () -> Unit = {}) {
+fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
     val context = LocalContext.current
     val repo = remember { BoardRepository(context) }
     // Kept across opening a case and coming back: the search, segment, filters, page, open cards and the scroll.
@@ -395,12 +397,6 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
     var filtering by remember { mutableStateOf(false) }
     var listSavedAt by m::listSavedAt
     var open by m::open
-    val records = m.records
-    val scope = rememberCoroutineScope()
-    fun loadRecord(id: Int) { scope.launch { repo.orders(id).onSuccess { records[id] = it } } }
-    // Orders from an expanded row: fetched on tap, then opened; the row's hearing is read again after.
-    val getter = rememberOrderGetter()
-    val fetchOrder = orderFetcher(getter, onOpened = onOpenOrder, onChanged = { id -> loadRecord(id) })
     if (byHand) HandCaseWizard(onClose = { byHand = false }, onAdded = { byHand = false; tick++; onOpenCase(it.id) })
     if (managing) FoldersAndTagsDialog(onClose = { managing = false }, onChanged = { tick++ })
     if (legend) LegendSheet { legend = false }
@@ -441,7 +437,6 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
             StatusSegments(filters?.counts.orEmpty(), query.filter.takeIf { f -> STATUS_SEGMENTS.any { it.first == f } } ?: "ongoing") { change(query.copy(filter = it)) }
         }
         if (query.q.isNotBlank()) item { NoteLine(SEARCH_ALL_NOTE) }
-        getter.refusal?.let { r -> item { Column(Modifier.padding(bottom = 8.dp)) { NoteLine(r, danger = true); if (getter.refusalCode == "insufficient_credits") LegumSecondaryButton("Buy Credits", onCredits) } } }
         listSavedAt?.let { at -> item { NoteLine(BoardDates.savedLabel(at, today) + ". Connect to refresh.") } }
         val p = page
         when {
@@ -451,10 +446,7 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
             else -> {
                 items(p.items, key = { it.id }) { c ->
                     val ex = c.id in open
-                    CaseRow(c, today, { onOpenCase(c.id) }, expanded = ex, record = records[c.id],
-                        onToggle = { open = if (ex) open - c.id else open + c.id; if (!ex && c.id !in records) loadRecord(c.id) },
-                        enabled = listSavedAt == null && !getter.fetching, fetchingId = getter.fetchingId,
-                        onOpen = { o -> onOpenOrder(c.id, o.id, orderLabel(o)) }, onGet = { o -> fetchOrder(c.id, o) })
+                    CaseRow(c, today, { onOpenCase(c.id) }, expanded = ex, onToggle = { open = if (ex) open - c.id else open + c.id })
                 }
                 pagerLine(p)?.let { line ->
                     item {
@@ -477,54 +469,99 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit, onOpenOrder: (Int, Int, Stri
  * edge; Needs Your Eye or a recent move gives a red edge. A hairline under it; the whole row opens the case.
  */
 @Composable
-internal fun CaseRow(
-    c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit,
-    expanded: Boolean = false, record: CaseRecord? = null, onToggle: (() -> Unit)? = null,
-    enabled: Boolean = true, fetchingId: Int? = null, onOpen: (BoardOrder) -> Unit = {}, onGet: (BoardOrder) -> Unit = {},
-) {
+internal fun CaseRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit, expanded: Boolean = false, onToggle: (() -> Unit)? = null) {
     // Owner, 23 Nov 2026: plain card tiles, radius 8, 8dp apart; the status in the 4dp left edge alone (red, black, green, grey).
     // The edge is drawn behind the tile, full height, so the tile needs no intrinsic measurement.
+    // Owner, 24 Nov 2026: three columns (the case number; the last-heard badge, title and court; the toggle). With a toggle the whole card
+    // opens and closes, and Open Case in the open state goes to the case; without one (Days Ahead) a tap opens the case.
     val edge = edgeColor(rowEdge(c, today))
-    Row(
+    val (no, year) = caseNoParts(c.caseNo, c.heading)
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+    Column(
         Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp))
             .background(Lex.colors.card).drawBehind { drawRect(edge, size = Size(4.dp.toPx(), size.height)) },
     ) {
-        Spacer(Modifier.width(4.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f).clickable(onClick = onClick).semantics { contentDescription = rowSpeech(c, today) }
-                    .padding(start = 12.dp, end = if (onToggle != null) 0.dp else 12.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(c.heading, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 1,
-                            modifier = Modifier.weight(1f))
-                        Text(c.nextDate?.let { BoardDates.show(it, today) }?.takeIf { it.isNotBlank() } ?: "No Date", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
-                        dateMark(c, today)?.let { Spacer(Modifier.width(4.dp)); SymbolIcon(it, 14.dp) }
-                    }
-                    Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-                    courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1) }
+        Row(
+            Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onToggle ?: onClick)
+                .semantics {
+                    contentDescription = rowSpeech(c, today)
+                    if (onToggle != null) stateDescription = if (expanded) "Open" else "Closed"
                 }
-                onToggle?.let { t ->
-                    androidx.compose.material3.IconButton(t, Modifier.semantics { contentDescription = if (expanded) "Show Less" else "Show More" }) {
-                        Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Lex.colors.secondaryForeground)
-                    }
-                }
+                .padding(start = 16.dp, end = if (onToggle != null) 4.dp else 12.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            // Left: the case number, short, over its year.
+            Column(Modifier.width(CASE_NO_COLUMN.dp).padding(end = 8.dp)) {
+                Text(no, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 2)
+                if (year.isNotEmpty()) Text(year, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1)
             }
-            if (expanded) {
-                Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    androidx.compose.material3.HorizontalDivider(color = Lex.colors.border, modifier = Modifier.padding(bottom = 8.dp))
-                    when {
-                        record == null -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Lex.colors.mutedForeground)
-                        record.listings.isEmpty() -> Text(recordEmpty("hearings", c.hasCnr, record.loaded), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
-                        else -> {
-                            // The latest hearing, in the case page's timeline row style.
-                            timelineRows(record, null, today).firstOrNull()?.let { row -> TimelineRowView(row, today, null, enabled, fetchingId, onOpen, onGet) }
-                        }
+            // Middle: the last-heard badge (and the next date), the title, the court.
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    lastHeardBadge(c.lastDate, today)?.let { b ->
+                        Text(b, fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = Lex.colors.secondaryForeground, maxLines = 1,
+                            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Lex.colors.muted).padding(horizontal = 6.dp, vertical = 2.dp))
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text(c.nextDate?.let { BoardDates.show(it, today) }?.takeIf { it.isNotBlank() } ?: "No Date", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
+                    dateMark(c, today)?.let { Spacer(Modifier.width(4.dp)); SymbolIcon(it, 14.dp) }
                 }
+                Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             }
+            // Right: the toggle, turning when open.
+            if (onToggle != null) Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.ExpandMore, null, tint = Lex.colors.secondaryForeground, modifier = Modifier.graphicsLayer { rotationZ = turn })
+            }
+        }
+        if (expanded) Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, bottom = 12.dp)) {
+            androidx.compose.material3.HorizontalDivider(color = Lex.colors.border, modifier = Modifier.padding(bottom = 10.dp))
+            // Owner, 24 Nov 2026 ("Next date + purpose"): the next listing, its purpose and the days to go; red when moved or within 2 days.
+            val next = openNextLine(c, today)
+            Text(next?.first ?: "No next date yet", style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (next != null) androidx.compose.ui.text.font.FontWeight.SemiBold else null,
+                color = when { next == null -> Lex.colors.mutedForeground; next.second -> Lex.colors.danger.solid; else -> Lex.colors.foreground },
+                modifier = Modifier.padding(bottom = 10.dp))
+            LegumPrimaryButton("Open Case", onClick)
         }
     }
 }
+
+/** The case number's left column (owner, 24 Nov 2026): wide enough for "CS 04007" or "PHONE 2". */
+internal const val CASE_NO_COLUMN = 76
+
+/** "CS/1234/2026" as "CS 1234" over "2026"; anything else whole (or the CNR when there is no number), with no year line. */
+internal fun caseNoParts(caseNo: String, fallback: String): Pair<String, String> {
+    val m = Regex("""^\s*(.+?)\s*/\s*(\w+)\s*/\s*(\d{4})\s*$""").find(caseNo)
+    return if (m != null) "${m.groupValues[1]} ${m.groupValues[2]}" to m.groupValues[3] else caseNo.trim().ifBlank { fallback } to ""
+}
+
+/** "today", "tomorrow", "in 9 days" (a date to come; a date gone by is read by [openNextLine] as listed, with no new date yet). */
+internal fun daysToGo(d: java.time.LocalDate, today: java.time.LocalDate): String = when (val n = java.time.temporal.ChronoUnit.DAYS.between(today, d)) {
+    0L -> "today"
+    1L -> "tomorrow"
+    else -> "in $n days"
+}
+
+/** Red when the date was just moved (the list's Moved mark, date_moved_on) or is within 2 days. */
+internal fun nextIsUrgent(c: BoardCase, d: java.time.LocalDate, today: java.time.LocalDate): Boolean =
+    movedToday(c, today) || java.time.temporal.ChronoUnit.DAYS.between(today, d) <= 2
+
+/**
+ * The open card's line and whether it is red; null when no next date is known. A date to come: "Next: 3 Dec · Arguments · in 9 days". A date gone by is
+ * not "next": "Listed 8 Nov · Appearance · no new date yet", always red (the counsel must find the new date).
+ */
+internal fun openNextLine(c: BoardCase, today: java.time.LocalDate): Pair<String, Boolean>? {
+    val d = BoardDates.parse(c.nextDate) ?: return null
+    val when_ = BoardDates.short(d, today)
+    return if (d.isBefore(today)) listOf("Listed $when_", c.stage.trim(), "no new date yet").filter { it.isNotEmpty() }.joinToString(" · ") to true
+    else listOf("Next: $when_", c.stage.trim(), daysToGo(d, today)).filter { it.isNotEmpty() }.joinToString(" · ") to nextIsUrgent(c, d, today)
+}
+
+/** The badge above the title: "Last heard 12 Nov" (the year added when it is not this year's); none without a last date. */
+internal fun lastHeardBadge(lastDate: String?, today: java.time.LocalDate): String? =
+    BoardDates.show(lastDate, today).takeIf { it.isNotBlank() }?.let { "Last heard $it" }
 
 /** The row's third line: the court, then the folder and the #tags. */
 internal fun courtLine(c: BoardCase): String = listOf(c.courtShown, c.folder?.name.orEmpty(), tagsLine(c)).filter { it.isNotBlank() }.joinToString(" · ")
@@ -630,7 +667,6 @@ class CasesListModel : androidx.lifecycle.ViewModel() {
     var filters by mutableStateOf<BoardFilters?>(null)
     var listSavedAt by mutableStateOf<Long?>(null)
     var open by mutableStateOf(setOf<Int>())
-    val records = androidx.compose.runtime.snapshots.SnapshotStateMap<Int, CaseRecord>()
     val listState = androidx.compose.foundation.lazy.LazyListState()
 }
 
