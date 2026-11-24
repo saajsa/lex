@@ -216,7 +216,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                     if (x.courtShown.isNotBlank()) KeyValueRow("Court", x.courtShown)
                     if (x.judgeShown.isNotBlank()) KeyValueRow("Judge", x.judgeShown)
                     if (x.stage.isNotBlank()) KeyValueRow("Stage", x.stage)
-                    BoardDates.parse(x.nextDate)?.let { KeyValueRow("Next Date", BoardDates.long(it)) }
+                    BoardDates.parse(x.nextDate)?.let { d -> if (d.isBefore(today)) KeyValueRow("Next Date", "None yet. Last listed ${BoardDates.long(d)}.") else KeyValueRow("Next Date", BoardDates.long(d)) }
                     BoardDates.parse(x.lastDate)?.let { KeyValueRow("Last Date", BoardDates.long(it)) }
                     KeyValueRow("Daily eCourts Check", dailyCheckLine(x.morningCheck, x.hasCnr, checkCost))
                     x.check?.let { KeyValueRow("Last Check", it.label + (BoardDates.parse(it.forDate)?.let { d -> " for ${BoardDates.short(d, today)}" } ?: "")) }
@@ -285,7 +285,8 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
 @Composable
 internal fun CaseDateLine(c: BoardCase, today: java.time.LocalDate) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(nextLine(c, today), style = MaterialTheme.typography.labelLarge, color = Lex.colors.foreground)
+        Text(nextLine(c, today), style = MaterialTheme.typography.labelLarge,
+            color = if (passedNext(c.nextDate, today) != null) Lex.colors.danger.solid else Lex.colors.foreground)
         dateMark(c, today)?.let { SymbolIcon(it) }
     }
 }
@@ -329,9 +330,23 @@ internal fun OverflowMenu(items: List<Pair<String, () -> Unit>>) {
     }
 }
 
-/** "Next: Fri, 28 Nov", or "No Next Date". */
-internal fun nextLine(c: BoardCase, today: java.time.LocalDate): String =
-    c.nextDate?.let { BoardDates.show(it, today).takeIf { s -> s.isNotBlank() } }?.let { "Next: $it" } ?: "No Next Date"
+/** "Next: 28 Nov"; a date gone by is not next: "Listed 8 Nov · no new date yet" (owner, 24 Nov 2026); or "No Next Date". */
+internal fun nextLine(c: BoardCase, today: java.time.LocalDate): String {
+    val d = BoardDates.parse(c.nextDate) ?: return "No Next Date"
+    return if (d.isBefore(today)) listedLine(d, today) else "Next: " + BoardDates.short(d, today)
+}
+
+const val NO_NEW_DATE = "no new date yet"
+
+/**
+ * The one wording for a next date that has passed with no new one recorded, wherever the counsel workspace shows a next date
+ * (owner, 24 Nov 2026: "Next" or "Upcoming" for a past date is wrong): "Listed 8 Nov · Appearance · no new date yet". Shown red.
+ */
+internal fun listedLine(d: java.time.LocalDate, today: java.time.LocalDate, purpose: String = ""): String =
+    listOf("Listed " + BoardDates.short(d, today), purpose.trim(), NO_NEW_DATE).filter { it.isNotEmpty() }.joinToString(" · ")
+
+/** The case's next date when it has passed (no new date recorded yet); null when it is today or later, or unknown. */
+internal fun passedNext(nextDate: String?, today: java.time.LocalDate): java.time.LocalDate? = BoardDates.parse(nextDate)?.takeIf { it.isBefore(today) }
 
 /** The folder glyph with its name, then "#tag" text; nothing when the case is unfiled. */
 @Composable
@@ -555,7 +570,7 @@ internal fun nextIsUrgent(c: BoardCase, d: java.time.LocalDate, today: java.time
 internal fun openNextLine(c: BoardCase, today: java.time.LocalDate): Pair<String, Boolean>? {
     val d = BoardDates.parse(c.nextDate) ?: return null
     val when_ = BoardDates.short(d, today)
-    return if (d.isBefore(today)) listOf("Listed $when_", c.stage.trim(), "no new date yet").filter { it.isNotEmpty() }.joinToString(" · ") to true
+    return if (d.isBefore(today)) listedLine(d, today, c.stage) to true
     else listOf("Next: $when_", c.stage.trim(), daysToGo(d, today)).filter { it.isNotEmpty() }.joinToString(" · ") to nextIsUrgent(c, d, today)
 }
 

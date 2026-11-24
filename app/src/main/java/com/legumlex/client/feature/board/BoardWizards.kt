@@ -192,7 +192,7 @@ fun ImportWizard(onClose: () -> Unit, onDone: (ImportDone) -> Unit) {
 internal fun cnrFacts(c: CnrPreview, today: LocalDate): List<Pair<String, String>> = listOf(
     "Case Number" to c.caseNo,
     "Court" to (c.court + if (c.bench.isNotBlank()) " · ${c.bench}" else ""),
-    "Next Date" to (BoardDates.parse(c.nextDate)?.let { BoardDates.long(it) } ?: "Not given"),
+    "Next Date" to (BoardDates.parse(c.nextDate)?.let { d -> if (d.isBefore(today)) "None yet. Last listed ${BoardDates.long(d)}." else BoardDates.long(d) } ?: "Not given"),
     "Stage" to c.stage,
 ).filter { it.second.isNotBlank() }
 

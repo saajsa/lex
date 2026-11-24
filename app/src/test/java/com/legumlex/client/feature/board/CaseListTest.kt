@@ -73,3 +73,40 @@ class CaseListTest {
         assertNull(openNextLine(case(null), today))
     }
 }
+
+/** Owner, 24 Nov 2026 ("fix the case page the same way"): a passed next date is never Next or Upcoming, anywhere in the counsel workspace. */
+class PassedNextDateTest {
+    private val today = LocalDate.of(2026, 11, 25)
+    private fun case(next: String?, stage: String = "") = parseCase(mapOf("id" to 1.0, "next_date" to next, "stage" to stage))
+
+    @Test fun oneWordingForAPassedDate() {
+        assertEquals("Listed 8 Nov · no new date yet", listedLine(LocalDate.of(2026, 11, 8), today))
+        assertEquals("Listed 8 Nov · Appearance · no new date yet", listedLine(LocalDate.of(2026, 11, 8), today, "Appearance"))
+        assertEquals(LocalDate.of(2026, 11, 8), passedNext("2026-11-08", today))
+        assertNull(passedNext("2026-11-25", today))   // today is not passed
+        assertNull(passedNext(null, today))
+    }
+
+    @Test fun theCaseHeaderLine() {
+        assertEquals("Listed 8 Nov · no new date yet", nextLine(case("2026-11-08"), today))
+        assertEquals("Next: 25 Nov", nextLine(case("2026-11-25"), today))
+        assertEquals("Next: 3 Dec", nextLine(case("2026-12-03"), today))
+        assertEquals("No Next Date", nextLine(case(null), today))
+        // The list's open card shares the wording.
+        assertEquals("Listed 8 Nov · Appearance · no new date yet" to true, openNextLine(case("2026-11-08", "Appearance"), today))
+    }
+
+    @Test fun theTimelineNeverSaysUpcomingForAPassedDate() {
+        val r = parseRecord(mapOf("listings" to emptyList<Any>(), "orders" to emptyList<Any>()))
+        val past = timelineRows(r, "2026-11-08", today).first()
+        assertEquals("LISTED", past.eyebrow); assertFalse(past.upcoming); assertEquals("No new date yet", past.meta)
+        val todayRow = timelineRows(r, "2026-11-25", today).first()
+        assertEquals("UPCOMING", todayRow.eyebrow); assertTrue(todayRow.upcoming)
+    }
+
+    @Test fun theAddByCnrReview() {
+        val p = CnrPreview("CNR1", "CS/1/2026", "", "", "Court", "", "", "2026-11-08", "")
+        assertEquals("None yet. Last listed ${BoardDates.long(LocalDate.of(2026, 11, 8))}.", cnrFacts(p, today).toMap()["Next Date"])
+        assertEquals(BoardDates.long(LocalDate.of(2026, 12, 3)), cnrFacts(p.copy(nextDate = "2026-12-03"), today).toMap()["Next Date"])
+    }
+}

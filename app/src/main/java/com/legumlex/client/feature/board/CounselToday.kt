@@ -422,7 +422,7 @@ private fun SearchHit(c: BoardCase, today: LocalDate, onClick: () -> Unit) {
         Text(c.heading, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = Color(0xFFA3A19A))
         Text(partiesText(c, Color(0xFF8A877F)), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
         if (c.courtLine.isNotBlank()) Text(c.courtLine, fontSize = 12.5.sp, color = Color(0xFFA3A19A))
-        Text(c.nextDate?.let { "Next: ${BoardDates.show(it, today)}" } ?: "No Next Date", fontSize = 12.sp, color = Color(0xFFD6D4CF))
+        Text(nextLine(c, today), fontSize = 12.sp, color = if (passedNext(c.nextDate, today) != null) Color(0xFFF2A49C) else Color(0xFFD6D4CF))
     }
 }
 

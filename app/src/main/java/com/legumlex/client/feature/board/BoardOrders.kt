@@ -190,7 +190,9 @@ internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.Loc
     if (next != null && (latest == null || next.isAfter(latest))) {
         // What it is listed for: the last hearing's next purpose when it named this date.
         val purpose = r.listings.firstOrNull { BoardDates.parse(it.nextDate) == next }?.nextPurpose?.takeIf { it.isNotBlank() } ?: "Hearing"
-        out += TimelineRow(next, "UPCOMING", purpose, null, emptyList(), upcoming = true)
+        // Owner, 24 Nov 2026: a date gone by is never UPCOMING. It is LISTED (no hearing on it is recorded, so not HEARD), with no new date yet.
+        out += if (next.isBefore(today)) TimelineRow(next, "LISTED", purpose, NO_NEW_DATE.replaceFirstChar { it.uppercase() }, emptyList())
+        else TimelineRow(next, "UPCOMING", purpose, null, emptyList(), upcoming = true)
     }
     r.listings.forEach { h ->
         val d = BoardDates.parse(h.date)
