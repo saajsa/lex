@@ -219,6 +219,9 @@ data class KeyDates(
 const val KD_STEPS = 4
 /** The crossfade between answer widgets, in ms (0 under reduced motion). */
 const val WIDGET_FADE_MS = 180
+/** The answer widgets' compact chips: 36dp tall (the touch target stays 48dp), 8dp apart. */
+const val MINI_CHIP_DP = 36
+const val MINI_CHIP_GAP = 8
 fun kdProgress(at: KdAt): Int = when (at) { KdAt.CHEQUE -> 1; KdAt.MEMO -> 2; KdAt.SENT -> 3; KdAt.RECV, KdAt.RECV_DATE -> 4 }
 
 // ---- The desk's compact month calendar (owner, 24 Nov: compact, responsive) ----

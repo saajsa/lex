@@ -219,3 +219,28 @@ class DeskCalendarTest {
         assertEquals(4, KD_STEPS)
     }
 }
+
+/** Owner, 24 Nov: the answer widgets' buttons sit in one row (wrapping only when they do not fit), smaller, still 48dp to touch; answers, then I Missed It, then Something Else. */
+class DeskMiniChipsTest {
+    private fun screen() = listOf("src/main/java/com/legumlex/client/feature/desk/DeskScreen.kt", "app/src/main/java/com/legumlex/client/feature/desk/DeskScreen.kt")
+        .map { java.io.File(it) }.firstOrNull { it.isFile }?.readText()
+
+    @Test fun compactButStillTouchable() {
+        assertEquals(36, MINI_CHIP_DP)
+        assertTrue(MINI_CHIP_DP in 36..40)
+        val s = screen() ?: return
+        val chips = s.substringAfter("private fun MiniChips(").substringBefore("\n}\n")
+        assertTrue(chips.contains("FlowRow(") && chips.contains("minimumInteractiveComponentSize()") && chips.contains("body(14f"))
+    }
+
+    @Test fun oneRowInTheRightOrder() {
+        val s = screen() ?: return
+        val input = s.substringAfter("private fun InputDock(").substringBefore("\n}\n")
+        assertTrue(input.contains("MiniChips(listOfNotNull(mi?.let { m -> ChipSpec(m.label, false) { missing = true } }, ChipSpec(other, false, go = onType)))"))
+        assertTrue(input.contains("MiniChips(labels.map { o -> ChipSpec(o, false) { onPick(o, \"\") } } + ChipSpec(other, false, go = onType))"))
+        assertFalse(input.contains("ChipGroup("))
+        val kd = s.substringAfter("private fun KeyDatesDock(").substringBefore("\n}\n")
+        assertTrue(kd.contains("MiniChips(chips + ChipSpec(dt(\"kd_dont_know\"") && kd.contains("ChipSpec(dt(\"kd_skip_all\", \"Skip The Dates\"), false, go = onSkipAll))"))
+        assertFalse(kd.contains("ChipGroup("))
+    }
+}

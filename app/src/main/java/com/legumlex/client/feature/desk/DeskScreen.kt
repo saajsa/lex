@@ -1149,22 +1149,42 @@ private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDa
                     Text(mi.ask, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
                     val past = remember(mi) { missedBounds(mi, java.time.LocalDate.now()) }
                     key(mi) { DeskCalendar(past, { day -> if (day != null) onMissed(missedAnswer(mi, day)) }) }
+                    MiniChips(listOf(ChipSpec(other, false, go = onType)))
                 } else {
                     val bounds = remember(d.input) { inputBounds(d.input, java.time.LocalDate.now()) }
                     // One tap on a day answers.
                     DeskCalendar(bounds, { day -> if (day != null) onPick(dateAnswer(day), day.toString()) })
-                    if (mi != null) ChipGroup(listOf(ChipSpec(mi.label, false) { missing = true }), topGap = 4.dp)
+                    // One row: I Missed It, then Something Else, Type It.
+                    MiniChips(listOfNotNull(mi?.let { m -> ChipSpec(m.label, false) { missing = true } }, ChipSpec(other, false, go = onType)))
                 }
                 } }
-                ChipGroup(listOf(ChipSpec(other, false, go = onType)), topGap = 4.dp)
             }
             else -> {
                 val labels = d.input.options.ifEmpty { if (d.input.kind == INPUT_YES_NO) YES_NO.map { (k, en) -> dt(k, en) } else emptyList() }
-                ChipGroup(labels.map { o -> ChipSpec(o, false) { onPick(o, "") } } + ChipSpec(other, false, go = onType), topGap = CHIP_GROUP_TOP.dp)
+                MiniChips(labels.map { o -> ChipSpec(o, false) { onPick(o, "") } } + ChipSpec(other, false, go = onType))
             }
         }
         ErrorLine(error)
         Quiet(if (d.clarify) skip else dt("ui_send_now", GATHER_SEND_NOW), onSkip)
+    }
+}
+
+/**
+ * The answer widgets' chips (owner, 24 Nov: "on the same row", "smaller buttons"): compact outlined pills in the desk's style, side by side, wrapping only when
+ * they do not fit. 36dp tall, 14sp; each keeps a 48dp touch target.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MiniChips(list: List<ChipSpec>) {
+    FlowRow(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(MINI_CHIP_GAP.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        list.forEach { c ->
+            Box(Modifier.minimumInteractiveComponentSize().clickable(onClick = c.go, role = androidx.compose.ui.semantics.Role.Button), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.heightIn(min = MINI_CHIP_DP.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(c.label, style = body(14f, D.Ink, FontWeight.SemiBold), textAlign = TextAlign.Center) }
+            }
+        }
     }
 }
 
@@ -1206,12 +1226,8 @@ private fun KeyDatesDock(at: KdAt, how: String, onDay: (java.time.LocalDate) -> 
         Text(progress, style = body(12f, D.Muted), modifier = Modifier.padding(top = 2.dp).semantics { contentDescription = progress })
         Text(if (at == KdAt.RECV_DATE && how == "returned") returned else q, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
         if (at != KdAt.RECV) key(at) { DeskCalendar(kdBounds(java.time.LocalDate.now()), { day -> if (day != null) onDay(day) }) }
-        if (chips.isNotEmpty()) ChipGroup(chips, topGap = CHIP_GROUP_TOP.dp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Quiet(dt("kd_dont_know", "I Don’t Know"), if (at == KdAt.RECV) onSkipAll else onDontKnow)
-            Text("·", style = body(13f, D.Muted), modifier = Modifier.padding(horizontal = 4.dp))
-            Quiet(dt("kd_skip_all", "Skip The Dates"), onSkipAll)
-        }
+        // One row: the screen's own answers, then I Don't Know and Skip The Dates.
+        MiniChips(chips + ChipSpec(dt("kd_dont_know", "I Don’t Know"), false, go = if (at == KdAt.RECV) onSkipAll else onDontKnow) + ChipSpec(dt("kd_skip_all", "Skip The Dates"), false, go = onSkipAll))
     }
 }
 
