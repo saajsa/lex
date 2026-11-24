@@ -21,8 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -40,9 +38,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
@@ -486,70 +484,99 @@ fun BoardCasesListScreen(onOpenCase: (Int) -> Unit) {
 @Composable
 internal fun CaseRow(c: BoardCase, today: java.time.LocalDate, onClick: () -> Unit, expanded: Boolean = false, onToggle: (() -> Unit)? = null) {
     // Owner, 23 Nov 2026: plain card tiles, radius 8, 8dp apart; the status in the 4dp left edge alone (red, black, green, grey).
-    // The edge is drawn behind the tile, full height, so the tile needs no intrinsic measurement.
-    // Owner, 24 Nov 2026: three columns (the case number; the last-heard badge, title and court; the toggle). With a toggle the whole card
-    // opens and closes, and Open Case in the open state goes to the case; without one (Days Ahead) a tap opens the case.
+    // Owner, 24 Nov 2026 ("symmetry and geometry"): the hearing row's own geometry. The case number in the date block's column and rule
+    // (type, number, year), the badge, title and court with the hearing text's insets, and the next date in a mirrored block on the right.
+    // No toggle icon: with a toggle the whole card opens and closes (Open Case goes to the case); without one (Days Ahead) a tap opens it.
+    // Lines and the edge are drawn behind, so the tile needs no intrinsic measurement.
     val edge = edgeColor(rowEdge(c, today))
-    val (no, year) = caseNoParts(c.caseNo, c.heading)
-    val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+    val rule = Lex.colors.border
+    val no = caseNoBlock(c.caseNo, c.heading)
+    val next = BoardDates.parse(c.nextDate)
+    val red = next != null && (next.isBefore(today) || movedToday(c, today))
+    val nextInk = if (red) Lex.colors.danger.solid else Lex.colors.foreground
     Column(
         Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp))
-            .background(Lex.colors.card).drawBehind { drawRect(edge, size = Size(4.dp.toPx(), size.height)) },
+            .background(Lex.colors.card).drawBehind { drawRect(edge, size = Size(4.dp.toPx(), size.height)) }
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onToggle ?: onClick)
+            .semantics {
+                contentDescription = rowSpeech(c, today)
+                if (onToggle != null) stateDescription = if (expanded) "Open" else "Closed"
+            },
     ) {
         Row(
-            Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onToggle ?: onClick)
-                .semantics {
-                    contentDescription = rowSpeech(c, today)
-                    if (onToggle != null) stateDescription = if (expanded) "Open" else "Closed"
-                }
-                .padding(start = 16.dp, end = if (onToggle != null) 4.dp else 12.dp, top = 12.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth().drawBehind {
+                val l = (CARD_INSET + TL_RULE_X).dp.toPx(); val r = size.width - (CARD_INSET + TL_RULE_X).dp.toPx(); val w = 1.dp.toPx()
+                drawLine(rule, androidx.compose.ui.geometry.Offset(l, 0f), androidx.compose.ui.geometry.Offset(l, size.height), w)
+                drawLine(rule, androidx.compose.ui.geometry.Offset(r, 0f), androidx.compose.ui.geometry.Offset(r, size.height), w)
+            }.padding(horizontal = CARD_INSET.dp, vertical = 12.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            // Left: the case number, short, over its year.
-            Column(Modifier.width(CASE_NO_COLUMN.dp).padding(end = 8.dp)) {
-                Text(no, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Lex.colors.foreground, maxLines = 2)
-                if (year.isNotEmpty()) Text(year, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1)
+            // Left: the case number as the hearing date block is set ("CS" small, "777" large, "2021" small), centred both ways.
+            Column(Modifier.width(TL_DATE_COL.dp).align(Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (no.type.isNotEmpty()) Text(no.type.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground,
+                    letterSpacing = 1.sp, maxLines = 1, softWrap = false)
+                Text(no.number, style = MaterialTheme.typography.headlineSmall.copy(fontSize = caseNoFontSp(no.number.length).sp), fontWeight = FontWeight.Bold,
+                    color = Lex.colors.foreground, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (no.year.isNotEmpty()) Text(no.year, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 1)
             }
-            // Middle: the last-heard badge (and the next date), the title, the court.
+            Spacer(Modifier.width(TL_TEXT_GAP.dp))
+            // Middle: the hearing text's insets; the badge, the title, the court.
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    lastHeardBadge(c.lastDate, today)?.let { b ->
-                        Text(b, fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = Lex.colors.secondaryForeground, maxLines = 1,
-                            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Lex.colors.muted).padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text(c.nextDate?.let { BoardDates.show(it, today) }?.takeIf { it.isNotBlank() } ?: "No Date", style = MaterialTheme.typography.labelMedium, color = Lex.colors.foreground)
-                    dateMark(c, today)?.let { Spacer(Modifier.width(4.dp)); SymbolIcon(it, 14.dp) }
+                lastHeardBadge(c.lastDate, today)?.let { b ->
+                    Text(b, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Lex.colors.secondaryForeground, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Lex.colors.muted).padding(horizontal = 6.dp, vertical = 2.dp))
                 }
-                Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
+                Text(partiesText(c, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Lex.colors.foreground)
                 courtLine(c).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground, maxLines = 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
             }
-            // Right: the toggle, turning when open.
-            if (onToggle != null) Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.ExpandMore, null, tint = Lex.colors.secondaryForeground, modifier = Modifier.graphicsLayer { rotationZ = turn })
+            Spacer(Modifier.width(TL_TEXT_GAP.dp))
+            // Right: the next date, mirrored ("12" over "DEC"), its mark under it; red when moved or passed; none: a dash, muted.
+            Column(Modifier.width(TL_DATE_COL.dp).align(Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (next == null) Text("—", style = MaterialTheme.typography.headlineSmall, color = Lex.colors.mutedForeground)
+                else {
+                    Text(next.dayOfMonth.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = nextInk)
+                    Text(next.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH).uppercase(), style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold, color = if (red) nextInk else Lex.colors.secondaryForeground)
+                    if (next.year != today.year) Text("${next.year}", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
+                    dateMark(c, today)?.let { Spacer(Modifier.height(4.dp)); SymbolIcon(it, 14.dp) }
+                }
             }
         }
-        if (expanded) Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, bottom = 12.dp)) {
-            androidx.compose.material3.HorizontalDivider(color = Lex.colors.border, modifier = Modifier.padding(bottom = 10.dp))
-            // Owner, 24 Nov 2026 ("Next date + purpose"): the next listing, its purpose and the days to go; red when moved or within 2 days.
-            val next = openNextLine(c, today)
-            Text(next?.first ?: "No next date yet", style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (next != null) androidx.compose.ui.text.font.FontWeight.SemiBold else null,
-                color = when { next == null -> Lex.colors.mutedForeground; next.second -> Lex.colors.danger.solid; else -> Lex.colors.foreground },
-                modifier = Modifier.padding(bottom = 10.dp))
-            LegumPrimaryButton("Open Case", onClick)
+        if (expanded) {
+            androidx.compose.material3.HorizontalDivider(color = rule)
+            Column(Modifier.fillMaxWidth().padding(horizontal = CARD_INSET.dp, vertical = 12.dp)) {
+                // Owner, 24 Nov 2026 ("Next date + purpose"): the next listing, its purpose and the days to go; red when moved or within 2 days.
+                val line = openNextLine(c, today)
+                Text(line?.first ?: "No next date yet", style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (line != null) FontWeight.SemiBold else null,
+                    color = when { line == null -> Lex.colors.mutedForeground; line.second -> Lex.colors.danger.solid; else -> Lex.colors.foreground },
+                    modifier = Modifier.padding(bottom = 10.dp))
+                LegumPrimaryButton("Open Case", onClick)
+            }
         }
     }
 }
 
-/** The case number's left column (owner, 24 Nov 2026): wide enough for "CS 04007" or "PHONE 2". */
-internal const val CASE_NO_COLUMN = 76
+/** The card's inner side inset: the hearings card's own (its LexCard rows sit 12dp in), after the 4dp status edge. */
+internal const val CARD_INSET = 12
 
-/** "CS/1234/2026" as "CS 1234" over "2026"; anything else whole (or the CNR when there is no number), with no year line. */
-internal fun caseNoParts(caseNo: String, fallback: String): Pair<String, String> {
+/** A case number set like a date block: "CS/777/2021" gives type CS, number 777, year 2021; another form is the number whole; none, the CNR. */
+internal data class CaseNoBlock(val type: String, val number: String, val year: String)
+
+internal fun caseNoBlock(caseNo: String, fallback: String): CaseNoBlock {
     val m = Regex("""^\s*(.+?)\s*/\s*(\w+)\s*/\s*(\d{4})\s*$""").find(caseNo)
-    return if (m != null) "${m.groupValues[1]} ${m.groupValues[2]}" to m.groupValues[3] else caseNo.trim().ifBlank { fallback } to ""
+    return if (m != null) CaseNoBlock(m.groupValues[1], m.groupValues[2], m.groupValues[3]) else CaseNoBlock("", caseNo.trim().ifBlank { fallback }, "")
+}
+
+/** The number's size in the 56dp block: the hearing day's 24sp for up to 3 characters, then smaller so it never wraps. */
+internal fun caseNoFontSp(len: Int): Int = when {
+    len <= 3 -> 24
+    len == 4 -> 20
+    len == 5 -> 17
+    len == 6 -> 14
+    len <= 8 -> 12
+    else -> 9
 }
 
 /** "today", "tomorrow", "in 9 days" (a date to come; a date gone by is read by [openNextLine] as listed, with no new date yet). */

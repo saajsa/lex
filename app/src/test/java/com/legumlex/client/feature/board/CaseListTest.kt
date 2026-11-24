@@ -11,12 +11,18 @@ import java.time.LocalDate
 class CaseListTest {
     private val today = LocalDate.of(2026, 11, 24)
 
-    @Test fun theCaseNumberSplitsIntoNumberAndYear() {
-        assertEquals("CS 1234" to "2026", caseNoParts("CS/1234/2026", "CNR"))
-        assertEquals("CS 04007" to "2026", caseNoParts("CS/04007/2026", "CNR"))
-        assertEquals("PHONE 2" to "2026", caseNoParts(" PHONE / 2 / 2026 ", "CNR"))
-        assertEquals("Writ 55" to "", caseNoParts("Writ 55", "CNR"))          // not in the TYPE/NO/YEAR form: whole, no year line
-        assertEquals("DLHC010012342026" to "", caseNoParts("", "DLHC010012342026"))   // no number yet: the CNR
+    @Test fun theCaseNumberIsSetLikeADateBlock() {
+        assertEquals(CaseNoBlock("CS", "777", "2021"), caseNoBlock("CS/777/2021", "CNR"))
+        assertEquals(CaseNoBlock("CS", "04007", "2026"), caseNoBlock("CS/04007/2026", "CNR"))
+        assertEquals(CaseNoBlock("PHONE", "2", "2026"), caseNoBlock(" PHONE / 2 / 2026 ", "CNR"))
+        assertEquals(CaseNoBlock("", "Writ 55", ""), caseNoBlock("Writ 55", "CNR"))                    // another form: whole, no type or year
+        assertEquals(CaseNoBlock("", "DLHC010012342026", ""), caseNoBlock("", "DLHC010012342026"))     // no number yet: the CNR
+    }
+
+    @Test fun longNumbersShrinkNeverWrap() {
+        assertEquals(24, caseNoFontSp(3))   // the hearing day's size
+        assertTrue(caseNoFontSp(4) < 24 && caseNoFontSp(5) < caseNoFontSp(4) && caseNoFontSp(8) < caseNoFontSp(6))
+        assertEquals(9, caseNoFontSp(16))
     }
 
     @Test fun theLastHeardBadge() {
@@ -32,11 +38,17 @@ class CaseListTest {
         val s = f.readText()
         val row = s.substringAfter("internal fun CaseRow(").substringBefore("\n}\n")
         assertTrue(row.contains("clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onToggle ?: onClick)"))   // the whole card toggles (Days Ahead: opens)
+        // The hearing row's own geometry: its column width, rule and gap; a rule each side; no toggle icon.
+        assertTrue(row.contains("Modifier.width(TL_DATE_COL.dp).align(Alignment.CenterVertically)") && row.contains("CARD_INSET + TL_RULE_X") && row.contains("Spacer(Modifier.width(TL_TEXT_GAP.dp))"))
+        assertEquals(2, Regex("""Modifier\.width\(TL_DATE_COL\.dp\)""").findAll(row).count())
+        assertFalse(row.contains("ExpandMore") || row.contains("rotationZ"))
+        val tl = java.io.File("src/main/java/com/legumlex/client/feature/board/BoardOrders.kt").readText().substringAfter("internal fun TimelineRowView(").substringBefore("\n}\n")
+        assertTrue(tl.contains("TL_RULE_X.dp.toPx()") && tl.contains("Modifier.width(TL_DATE_COL.dp)") && tl.contains("Spacer(Modifier.width(TL_TEXT_GAP.dp))"))
         assertTrue(row.contains("LegumPrimaryButton(\"Open Case\", onClick)"))
         assertFalse(row.contains("TimelineRowView"))       // the last hearing is no longer listed in the open state
         assertFalse(row.contains("IntrinsicSize"))
         assertTrue(row.contains("maxLines = 2,\n                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis"))   // the court line wraps, then ellipsis
-        assertTrue(row.contains("rotationZ = turn"))       // the chevron turns when open
+        assertTrue(row.contains("val red = next != null && (next.isBefore(today) || movedToday(c, today))"))   // the right block's red: passed or moved
         assertTrue(s.contains("CaseRow(c, today, { onOpenCase(c.id) }, expanded = ex, onToggle = { open = if (ex) open - c.id else open + c.id })"))
         assertTrue(row.contains("openNextLine(c, today)") && row.contains("\"No next date yet\""))
         // No dead code left from the old open state.

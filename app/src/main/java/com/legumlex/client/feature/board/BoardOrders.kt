@@ -211,6 +211,11 @@ internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.Loc
 /** "4 Dec 2026". */
 internal fun longNoDay(d: java.time.LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH))
 
+/** The timeline's geometry, shared with the Cases list card (owner, 24 Nov 2026: "symmetry and geometry"): the date block's width, where its rule falls, and the gap to the text. */
+internal const val TL_DATE_COL = 56
+internal const val TL_RULE_X = 64
+internal const val TL_TEXT_GAP = 17
+
 /**
  * One timeline row: the date block (the day big, the month in capitals, the year only when not this one, and for UPCOMING a dot in the
  * status colour), a 1dp divider drawn behind (no intrinsic measurement), then the content 80/20 with the order buttons.
@@ -220,11 +225,11 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
                              onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
     val line = Lex.colors.border
     Row(
-        Modifier.fillMaxWidth().drawBehind { val x = 64.dp.toPx(); drawLine(line, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1.dp.toPx()) }
+        Modifier.fillMaxWidth().drawBehind { val x = TL_RULE_X.dp.toPx(); drawLine(line, androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1.dp.toPx()) }
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.width(TL_DATE_COL.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val d = row.date
             Text(d?.dayOfMonth?.toString()?.padStart(2, '0') ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
             if (d != null) Text(d.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH).uppercase(), style = MaterialTheme.typography.bodySmall,
@@ -232,7 +237,7 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
             if (d != null && d.year != today.year) Text("${d.year}", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
             if (row.upcoming && dot != null) Box(Modifier.padding(top = 4.dp).size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(dot))
         }
-        Spacer(Modifier.width(17.dp))
+        Spacer(Modifier.width(TL_TEXT_GAP.dp))
         // The eyebrow and title span the whole content width (the judge is never cut: the eyebrow wraps as it needs, usually two lines at most);
         // below them the next line shares a row with the order buttons.
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
