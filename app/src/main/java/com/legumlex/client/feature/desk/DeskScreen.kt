@@ -1015,11 +1015,9 @@ private fun Compose(placeholder: String, keyboard: KeyboardOptions, prefix: Stri
 private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> Unit) {
     var text by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }          // YYYY-MM-DD
-    var picking by remember { mutableStateOf(false) }
+    var cleared by remember { mutableStateOf(0) }
     val dtFlagWords = dt("sr_flag", "Your words about the hearing or deadline")
     val dtDate = dt("sr_date", "Date, if you know it")
-    val dtChoose = dt("ui_choose", "Choose")
-    val dtCancel = dt("ui_cancel", "Cancel")
     Column {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(D.Raise).border(1.5.dp, D.Gold.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
@@ -1034,36 +1032,85 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
             Text("${text.length} / $DEADLINE_MAX", style = body(11.5f, D.Muted), modifier = Modifier.align(Alignment.End))
         }
         Spacer(Modifier.height(8.dp))
+        // The date, if they know it: any day, on the calendar (REQ-045, as the web's step).
+        DeskCalendar(null, { day -> date = day?.toString().orEmpty() }, clearKey = cleared)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(50)).border(1.5.dp, D.Line2, RoundedCornerShape(50)).clickable { picking = true }.semantics { contentDescription = dtDate }.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(if (date.isEmpty()) dt("ui_pick_date", "Pick A Date") else deadlineShown("", date), style = body(14f, D.Ink, FontWeight.SemiBold))
-            }
+            if (date.isNotEmpty()) Text(deadlineShown("", date), style = body(14f, D.Ink, FontWeight.SemiBold), modifier = Modifier.semantics { contentDescription = dtDate })
             if (date.isNotEmpty()) Text(dt("ui_clear", "Clear"), style = body(13f, D.Ink.copy(alpha = 0.7f)).copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
-                modifier = Modifier.clickable { date = "" }.padding(12.dp))
+                modifier = Modifier.clickable { date = ""; cleared++ }.padding(12.dp))
             Spacer(Modifier.weight(1f))
             // Either the words or the date is enough.
             SendButton(dt("ui_send", "Send"), text.isNotBlank() || date.isNotEmpty()) { onGive(text, date) }
         }
         ErrorLine(error)
     }
-    if (picking) {
-        val st = androidx.compose.material3.rememberDatePickerState(
-            initialSelectedDateMillis = (date.takeIf { it.isNotBlank() }?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now())
-                .atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli(),
-        )
-        androidx.compose.material3.DatePickerDialog(
-            onDismissRequest = { picking = false },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    st.selectedDateMillis?.let { date = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString() }
-                    picking = false
-                }) { Text(dtChoose) }
-            },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { picking = false }) { Text(dtCancel) } },
-        ) { androidx.compose.material3.DatePicker(state = st) }
+}
+
+/**
+ * The desk's month calendar, inline (REQ-045; the deadline step and Lex's date questions): only days in [bounds] can be chosen (none: any day), and a tap on a
+ * day calls [onDay] with it. [clearKey] changing clears the choice.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+internal fun DeskCalendar(bounds: ClosedRange<java.time.LocalDate>?, onDay: (java.time.LocalDate?) -> Unit, clearKey: Int = 0) {
+    val utc = java.time.ZoneOffset.UTC
+    val today = java.time.LocalDate.now()
+    val st = androidx.compose.material3.rememberDatePickerState(
+        initialDisplayedMonthMillis = (bounds?.let { today.coerceIn(it.start, it.endInclusive) } ?: today).atStartOfDay(utc).toInstant().toEpochMilli(),
+        yearRange = bounds?.let { it.start.year..it.endInclusive.year } ?: androidx.compose.material3.DatePickerDefaults.YearRange,
+        selectableDates = object : androidx.compose.material3.SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean = bounds == null || java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(utc).toLocalDate() in bounds
+            override fun isSelectableYear(year: Int): Boolean = bounds == null || year in bounds.start.year..bounds.endInclusive.year
+        },
+    )
+    LaunchedEffect(clearKey) { if (clearKey > 0) st.selectedDateMillis = null }
+    val day by androidx.compose.runtime.rememberUpdatedState(onDay)
+    LaunchedEffect(st.selectedDateMillis) { day(st.selectedDateMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(utc).toLocalDate() }) }
+    androidx.compose.material3.DatePicker(
+        state = st, title = null, headline = null, showModeToggle = false,
+        colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * One of Lex's questions answered with a widget (REQ-045): the server's yes/no or one-of-several chips, or a month calendar inline where one tap on a day answers;
+ * always the server's Something Else, Type It, which opens the box (and Back To The Choices from there); Skip The Questions stays, as on a typed question.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDate: String) -> Unit, onType: () -> Unit, onBack: () -> Unit, onText: (String) -> Unit, onSkip: () -> Unit) {
+    // Lex's clarify question keeps its own way out, Send it as it is; the follow-up questions keep Skip The Questions.
+    val skip = if (d.clarify) dt("ui_send_as_is", "Send it as it is") else dt("ui_skip_questions", GATHER_SEND_NOW)
+    val ph = if (d.clarify) dt("ph_more", "A little more about it…") else dt("ph_answer", "Your answer…")
+    if (d.writing) {
+        Column {
+            Compose(ph, KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false), description = dt("sr_answer", "Your answer"), onSend = onText)
+            ErrorLine(error)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Quiet(dt("ui_back_choices", "Back To The Choices"), onBack)
+                Text("·", style = body(13f, D.Muted), modifier = Modifier.padding(horizontal = 4.dp))
+                Quiet(skip, onSkip)
+            }
+        }
+        return
+    }
+    val other = d.input.other.ifBlank { dt("in_other", TYPE_IT_EN) }
+    Column {
+        when (d.input.kind) {
+            INPUT_DATE -> {
+                val bounds = remember(d.input) { inputBounds(d.input, java.time.LocalDate.now()) }
+                // One tap on a day answers.
+                DeskCalendar(bounds, { day -> if (day != null) onPick(dateAnswer(day), day.toString()) })
+                ChipGroup(listOf(ChipSpec(other, false, go = onType)), topGap = 4.dp)
+            }
+            else -> {
+                val labels = d.input.options.ifEmpty { if (d.input.kind == INPUT_YES_NO) YES_NO.map { (k, en) -> dt(k, en) } else emptyList() }
+                ChipGroup(labels.map { o -> ChipSpec(o, false) { onPick(o, "") } } + ChipSpec(other, false, go = onType), topGap = CHIP_GROUP_TOP.dp)
+            }
+        }
+        ErrorLine(error)
+        Quiet(if (d.clarify) skip else dt("ui_send_now", GATHER_SEND_NOW), onSkip)
     }
 }
 
@@ -1548,6 +1595,8 @@ internal fun DeskThread(
                 Dock.Question -> QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
                 Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
                 Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)
+                is Dock.Input -> if (d.clarify) InputDock(d, ui.error, vm::pickInput, vm::typeInstead, vm::backToInput, vm::submitClarify, vm::sendAsItIs)
+                    else InputDock(d, ui.error, vm::pickInput, vm::typeInstead, vm::backToInput, vm::submitGather, vm::sendNow)
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
                 is Dock.Advocate -> AdvocateWaiting(d.state, { vm.act("advocate_open") })
                 is Dock.Actions -> Column { ChipGroup(d.list.map { a -> ChipSpec(a.label, a.main, a.sub) { vm.act(a.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }

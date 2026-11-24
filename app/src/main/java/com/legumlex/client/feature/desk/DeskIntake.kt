@@ -71,7 +71,8 @@ fun deadlineProblem(text: String, date: String): String {
 
 /** The deadline answer as the conversation echoes it: the words, then the date as day.month.year. */
 fun deadlineShown(text: String, date: String): String =
-    listOfNotNull(cleanDeadlineText(text).takeIf { it.isNotEmpty() }, date.takeIf { it.isNotBlank() }?.split("-")?.reversed()?.joinToString(".")).joinToString(" · ")
+    // The date in full, as the web reads it ("Tuesday, 15 December 2026"); one that will not parse is shown as sent.
+    listOfNotNull(cleanDeadlineText(text).takeIf { it.isNotEmpty() }, date.takeIf { it.isNotBlank() }?.let { d -> runCatching { dateAnswer(LocalDate.parse(d)) }.getOrDefault(d) }).joinToString(" · ")
 
 /**
  * Whether the desk's reading may be used: the server says reading_state "read". Anything else ("failed", "skipped") is not a finding, so its urgency
@@ -154,6 +155,8 @@ data class GatherResult(
     val reflect: String = "", val options: List<String> = emptyList(), val optionsHint: String = "", val emergency: String = "",
     /** After the last question, read the whole again only when this is true (an older server says nothing: as before). */
     val reread: Boolean = true,
+    /** REQ-045: how the question is answered (chips or a calendar); null keeps today's typed answer. */
+    val input: GatherInput? = null,
 ) {
     val more: Boolean get() = !done && question.isNotBlank()
     val hasOptions: Boolean get() = options.isNotEmpty()
@@ -166,8 +169,62 @@ fun parseGather(d: Map<String, Any?>?): GatherResult? {
         (d["question"] as? String).orEmpty().trim(), (d["topic"] as? String).orEmpty(), d["done"] == true, d["ran"] == true, parseTongue(d), parseDirectOffer(d["direct_offer"]), parseDirectOpen(d["direct_open"]),
         reflect = (d["reflect"] as? String).orEmpty().trim(), options = (d["options"] as? List<*>).orEmpty().mapNotNull { (it as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } },
         optionsHint = (d["options_hint"] as? String).orEmpty().trim(), emergency = htmlToMarkup((d["emergency"] as? String).orEmpty().trim()), reread = d["reread"] != false,
+        input = parseGatherInput(d["input"]),
     )
 }
+
+// ---- Lex asks with widgets (REQ-045 Plan v2) ----
+
+/**
+ * A gather question's input, as the server decided it (cases_desk_input_clean): yes_no and choice with the server's [options] (yes_no falls back to the book's
+ * Yes / No / Not Sure when absent), or date with [whenDate] past | future and the server's [min] / [max]; [other] is the server's "Something Else, Type It".
+ */
+data class GatherInput(
+    val kind: String, val options: List<String> = emptyList(), val whenDate: String = "", val min: LocalDate? = null, val max: LocalDate? = null,
+    val other: String = "", val fillsDeadline: Boolean = false,
+)
+
+const val INPUT_YES_NO = "yes_no"
+const val INPUT_CHOICE = "choice"
+const val INPUT_DATE = "date"
+const val TYPE_IT_EN = "Something Else, Type It"
+
+/** The server's input, or null (typed, as today) when absent, of an unknown kind, or not well formed. The server vets it too; this only refuses what cannot be shown. */
+fun parseGatherInput(raw: Any?): GatherInput? {
+    val m = raw as? Map<*, *> ?: return null
+    val opts = (m["options"] as? List<*>).orEmpty().mapNotNull { (it as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } }.distinct()
+    val other = (m["other"] as? String).orEmpty().trim()
+    fun day(k: String) = (m[k] as? String)?.let { runCatching { LocalDate.parse(it.trim()) }.getOrNull() }
+    return when (val kind = (m["kind"] as? String)?.trim()) {
+        INPUT_YES_NO -> GatherInput(kind, opts.takeIf { it.size == 3 }.orEmpty(), other = other)
+        INPUT_CHOICE -> if (opts.size in 2..5) GatherInput(kind, opts, other = other) else null
+        INPUT_DATE -> (m["when"] as? String)?.trim()?.takeIf { it == "past" || it == "future" }?.let {
+            GatherInput(kind, whenDate = it, min = day("min"), max = day("max"), other = other, fillsDeadline = m["fills_deadline"] == true)
+        }
+        else -> null
+    }
+}
+
+/** The days the calendar allows: the server's min and max, each falling back to the plan's bounds (past: up to today; future: today to two years ahead). */
+fun inputBounds(i: GatherInput, today: LocalDate): ClosedRange<LocalDate> {
+    val plan = dateBounds(i.whenDate, today)
+    val lo = i.min ?: plan.start
+    val hi = i.max ?: plan.endInclusive
+    return if (lo <= hi) lo..hi else plan
+}
+
+/** As the web (reception.php dockGather): the server alone decides (fills_deadline) that the date answered is the enquiry's deadline; that step is then not asked. */
+fun inputFillsDeadline(i: GatherInput): Boolean = i.kind == INPUT_DATE && i.fillsDeadline
+
+/** The yes/no labels when the server sends none: the book's key and the English (the server's in_yes / in_no / in_not_sure lines). */
+val YES_NO = listOf("in_yes" to "Yes", "in_no" to "No", "in_not_sure" to "Not Sure")
+
+/** The days a date input allows: past, any day up to today; future, today to two years ahead. */
+fun dateBounds(whenDate: String, today: LocalDate): ClosedRange<LocalDate> =
+    if (whenDate == "past") LocalDate.of(1900, 1, 1)..today else today..today.plusYears(2)
+
+/** A chosen date as the visitor's answer reads in the conversation and the enquiry: "Friday, 11 December 2026". */
+fun dateAnswer(d: LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", java.util.Locale.ENGLISH))
 
 /**
  * The ticks, as the web keeps them (dockGather): "I'm not sure" (always the last) stands alone; ticking any other kind of help clears it; ticking it clears the rest.

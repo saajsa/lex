@@ -310,8 +310,9 @@ class DeskUiRulesTest {
         assertTrue(gather.contains("Quiet(dt(\"ui_send_now\", GATHER_SEND_NOW), onSendNow)") && !gather.contains("Chips("))
         val foot = screen.substringAfter("private fun Disclaimer(").substringBefore("/**\n * The services")
         assertTrue(foot.contains("withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = D.Ink)) { append(disclaimerLead(t, direct, fee, book)) }"))   // the web bolds the lead sentence
-        val dl = screen.substringAfter("private fun DeadlineDock(").substringBefore("if (picking)")
-        assertTrue(dl.contains("heightIn(min = 40.dp)") && dl.contains("SendButton(dt(\"ui_send\", \"Send\"), text.isNotBlank() || date.isNotEmpty())"))   // the date pill and Send share one height
+        val dl = screen.substringAfter("private fun DeadlineDock(").substringBefore("/** The WhatsApp code")
+        // REQ-045: the words and an inline calendar (any day); either is enough.
+        assertTrue(dl.contains("DeskCalendar(null, ") && dl.contains("SendButton(dt(\"ui_send\", \"Send\"), text.isNotBlank() || date.isNotEmpty())") && !dl.contains("DatePickerDialog"))
         val stop = src("DeskViewModel.kt").substringAfter("private suspend fun unreadStop").substringBefore("private fun keep")
         assertTrue(stop.contains("say(Para.Text(r.unreadLine.ifBlank { UNREAD_EN }))") && !stop.contains("note = true"))   // a normal bubble
     }

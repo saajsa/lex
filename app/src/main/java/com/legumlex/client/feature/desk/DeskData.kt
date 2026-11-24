@@ -98,6 +98,8 @@ data class DeskReading(
     val token: String,             // signed; "" when nothing was learned
     /** read | failed | skipped; null from an older server (the reading is then used as before). */
     val readingState: String? = null,
+    /** REQ-045 (D7): how follow_up may be answered with a tap, the same shape as desk/gather's; only with a follow_up. */
+    val input: GatherInput? = null,
     /** missing_facts | time_limit_unknown | forum_unknown | none; with follow_up, even on a clear verdict. Null from an older server. */
     val askReason: String? = null,
     /** The language of the reading, and whether its follow-up was a fixed, translated line (REQ-017 017.26). */
@@ -223,6 +225,7 @@ internal fun parseReading(d: Map<String, Any?>): DeskReading? {
         documents = (d["documents"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
         token    = (d["reading"] as? String).orEmpty(),
         readingState = (d["reading_state"] as? String)?.takeIf { it.isNotBlank() },
+        input = if ((d["follow_up"] as? String).isNullOrBlank()) null else parseGatherInput(d["input"]),
         askReason = (d["ask_reason"] as? String)?.takeIf { it.isNotBlank() },
         tongue = parseTongue(d),
         wantsPerson = d["wants_person"] == true,

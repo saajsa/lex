@@ -101,6 +101,8 @@ sealed interface Dock {
     data object Clarify : Dock
     /** One of Lex's follow-up questions before sending (REQ-017 017.20): an answer, or Send Now. */
     data object Gather : Dock
+    /** A follow-up question answered with chips or a calendar (REQ-045), or typed after Something Else, Type It ([writing]). */
+    data class Input(val question: String, val input: GatherInput, val writing: Boolean = false, val clarify: Boolean = false) : Dock
     data object Docs : Dock
     data class Actions(val list: List<Action>) : Dock
     data class Entity(val hint: String) : Dock
@@ -198,6 +200,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private var more: String? = null
     private var vetted: String? = null
     private var ask = ""
+    /** REQ-045 (D7): the widget for [ask], only when [ask] is the reading's own follow_up. */
+    private var askInput: GatherInput? = null
     private var area = ""
     private var read: DeskReading? = null
     private var reading = ""
@@ -689,8 +693,9 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     private fun resetStory() {
-        text = ""; vetted = null; qFiles = 0; read = null; reading = ""; area = ""; more = null; ask = ""
+        text = ""; vetted = null; qFiles = 0; read = null; reading = ""; area = ""; more = null; ask = ""; askInput = null
         gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; docs = null; vetRun++
+        if (deadlineFromGather) { deadline = null; deadlineFromGather = false }
     }
 
     /** Lex answers, or asks for the matter, and the box opens again; the text is cleared: nothing here is the enquiry. */
@@ -818,7 +823,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (reading?.insist != null) { keep(reading); insistOffer(reading.insist); return }
         if (reading?.needMatter == true) {
             said += "person"; keep(reading)
-            vetted = "clarify"; ask = tl("person_need_matter") ?: PERSON_NEED_MATTER_EN
+            vetted = "clarify"; ask = tl("person_need_matter") ?: PERSON_NEED_MATTER_EN; askInput = null
             next(); return
         }
         if (reading?.wantsPerson == true && "person" !in said) {
@@ -843,12 +848,14 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         if (v == "vague" || v == "not_legal") {
             vetted = "clarify"
             ask = if (v == "vague") r?.followUp?.takeIf { it.isNotBlank() } ?: ASK_VAGUE else ASK_NOT_LEGAL
+            askInput = if (v == "vague" && r?.followUp?.isNotBlank() == true) r.input else null
             askFooter = r?.tongue?.lineFooter
         } else if (v == "clear" && r != null && r.askReason in ASK_REASONS && r.followUp.isNotBlank()) {
             // One question on a clear enquiry too, when its answer would change what the advocate does next (the time limit, the forum). It is
             // asked once, in the same way, and "Send it as it is" stays; the re-read after the answer never asks again.
             vetted = "clarify"
             ask = r.followUp
+            askInput = r.input
             askFooter = r.tongue.lineFooter
         } else {
             vetted = "ok"
@@ -880,29 +887,32 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun askClarify() {
         if (text.length > 4900) { more = ""; return next() }
         if (!asked(Step.CLARIFY)) say(Para.Text(ask), prompt = Step.CLARIFY, footer = askFooter)
-        dock(Dock.Clarify)
+        askInput?.let { dock(Dock.Input(ask, it, clarify = true)) } ?: dock(Dock.Clarify)
     }
 
     fun submitClarify(raw: String) {
         val v = raw.trim()
         if (v.length < 3) { err(lbl("err_more_asis", "Please add a few words, or send it as it is.")); return }
         if (mashed(v)) { err(lbl("err_mashed", "That could not be understood. Please use a few plain words.")); return }
-        go {
-            more = v
-            answer(Step.CLARIFY, v)
-            // The whole of it is read again: the answer usually holds what the
-            // first reading lacked. A slow or failed check leaves the first.
-            val run = vetRun
-            reread = viewModelScope.async {
-                val r = repo.check(fullText(), langField(convLang))
-                if (run == vetRun && r != null) {
-                    if (r.area.isNotEmpty() && r.area != "other") area = r.area
-                    keep(r)
-                }
+        go { clarified(v) }
+    }
+
+    /** The clarify answer, typed or tapped: it goes into the enquiry and the whole is read again. */
+    private suspend fun clarified(v: String) {
+        more = v
+        answer(Step.CLARIFY, v)
+        // The whole of it is read again: the answer usually holds what the
+        // first reading lacked. A slow or failed check leaves the first.
+        val run = vetRun
+        reread = viewModelScope.async {
+            val r = repo.check(fullText(), langField(convLang))
+            if (run == vetRun && r != null) {
+                if (r.area.isNotEmpty() && r.area != "other") area = r.area
+                keep(r)
             }
-            dock(Dock.Waiting("…"))
-            next()
         }
+        dock(Dock.Waiting("…"))
+        next()
     }
 
     fun sendAsItIs() = go {
@@ -955,7 +965,9 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         gatherAsked++
         say(Para.Text(if (reflect.isNotBlank()) reflect + "\n\n" + r.question else r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)
         picks = emptySet()
-        if (r.hasOptions) dock(Dock.Options(r.question, r.options, picks, writing = false)) else dock(Dock.Gather)
+        if (r.hasOptions) dock(Dock.Options(r.question, r.options, picks, writing = false))
+        else if (r.input != null) dock(Dock.Input(r.question, r.input))
+        else dock(Dock.Gather)
     }
 
     /** Whether Lex has said what it understood in this conversation, and whether the last answer wants the whole read again. */
@@ -986,6 +998,21 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     fun writeOwn() { val d = _ui.value.dock as? Dock.Options ?: return; dock(d.copy(writing = true)) }
+
+    // ---- Lex asks with widgets (REQ-045): a chip or a date is the answer; Something Else, Type It opens the box ----
+
+    /** Whether the enquiry's deadline came from a date answered here (so changing the answers clears it too). */
+    private var deadlineFromGather = false
+
+    /** A chip or a date: the answer is the text the conversation and the enquiry show ("Yes", the label, "Friday, 11 December 2026"); [isoDate] for a date. */
+    fun pickInput(text: String, isoDate: String = "") = go {
+        val d = _ui.value.dock as? Dock.Input ?: return@go
+        if (isoDate.isNotEmpty() && inputFillsDeadline(d.input)) { deadline = "" to isoDate; deadlineFromGather = true }
+        if (d.clarify) clarified(text) else recordGatherAnswer(d.question, text)
+    }
+
+    fun typeInstead() { val d = _ui.value.dock as? Dock.Input ?: return; dock(d.copy(writing = true)) }
+    fun backToInput() { val d = _ui.value.dock as? Dock.Input ?: return; dock(d.copy(writing = false)) }
     fun backToChoices() { val d = _ui.value.dock as? Dock.Options ?: return; dock(d.copy(writing = false)) }
 
     /** An answer, from the ticks or the box: it goes into the enquiry, the ticks are spent, and the next question is asked. */
@@ -2043,8 +2070,8 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun restart() {
         reflected = false; lastReread = true; danger = false; picks = emptySet(); matterAsks = 0; cardsSeen = false; consultWish = false; cardsAgain = false; insistAsked = ""
         draftText = ""; pollJob?.cancel(); bookedPoll?.cancel(); informed = false; phoneProved = false; forcePhone = false; codeUi = null; pendingOffer = null; pendingOpen = null; openBooking = null; directAsked = false; directBook = false; awaitingBooked = false; bookedSaid.clear()
-        text = ""; more = null; vetted = null; ask = ""; area = ""; read = null; reading = ""; qFiles = 0; docs = null
-        route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; unreadRetried = false; unreadShown = false; sessionHash = null; consultationId = null
+        text = ""; more = null; vetted = null; ask = ""; askInput = null; area = ""; read = null; reading = ""; qFiles = 0; docs = null
+        route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; deadlineFromGather = false; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; unreadRetried = false; unreadShown = false; sessionHash = null; consultationId = null
         repo.submissionKeys.clear()
         savedEmail = ""; savedPrice = ""; awaitingInvoice = false
         directTalk = null
@@ -2067,7 +2094,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             when (k) {
                 Step.QUESTION -> { text = ""; vetted = null; read = null; reading = ""; area = ""; vetRun++ }
                 Step.CLARIFY -> { more = null; reread = null }
-                Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }
+                Step.GATHER -> { if (deadlineFromGather) { deadline = null; deadlineFromGather = false }; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }
                 Step.DOCS -> docs = null
                 Step.ROUTE -> route = null
                 Step.ENTITY -> { entity = null; if (k == step) offered += "entity" }

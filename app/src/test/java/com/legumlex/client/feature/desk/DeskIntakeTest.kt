@@ -69,8 +69,9 @@ class DeskIntakeTest {
         assertEquals("Please give the date as day, month and year.", deadlineProblem("x", "1999-12-31"))
         assertEquals("Please give the date as day, month and year.", deadlineProblem("x", "2101-01-01"))
         assertEquals("Please give the date as day, month and year.", deadlineProblem("x", "2026-02-30"))
-        assertEquals("Reply by Friday · 20.11.2026", deadlineShown("Reply   by Friday", "2026-11-20"))
-        assertEquals("20.11.2026", deadlineShown("", "2026-11-20"))
+        assertEquals("Reply by Friday · Friday, 20 November 2026", deadlineShown("Reply   by Friday", "2026-11-20"))
+        assertEquals("Tuesday, 15 December 2026", deadlineShown("", "2026-12-15"))
+        assertEquals("Reply soon", deadlineShown("Reply soon", ""))
         assertEquals("a b", cleanDeadlineText("  a \n b  "))
     }
 

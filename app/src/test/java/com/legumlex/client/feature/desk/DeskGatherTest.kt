@@ -77,7 +77,7 @@ class DeskGatherTest {
         val s = src("feature/desk/DeskViewModel.kt") ?: return
         assertTrue(s.contains("vetted == \"clarify\" && more == null -> askClarify()\n            !gatherDone -> gather()\n            !closeDone -> askClose()\n            docs == null -> askDocs()"))
         // Changing an answer starts the questions over; the desk restarting clears them.
-        assertTrue(s.contains("Step.GATHER -> { gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }"))
+        assertTrue(s.contains("Step.GATHER -> { if (deadlineFromGather) { deadline = null; deadlineFromGather = false }; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }"))
         // Asked in Lex's own bubble and voice (a desk line), with the box and a Send Now chip as the dock.
         assertTrue(s.contains("say(Para.Text(if (reflect.isNotBlank()) reflect + \"\\n\\n\" + r.question else r.question), prompt = Step.GATHER, footer = r.tongue.lineFooter)") && s.contains("dock(Dock.Gather)"))
     }

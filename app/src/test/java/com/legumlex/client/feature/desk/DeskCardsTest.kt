@@ -347,6 +347,6 @@ class DeskFocusTest {
         val vm = src("DeskViewModel.kt")
         assertTrue(vm.contains("if (gatherLog.isNotEmpty() && lastReread) {") && vm.contains("if (r != null) lastReread = r.reread"))
         assertTrue(vm.contains("val reflect = if (r != null && r.reflect.isNotBlank() && !reflected) { reflected = true; r.reflect } else \"\""))
-        assertTrue(vm.contains("if (r.hasOptions) dock(Dock.Options(r.question, r.options, picks, writing = false)) else dock(Dock.Gather)"))
+        assertTrue(vm.contains("if (r.hasOptions) dock(Dock.Options(r.question, r.options, picks, writing = false))\n        else if (r.input != null) dock(Dock.Input(r.question, r.input))\n        else dock(Dock.Gather)"))
     }
 }

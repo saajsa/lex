@@ -95,6 +95,6 @@ class DeskPhoneTest {
         assertTrue(src("feature/desk/DeskViewModel.kt")!!.contains("repo.lang = langField(lang).orEmpty()"))
         val vm = src("feature/desk/DeskViewModel.kt")!!; val screen = src("feature/desk/DeskScreen.kt")!!
         for (k in listOf("ui_paid", "ui_pay_fee", "ui_yes_number")) assertTrue(k, vm.contains("\"$k\""))
-        for (k in listOf("ui_continue_google", "ui_close", "ui_pick_date", "ui_clear", "ui_choose", "ui_cancel")) assertTrue(k, screen.contains("\"$k\""))
+        for (k in listOf("ui_continue_google", "ui_close", "ui_clear")) assertTrue(k, screen.contains("\"$k\""))   // REQ-045: the calendar is inline, so no Pick A Date pill or Choose / Cancel dialog
     }
 }
