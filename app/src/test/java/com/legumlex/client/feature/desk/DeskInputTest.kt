@@ -163,3 +163,59 @@ class DeskChequeGatherTest {
         assertTrue(java.io.File(root, "feature/desk/DeskViewModel.kt").readText().contains("docsField(read?.documents.orEmpty()), chequeDates = chequeDates)"))
     }
 }
+
+/** Owner, 24 Nov: the compact calendar's month grid, its moves inside the bounds, and the key dates' quiet progress. */
+class DeskCalendarTest {
+    private val mon = java.time.DayOfWeek.MONDAY
+    private val sun = java.time.DayOfWeek.SUNDAY
+
+    @Test fun onlyTheWeeksTheMonthNeeds() {
+        // November 2026 starts on a Sunday: from Monday it needs 6 rows, from Sunday 5.
+        val nov = java.time.YearMonth.of(2026, 11)
+        val m = calWeeks(nov, mon)
+        assertEquals(6, m.size)
+        assertTrue(m.all { it.size == 7 })
+        assertEquals(LocalDate.of(2026, 11, 1), m[0][6])
+        assertEquals(5, calWeeks(nov, sun).size)
+        assertEquals(LocalDate.of(2026, 11, 1), calWeeks(nov, sun)[0][0])
+        // February 2026 from Sunday fills exactly 4 rows.
+        assertEquals(4, calWeeks(java.time.YearMonth.of(2026, 2), sun).size)
+        assertEquals(30, m.flatten().filterNotNull().size)
+    }
+
+    @Test fun weekdaysStartOnThePlatformsDay() {
+        assertEquals(listOf("M", "T", "W", "T", "F", "S", "S"), calWeekdays(mon))
+        assertEquals("S", calWeekdays(sun).first())
+    }
+
+    @Test fun movesStayInsideTheBounds() {
+        val today = LocalDate.of(2026, 11, 24)
+        val past = today.minusYears(3)..today
+        val start = calStart(past, today)
+        assertEquals(java.time.YearMonth.of(2026, 11), start)
+        assertFalse(calCanMove(start, 1, past))
+        assertTrue(calCanMove(start, -1, past))
+        assertTrue(calCanMove(start, -36, past))   // November 2023 still holds the 24th
+        assertFalse(calCanMove(start, -37, past))
+        assertTrue(calCanMove(start, 120, null))
+        // A future range opens on today's month even when today is its first day.
+        assertEquals(java.time.YearMonth.of(2026, 11), calStart(today..today.plusYears(2), today))
+        assertEquals(java.time.YearMonth.of(2027, 1), calStart(LocalDate.of(2027, 1, 5)..LocalDate.of(2027, 3, 1), today))
+    }
+
+    @Test fun yearStepsOnlyForALongRange() {
+        val today = LocalDate.of(2026, 11, 24)
+        assertTrue(calYearSteps(today.minusYears(3)..today))
+        assertTrue(calYearSteps(null))
+        assertFalse(calYearSteps(today.minusMonths(6)..today))
+        assertFalse(calYearSteps(today.minusYears(1)..today))   // the missed-hearing year: arrows only
+        assertFalse(calYearSteps(today..today.plusYears(2)))     // the 2-year future range: arrows only
+        assertTrue(calYearSteps(today..today.plusMonths(26)))
+        assertEquals(44, CAL_ROW_DP)
+    }
+
+    @Test fun keyDatesProgress() {
+        assertEquals(listOf(1, 2, 3, 4, 4), listOf(KdAt.CHEQUE, KdAt.MEMO, KdAt.SENT, KdAt.RECV, KdAt.RECV_DATE).map(::kdProgress))
+        assertEquals(4, KD_STEPS)
+    }
+}

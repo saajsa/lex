@@ -335,7 +335,7 @@ class DeskFocusTest {
         val ui = screen.substringAfter("private fun OptionsDock(").substringBefore("\n}\n\n", screen.substringAfter("private fun OptionsDock("))
         assertTrue(ui.contains("Text(d.question") && ui.contains("dt(\"opt_choose\", OPT_CHOOSE_EN)") && ui.contains("Role.Checkbox") && ui.contains("Modifier.weight(1f, fill = false)"))   // only the rows scroll
         assertTrue(ui.contains("sendChoicesLabel(d.picks.size, book)") && ui.contains("clickable(enabled = ready, onClick = onSend)"))
-        assertTrue(ui.contains("dt(\"ui_write_own\", \"Write My Own Instead\")") && ui.contains("dt(\"ui_skip_questions\", GATHER_SEND_NOW)") && ui.contains("dt(\"ui_back_choices\", \"Back To The Choices\")"))
+        assertTrue(ui.contains("dt(\"in_other\", TYPE_IT_EN)") && !ui.contains("Write My Own Instead") && ui.contains("dt(\"ui_skip_questions\", GATHER_SEND_NOW)") && ui.contains("dt(\"ui_back_choices\", \"Back To The Choices\")"))
         assertTrue(ui.contains("OPT_WITH_CHOICES_EN") && ui.contains("sendReady = d.picks.isNotEmpty()"))                  // the kept ticks are something to send
         assertTrue(screen.contains("val tickList = (ui.dock as? Dock.Options)?.writing == false"))                          // the dock itself does not scroll as a whole
         assertTrue(screen.contains("is Dock.Options -> OptionsDock(d, ui.error, vm::togglePick, vm::sendPicks, vm::writeOwn, vm::backToChoices, vm::sendNow, vm::submitGather)"))

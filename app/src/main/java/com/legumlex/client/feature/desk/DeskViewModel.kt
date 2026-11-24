@@ -988,7 +988,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         dock(Dock.Actions(listOf(Action("safe_now", lbl("ui_safe_carry_on", SAFE_CARRY_ON_EN), main = true))))
     }
 
-    // ---- The tick list (F-029): Choose one or more, Send N Choices, Write My Own Instead, Back To The Choices ----
+    // ---- The tick list (F-029): Choose one or more, Send N Choices, Something Else, Type It, Back To The Choices ----
 
     fun togglePick(i: Int) {
         val d = _ui.value.dock as? Dock.Options ?: return
@@ -1056,7 +1056,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     fun submitGather(raw: String) {
         val opt = _ui.value.dock as? Dock.Options
         val q = gatherPending ?: return
-        // With ticks kept (Write My Own Instead), the ticks and the words go together; the ticks alone are something to send too.
+        // With ticks kept (Something Else, Type It), the ticks and the words go together; the ticks alone are something to send too.
         val v = if (opt != null) optionsAnswer(opt.options, picks, raw) else raw.trim()
         if (v.length < 2) { err(lbl("err_more_now", "Please add a few words, or choose Skip The Questions.")); return }
         if (mashed(raw.trim().ifEmpty { v })) { err(lbl("err_mashed", "That could not be understood. Please use a few plain words.")); return }

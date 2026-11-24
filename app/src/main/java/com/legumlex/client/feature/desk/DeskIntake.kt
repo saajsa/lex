@@ -215,6 +215,43 @@ data class KeyDates(
     val how: String = "", val recv: LocalDate? = null,
 )
 
+/** The key dates step's quiet progress: the cheque, the bank return, the notice, its delivery ("1 of 4"). */
+const val KD_STEPS = 4
+/** The crossfade between answer widgets, in ms (0 under reduced motion). */
+const val WIDGET_FADE_MS = 180
+fun kdProgress(at: KdAt): Int = when (at) { KdAt.CHEQUE -> 1; KdAt.MEMO -> 2; KdAt.SENT -> 3; KdAt.RECV, KdAt.RECV_DATE -> 4 }
+
+// ---- The desk's compact month calendar (owner, 24 Nov: compact, responsive) ----
+
+/** The weeks of [month] from [firstDay] (the platform's week start): only the rows the month needs (4 to 6), with null outside the month. */
+fun calWeeks(month: java.time.YearMonth, firstDay: java.time.DayOfWeek): List<List<LocalDate?>> {
+    val first = month.atDay(1)
+    val lead = (first.dayOfWeek.value - firstDay.value + 7) % 7
+    val cells = List(lead) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
+    return (cells + List((7 - cells.size % 7) % 7) { null }).chunked(7)
+}
+
+/** The weekday initials in order from [firstDay] ("M T W T F S S" from Monday). */
+fun calWeekdays(firstDay: java.time.DayOfWeek): List<String> =
+    (0 until 7).map { firstDay.plus(it.toLong()).getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.ENGLISH) }
+
+/** The month the calendar opens on: today's, kept inside [bounds]. */
+fun calStart(bounds: ClosedRange<LocalDate>?, today: LocalDate): java.time.YearMonth =
+    java.time.YearMonth.from(bounds?.let { today.coerceIn(it.start, it.endInclusive) } ?: today)
+
+/** Whether [month] moved by [by] months still has a day inside [bounds] (none: always). */
+fun calCanMove(month: java.time.YearMonth, by: Long, bounds: ClosedRange<LocalDate>?): Boolean {
+    if (bounds == null) return true
+    val m = month.plusMonths(by)
+    return !m.atEndOfMonth().isBefore(bounds.start) && !m.atDay(1).isAfter(bounds.endInclusive)
+}
+
+/** Year steps are offered only when the range exceeds 25 months (no year list otherwise; the 2-year future range has arrows only). */
+fun calYearSteps(bounds: ClosedRange<LocalDate>?): Boolean = bounds == null || bounds.start.plusMonths(25).isBefore(bounds.endInclusive)
+
+/** The calendar's day rows (dp): 44 tall, the cells a seventh of the width (48dp or more), so it fits above the desk's footer. */
+const val CAL_ROW_DP = 44
+
 /** REQ-046: cheque_dates=1 on desk/gather while the reading says a bounced cheque (the server then asks no date: the key dates step does); otherwise not sent. */
 fun chequeField(on: Boolean): String? = if (on) "1" else null
 

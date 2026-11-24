@@ -26,6 +26,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.outlined.KeyboardDoubleArrowLeft
+import androidx.compose.material.icons.outlined.KeyboardDoubleArrowRight
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.wrapContentSize
@@ -1048,30 +1053,66 @@ private fun DeadlineDock(error: String, onGive: (text: String, date: String) -> 
 }
 
 /**
- * The desk's month calendar, inline (REQ-045; the deadline step and Lex's date questions): only days in [bounds] can be chosen (none: any day), and a tap on a
- * day calls [onDay] with it. [clearKey] changing clears the choice.
+ * The desk's month calendar, inline and compact (REQ-045; owner, 24 Nov: compact and responsive): a month header with arrows (and year steps only for a long
+ * range), the weekday initials, and only the weeks the month needs. Days are 48dp targets; the chosen day is filled (ink on the primary), today is ringed,
+ * days outside [bounds] are faint and cannot be chosen. A tap calls [onDay]; [clearKey] changing clears the choice.
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun DeskCalendar(bounds: ClosedRange<java.time.LocalDate>?, onDay: (java.time.LocalDate?) -> Unit, clearKey: Int = 0) {
-    val utc = java.time.ZoneOffset.UTC
-    val today = java.time.LocalDate.now()
-    val st = androidx.compose.material3.rememberDatePickerState(
-        initialDisplayedMonthMillis = (bounds?.let { today.coerceIn(it.start, it.endInclusive) } ?: today).atStartOfDay(utc).toInstant().toEpochMilli(),
-        yearRange = bounds?.let { it.start.year..it.endInclusive.year } ?: androidx.compose.material3.DatePickerDefaults.YearRange,
-        selectableDates = object : androidx.compose.material3.SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean = bounds == null || java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(utc).toLocalDate() in bounds
-            override fun isSelectableYear(year: Int): Boolean = bounds == null || year in bounds.start.year..bounds.endInclusive.year
-        },
-    )
-    LaunchedEffect(clearKey) { if (clearKey > 0) st.selectedDateMillis = null }
-    val day by androidx.compose.runtime.rememberUpdatedState(onDay)
-    LaunchedEffect(st.selectedDateMillis) { day(st.selectedDateMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(utc).toLocalDate() }) }
-    androidx.compose.material3.DatePicker(
-        state = st, title = null, headline = null, showModeToggle = false,
-        colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    val today = remember { java.time.LocalDate.now() }
+    val firstDay = remember { java.time.temporal.WeekFields.of(java.util.Locale.getDefault()).firstDayOfWeek }
+    var month by remember(bounds) { mutableStateOf(calStart(bounds, today)) }
+    var sel by remember { mutableStateOf<java.time.LocalDate?>(null) }
+    LaunchedEffect(clearKey) { if (clearKey > 0) sel = null }
+    val years = calYearSteps(bounds)
+    val monthName = month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) + " " + month.year
+    val dtPrev = dt("sr_prev_month", "Previous Month"); val dtNext = dt("sr_next_month", "Next Month")
+    val dtPrevY = dt("sr_prev_year", "Previous Year"); val dtNextY = dt("sr_next_year", "Next Year")
+    @Composable
+    fun Step(by: Long, icon: androidx.compose.ui.graphics.vector.ImageVector, name: String) {
+        val on = calCanMove(month, by, bounds)
+        Box(
+            Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).clickable(enabled = on) { month = month.plusMonths(by) }.semantics { contentDescription = name },
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = if (on) D.Ink else D.Muted.copy(alpha = 0.35f), modifier = Modifier.size(20.dp)) }
+    }
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (years) Step(-12, Icons.Outlined.KeyboardDoubleArrowLeft, dtPrevY)
+            Step(-1, Icons.AutoMirrored.Outlined.KeyboardArrowLeft, dtPrev)
+            Text(monthName, style = body(14.5f, D.Ink, FontWeight.SemiBold), textAlign = TextAlign.Center, modifier = Modifier.weight(1f)
+                .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
+            Step(1, Icons.AutoMirrored.Outlined.KeyboardArrowRight, dtNext)
+            if (years) Step(12, Icons.Outlined.KeyboardDoubleArrowRight, dtNextY)
+        }
+        Row(Modifier.fillMaxWidth()) {
+            calWeekdays(firstDay).forEach { w -> Text(w, style = body(11.5f, D.Muted, FontWeight.SemiBold), textAlign = TextAlign.Center, modifier = Modifier.weight(1f)) }
+        }
+        calWeeks(month, firstDay).forEach { week ->
+            Row(Modifier.fillMaxWidth()) {
+                week.forEach { day ->
+                    Box(Modifier.weight(1f).height(CAL_ROW_DP.dp), contentAlignment = Alignment.Center) {
+                        if (day != null) {
+                            val ok = bounds == null || day in bounds
+                            val chosen = day == sel
+                            val isToday = day == today
+                            Box(
+                                Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
+                                    .background(if (chosen) D.Gold else Color.Transparent)
+                                    .then(if (isToday && !chosen) Modifier.border(1.5.dp, D.Ink, RoundedCornerShape(12.dp)) else Modifier)
+                                    .clickable(enabled = ok, role = androidx.compose.ui.semantics.Role.Button) { sel = day; onDay(day) }
+                                    .semantics { contentDescription = dateAnswer(day) + (if (isToday) ", today" else ""); selected = chosen },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("${day.dayOfMonth}", style = body(14f, when { chosen -> D.OnGold; ok -> D.Ink; else -> D.Muted.copy(alpha = 0.4f) },
+                                    if (chosen || isToday) FontWeight.Bold else FontWeight.Normal))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -1102,7 +1143,8 @@ private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDa
             INPUT_DATE -> {
                 val mi = d.input.missed
                 var missing by remember(d.input) { mutableStateOf(false) }
-                if (mi != null && missing) {
+                WidgetFade(mi != null && missing) { showMissed -> Column {
+                if (mi != null && showMissed) {
                     // I Missed It: a past calendar headed by the server's ask; a day answers in the server's words.
                     Text(mi.ask, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
                     val past = remember(mi) { missedBounds(mi, java.time.LocalDate.now()) }
@@ -1113,6 +1155,7 @@ private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDa
                     DeskCalendar(bounds, { day -> if (day != null) onPick(dateAnswer(day), day.toString()) })
                     if (mi != null) ChipGroup(listOf(ChipSpec(mi.label, false) { missing = true }), topGap = 4.dp)
                 }
+                } }
                 ChipGroup(listOf(ChipSpec(other, false, go = onType)), topGap = 4.dp)
             }
             else -> {
@@ -1123,6 +1166,13 @@ private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDa
         ErrorLine(error)
         Quiet(if (d.clarify) skip else dt("ui_send_now", GATHER_SEND_NOW), onSkip)
     }
+}
+
+/** A short crossfade when one answer widget replaces another (owner, 24 Nov); none under reduced motion. */
+@Composable
+private fun <T> WidgetFade(target: T, content: @Composable (T) -> Unit) {
+    val reduced = com.legumlex.client.feature.board.rememberReducedMotion()
+    androidx.compose.animation.Crossfade(target, animationSpec = androidx.compose.animation.core.tween(if (reduced) 0 else WIDGET_FADE_MS), label = "widget") { content(it) }
 }
 
 /**
@@ -1148,7 +1198,12 @@ private fun KeyDatesDock(at: KdAt, how: String, onDay: (java.time.LocalDate) -> 
         )
         else -> emptyList()
     }
+    val n = kdProgress(at)
+    // The web's kd_of ("{n} of 4"; the total is in the line itself, as the book's translations have it).
+    val progress = (LocalDeskBook.current.fragment("kd_of", mapOf("n" to n.toString())) ?: "{n} of $KD_STEPS").replace("{n}", n.toString())
     Column {
+        // Quiet progress through the four.
+        Text(progress, style = body(12f, D.Muted), modifier = Modifier.padding(top = 2.dp).semantics { contentDescription = progress })
         Text(if (at == KdAt.RECV_DATE && how == "returned") returned else q, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
         if (at != KdAt.RECV) key(at) { DeskCalendar(kdBounds(java.time.LocalDate.now()), { day -> if (day != null) onDay(day) }) }
         if (chips.isNotEmpty()) ChipGroup(chips, topGap = CHIP_GROUP_TOP.dp)
@@ -1641,8 +1696,10 @@ internal fun DeskThread(
                 Dock.Question -> QuestionDock(draft, onDraft, compose, ui, attach, vm::removeFile) { vm.submitQuestion(draft.text) }
                 Dock.Clarify -> ClarifyDock(ui.error, vm::submitClarify, vm::sendAsItIs)
                 Dock.Gather -> GatherDock(ui.error, vm::submitGather, vm::sendNow)
-                is Dock.Input -> if (d.clarify) InputDock(d, ui.error, vm::pickInput, vm::pickMissed, vm::typeInstead, vm::backToInput, vm::submitClarify, vm::sendAsItIs)
-                    else InputDock(d, ui.error, vm::pickInput, vm::pickMissed, vm::typeInstead, vm::backToInput, vm::submitGather, vm::sendNow)
+                is Dock.Input -> WidgetFade(d) { x ->
+                    if (x.clarify) InputDock(x, ui.error, vm::pickInput, vm::pickMissed, vm::typeInstead, vm::backToInput, vm::submitClarify, vm::sendAsItIs)
+                    else InputDock(x, ui.error, vm::pickInput, vm::pickMissed, vm::typeInstead, vm::backToInput, vm::submitGather, vm::sendNow)
+                }
                 Dock.Docs -> DocsDock(ui, attach, vm::removeFile, vm::docsGo)
                 is Dock.Advocate -> AdvocateWaiting(d.state, { vm.act("advocate_open") })
                 is Dock.Actions -> Column { ChipGroup(d.list.map { a -> ChipSpec(a.label, a.main, a.sub) { vm.act(a.id) } }, topGap = CHIP_GROUP_TOP.dp); ErrorLine(ui.error) }
@@ -1658,7 +1715,7 @@ internal fun DeskThread(
                 is Dock.Code -> CodeDock(d.info, ui.error, vm::submitCode, vm::codeAgain, vm::codeSms, vm::changeNumber)
                 Dock.Guest -> GuestDock(ui.error, ui.guestChars, vm::submitGuest, vm::guestSignIn)
                 Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
-                is Dock.KeyDatesAt -> KeyDatesDock(d.at, d.how, vm::kdDayPicked, vm::kdChoice, vm::kdDontKnow, { vm.kdDone() })
+                is Dock.KeyDatesAt -> WidgetFade(d) { x -> KeyDatesDock(x.at, x.how, vm::kdDayPicked, vm::kdChoice, vm::kdDontKnow, { vm.kdDone() }) }
                 Dock.SignIn -> GoogleDock(signingIn, ui.error, google, testContact)
                 is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, acctScan, acctPick, vm::acctFields, vm::acctCode, vm::acctSubmit)
                 is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
@@ -1978,8 +2035,8 @@ private fun RouteDock(route: RouteInfo, error: String, onOpen: () -> Unit, onSen
 
 /**
  * A question with kinds of help to tick (F-029, reception.php dockGather): the question is the heading, "Choose one or more.", tick rows with "I'm not sure" last,
- * one full-width button that reads "Choose One Or More" until a tick and then "Send N Choices", and the quiet links Write My Own Instead and Skip The Questions.
- * Write My Own Instead opens the ordinary box for the same question with the ticks kept. Only the rows scroll; the question, the button and the links stay in reach.
+ * one full-width button that reads "Choose One Or More" until a tick and then "Send N Choices", and the quiet links Something Else, Type It and Skip The Questions.
+ * Something Else, Type It opens the ordinary box for the same question with the ticks kept. Only the rows scroll; the question, the button and the links stay in reach.
  */
 @Composable
 private fun OptionsDock(
@@ -2035,7 +2092,7 @@ private fun OptionsDock(
         ) { Text(sendChoicesLabel(d.picks.size, book), style = body(14f, if (ready) D.OnGold else D.Muted, FontWeight.SemiBold), textAlign = TextAlign.Center) }
         ErrorLine(error)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Quiet(dt("ui_write_own", "Write My Own Instead"), onWrite)
+            Quiet(dt("in_other", TYPE_IT_EN), onWrite)   // F-036: the same words as the widgets' way to type (the web's in_other)
             Text("·", style = body(13f, D.Muted), modifier = Modifier.padding(horizontal = 4.dp))
             Quiet(dt("ui_skip_questions", GATHER_SEND_NOW), onSkip)
         }
