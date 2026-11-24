@@ -35,7 +35,7 @@ import java.util.Locale
  *  conversation to it, as the page's "Change" does.
  * ========================================================================== */
 
-enum class Step { QUESTION, CLARIFY, GATHER, DOCS, ROUTE, ENTITY, COUNTRY, PHONE, DEADLINE }
+enum class Step { QUESTION, CLARIFY, GATHER, KEYDATES, DOCS, ROUTE, ENTITY, COUNTRY, PHONE, DEADLINE }
 
 /** A guest's allowance, as the website's (cases CASES_DESK_GUEST_*). */
 const val GUEST_TURNS = 2
@@ -128,6 +128,8 @@ sealed interface Dock {
     data class Acct(val turn: AcctTurn) : Dock
     /** A hearing or deadline coming up, in the client's own words: the words and a date (REQ-017). */
     data object Deadline : Dock
+    /** REQ-046: one screen of the optional key dates of a bounced cheque. */
+    data class KeyDatesAt(val at: KdAt, val how: String = "") : Dock
     /** A document going up and being read (up to a few minutes). */
     data class AcctReading(val label: String, val since: Long) : Dock
 }
@@ -425,6 +427,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
             vetted == "clarify" && more == null -> askClarify()
             !gatherDone -> gather()
             !closeDone -> askClose()
+            chequeDates && kd == null -> askKeyDates()
             docs == null -> askDocs()
             !welcomed -> welcome()
             route == null && needsRoute() -> askRoute()
@@ -694,7 +697,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private fun resetStory() {
         text = ""; vetted = null; qFiles = 0; read = null; reading = ""; area = ""; more = null; ask = ""; askInput = null
-        gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; docs = null; vetRun++
+        gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; chequeDates = false; kd = null; docs = null; vetRun++
         if (deadlineFromGather) { deadline = null; deadlineFromGather = false }
     }
 
@@ -876,6 +879,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     private fun keep(r: DeskReading?) {
+        if (r?.chequeDates == true) chequeDates = true   // sticky until the question changes, as the web's
         if (r == null || r.token.isEmpty()) return
         read = r
         reading = r.token
@@ -927,6 +931,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
 
     private fun fullText() =
         (if (!more.isNullOrEmpty()) text + gatherLabel(ask, more.orEmpty()) else text) + gatherLog.joinToString("") { gatherLabel(it.first, it.second) } +
+            (kd?.takeIf { it.isNotEmpty() }?.let { gatherLabel(KD_Q, it) } ?: "") +
             (directTalk?.takeIf { it.isNotBlank() }?.let { "\n\nAsked in the chat: $it" } ?: "")
 
     // ---- Lex's follow-up questions (REQ-017 017.20; desk/gather) --------------------------------
@@ -1363,6 +1368,57 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     }
 
     /** After gathering, before the details: Lex's closing turn. An error, a rate limit or no answer skips it and the desk goes on as before. */
+    // ---- The key dates of a bounced cheque (REQ-046): optional, each on a past calendar; nothing about time limits is shown ----
+
+    private var chequeDates = false
+    /** The key dates' answer line: null not asked yet, "" none given (nothing is added to the enquiry). */
+    private var kd: String? = null
+    private var kdv = KeyDates()
+
+    private suspend fun askKeyDates() {
+        // English only for now (D6): another language goes on without it.
+        if (convLang.isNotEmpty() && convLang != "en") { kd = ""; return next() }
+        if (!asked(Step.KEYDATES)) sayKey("kd_intro", "If you know these dates, they help our counsel. Each one is optional.", prompt = Step.KEYDATES)
+        kdv = KeyDates()
+        dock(Dock.KeyDatesAt(KdAt.CHEQUE))
+    }
+
+    /** A day on the current screen's calendar. */
+    fun kdDayPicked(day: LocalDate) {
+        val at = (_ui.value.dock as? Dock.KeyDatesAt)?.at ?: return
+        kdv = when (at) {
+            KdAt.CHEQUE -> kdv.copy(cheque = day)
+            KdAt.MEMO -> kdv.copy(memo = day)
+            KdAt.SENT -> kdv.copy(sent = day)
+            KdAt.RECV, KdAt.RECV_DATE -> kdv.copy(recv = day)
+        }
+        kdOn(at)
+    }
+
+    /** I Don't Know: this one is passed. */
+    fun kdDontKnow() { val at = (_ui.value.dock as? Dock.KeyDatesAt)?.at ?: return; kdOn(at) }
+
+    /** No Notice Sent Yet (and the step ends); Delivered / Refused Or Unclaimed (their date next); Not Known (the step ends). */
+    fun kdChoice(id: String) {
+        when (id) {
+            "no_notice" -> { kdv = kdv.copy(none = true); kdDone() }
+            "delivered", "returned" -> { kdv = kdv.copy(how = id); dock(Dock.KeyDatesAt(KdAt.RECV_DATE, id)) }
+            else -> kdDone()
+        }
+    }
+
+    private fun kdOn(at: KdAt) { kdNext(at, kdv)?.let { dock(Dock.KeyDatesAt(it)) } ?: kdDone() }
+
+    /** Skip The Dates, or the last screen: the answer said once, and on. */
+    fun kdDone() = go {
+        if (_ui.value.dock !is Dock.KeyDatesAt) return@go
+        val a = keyDatesAnswer(kdv)
+        kd = a
+        answer(Step.KEYDATES, if (a.isNotEmpty()) a.replaceFirstChar { it.uppercase() } else (tl("kd_none") ?: KD_NONE_EN))
+        dock(Dock.Waiting("…"))
+        next()
+    }
+
     private suspend fun askClose() {
         closeDone = true
         // Someone who may be in danger is not sold a close.
@@ -2077,7 +2133,7 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
     private suspend fun restart() {
         reflected = false; lastReread = true; danger = false; picks = emptySet(); matterAsks = 0; cardsSeen = false; consultWish = false; cardsAgain = false; insistAsked = ""
         draftText = ""; pollJob?.cancel(); bookedPoll?.cancel(); informed = false; phoneProved = false; forcePhone = false; codeUi = null; pendingOffer = null; pendingOpen = null; openBooking = null; directAsked = false; directBook = false; awaitingBooked = false; bookedSaid.clear()
-        text = ""; more = null; vetted = null; ask = ""; askInput = null; area = ""; read = null; reading = ""; qFiles = 0; docs = null
+        text = ""; more = null; vetted = null; ask = ""; askInput = null; chequeDates = false; kd = null; area = ""; read = null; reading = ""; qFiles = 0; docs = null
         route = null; entity = null; country = null; countryOther = ""; phone = null; deadline = null; deadlineFromGather = false; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false; unreadRetried = false; unreadShown = false; sessionHash = null; consultationId = null
         repo.submissionKeys.clear()
         savedEmail = ""; savedPrice = ""; awaitingInvoice = false
@@ -2099,9 +2155,10 @@ class DeskViewModel(app: Application, saved: androidx.lifecycle.SavedStateHandle
         val prior = text
         ORDER.drop(i).forEach { k ->
             when (k) {
-                Step.QUESTION -> { text = ""; vetted = null; read = null; reading = ""; area = ""; vetRun++ }
+                Step.QUESTION -> { text = ""; vetted = null; read = null; reading = ""; area = ""; chequeDates = false; vetRun++ }
                 Step.CLARIFY -> { more = null; reread = null }
                 Step.GATHER -> { if (deadlineFromGather) { deadline = null; deadlineFromGather = false }; gatherLog = emptyList(); gatherPending = null; gatherAsked = 0; gatherDone = false; gatherRan = false; closeDone = false }
+                Step.KEYDATES -> kd = null
                 Step.DOCS -> docs = null
                 Step.ROUTE -> route = null
                 Step.ENTITY -> { entity = null; if (k == step) offered += "entity" }

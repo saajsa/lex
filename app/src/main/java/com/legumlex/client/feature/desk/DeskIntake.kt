@@ -200,6 +200,46 @@ fun parseMissed(raw: Any?): MissedInput? {
 
 const val MISSED_ANSWER_EN = "Missed the hearing on {date}"
 
+// ---- The key dates of a bounced cheque (REQ-046; the web's askKeyDates) ----
+
+/** The question the key dates go under in the enquiry text (code's own English, as the web's KD_Q). */
+const val KD_Q = "Key dates, if you know them"
+const val KD_NONE_EN = "I do not have the dates to hand"
+
+/** The screens of the step, in order: the three dates, then how the notice went, then its date. */
+enum class KdAt { CHEQUE, MEMO, SENT, RECV, RECV_DATE }
+
+/** What was given: each date (or null), no notice yet, and how the notice went (delivered | returned). */
+data class KeyDates(
+    val cheque: LocalDate? = null, val memo: LocalDate? = null, val sent: LocalDate? = null, val none: Boolean = false,
+    val how: String = "", val recv: LocalDate? = null,
+)
+
+/** The days a key date can be: three years back to today. */
+fun kdBounds(today: LocalDate): ClosedRange<LocalDate> = today.minusYears(3)..today
+
+/** "4 November 2026" (PHP's j F Y, in English). */
+fun kdDay(d: LocalDate): String = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale.ENGLISH))
+
+/** The answer line, exactly as the web builds it (parts joined by "; "); "" when nothing was given, and then nothing is added to the enquiry. */
+fun keyDatesAnswer(v: KeyDates): String = buildList {
+    v.cheque?.let { add("Cheque dated " + kdDay(it)) }
+    v.memo?.let { add("bank return memo " + kdDay(it)) }
+    if (v.none) add("no notice sent yet")
+    v.sent?.let { add("notice sent " + kdDay(it)) }
+    if (v.recv != null && v.how == "delivered") add("notice delivered " + kdDay(v.recv))
+    if (v.recv != null && v.how == "returned") add("notice refused or unclaimed " + kdDay(v.recv))
+    if (v.sent != null && v.recv == null) add("notice delivery not known")
+}.joinToString("; ")
+
+/** The screen after [at] once it is answered or passed with I Don't Know; null: the step is done. */
+fun kdNext(at: KdAt, v: KeyDates): KdAt? = when (at) {
+    KdAt.CHEQUE -> KdAt.MEMO
+    KdAt.MEMO -> KdAt.SENT
+    KdAt.SENT -> if (v.sent != null) KdAt.RECV else null
+    KdAt.RECV, KdAt.RECV_DATE -> null
+}
+
 /** The missed calendar's days: the server's, else a year back to today. */
 fun missedBounds(m: MissedInput, today: LocalDate): ClosedRange<LocalDate> {
     val lo = m.min ?: today.minusYears(1)

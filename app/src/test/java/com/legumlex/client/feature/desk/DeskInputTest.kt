@@ -115,3 +115,34 @@ class DeskMissedTest {
         assertEquals(today.minusYears(1)..today, missedBounds(MissedInput("I Missed It", "", MISSED_ANSWER_EN, LocalDate.of(2027, 1, 1), LocalDate.of(2026, 1, 1)), today))
     }
 }
+
+/** REQ-046: the optional key dates of a bounced cheque, the answer line exactly as the web's, and the order of its screens. */
+class DeskKeyDatesTest {
+    private fun d(s: String) = LocalDate.parse(s)
+
+    @Test fun theReadingSaysWhenToAsk() {
+        assertTrue(parseReading(mapOf("success" to true, "cheque_dates" to true))!!.chequeDates)
+        assertFalse(parseReading(mapOf("success" to true))!!.chequeDates)
+        assertFalse(parseReading(mapOf("success" to true, "cheque_dates" to "true"))!!.chequeDates)
+    }
+
+    @Test fun theAnswerLineIsTheWebs() {
+        val all = KeyDates(cheque = d("2026-09-04"), memo = d("2026-10-01"), sent = d("2026-10-20"), how = "delivered", recv = d("2026-11-04"))
+        assertEquals("Cheque dated 4 September 2026; bank return memo 1 October 2026; notice sent 20 October 2026; notice delivered 4 November 2026", keyDatesAnswer(all))
+        assertEquals("notice sent 20 October 2026; notice refused or unclaimed 4 November 2026", keyDatesAnswer(KeyDates(sent = d("2026-10-20"), how = "returned", recv = d("2026-11-04"))))
+        assertEquals("Cheque dated 4 September 2026; notice sent 20 October 2026; notice delivery not known", keyDatesAnswer(KeyDates(cheque = d("2026-09-04"), sent = d("2026-10-20"))))
+        assertEquals("bank return memo 1 October 2026; no notice sent yet", keyDatesAnswer(KeyDates(memo = d("2026-10-01"), none = true)))
+        assertEquals("", keyDatesAnswer(KeyDates()))
+        assertEquals("\n\nLex asked: Key dates, if you know them\nThey answered: Cheque dated 4 November 2026", gatherLabel(KD_Q, keyDatesAnswer(KeyDates(cheque = d("2026-11-04")))))
+    }
+
+    @Test fun theScreensFollowTheWeb() {
+        assertEquals(KdAt.MEMO, kdNext(KdAt.CHEQUE, KeyDates()))
+        assertEquals(KdAt.SENT, kdNext(KdAt.MEMO, KeyDates()))
+        assertEquals(KdAt.RECV, kdNext(KdAt.SENT, KeyDates(sent = d("2026-10-20"))))
+        assertNull(kdNext(KdAt.SENT, KeyDates()))   // no notice date: the step ends
+        assertNull(kdNext(KdAt.RECV_DATE, KeyDates()))
+        val today = LocalDate.of(2026, 11, 24)
+        assertEquals(LocalDate.of(2023, 11, 24)..today, kdBounds(today))
+    }
+}

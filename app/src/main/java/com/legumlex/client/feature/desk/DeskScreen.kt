@@ -1125,6 +1125,41 @@ private fun InputDock(d: Dock.Input, error: String, onPick: (text: String, isoDa
     }
 }
 
+/**
+ * One screen of the key dates of a bounced cheque (REQ-046, as the web's kdStep): the question, a past calendar (three years back to today) where a tap answers,
+ * the screen's own chips, then I Don't Know and Skip The Dates. "Was the notice delivered?" has chips only.
+ */
+@Composable
+private fun KeyDatesDock(at: KdAt, how: String, onDay: (java.time.LocalDate) -> Unit, onChoice: (String) -> Unit, onDontKnow: () -> Unit, onSkipAll: () -> Unit) {
+    val q = when (at) {
+        KdAt.CHEQUE -> dt("kd_cheque", "What date is written on the cheque?")
+        KdAt.MEMO -> dt("kd_memo", "On what date did the bank return it?")
+        KdAt.SENT -> dt("kd_sent", "On what date was the notice sent to the person who gave the cheque?")
+        KdAt.RECV -> dt("kd_recv", "Was the notice delivered?")
+        KdAt.RECV_DATE -> dt("kd_when_delivered", "On what date was it delivered?")
+    }
+    val returned = dt("kd_when_returned", "On what date was it refused or marked unclaimed?")
+    val chips = when (at) {
+        KdAt.SENT -> listOf(ChipSpec(dt("kd_no_notice", "No Notice Sent Yet"), false) { onChoice("no_notice") })
+        KdAt.RECV -> listOf(
+            ChipSpec(dt("kd_delivered", "Delivered"), false) { onChoice("delivered") },
+            ChipSpec(dt("kd_returned", "Refused Or Unclaimed"), false) { onChoice("returned") },
+            ChipSpec(dt("kd_not_known", "Not Known"), false) { onChoice("unknown") },
+        )
+        else -> emptyList()
+    }
+    Column {
+        Text(if (at == KdAt.RECV_DATE && how == "returned") returned else q, style = body(15f, D.Ink, FontWeight.SemiBold), modifier = Modifier.padding(top = 4.dp))
+        if (at != KdAt.RECV) key(at) { DeskCalendar(kdBounds(java.time.LocalDate.now()), { day -> if (day != null) onDay(day) }) }
+        if (chips.isNotEmpty()) ChipGroup(chips, topGap = CHIP_GROUP_TOP.dp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Quiet(dt("kd_dont_know", "I Don’t Know"), if (at == KdAt.RECV) onSkipAll else onDontKnow)
+            Text("·", style = body(13f, D.Muted), modifier = Modifier.padding(horizontal = 4.dp))
+            Quiet(dt("kd_skip_all", "Skip The Dates"), onSkipAll)
+        }
+    }
+}
+
 /** The WhatsApp code (REQ-018): six digits, Confirm; Send Code Again unlocks after resend_in, Send By SMS Instead after sms_in (when offered); Change Number any time. */
 @Composable
 private fun CodeDock(info: PhoneCodeUi, error: String, onConfirm: (String) -> Unit, onAgain: () -> Unit, onSms: () -> Unit, onChange: () -> Unit) {
@@ -1623,6 +1658,7 @@ internal fun DeskThread(
                 is Dock.Code -> CodeDock(d.info, ui.error, vm::submitCode, vm::codeAgain, vm::codeSms, vm::changeNumber)
                 Dock.Guest -> GuestDock(ui.error, ui.guestChars, vm::submitGuest, vm::guestSignIn)
                 Dock.Deadline -> DeadlineDock(ui.error, vm::giveDeadline)
+                is Dock.KeyDatesAt -> KeyDatesDock(d.at, d.how, vm::kdDayPicked, vm::kdChoice, vm::kdDontKnow, { vm.kdDone() })
                 Dock.SignIn -> GoogleDock(signingIn, ui.error, google, testContact)
                 is Dock.Acct -> AcctDockView(d.turn, vm::acctChip, acctScan, acctPick, vm::acctFields, vm::acctCode, vm::acctSubmit)
                 is Dock.AcctReading -> AcctReadingDock(d, vm::acctStop)
