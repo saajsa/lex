@@ -113,7 +113,7 @@ class TimelineTest {
         val rows = timelineRows(rec, "2026-12-04", today)
         assertEquals(listOf("UPCOMING", "HEARD · MS. ANITA SHARMA", "HEARD", "OTHER ORDERS"), rows.map { it.eyebrow })
         assertEquals("Arguments", rows[0].title); assertTrue(rows[0].upcoming); assertTrue(rows[0].orders.isEmpty())
-        assertEquals("Evidence", rows[1].title); assertEquals("Next: 4 Dec 2026 · Arguments", rows[1].meta)
+        assertEquals("Evidence", rows[1].title); assertEquals("4 Dec 2026 · Arguments", rows[1].meta); assertEquals("Next", rows[1].metaLabel)
         assertEquals("Hearing", rows[2].title); assertNull(rows[2].meta)                // no purpose: "Hearing"
         assertEquals(listOf(9), rows[3].orders.map { it.id })
     }

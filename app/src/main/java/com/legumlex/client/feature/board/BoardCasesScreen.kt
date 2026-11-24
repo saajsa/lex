@@ -134,19 +134,22 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
             val headEdge = c?.let { edgeColor(rowEdge(it, today)) }
             Box(Modifier.drawBehind { headEdge?.let { col -> drawRoundRect(col, size = Size(4.dp.toPx(), size.height), cornerRadius = CornerRadius(2.dp.toPx())) } }
                 .padding(start = if (headEdge != null) 14.dp else 0.dp)) {
-            PageHeader(eyebrow = "Case", title = c?.heading ?: "Case", actions = c?.let { x -> {
-                OverflowMenu(listOfNotNull(
+            // Owner, 24 Nov 2026: no "Case" eyebrow; the case number, then the case title, in the heading face; the ⋮ on the first line.
+            Row(verticalAlignment = Alignment.Top) {
+                Box(Modifier.weight(1f).padding(top = 4.dp)) {
+                    c?.let { CaseHeading(it) } ?: Text("…", fontFamily = com.legumlex.client.ui.theme.Display, fontSize = 30.sp, color = Lex.colors.foreground)
+                }
+                c?.let { x -> OverflowMenu(listOfNotNull(
                     "Details" to { details = true },
                     "File This Case" to { if (live) filing = true },
                     if (combinedOffered(x.record.orders)) "All Kept Orders As One PDF" to { onOpenOrder(0, "All Kept Orders") } else null,
                     "Remove From Your Diary" to { if (live && !busy) confirmRemove = true },
                     "What The Symbols Mean" to { legend = true },
-                ))
-            } })
+                )) }
+            }
             }
             c?.let { x ->
                 Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(partiesText(x, Lex.colors.mutedForeground), style = MaterialTheme.typography.titleMedium, color = Lex.colors.foreground)
                     WatchRow(x.morningCheck, enabled = !busy && live) {
                         busy = true; refusal = null; refusalCode = null
                         scope.launch {
@@ -156,8 +159,7 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                             busy = false
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f)) { CaseDateLine(x, today) }
+                    NextDateElement(x, today) {
                         PlainIcon(Icons.Outlined.Share, "Share Summary") {
                             if (!busy) { refusal = null; scope.launch { repo.shareText(x).onSuccess { sharing = it }.onFailure { refusal = it.boardMessage(); refusalCode = it.boardCode() } } }
                         }
@@ -279,16 +281,6 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
     }
 }
 
-/** "Next: Fri, 28 Nov" with the date's symbol, or "No Next Date". */
-@Composable
-internal fun CaseDateLine(c: BoardCase, today: java.time.LocalDate) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(nextLine(c, today), style = MaterialTheme.typography.labelLarge,
-            color = if (passedNext(c.nextDate, today) != null) Lex.colors.danger.solid else Lex.colors.foreground)
-        dateMark(c, today)?.let { SymbolIcon(it) }
-    }
-}
-
 /** Watch Daily (owner, 23 Nov 2026: "I was in favour of the toggle"): a real switch, green when on, its line muted; no cost shown. */
 @Composable
 internal fun WatchRow(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
@@ -297,10 +289,7 @@ internal fun WatchRow(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
             Text(WATCH_TITLE, style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
             Text(WATCH_LINE, style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
         }
-        androidx.compose.material3.Switch(
-            checked = on, onCheckedChange = { onToggle() }, enabled = enabled,
-            colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Lex.colors.success.solid, checkedThumbColor = androidx.compose.ui.graphics.Color.White),
-        )
+        LexToggle(on, enabled, WATCH_TITLE, onToggle)
     }
 }
 

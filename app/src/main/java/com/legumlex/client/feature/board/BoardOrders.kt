@@ -65,7 +65,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawBehind
 import com.legumlex.client.ui.components.LegumSecondaryButton
@@ -176,6 +175,8 @@ internal fun otherOrders(r: CaseRecord): List<BoardOrder> {
 /** One row of the hearings timeline (owner's reference, 23 Nov 2026): a date block, an eyebrow, a title, a meta line and its orders. */
 data class TimelineRow(
     val date: java.time.LocalDate?, val eyebrow: String, val title: String, val meta: String?, val orders: List<BoardOrder>, val upcoming: Boolean = false,
+    /** The meta's quiet caps label ("NEXT"); empty for a line that is a state of its own ("No new date yet"). */
+    val metaLabel: String = "",
 )
 
 /**
@@ -191,7 +192,7 @@ internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.Loc
         // What it is listed for: the last hearing's next purpose when it named this date.
         val purpose = r.listings.firstOrNull { BoardDates.parse(it.nextDate) == next }?.nextPurpose?.takeIf { it.isNotBlank() } ?: "Hearing"
         // Owner, 24 Nov 2026: a date gone by is never UPCOMING. It is LISTED (no hearing on it is recorded, so not HEARD), with no new date yet.
-        out += if (next.isBefore(today)) TimelineRow(next, "LISTED", purpose, NO_NEW_DATE.replaceFirstChar { it.uppercase() }, emptyList())
+        out += if (next.isBefore(today)) TimelineRow(next, "LISTED", purpose, NO_NEW_DATE.replaceFirstChar { it.uppercase() }, emptyList(), metaLabel = "")
         else TimelineRow(next, "UPCOMING", purpose, null, emptyList(), upcoming = true)
     }
     r.listings.forEach { h ->
@@ -200,12 +201,21 @@ internal fun timelineRows(r: CaseRecord, nextDate: String?, today: java.time.Loc
         out += TimelineRow(
             d, listOfNotNull(if (heard) "Heard" else "Listed", h.judge.takeIf { it.isNotBlank() }).joinToString(" · ").uppercase(),
             h.purpose.ifBlank { "Hearing" },
-            BoardDates.parse(h.nextDate)?.let { nd -> "Next: " + longNoDay(nd) + (h.nextPurpose.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") },
-            h.orders,
+            BoardDates.parse(h.nextDate)?.let { nd -> longNoDay(nd) + (h.nextPurpose.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") },
+            h.orders, metaLabel = "Next",
         )
     }
     otherOrders(r).takeIf { it.isNotEmpty() }?.let { out += TimelineRow(null, "OTHER ORDERS", "Orders", null, it) }
     return out
+}
+
+/** A row's quiet labelled meta: "NEXT  4 Dec 2026 · Arguments", the label in muted letter-spaced caps; a state line ("No new date yet") stands alone. */
+internal fun metaText(label: String, value: String, muted: Color): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    if (label.isNotEmpty()) {
+        pushStyle(androidx.compose.ui.text.SpanStyle(color = muted, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, fontSize = 10.5.sp)); append(label.uppercase()); pop()
+        append("  ")
+    }
+    append(value)
 }
 
 /** "4 Dec 2026". */
@@ -240,18 +250,13 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
         Spacer(Modifier.width(TL_TEXT_GAP.dp))
         // The eyebrow and title span the whole content width (the judge is never cut: the eyebrow wraps as it needs, usually two lines at most);
         // below them the next line shares a row with the order buttons.
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Owner, 24 Nov 2026: one left edge and a steady rhythm for the eyebrow, title and meta; no arrow.
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             // The eyebrow is the one letter-spaced line, as in the reference.
             Text(row.eyebrow, style = MaterialTheme.typography.labelSmall, color = Lex.colors.mutedForeground, letterSpacing = 1.sp)
             Text(row.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
             if (row.meta != null || row.orders.isNotEmpty()) HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet) {
-                row.meta?.let { m ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(m, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
-                    }
-                }
+                row.meta?.let { m -> Text(metaText(row.metaLabel, m, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground) }
             }
         }
     }
