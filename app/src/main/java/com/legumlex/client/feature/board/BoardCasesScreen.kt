@@ -108,6 +108,8 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
     var details by remember { mutableStateOf(false) }
     var legend by remember { mutableStateOf(false) }
     val getter = rememberOrderGetter()
+    // REQ-051 D4: the kept order whose Fetch Again From Court is open.
+    var refetching by remember { mutableStateOf<BoardOrder?>(null) }
     val today = BoardDates.today()
 
     // 038.7: offline (or a server error) shows the copy kept on this device, with when it was saved; a 403 or 404 never does.
@@ -195,13 +197,22 @@ fun BoardCaseScreen(caseId: Int, onBack: () -> Unit, onCredits: () -> Unit, onOp
                         }
                         if (x.hasCnr) PlainIcon(Icons.Outlined.Refresh, readLabel) { onRead?.invoke() }
                     },
-                    onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; fetchOrder(caseId, o) }, fetchingId = getter.fetchingId)
+                    onOpen = { o -> onOpenOrder(o.id, orderLabel(o)) }, onGet = { o -> refusal = null; fetchOrder(caseId, o) }, fetchingId = getter.fetchingId,
+                    onAgain = { o -> if (live && !busy && !getter.fetching) { refusal = null; refetching = o } })
             }
             Spacer(Modifier.height(8.dp))
         }
     }
 
     if (legend) LegendSheet { legend = false }
+    refetching?.let { o ->
+        RefetchWizard(caseId, o, onClose = { refetching = null }, onBuy = { refetching = null; onCredits() }, onDone = { r ->
+            refetching = null
+            BoardHub.applyBalance(r.balance)
+            load()
+            Toast.makeText(context, refetchDoneLine(r), Toast.LENGTH_LONG).show()
+        })
+    }
     c?.let { x ->
         if (details) androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = { details = false },

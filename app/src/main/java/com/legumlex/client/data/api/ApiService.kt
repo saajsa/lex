@@ -992,6 +992,11 @@ interface ApiService {
     @POST("board/cases/{id}/orders/{oid}/fetch")
     suspend fun boardOrderFetch(@Path("id") id: Int, @Path("oid") oid: Int): Map<String, Any?>
 
+    /** REQ-051 D4, Fetch Again From Court: the court's copy again at the order price, replacing the kept one ({charged, balance, order}, as .../fetch). */
+    @Headers("X-Long-Call: 1")
+    @POST("board/cases/{id}/orders/{oid}/refetch")
+    suspend fun boardOrderRefetch(@Path("id") id: Int, @Path("oid") oid: Int): Map<String, Any?>
+
     /** The kept copy (a PDF); 404 until fetched. */
     @GET("board/cases/{id}/orders/{oid}/file")
     suspend fun boardOrderFile(@Path("id") id: Int, @Path("oid") oid: Int): ResponseBody

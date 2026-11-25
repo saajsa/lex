@@ -74,6 +74,7 @@ The repo is on the Windows drive (`B:\and_studio\legum-lex-android` = `/mnt/b/an
 | Script | Does |
 |---|---|
 | `/mnt/b/and_studio/_build/client.bat` | `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr`, `cd /d B:\and_studio\legum-lex-android`, `gradlew.bat assembleDebug --console=plain -q` |
+| `%TEMP%\lexclient.bat` (2026-11-25) | Android Studio's `jbr` has lost `lib\jvm.cfg` and does not start, so `client.bat` fails; this batch sets `JAVA_HOME=B:\and_studio\jdk21`, `cd /d B:\and_studio\legum-lex-android`, `call gradlew.bat %*`; run as `timeout 595 cmd.exe /c '%TEMP%\lexclient.bat testDebugUnitTest assembleDebug --console=plain -q'` [SESSION REQ-051] |
 | `/mnt/b/and_studio/_build/client-release.bat` | same, `bundleRelease` (owner's job) |
 | `lexgw.bat` (older) | `%USERPROFILE%\AppData\Local\Temp\lexgw.bat`: JBR `JAVA_HOME` + `gradlew.bat %*`, run as `timeout 595 cmd.exe /c '…lexgw.bat' assembleDebug -q`, with a scratch `kc.sh` compile helper [SESSION 3adfe568 2026-10-19T11:46 (C17)]. Not found on the mounted drives on 11-07 [ASSUMPTION: still in Windows %TEMP%] |
 

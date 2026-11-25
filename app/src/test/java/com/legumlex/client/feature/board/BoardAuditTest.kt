@@ -17,12 +17,12 @@ class BoardAuditTest {
     // ---- A6: what the import did, in the web's words
     @Test fun importLineWithTheCheck() {
         val d = ImportDone(10, 2, 12, check = ImportCheck(checked = 8, unchecked = 4))
-        assertEquals("10 added, 2 updated. You now have 12 cases in your diary. 8 checked on eCourts just now, 4 not checked (your credits did not cover them).", importDoneLine(d))
+        assertEquals("10 added, 2 updated. You now have 12 cases in your diary. 8 given today's court check, 4 not checked (your credits did not cover them).", importDoneLine(d))
     }
 
     @Test fun importLineWhenEverythingWasChecked() {
         val d = ImportDone(1, 0, 1, check = ImportCheck(checked = 1, unchecked = 0))
-        assertEquals("1 added, 0 updated. You now have 1 case in your diary. 1 checked on eCourts just now.", importDoneLine(d))
+        assertEquals("1 added, 0 updated. You now have 1 case in your diary. 1 given today's court check.", importDoneLine(d))
     }
 
     @Test fun importLineWhenTheCheckStopped() {
@@ -167,8 +167,8 @@ class BoardAuditTest {
     }
 
     @Test fun addLineStatesTheCreditsUsedAndTheDailyCost() {
-        assertEquals("Finding this case on eCourts used 4 credits. Adding it to your diary is free; from tomorrow it is checked every morning for 1 credit.", cnrAddLine(4, 1))
-        assertEquals("Finding this case on eCourts used 1 credit. Adding it to your diary is free; from tomorrow it is checked every morning for 2 credits.", cnrAddLine(1, 2))
+        assertEquals("Finding this case used 4 credits; this is the court's record of it. Adding it to your diary is free; from tomorrow it is checked every morning for 1 credit.", cnrAddLine(4, 1))
+        assertEquals("Finding this case used 1 credit; this is the court's record of it. Adding it to your diary is free; from tomorrow it is checked every morning for 2 credits.", cnrAddLine(1, 2))
     }
 
     // ---- hand cases
@@ -192,8 +192,8 @@ class BoardAuditTest {
 
     // ---- A6
     @Test fun importPreviewCarriesTheCostLine() {
-        val p = parsePreview(mapOf("import_id" to "i1", "cost" to mapOf("per_case" to 1.0, "cases" to 40.0, "total" to 40.0, "balance" to 25.0, "covers" to 25.0, "line" to "Each case is checked on eCourts now, 1 credit a case.")))
-        assertEquals("Each case is checked on eCourts now, 1 credit a case.", p.cost?.line); assertEquals(25, p.cost?.covers)
+        val p = parsePreview(mapOf("import_id" to "i1", "cost" to mapOf("per_case" to 1.0, "cases" to 40.0, "total" to 40.0, "balance" to 25.0, "covers" to 25.0, "line" to "Each case gets today's court check, 1 credit a case.")))
+        assertEquals("Each case gets today's court check, 1 credit a case.", p.cost?.line); assertEquals(25, p.cost?.covers)
         assertNull(parsePreview(mapOf("import_id" to "i1")).cost)
     }
 

@@ -190,6 +190,8 @@ data class CreditsData(
     val packs: List<CreditPack>,
     val costAdd: Int,
     val costCheck: Int,
+    /** An order copy's price (costs.order); a kept order lists cost 0, so Fetch Again From Court takes its price from here (REQ-051 D4). */
+    val costOrder: Int = 0,
     val history: List<LedgerRow>,
     val purchases: List<Purchase>,
     val creditMonths: Int,
@@ -318,6 +320,7 @@ internal fun parseCredits(d: Map<String, Any?>): CreditsData {
         nextLapse = d["next_lapse"].map().takeIf { it.isNotEmpty() }?.let { NextLapse(it["credits"].int(), it["expires_at"].str(), it["kind"].str()) },
         costAdd = costs["add"].int(),
         costCheck = costs["check"].int(),
+        costOrder = costs["order"].int(),
         // The web's grouped rows (a morning's checks are one row) when the server sends them, else the raw ledger.
         history = if (d["history_rows"] is List<*>) d["history_rows"].list().map(::parseGroupedRow) else d["history"].list().map(::parseLedgerRow),
         purchases = d["purchases"].list().map {

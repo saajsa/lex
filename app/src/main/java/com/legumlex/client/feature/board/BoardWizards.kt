@@ -11,7 +11,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -198,7 +202,7 @@ internal fun cnrFacts(c: CnrPreview, today: LocalDate): List<Pair<String, String
 
 /** The sentence under the found case, in the web's words. */
 internal fun cnrAddLine(charged: Int, checkCost: Int?) =
-    "Finding this case on eCourts used ${creditsLabel(charged)}. Adding it to your diary is free" +
+    "Finding this case used ${creditsLabel(charged)}; this is the court's record of it. Adding it to your diary is free" +
         (checkCost?.let { "; from tomorrow it is checked every morning for ${creditsLabel(it)}." } ?: ".")
 
 @Composable
@@ -260,7 +264,7 @@ fun CnrWizard(onClose: () -> Unit, onBuy: () -> Unit, onAdded: (BoardCase, Int) 
                 WizardTextField("CNR", cnr, { cnr = it.uppercase().filter { ch -> !ch.isWhitespace() }.take(16) }, placeholder = "PBLD010012342026", trailing = { CnrScanButton { cnr = it } })
                 note?.let { Text(it, color = PrimaryText, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 8.dp)) }
                 Text(
-                    "Finding this case on eCourts uses ${cost?.let { creditsLabel(it) } ?: "credits"}. Adding it to your diary is free.",
+                    "Finding this case uses ${cost?.let { creditsLabel(it) } ?: "credits"}; you get the court's record of it. Adding it to your diary is free.",
                     color = SecondaryText, style = MaterialTheme.typography.bodySmall,
                 )
                 if (code == "insufficient_credits") {
@@ -469,7 +473,7 @@ fun ChambersWizard(onClose: () -> Unit, onSaved: (String) -> Unit) {
 fun importDoneLine(d: ImportDone): String {
     var say = "${creditsText(d.added)} added, ${creditsText(d.updated)} updated. You now have ${creditsText(d.total)} ${if (d.total == 1) "case" else "cases"} in your diary."
     if (d.check.checked > 0) {
-        say += " ${creditsText(d.check.checked)} checked on eCourts just now" + (if (d.check.unchecked > 0) ", ${creditsText(d.check.unchecked)} not checked (your credits did not cover them)" else "") + "."
+        say += " ${creditsText(d.check.checked)} given today's court check" + (if (d.check.unchecked > 0) ", ${creditsText(d.check.unchecked)} not checked (your credits did not cover them)" else "") + "."
     } else if (d.check.stopped != null) say += " They are checked on eCourts from tomorrow morning."
     if (d.mismatches.isNotEmpty()) say += " ${creditsText(d.mismatches.size)} ${if (d.mismatches.size == 1) "date" else "dates"} to settle."
     return say
@@ -510,3 +514,87 @@ fun ImportFlow(onClose: () -> Unit, onChanged: () -> Unit) {
 
 /** What Not This Case did, said plainly (no call is made; the lookup's credits are kept by the server). */
 internal fun notThisCaseNote(charged: Int) = "Nothing was added. The ${creditsLabel(charged)} used to find it ${if (charged == 1) "is" else "are"} not returned."
+
+// ---- Fetch Again From Court (REQ-051 D4, a kept order) -------------------------------
+
+/** Step 1's words, the web's (board/views/case.php #bcOrderAgain); [cost] from credits.costs.order, "credits" when not known yet. */
+internal fun refetchLine(cost: Int?): String =
+    "We ask the court for this order's copy again and replace the copy you have. Use it when the court may have changed or corrected the order. " +
+        "This uses ${cost?.let { creditsLabel(it) } ?: "credits"}, taken only if the new copy arrives; if it does not, you keep the copy you have."
+
+/** The toast after a new copy arrived: "New copy kept. 5 credits used. Balance: 40 credits." */
+internal fun refetchDoneLine(r: OrderFetch): String =
+    "New copy kept." + (if (r.charged > 0) " ${creditsLabel(r.charged).replaceFirstChar { it.uppercase() }} used." else "") + " Balance: ${creditsLabel(r.balance)}."
+
+/** Step 2's question, the web's. */
+internal fun refetchQuestion(cost: Int?): String = "Fetch this order again from the court" + (cost?.let { " for ${creditsLabel(it)}" } ?: "") + "?"
+
+/** A document with a refresh badge: the court's copy, asked for again (visual-first rule, owner 25 Nov 2026). */
+@Composable
+private fun RefetchPicture() {
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        androidx.compose.foundation.layout.Box(Modifier.size(96.dp)) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.matchParentSize().clip(RoundedCornerShape(12.dp)).background(Lex.colors.muted),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Description, null, tint = Lex.colors.foreground, modifier = Modifier.size(52.dp)) }
+            androidx.compose.foundation.layout.Box(
+                Modifier.align(androidx.compose.ui.Alignment.BottomEnd).offset(x = 8.dp, y = 8.dp).size(40.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape).background(Lex.colors.primary)
+                    .border(3.dp, Lex.colors.background, androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Refresh, null, tint = Lex.colors.primaryForeground, modifier = Modifier.size(22.dp)) }
+        }
+    }
+}
+
+/**
+ * Fetch Again From Court on a kept order: what it does and costs, then the charge (the web's two steps). On success the new copy replaces
+ * the kept one and [onDone] gets the balance; a refusal shows the server's words, with Buy Credits for insufficient_credits.
+ */
+@Composable
+fun RefetchWizard(caseId: Int, order: BoardOrder, onClose: () -> Unit, onBuy: () -> Unit, onDone: (OrderFetch) -> Unit) {
+    val context = LocalContext.current
+    val repo = remember { BoardRepository(context) }
+    val scope = rememberCoroutineScope()
+    var step by rememberSaveable { mutableStateOf(0) }
+    var cost by remember { mutableStateOf<Int?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var code by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { repo.credits().onSuccess { cost = shownCost(it.costOrder) } }
+
+    WizardDialog(onDismiss = { if (!saving) onClose() }) {
+        WizardFrame(
+            title = "Fetch Again From Court", steps = listOf("About", "Confirm"), step = step, ready = true,
+            saving = saving, savingLabel = "Asking The Court…", saveLabel = "Fetch Again",
+            error = error, onClose = { if (!saving) onClose() }, onStep = { error = null; code = null; step = it },
+            onSave = {
+                saving = true; error = null; code = null
+                scope.launch {
+                    repo.orderRefetch(caseId, order.id).onSuccess(onDone).onFailure {
+                        error = it.boardMessage(); code = it.boardCode()
+                        // Refunds (order_unavailable, ecourts_failed) move the balance: the chip reads it again.
+                        repo.credits().onSuccess { c -> BoardHub.applyBalance(c.balance) }
+                    }
+                    saving = false
+                }
+            },
+        ) {
+            RefetchPicture()
+            if (step == 0) {
+                WizardHeading(orderLabel(order), "")
+                Text(refetchLine(cost), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+            } else {
+                WizardHeading("Fetch Again?", "")
+                WizardRows(listOfNotNull("Order" to orderLabel(order), cost?.let { "Cost" to creditsTitle(it) }))
+                Spacer(Modifier.height(12.dp))
+                Text(refetchQuestion(cost), color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+                if (code == "insufficient_credits") {
+                    Spacer(Modifier.height(14.dp))
+                    LegumSecondaryButton("Buy Credits", onBuy)
+                }
+            }
+        }
+    }
+}

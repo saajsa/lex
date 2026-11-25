@@ -3,6 +3,8 @@ package com.legumlex.client.feature.board
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +78,8 @@ enum class Sym(val label: String, val line: String, val tone: SymTone) {
     EdgeInk("Black Edge", "Disposed.", SymTone.Ink),
     EdgeGreen("Green Edge", "Watched daily: checked with eCourts every morning.", SymTone.Green),
     EdgeGrey("Grey Edge", "Not watched.", SymTone.Pale),
-    OrderKept("Order Kept", "Kept on the platform: tap to open, free.", SymTone.Green),
+    // REQ-051 D4: the legend says how to reach Fetch Again From Court (a long press).
+    OrderKept("Order Kept", "Kept on the platform: tap to open, free. Press and hold a kept order to fetch it again from the court.", SymTone.Green),
     OrderAvailable("Order Not Fetched", "Tap to get it.", SymTone.Grey),
     OrderSealed("Signed Order", "Signed or locked: opens on its own.", SymTone.Grey),
     Folder("Folder", "The folder the case is filed in.", SymTone.Grey),
@@ -215,8 +218,10 @@ internal fun captionNumber(caption: String): String = caption.substringAfter("Or
  * glyph; signed a grey outline with a lock; fetching shows a spinner and is disabled. Radius 6; the stacked forms are at least 48dp
  * tall. The caption is measured, never cut mid-word. Read aloud with the server's full label and what a tap does.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolean, busy: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit) {
+fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolean, busy: Boolean, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
+                onAgain: ((BoardOrder) -> Unit)? = null) {
     val shape = RoundedCornerShape(6.dp)
     val kept = o.fetched && !o.sealed
     val (bg, fg, line) = when {
@@ -238,7 +243,13 @@ fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolea
     }
     // Owner, 24 Nov 2026: a compact pill; the tap target around it stays 48dp tall.
     Box(
-        Modifier.fillMaxWidth().minimumInteractiveComponentSize().clickable(enabled = on, role = androidx.compose.ui.semantics.Role.Button) { if (o.fetched) onOpen(o) else onGet(o) }
+        // REQ-051 D4: a long press on a kept copy offers Fetch Again From Court (also a screen reader action).
+        Modifier.fillMaxWidth().minimumInteractiveComponentSize().combinedClickable(
+            enabled = on, role = androidx.compose.ui.semantics.Role.Button,
+            // Every kept copy, sealed ones too, as the web offers it.
+            onLongClickLabel = if (o.fetched && onAgain != null && enabled) "Fetch Again From Court" else null,
+            onLongClick = if (o.fetched && onAgain != null && enabled) ({ onAgain(o) }) else null,
+        ) { if (o.fetched) onOpen(o) else onGet(o) }
             .semantics { contentDescription = if (busy) "Getting " + orderLabel(o) else orderHint(o) },
         contentAlignment = Alignment.Center,
     ) {
@@ -262,7 +273,8 @@ fun OrderButton(caption: String, o: BoardOrder, form: OrderForm, enabled: Boolea
  * parent may ask for intrinsic sizes. Until the first measure it shows the stacked form.
  */
 @Composable
-fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, modifier: Modifier = Modifier) {
+fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, modifier: Modifier = Modifier,
+                onAgain: ((BoardOrder) -> Unit)? = null) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val small = MaterialTheme.typography.labelSmall
@@ -274,7 +286,7 @@ fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, on
     val form = widthDp?.let { orderForm(it, widest) } ?: OrderForm.Stacked
     // The 48dp touch targets already part the 30dp pills by 18dp.
     Column(modifier.onSizeChanged { widthDp = with(density) { it.width.toDp().value } }) {
-        orders.forEachIndexed { i, o -> OrderButton(captions[i], o, form, enabled, o.id == fetchingId, onOpen, onGet) }
+        orders.forEachIndexed { i, o -> OrderButton(captions[i], o, form, enabled, o.id == fetchingId, onOpen, onGet, onAgain) }
     }
 }
 
@@ -284,11 +296,12 @@ fun OrderColumn(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, on
  */
 @Composable
 fun HearingSplit(orders: List<BoardOrder>, enabled: Boolean, fetchingId: Int?, onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit,
+                 onAgain: ((BoardOrder) -> Unit)? = null,
                  text: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     if (orders.isEmpty()) { Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp), content = text); return }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = text)
-        OrderColumn(orders, enabled, fetchingId, onOpen, onGet, Modifier.width(ORDER_COLUMN.dp))
+        OrderColumn(orders, enabled, fetchingId, onOpen, onGet, Modifier.width(ORDER_COLUMN.dp), onAgain)
     }
 }
 

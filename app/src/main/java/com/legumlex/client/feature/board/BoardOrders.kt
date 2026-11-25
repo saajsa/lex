@@ -243,7 +243,7 @@ internal const val TL_TEXT_GAP = 17
  */
 @Composable
 internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: Color?, enabled: Boolean, fetchingId: Int?,
-                             onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, mark: Sym? = null) {
+                             onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, mark: Sym? = null, onAgain: ((BoardOrder) -> Unit)? = null) {
     val ink = if (row.red) Lex.colors.danger.solid else Lex.colors.foreground
     val line = Lex.colors.border
     Row(
@@ -278,7 +278,7 @@ internal fun TimelineRowView(row: TimelineRow, today: java.time.LocalDate, dot: 
                 }
             }
             Text(row.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Lex.colors.foreground)
-            if (row.meta != null || row.orders.isNotEmpty()) HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet) {
+            if (row.meta != null || row.orders.isNotEmpty()) HearingSplit(row.orders, enabled, fetchingId, onOpen, onGet, onAgain) {
                 row.meta?.let { m -> Text(metaText(row.metaLabel, m, Lex.colors.mutedForeground), style = MaterialTheme.typography.bodySmall,
                     fontWeight = if (row.next && row.red) FontWeight.SemiBold else null, color = if (row.next && row.red) ink else Lex.colors.secondaryForeground) }
             }
@@ -297,6 +297,8 @@ internal fun CaseRecordSection(
     onOpen: (BoardOrder) -> Unit, onGet: (BoardOrder) -> Unit, fetchingId: Int? = null,
     nextDate: String? = null, dot: Color? = null, mark: Sym? = null, moved: Boolean = false,
     actions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
+    /** REQ-051 D4: a kept order's Fetch Again From Court (long press). */
+    onAgain: ((BoardOrder) -> Unit)? = null,
 ) {
     val today = BoardDates.today()
     val rows = timelineRows(r, nextDate, today, moved)
@@ -310,7 +312,7 @@ internal fun CaseRecordSection(
             Column(Modifier.padding(horizontal = 12.dp)) {
                 rows.forEachIndexed { i, row ->
                     if (i > 0) androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
-                    TimelineRowView(row, today, dot, enabled, fetchingId, onOpen, onGet, mark)
+                    TimelineRowView(row, today, dot, enabled, fetchingId, onOpen, onGet, mark, onAgain)
                 }
             }
         }

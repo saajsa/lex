@@ -590,7 +590,7 @@ internal fun stepThreeText(cost: Int) = "Your cause list is ready by 7 AM. Each 
 
 @Composable
 private fun StepThree(c: TodayCredits) = StepCard(
-    3, "We Check eCourts Every Morning",
+    3, "Your Morning Court Check",
     stepThreeText(c.cost),
 )
 

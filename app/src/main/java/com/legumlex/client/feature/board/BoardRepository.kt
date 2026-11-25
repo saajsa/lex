@@ -171,6 +171,14 @@ class BoardRepository(private val api: ApiService, private val cacheRoot: File?)
     /** Fetch one order's copy (charged once by the server; a kept copy is free). */
     suspend fun orderFetch(caseId: Int, orderId: Int): Result<OrderFetch> = runCatching { parseOrderFetch(data(api.boardOrderFetch(caseId, orderId))) }
 
+    /** Fetch Again From Court (REQ-051 D4): the new copy replaces the kept one, so this device's copy goes and the next open downloads it. */
+    suspend fun orderRefetch(caseId: Int, orderId: Int): Result<OrderFetch> = runCatching {
+        parseOrderFetch(data(api.boardOrderRefetch(caseId, orderId))).also { withContext(Dispatchers.IO) { orderCacheFile(caseId, orderId)?.delete() } }
+    }
+
+    /** This device's copy of an order (it may not exist). */
+    internal fun orderCacheFile(caseId: Int, orderId: Int): File? = ordersDir()?.let { File(it, "order_${caseId}_$orderId.pdf") }
+
     /** A kept order's file: from this device when it is here (free, works offline), else downloaded and kept under cache/board/orders. */
     suspend fun orderFile(caseId: Int, orderId: Int): Result<File> = runCatching {
         withContext(Dispatchers.IO) {
