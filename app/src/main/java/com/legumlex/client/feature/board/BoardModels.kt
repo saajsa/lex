@@ -199,7 +199,12 @@ data class CreditsData(
     val checked: CheckedStats = CheckedStats(null, 0, 0, 0),
     /** Announced cost changes, earliest first, from this counsel's own date (REQ-038 038.11); empty when none is pending. */
     val priceChanges: List<PriceChange> = emptyList(),
+    /** REQ-052: How Credits Work, the server's four points in its words (key, title, text); empty from an older server, and the section is hidden. */
+    val howCreditsWork: List<CreditTerm> = emptyList(),
 )
+
+/** One point of How Credits Work: [key] (result, record, success, worth) picks the app's icon; the words are the server's. */
+data class CreditTerm(val key: String, val title: String, val text: String)
 
 data class PriceChange(val action: String, val label: String, val now: Int, val next: Int, val from: String)
 
@@ -329,6 +334,8 @@ internal fun parseCredits(d: Map<String, Any?>): CreditsData {
         creditMonths = d["credit_months"].int(),
         spent = d["spent"].map().let { SpentStats(it["today"].int(), it["month"].int(), it["all"].int()) },
         checked = d["checked"].map().let { CheckedStats(it["at"].strOrNull(), it["cases"].int(), it["credits"].int(), it["on_check"].int()) },
+        howCreditsWork = d["how_credits_work"].list().map { CreditTerm(it["key"].str(), it["title"].str(), it["text"].str()) }
+            .filter { it.title.isNotBlank() && it.text.isNotBlank() },
         priceChanges = d["price_changes"].list().map { PriceChange(it["action"].str(), it["label"].str(), it["now"].int(), it["next"].int(), it["from"].str()) },
     )
 }

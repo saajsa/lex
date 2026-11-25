@@ -32,7 +32,10 @@ import androidx.compose.ui.layout.layout
 import kotlin.math.abs
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.CircularProgressIndicator
@@ -224,6 +227,8 @@ fun BoardCreditsScreen() {
                 }
             }
             refusal?.let { item { NoteLine(it, danger = true) } }
+            // REQ-052: How Credits Work, before Buy Credits as on the web; hidden when the server does not send it.
+            if (d.howCreditsWork.isNotEmpty()) item { HowCreditsWork(d.howCreditsWork) }
             item { Eyebrow("Buy Credits", modifier = Modifier.padding(start = 4.dp)) }
             if (d.packs.isEmpty()) item { NoteLine("No packs are on sale just now.") }
             else item { PackCarousel(d.packs, d, buying, pending != null, ::buy) }
@@ -255,6 +260,40 @@ fun BoardCreditsScreen() {
             }
         }
         item { Spacer(Modifier.height(8.dp)) }
+    }
+}
+
+/** The app's icon for a How Credits Work point (the server's Keenicons name is for the web only). */
+internal fun creditTermIcon(key: String): androidx.compose.ui.graphics.vector.ImageVector = when (key) {
+    "result" -> Icons.Outlined.ShoppingCart
+    "record" -> Icons.AutoMirrored.Outlined.MenuBook
+    "success" -> Icons.Outlined.CheckCircle
+    "worth" -> Icons.Outlined.AccountBalanceWallet
+    else -> Icons.Outlined.Info
+}
+
+/** How Credits Work: one card, each point led by its icon in a round badge, then the server's title and text. */
+@Composable
+private fun HowCreditsWork(terms: List<CreditTerm>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Eyebrow("How Credits Work", modifier = Modifier.padding(start = 4.dp))
+        LexCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                terms.forEach { t ->
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(
+                            Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Lex.colors.muted)
+                                .border(1.dp, Lex.colors.border, androidx.compose.foundation.shape.CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { androidx.compose.material3.Icon(creditTermIcon(t.key), null, tint = Lex.colors.foreground, modifier = Modifier.size(20.dp)) }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(t.title, style = MaterialTheme.typography.titleSmall, color = Lex.colors.foreground)
+                            Text(t.text, style = MaterialTheme.typography.bodySmall, color = Lex.colors.secondaryForeground)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
