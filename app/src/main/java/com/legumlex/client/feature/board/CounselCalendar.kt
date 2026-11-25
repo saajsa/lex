@@ -185,6 +185,16 @@ internal fun partiesText(petitioner: String, respondent: String, title: String, 
     }
 }
 
+/**
+ * The timeline's small number line: the case number (else the CNR). When the bold title line below reads the same (REQ-051 polish), only
+ * "CNR" for a CNR, or nothing for a case number, so it shows once.
+ */
+internal fun timelineNumberLine(c: BoardCase): String = when {
+    !titleRepeatsNumber(c) -> c.heading
+    c.caseNo.isBlank() -> cnrBlock(c.cnr).type
+    else -> ""
+}
+
 internal fun partiesText(c: BoardCase, muted: Color): AnnotatedString = partiesText(c.petitioner, c.respondent, c.title, c.cnr, muted)
 
 /**
@@ -202,7 +212,7 @@ internal fun TimelineCase(c: BoardCase, onOpen: () -> Unit, onAnswer: (NeedsEye,
     val vsColour = if (eye) Color(0xFF8A877F) else Color(0xFF8A877F)
     val nodeY = if (eye) 22.5.dp else 10.5.dp
     val body: @Composable () -> Unit = {
-        Text(c.heading, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = numberColour)
+        timelineNumberLine(c).takeIf { it.isNotEmpty() }?.let { Text(it, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, color = numberColour) }
         Text(partiesText(c, vsColour), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = titleColour)
         c.judgeShown.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.5.sp, fontStyle = FontStyle.Italic, color = judgeColour) }
         c.courtShown.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.5.sp, color = courtColour) }

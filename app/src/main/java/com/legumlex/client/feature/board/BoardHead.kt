@@ -47,15 +47,27 @@ internal fun CaseHeading(c: BoardCase) {
     val heading = androidx.compose.ui.text.TextStyle(fontFamily = com.legumlex.client.ui.theme.Display, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = Lex.colors.foreground)
     Column {
         Text(c.heading.uppercase(), style = heading.copy(fontSize = 22.sp, lineHeight = 24.sp, color = Lex.colors.secondaryForeground), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        var step by remember(c.id, c.title, c.petitioner, c.respondent) { mutableIntStateOf(0) }
-        val (sp, lines) = TITLE_STEPS[step]
-        Text(
-            partiesText(c, Lex.colors.mutedForeground), style = heading.copy(fontSize = sp.sp, lineHeight = (sp + 2).sp),
-            maxLines = lines, overflow = TextOverflow.Ellipsis,
-            onTextLayout = { r -> step = nextTitleStep(step, r.hasVisualOverflow) },
-        )
+        // The title would read as the line above (a case with no number whose server title is its CNR): shown once (REQ-051 polish).
+        if (!titleRepeatsNumber(c)) {
+            var step by remember(c.id, c.title, c.petitioner, c.respondent) { mutableIntStateOf(0) }
+            val (sp, lines) = TITLE_STEPS[step]
+            Text(
+                partiesText(c, Lex.colors.mutedForeground), style = heading.copy(fontSize = sp.sp, lineHeight = (sp + 2).sp),
+                maxLines = lines, overflow = TextOverflow.Ellipsis,
+                onTextLayout = { r -> step = nextTitleStep(step, r.hasVisualOverflow) },
+            )
+        }
     }
 }
+
+/**
+ * True when the title line would read the same as the number line, ignoring case and spaces. The server's title falls back to the CNR for a
+ * case with no parties (Board_model::short_title), and the number line is the CNR when there is no case number.
+ */
+internal fun titleRepeatsNumber(c: BoardCase): Boolean = sameText(partiesText(c, androidx.compose.ui.graphics.Color.Unspecified).text, c.heading)
+
+/** Equal ignoring case and whitespace. */
+internal fun sameText(a: String, b: String): Boolean = a.filterNot(Char::isWhitespace).equals(b.filterNot(Char::isWhitespace), ignoreCase = true)
 
 /** The board's switch: 40×24, the thumb slides on a spring and the track's colour crossfades; 48dp to touch, read as a switch; no spring under reduced motion. */
 internal const val TOGGLE_W = 40

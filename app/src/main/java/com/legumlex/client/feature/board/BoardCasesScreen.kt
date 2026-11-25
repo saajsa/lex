@@ -569,7 +569,19 @@ internal data class CaseNoBlock(val type: String, val number: String, val year: 
 
 internal fun caseNoBlock(caseNo: String, fallback: String): CaseNoBlock {
     val m = Regex("""^\s*(.+?)\s*/\s*(\w+)\s*/\s*(\d{4})\s*$""").find(caseNo)
-    return if (m != null) CaseNoBlock(m.groupValues[1], m.groupValues[2], m.groupValues[3]) else CaseNoBlock("", caseNo.trim().ifBlank { fallback }, "")
+    if (m != null) return CaseNoBlock(m.groupValues[1], m.groupValues[2], m.groupValues[3])
+    if (caseNo.isNotBlank()) return CaseNoBlock("", caseNo.trim(), "")
+    return cnrBlock(fallback.trim())
+}
+
+/**
+ * No case number yet (REQ-051 polish): "CNR" small, then the CNR's tail whole, never cut. A CNR (4 letters, 2 digits of court, a 6-digit
+ * serial, the 4-digit year) gives its serial and year, as the number and year of a case number; another form gives its last 6 characters.
+ */
+internal fun cnrBlock(cnr: String): CaseNoBlock {
+    if (cnr.isEmpty()) return CaseNoBlock("", "", "")
+    val m = Regex("""^[A-Za-z]{4}\d{2}(\d{6})(\d{4})$""").find(cnr)
+    return if (m != null) CaseNoBlock("CNR", m.groupValues[1], m.groupValues[2]) else CaseNoBlock("CNR", cnr.takeLast(6), "")
 }
 
 /** The number's size in the 56dp block: the hearing day's 24sp for up to 3 characters, then smaller so it never wraps. */

@@ -16,7 +16,13 @@ class CaseListTest {
         assertEquals(CaseNoBlock("CS", "04007", "2026"), caseNoBlock("CS/04007/2026", "CNR"))
         assertEquals(CaseNoBlock("PHONE", "2", "2026"), caseNoBlock(" PHONE / 2 / 2026 ", "CNR"))
         assertEquals(CaseNoBlock("", "Writ 55", ""), caseNoBlock("Writ 55", "CNR"))                    // another form: whole, no type or year
-        assertEquals(CaseNoBlock("", "DLHC010012342026", ""), caseNoBlock("", "DLHC010012342026"))     // no number yet: the CNR
+        // No number yet (REQ-051 polish): "CNR" small, the CNR's serial and year, never cut.
+        assertEquals(CaseNoBlock("CNR", "001234", "2026"), caseNoBlock("", "DLHC010012342026"))
+        assertEquals(CaseNoBlock("CNR", "000041", "2026"), caseNoBlock("  ", "ZZMM010000412026"))
+        assertEquals(CaseNoBlock("CNR", "ABC123", ""), caseNoBlock("", "ODD-CNR-ABC123"))               // another form: its last 6
+        assertEquals(CaseNoBlock("", "", ""), caseNoBlock("", ""))
+        // The block's number always fits: 6 characters at most is 14sp, never the ellipsis.
+        assertEquals(14, caseNoFontSp(caseNoBlock("", "ZZMM010000412026").number.length))
     }
 
     @Test fun longNumbersShrinkNeverWrap() {

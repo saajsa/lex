@@ -65,4 +65,29 @@ class CaseHeadTest {
         val heading = head.substringAfter("internal fun CaseHeading(").substringBefore("\n}\n")
         assertTrue(heading.indexOf("c.heading.uppercase()") < heading.indexOf("partiesText(c"))   // the number, then the title
     }
+
+    // REQ-051 polish: the title line is dropped when it reads as the number line. The shape is dev case 16791 as customers_api sends it:
+    // no case number, no parties, and title = the CNR (Board_model::short_title falls back to cino).
+    private fun stub(vararg kv: Pair<String, Any?>) = parseCase(mapOf("id" to 16791.0, "cnr" to "ZZMM010000932026", "case_no" to "",
+        "title" to "ZZMM010000932026", "petitioner" to "", "respondent" to "") + kv)
+
+    @Test fun theCnrShowsOnceInTheHeader() {
+        assertTrue(titleRepeatsNumber(stub()))
+        assertTrue(titleRepeatsNumber(stub("title" to "")))                     // no title at all: the CNR fallback
+        assertTrue(titleRepeatsNumber(stub("title" to " zzmm 0100 0093 2026 ")))  // case and spaces ignored
+        assertTrue(titleRepeatsNumber(stub("petitioner" to "A", "title" to "")))  // one party alone names nothing
+        assertFalse(titleRepeatsNumber(stub("case_no" to "CS/93/2026")))         // a number: the CNR title is a different line
+        assertFalse(titleRepeatsNumber(stub("title" to "A v. B")))
+        assertFalse(titleRepeatsNumber(stub("petitioner" to "A", "respondent" to "B")))
+        assertTrue(titleRepeatsNumber(stub("case_no" to "Writ 55", "title" to "WRIT 55")))
+        assertTrue(sameText("A B", "ab")); assertFalse(sameText("AB", "ABC"))
+    }
+
+    @Test fun theCalendarShowsTheCnrOnce() {
+        assertEquals("CNR", timelineNumberLine(stub()))
+        assertEquals("ZZMM010000932026", partiesText(stub(), androidx.compose.ui.graphics.Color.Gray).text)
+        assertEquals("CS/93/2026", timelineNumberLine(stub("case_no" to "CS/93/2026")))
+        assertEquals("ZZMM010000932026", timelineNumberLine(stub("title" to "A v. B")))   // a title but no number: the CNR line, as before
+        assertEquals("", timelineNumberLine(stub("case_no" to "Writ 55", "title" to "Writ 55")))
+    }
 }
