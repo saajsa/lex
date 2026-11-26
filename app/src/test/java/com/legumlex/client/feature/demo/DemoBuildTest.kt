@@ -102,3 +102,13 @@ class DemoMobileNoteTest {
         assertNull(com.legumlex.client.feature.profile.parseMobile(mapOf("unavailable_note" to "  ")).unavailableNote)
     }
 }
+
+/** REQ-055 option (b): Feedback On Google Play opens the listing in the Play Store app, else Play's web page. */
+class PlayListingTest {
+    @Test fun thePlayStoreAppFirstThenTheWebPage() {
+        val t = playListingTargets("com.legumlex.client")
+        assertEquals(listOf("market://details?id=com.legumlex.client" to "com.android.vending",
+            "https://play.google.com/store/apps/details?id=com.legumlex.client" to null), t)
+        assertEquals("Google Play is not available on this phone.", PLAY_UNAVAILABLE)
+    }
+}

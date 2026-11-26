@@ -166,3 +166,24 @@ fun FeedbackWizard(onClose: () -> Unit, onSent: (String) -> Unit) {
         }
     }
 }
+
+// ---- Feedback On Google Play (REQ-055, option b): the app's Play listing, where a closed tester's feedback reaches us privately ----
+
+internal const val PLAY_STORE_PACKAGE = "com.android.vending"
+internal const val PLAY_UNAVAILABLE = "Google Play is not available on this phone."
+
+/** Where the listing is opened, in order: the Play Store app, then Play's web page in any browser. */
+internal fun playListingTargets(appId: String): List<Pair<String, String?>> = listOf(
+    "market://details?id=$appId" to PLAY_STORE_PACKAGE,
+    "https://play.google.com/store/apps/details?id=$appId" to null,
+)
+
+/** Opens the first target that something on the phone handles; false when none does. */
+fun openPlayListing(context: Context): Boolean = playListingTargets(BuildConfig.APPLICATION_ID).any { (uri, pkg) ->
+    runCatching {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+            pkg?.let { setPackage(it) }
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }.isSuccess
+}
