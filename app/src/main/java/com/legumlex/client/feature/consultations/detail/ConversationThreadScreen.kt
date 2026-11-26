@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.feature.demo.liftsFeedbackFab
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -105,7 +106,7 @@ fun ConversationThreadScreen(
     ) } == true
 
     Scaffold(
-        bottomBar = {
+        bottomBar = { /* REQ-055: the floating Feedback button sits above this bar */ androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.liftsFeedbackFab()) {
             if (ready == null) {
                 // Nothing to reply to until the consultation has loaded.
             } else if (locked) {
@@ -125,7 +126,7 @@ fun ConversationThreadScreen(
                     isSending = isSending,
                 )
             }
-        },
+        } },
         containerColor = MaterialTheme.colorScheme.background,
         // Edge-to-edge: the composer rides above the keyboard.
         modifier = Modifier.imePadding(),

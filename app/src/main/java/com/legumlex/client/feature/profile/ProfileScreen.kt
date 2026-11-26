@@ -31,11 +31,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.RateReview
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Feedback
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -139,45 +134,6 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
         }
 
         MobileCard(p.mobile, verify, note, vm)
-
-        // REQ-055: Send Feedback, on a demo sign-in only.
-        val demoNote by com.legumlex.client.feature.demo.DemoSession.note.collectAsState()
-        if (demoNote != null) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            var feedback by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
-            LexCard(title = "Feedback") {
-                Row(
-                    Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.Button) { feedback = true }.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Feedback, null, tint = Lex.colors.foreground, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text("Send Feedback", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
-                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(20.dp))
-                }
-                androidx.compose.material3.HorizontalDivider(color = Lex.colors.border)
-                // Google Play's own tester feedback: the listing, where a closed tester's words reach us privately (REQ-055, option b).
-                Row(
-                    Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.Button) {
-                        if (!com.legumlex.client.feature.demo.openPlayListing(ctx))
-                            android.widget.Toast.makeText(ctx, com.legumlex.client.feature.demo.PLAY_UNAVAILABLE, android.widget.Toast.LENGTH_LONG).show()
-                    }.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.RateReview, null, tint = Lex.colors.foreground, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(12.dp))
-                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-                        Text("Feedback On Google Play", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground)
-                        Text("Opens Google Play. What you write there reaches us privately.", style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
-                    }
-                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Outlined.OpenInNew, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(18.dp))
-                }
-            }
-            if (feedback) com.legumlex.client.feature.demo.FeedbackWizard(onClose = { feedback = false }, onSent = { msg ->
-                feedback = false
-                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
-            })
-        }
 
         // Appearance: the portal's Dark Mode switch, with the phone's own setting as the default.
         LexCard(title = "Appearance") {

@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.hearings
 
+import com.legumlex.client.feature.demo.liftsFeedbackFab
 import android.app.Application
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -67,9 +68,9 @@ fun HearingDetailScreen(
     val state by vm.state.collectAsState()
 
     Scaffold(
-        bottomBar = {
+        bottomBar = { /* REQ-055: the floating Feedback button sits above this bar */ androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.liftsFeedbackFab()) {
             (state as? HearingDetailUiState.Ready)?.let { StickyActions(it.hearing) }
-        },
+        } },
         containerColor = MaterialTheme.colorScheme.background,
     ) { inner ->
         Box(Modifier.fillMaxSize().padding(inner)) {

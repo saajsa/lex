@@ -1,5 +1,6 @@
 package com.legumlex.client.feature.consultations.detail
 
+import com.legumlex.client.feature.demo.liftsFeedbackFab
 import com.legumlex.client.ahc.theme.Mono
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -102,7 +103,7 @@ fun DetailGeneral(
         // The app-wide header already consumes the status-bar inset; without this
         // the nested Scaffold re-adds it as a fixed empty band under the header.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
+        bottomBar = { /* REQ-055: the floating Feedback button sits above this bar */ androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.liftsFeedbackFab()) {
             if (!consultation.heldBooking()) Composer(
                 value = composing,
                 onChange = { composing = it },
@@ -117,7 +118,7 @@ fun DetailGeneral(
                 resolved = consultation.status == ConsultationStatus.COMPLETED,
                 advocate = advName(consultation.assignedTo),
             )
-        },
+        } },
     ) { inner ->
         Column(
             modifier = Modifier

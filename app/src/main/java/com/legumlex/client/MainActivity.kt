@@ -352,6 +352,10 @@ private fun AppShell(deepLinkIntent: Intent?) {
                     Box(Modifier.padding(bottom = lift)) { LegumNavGraph(navController) }
                 }
             }
+            // REQ-055: the demo's floating Feedback button, above the tab bar (or the counsel bar's zone) and the screen's own bar.
+            if (!paused && !edge) com.legumlex.client.feature.demo.FeedbackFab(
+                currentRoute, barRoom = if (behind) clearance else innerPadding.calculateBottomPadding() + lift,
+            )
             // Paused: covers the whole app (header and bar too) until the person signs out.
             if (paused) Box(Modifier.fillMaxSize()) {
                 com.legumlex.client.feature.workspace.WorkspacePausedScreen(onSignOut = { confirmSignOut = true })

@@ -112,3 +112,25 @@ class PlayListingTest {
         assertEquals("Google Play is not available on this phone.", PLAY_UNAVAILABLE)
     }
 }
+
+/** REQ-055 (owner: "Add a floating button instead."): where the floating Feedback button shows and how high it sits. */
+class FeedbackFabTest {
+    @Test fun demoOnlyOnTabBarScreensAndNeverWithTheKeyboard() {
+        assertTrue(feedbackFabShown(demo = true, route = "home", keyboard = false))
+        assertFalse(feedbackFabShown(demo = false, route = "home", keyboard = false))
+        assertFalse(feedbackFabShown(demo = true, route = "home", keyboard = true))
+        assertFalse(feedbackFabShown(demo = true, route = "login", keyboard = false))
+        assertFalse(feedbackFabShown(demo = true, route = "consultations/new?preset=&account=", keyboard = false))   // the desk keeps its own room
+        assertFalse(feedbackFabShown(demo = true, route = null, keyboard = false))
+    }
+
+    @Test fun itSitsAboveTheBarsWithAMargin() {
+        assertEquals(androidx.compose.ui.unit.Dp(92f), feedbackFabBottom(androidx.compose.ui.unit.Dp(80f), androidx.compose.ui.unit.Dp(0f)))
+        assertEquals(androidx.compose.ui.unit.Dp(156f), feedbackFabBottom(androidx.compose.ui.unit.Dp(80f), androidx.compose.ui.unit.Dp(64f)))
+    }
+
+    @Test fun profileHasNoFeedbackCardAnyMore() {
+        val f = java.io.File("src/main/java/com/legumlex/client/feature/profile/ProfileScreen.kt").takeIf { it.isFile } ?: return
+        assertFalse(f.readText().contains("FeedbackWizard")); assertFalse(f.readText().contains("openPlayListing"))
+    }
+}
