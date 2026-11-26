@@ -9,6 +9,8 @@ import com.razorpay.Checkout
 class LegumLexApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // REQ-055: the demo's error reports (nothing is saved or sent outside a demo sign-in).
+        com.legumlex.client.feature.demo.ErrorReports.install(this)
         // Hearing reminders come from the firm, by email and push; the app's
         // own alarms never fired. Installs that created their channel lose it.
         getSystemService<NotificationManager>()?.deleteNotificationChannel("hearing_reminders")

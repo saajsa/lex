@@ -148,15 +148,19 @@ fun LoginScreen(
         if (state is LoginState.Success) onLoginSuccess()
     }
     val onCodeStep = mobile.ref != null
-    BackHandler(enabled = view != LoginView.Choose || onCodeStep) { if (onCodeStep) vm.changeNumber() else vm.show(LoginView.Choose) }
     // Lex Intelligence's chat takes over the bottom half; Back closes it first (the last handler registered answers first).
     var chat by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = chat) { chat = false }
     val still = com.legumlex.client.feature.board.rememberReducedMotion()
     val pageScroll = rememberScrollState()
     // google_config's switches decide which petals show and where each goes (read once, as the page opens).
     var switches by remember { mutableStateOf(DeskSwitches()) }
     LaunchedEffect(Unit) { switches = deskSwitches(runCatching { ApiClient.get(context).googleConfig() }.getOrNull()) }
+    // REQ-055: on the demo, straight to email and password; no mobile form, Google or guest Lex.
+    val demo = demoSignIn(switches, BuildConfig.TARGET)
+    LaunchedEffect(demo) { if (demo) vm.show(LoginView.Email) }
+    BackHandler(enabled = !demo && (view != LoginView.Choose || onCodeStep)) { if (onCodeStep) vm.changeNumber() else vm.show(LoginView.Choose) }
+    // Registered after the view's handler, so an open chat closes first.
+    BackHandler(enabled = chat) { chat = false }
     var start by remember { mutableStateOf<PanelStart?>(null) }
     var arcOpen by remember { mutableStateOf(false) }
     // The first-time hint: shown until the button has been touched once, or the screen has been seen three times without a touch.
@@ -233,7 +237,7 @@ fun LoginScreen(
             // The card, with Email and Google on its bottom edge (all hidden during the code step; no envelope in the Email view).
             SignInCard(
                 onBottom = { squaresBottom = it },
-                actions = edgeActions(codeStep = onCodeStep, emailView = view == LoginView.Email), busy = isLoading,
+                actions = edgeActions(codeStep = onCodeStep, emailView = view == LoginView.Email, demo = demo), busy = isLoading,
                 onAction = { a -> runSignInAction(a, { vm.show(LoginView.Email) }, signInWithGoogle) },
             ) {
                 // The number view takes the Email view's laid-out height (the owner's height), so the card does not change size when switching;
@@ -261,7 +265,7 @@ fun LoginScreen(
                                 when (v) {
                                     LoginView.Choose -> NumberRow(vm = vm, mobile = mobile, busy = isLoading)
                                     LoginView.Mobile -> CodeStep(vm = vm, mobile = mobile, busy = isLoading)
-                                    LoginView.Email -> EmailView(vm = vm, busy = isLoading, onBack = { vm.show(LoginView.Choose) })
+                                    LoginView.Email -> EmailView(vm = vm, busy = isLoading, onBack = if (demo) null else ({ vm.show(LoginView.Choose) }))
                                 }
                             }
                         }
@@ -294,7 +298,7 @@ fun LoginScreen(
             // Lex Intelligence, the orb, centred below the Debug chip (ORB_GAP under it, so its arc of petals clears the card's squares and the chip);
             // it goes while the chat is open and its place stays. The date and maxim stay at the foot.
             // The AI texture fills the space round the orb (below the chip and the squares, above the date), behind the orb, its ripple and the arc.
-            Box(Modifier.fillMaxWidth()) {
+            if (!demo) Box(Modifier.fillMaxWidth()) {
                 AiTexture(Modifier.matchParentSize(), belowDp = with(density) { belowPx.toDp().value }, show = texAlpha, reduced = still)
                 Column {
                     // The first-time hint sits in the band above the button, centred on it, with a pointer down to it; not while the arc is open.
@@ -445,8 +449,8 @@ internal val OrbInk = androidx.compose.ui.graphics.Color(0xFF151513)
  * The buttons on the card's bottom edge, left to right: Email, Google. None in the code step; only Google in the Email view
  * (Google keeps the right-hand place and Lex Intelligence the one beside it).
  */
-internal fun edgeActions(codeStep: Boolean, emailView: Boolean): List<SignInAction> = when {
-    codeStep -> emptyList()
+internal fun edgeActions(codeStep: Boolean, emailView: Boolean, demo: Boolean = false): List<SignInAction> = when {
+    codeStep || demo -> emptyList()
     emailView -> listOf(SignInAction.Google)
     else -> listOf(SignInAction.Email, SignInAction.Google)
 }
@@ -1095,7 +1099,7 @@ internal fun numberReady(abroad: Boolean, number: String): Boolean =
 
 
 @Composable
-private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean, onBack: () -> Unit) {
+private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean, onBack: (() -> Unit)?) {
     val spacing = LocalSpacing.current
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -1149,7 +1153,8 @@ private fun ColumnScope.EmailView(vm: LoginViewModel, busy: Boolean, onBack: () 
 
     // One tidy row: Back on the left, the round sign-in arrow on the right.
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        BackPill(enabled = !busy, onClick = onBack)
+        // No way back to the mobile form on the demo (REQ-055).
+        if (onBack != null) BackPill(enabled = !busy, onClick = onBack)
         Spacer(Modifier.weight(1f))
         RoundArrow(label = "Sign in", enabled = email.isNotBlank() && password.isNotBlank() && !busy, busy = busy) { vm.onEmailLogin(email.trim(), password) }
     }

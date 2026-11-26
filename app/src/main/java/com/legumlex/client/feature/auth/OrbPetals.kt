@@ -14,11 +14,19 @@ enum class Petal(val label: String) {
 }
 
 /** google_config's switches, read before sign-in: account_desk and counsel_desk (the desk takes the wish), sign_up (the newcomer's screens are open). */
-data class DeskSwitches(val accountDesk: Boolean = false, val counselDesk: Boolean = false, val signUp: Boolean = false)
+data class DeskSwitches(val accountDesk: Boolean = false, val counselDesk: Boolean = false, val signUp: Boolean = false,
+                        /** REQ-055: the demo host (google_config `demo: true`): email and password only. */
+                        val demo: Boolean = false)
 
 /** Reads the switches from google_config. A field the server does not send yet (account_desk before 013.17a) is off. */
 fun deskSwitches(config: Map<String, Any?>?): DeskSwitches =
-    DeskSwitches(config?.get("account_desk") == true, config?.get("counsel_desk") == true, config?.get("sign_up") == true)
+    DeskSwitches(config?.get("account_desk") == true, config?.get("counsel_desk") == true, config?.get("sign_up") == true, config?.get("demo") == true)
+
+/**
+ * REQ-055: the demo's sign-in is email and password only (the demo refuses mobile codes, has no Google client and no guest Lex):
+ * when the server says it is the demo host, or the build is the closed-test one.
+ */
+fun demoSignIn(s: DeskSwitches, target: String): Boolean = s.demo || target == "demo"
 
 const val MSG_OPEN_ACCOUNT = "I would like to open an account"
 const val MSG_REGISTER_COUNSEL = "I would like to register as counsel"

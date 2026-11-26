@@ -8,6 +8,7 @@ import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.Headers
 import retrofit2.http.Multipart
+import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -614,6 +615,18 @@ interface ApiService {
         @Path("id") discussionId: String,
         @Field("content") content: String,
     ): Map<String, Any?>
+
+    // --- REQ-055: the demo's feedback and error reports ---
+
+    /** Send Feedback: message (1–4000), optional screenshot (jpeg/png ≤5 MB), screen, app_version, version_code, os, device → {status, message}. */
+    @Multipart
+    @POST("app/feedback")
+    suspend fun appFeedback(@Part parts: List<MultipartBody.Part>): Map<String, Any?>
+
+    /** The app's error reports, up to 10 ({reports:[…]}) → {status, accepted:[ids]}. Sent without the sign-in: a stale one must never sign the person out. */
+    @Headers("X-Skip-Auth: 1")
+    @POST("app/errors")
+    suspend fun appErrors(@Body body: @JvmSuppressWildcards Map<String, Any?>): Map<String, Any?>
 
     // --- Mobile device (FCM) registration ---
 

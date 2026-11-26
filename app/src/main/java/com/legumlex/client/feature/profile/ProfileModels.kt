@@ -30,7 +30,12 @@ data class Mobile(
     val updates: Boolean,     // case updates on WhatsApp/SMS
     /** The firm marked this contact as the same person as another: that account's name; its number is used. */
     val sharedWith: String? = null,
+    /** REQ-055 (demo only): why codes cannot be sent, in the server's words; shown in place of the app's own line. */
+    val unavailableNote: String? = null,
 )
+
+/** The line shown when no code can be sent: the server's unavailable_note, else the app's own. */
+internal fun mobileUnavailableLine(m: Mobile): String = m.unavailableNote ?: "Verification codes cannot be sent at present. Please try again later."
 
 @Suppress("UNCHECKED_CAST")
 internal fun parseProfile(d: Map<String, Any?>): Profile {
@@ -62,4 +67,5 @@ internal fun parseMobile(m: Map<String, Any?>) = Mobile(
     verified  = m["verified"] == true,
     updates   = m["updates"] == true,
     sharedWith = ((m["shared_with"] as? Map<*, *>)?.get("label") as? String)?.takeIf { it.isNotBlank() },
+    unavailableNote = (m["unavailable_note"] as? String)?.trim()?.takeIf { it.isNotBlank() },
 )

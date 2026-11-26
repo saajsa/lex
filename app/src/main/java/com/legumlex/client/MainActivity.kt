@@ -88,6 +88,8 @@ private fun AppShell(deepLinkIntent: Intent?) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val canPop = navController.previousBackStackEntry != null
+    // REQ-055: the error reporter names the screen a crash happened on.
+    LaunchedEffect(currentRoute) { com.legumlex.client.feature.demo.ErrorReports.screen = currentRoute?.substringBefore("?").orEmpty() }
 
     // Re-evaluate deep links whenever the activity hands us a new intent
     // (notification taps after launch). The NavController matches the
@@ -264,7 +266,7 @@ private fun AppShell(deepLinkIntent: Intent?) {
     val darkRoute = currentRoute?.substringBefore("?") == Route.BoardSheet.path.substringBefore("?") || orderViewer
     Scaffold(
         containerColor = if (darkRoute) com.legumlex.client.ui.theme.Zinc950 else com.legumlex.client.ui.theme.Lex.colors.background,
-        topBar = {
+        topBar = { androidx.compose.foundation.layout.Column {
             if (showAppHeader(currentRoute)) {
                 val headerBody: @Composable () -> Unit = { AppHeader(
                     showBack = showHeaderBack(currentRoute, canPop),
@@ -300,8 +302,10 @@ private fun AppShell(deepLinkIntent: Intent?) {
                 androidx.compose.animation.Crossfade(headerDark, animationSpec = androidx.compose.animation.core.tween(if (reduced) 0 else 900), label = "header") { d ->
                     if (d) androidx.compose.runtime.CompositionLocalProvider(com.legumlex.client.ui.theme.LocalLexColors provides com.legumlex.client.feature.board.UpgradeRoomColors) { headerBody() } else headerBody()
                 }
+                // REQ-055: a demo sign-in says so under the header, on every signed-in screen.
+                com.legumlex.client.feature.demo.DemoBanner()
             }
-        },
+        } },
         bottomBar = { if (showAppFooter(currentRoute) && !waiting) LegumBottomBar(navController, lead, counsel) },
     ) { innerPadding ->
         // The paper grain is the page's alone: the header and bottom bar are

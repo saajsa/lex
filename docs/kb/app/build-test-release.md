@@ -75,6 +75,7 @@ The repo is on the Windows drive (`B:\and_studio\legum-lex-android` = `/mnt/b/an
 |---|---|
 | `/mnt/b/and_studio/_build/client.bat` | `JAVA_HOME=C:\Program Files\Android\Android Studio\jbr`, `cd /d B:\and_studio\legum-lex-android`, `gradlew.bat assembleDebug --console=plain -q` |
 | `%TEMP%\lexclient.bat` (2026-11-25) | Android Studio's `jbr` has lost `lib\jvm.cfg` and does not start, so `client.bat` fails; this batch sets `JAVA_HOME=B:\and_studio\jdk21`, `cd /d B:\and_studio\legum-lex-android`, `call gradlew.bat %*`; run as `timeout 595 cmd.exe /c '%TEMP%\lexclient.bat testDebugUnitTest assembleDebug --console=plain -q'` [SESSION REQ-051] |
+| `/mnt/b/and_studio/_build/client-demo-release.bat` (REQ-055, 2026-11-26) | The Play closed-test bundle against https://demo.legumlex.com: JDK 21 (`B:\and_studio\jdk21`), `gradlew.bat bundleRelease -PlexTarget=demo`. The build prints `Release target: demo -> https://demo.legumlex.com/customers_api/v1/`. Signing as the normal release (keystore.properties). |
 | `/mnt/b/and_studio/_build/client-release.bat` | same, `bundleRelease` (owner's job) |
 | `lexgw.bat` (older) | `%USERPROFILE%\AppData\Local\Temp\lexgw.bat`: JBR `JAVA_HOME` + `gradlew.bat %*`, run as `timeout 595 cmd.exe /c '…lexgw.bat' assembleDebug -q`, with a scratch `kc.sh` compile helper [SESSION 3adfe568 2026-10-19T11:46 (C17)]. Not found on the mounted drives on 11-07 [ASSUMPTION: still in Windows %TEMP%] |
 
@@ -118,3 +119,8 @@ History: the repo arrived without a Gradle wrapper; one was generated and copied
 - Current Play track and version for com.legumlex.client (closed / internal test, 0.4.1 code 8 or later).
 - Were the GoDaddy bot-challenge exemption and the Android OAuth SHA-1 registrations done?
 - Whether the saajsa/lex repo was made private.
+
+## Closed-test (demo) release (REQ-055, built 2026-11-26, uncommitted)
+- `app/build.gradle.kts` release block reads the Gradle property `lexTarget`: absent or `live` = www (the production release, unchanged); `demo` = https://demo.legumlex.com/customers_api/v1/; anything else stops the build. `BuildConfig.TARGET` is `live`, `demo` or `debug`. No flavour or build type was added: debug and its outputs are as before.
+- Version 0.5.0 (9) for both targets: only one upload can be 9, so the next www release takes 10 or more.
+- From Android Studio: Generate Signed Bundle passes no `-P`. Either run the Gradle task with the property (Run Anything, `gradle bundleRelease -PlexTarget=demo`, or a Gradle run configuration with that argument), or add `-PlexTarget=demo` under Settings > Build, Execution, Deployment > Compiler > Command-line Options for the demo build and remove it afterwards. Check the build output for "Release target: demo" before uploading.

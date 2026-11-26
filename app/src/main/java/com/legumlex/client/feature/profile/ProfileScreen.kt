@@ -31,6 +31,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Feedback
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -134,6 +137,28 @@ private fun ProfileBody(p: Profile, verify: VerifyFlow, note: String?, vm: Profi
         }
 
         MobileCard(p.mobile, verify, note, vm)
+
+        // REQ-055: Send Feedback, on a demo sign-in only.
+        val demoNote by com.legumlex.client.feature.demo.DemoSession.note.collectAsState()
+        if (demoNote != null) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            var feedback by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+            LexCard(title = "Feedback") {
+                Row(
+                    Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.Button) { feedback = true }.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Feedback, null, tint = Lex.colors.foreground, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("Send Feedback", style = MaterialTheme.typography.bodyMedium, color = Lex.colors.foreground, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Lex.colors.mutedForeground, modifier = Modifier.size(20.dp))
+                }
+            }
+            if (feedback) com.legumlex.client.feature.demo.FeedbackWizard(onClose = { feedback = false }, onSent = { msg ->
+                feedback = false
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+            })
+        }
 
         // Appearance: the portal's Dark Mode switch, with the phone's own setting as the default.
         LexCard(title = "Appearance") {
@@ -279,7 +304,7 @@ private fun MobileCard(m: Mobile, v: VerifyFlow, note: String?, vm: ProfileViewM
                     if (m.available) {
                         LegumPrimaryButton(text = if (m.number != null) "Verify Number" else "Verify A Number", onClick = vm::openVerify, leadingIcon = Icons.Outlined.Smartphone)
                     } else {
-                        Text("Verification codes cannot be sent at present. Please try again later.",
+                        Text(mobileUnavailableLine(m),
                             style = MaterialTheme.typography.bodySmall, color = Lex.colors.mutedForeground)
                     }
                 }

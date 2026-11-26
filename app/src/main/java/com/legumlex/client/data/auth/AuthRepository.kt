@@ -173,6 +173,10 @@ class AuthRepository(
             role      = role,
             status    = (data["status"] as? String).orEmpty(),
         )
+        // REQ-055: the demo host marks its sign-ins; the banner, Send Feedback and the error reporter follow it.
+        val demo = data["demo"] == true
+        tokens.saveDemo(demo, data["demo_note"] as? String)
+        com.legumlex.client.feature.demo.ErrorReports.markHost(demo)
 
         // Subscribe this device to the contact's Beams interest so the
         // server can target pushes at the specific human, not the install.

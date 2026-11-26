@@ -19,6 +19,9 @@ class TokenStore(private val context: Context) {
     // "client" or "lead" (SessionRole); a sign-in from before leads is a client's.
     private val roleKey      = stringPreferencesKey("role")
     private val statusKey    = stringPreferencesKey("lead_status")
+    // REQ-055: the server marked this sign-in as the demo's ("1"), with its banner line.
+    private val demoKey      = stringPreferencesKey("demo")
+    private val demoNoteKey  = stringPreferencesKey("demo_note")
 
     val token: Flow<String?> = context.dataStore.data.map { it[tokenKey] }
 
@@ -39,6 +42,16 @@ class TokenStore(private val context: Context) {
     suspend fun loadRole() {
         val p = context.dataStore.data.first()
         SessionRole.set(p[roleKey] ?: "client", p[statusKey])
+        com.legumlex.client.feature.demo.DemoSession.set(p[demoKey] == "1", p[demoNoteKey])
+    }
+
+    /** REQ-055: whether the server marked the sign-in as the demo's (`demo`, `demo_note` in its data). */
+    suspend fun saveDemo(demo: Boolean, note: String?) {
+        context.dataStore.edit {
+            if (demo) it[demoKey] = "1" else it.remove(demoKey)
+            if (demo && !note.isNullOrBlank()) it[demoNoteKey] = note else it.remove(demoNoteKey)
+        }
+        com.legumlex.client.feature.demo.DemoSession.set(demo, note)
     }
 
     /** Who this phone is signed in as, for what is kept per account (the desk's unsent draft): "guest" with no token, else the role and contact. */
@@ -56,5 +69,6 @@ class TokenStore(private val context: Context) {
     suspend fun clear() {
         context.dataStore.edit { it.clear() }
         SessionRole.set(null)
+        com.legumlex.client.feature.demo.DemoSession.set(false, null)
     }
 }

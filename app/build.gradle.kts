@@ -57,8 +57,8 @@ android {
         applicationId = "com.legumlex.client"
         minSdk = 28
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.4.1"
+        versionCode = 9
+        versionName = "0.5.0"
 
         vectorDrawables { useSupportLibrary = true }
 
@@ -97,6 +97,7 @@ android {
             // Paste the new https://...trycloudflare.com/customers_api/v1/ URL
             // into local.properties as: API_BASE_URL=https://.../customers_api/v1/
             buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+            buildConfigField("String", "TARGET", "\"debug\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
             buildConfigField("String", "BEAMS_INSTANCE_ID", "\"$beamsInstanceId\"")
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"$devLoginEmail\"")
@@ -107,7 +108,17 @@ android {
             isMinifyEnabled = false
         }
         release {
-            buildConfigField("String", "API_BASE_URL", "\"https://www.legumlex.com/customers_api/v1/\"")
+            // REQ-055: `-PlexTarget=demo` builds the Play closed test against the demo host; absent or `live` is the
+            // production release as before; anything else stops the build. One versionCode per upload across both.
+            val lexTarget = (project.findProperty("lexTarget") as String?)?.trim()?.ifEmpty { null } ?: "live"
+            val releaseApiBase = when (lexTarget) {
+                "live" -> "https://www.legumlex.com/customers_api/v1/"
+                "demo" -> "https://demo.legumlex.com/customers_api/v1/"
+                else -> throw GradleException("lexTarget must be live or demo, not '$lexTarget'")
+            }
+            logger.lifecycle("Release target: $lexTarget -> $releaseApiBase")
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBase\"")
+            buildConfigField("String", "TARGET", "\"$lexTarget\"")
             buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
             buildConfigField("String", "BEAMS_INSTANCE_ID", "\"$beamsInstanceId\"")
             buildConfigField("String", "DEV_LOGIN_EMAIL", "\"\"")
